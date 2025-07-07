@@ -1,0 +1,26 @@
+[package]
+name = "fact"
+version = "0.1.0"
+edition = "2021"
+
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true, default-features = true }
+aya = { workspace = true }
+env_logger = { workspace = true }
+libc = { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true, features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "net",
+    "signal",
+] }
+[build-dependencies]
+anyhow = { workspace = true }
+
+[[bin]]
+name = "fact"
+path = "src/main.rs"
