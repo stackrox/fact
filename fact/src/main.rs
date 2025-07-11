@@ -6,6 +6,7 @@ use tokio::{io::unix::AsyncFd, signal, task::yield_now};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Event {
     comm: String,
@@ -66,7 +67,6 @@ async fn main() -> anyhow::Result<()> {
     program.attach()?;
 
     tokio::spawn(async move {
-        println!("Starting task...");
         loop {
             let mut guard = async_fd.readable_mut().await.unwrap();
             let ringbuf = guard.get_inner_mut();
