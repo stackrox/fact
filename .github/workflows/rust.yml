@@ -1,0 +1,28 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  basic:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        args:
+          - build --release
+          - clippy -- -D warnings
+          - test
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        sudo apt-get update
+        sudo apt-get install -y libbpf-dev
+    - run: cargo ${{ matrix.args }}
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: podman build -t fact:latest .
