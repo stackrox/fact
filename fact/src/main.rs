@@ -13,10 +13,10 @@ struct Event {
     host_file: String,
 }
 
-impl TryFrom<event_t> for Event {
+impl TryFrom<&event_t> for Event {
     type Error = anyhow::Error;
 
-    fn try_from(value: event_t) -> Result<Self, Self::Error> {
+    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let comm = unsafe { CStr::from_ptr(value.comm.as_ptr()) }
             .to_str()?
             .to_owned();
@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
             let mut guard = async_fd.readable_mut().await.unwrap();
             let ringbuf = guard.get_inner_mut();
             while let Some(event) = ringbuf.next() {
-                let event: event_t = unsafe { std::ptr::read(event.as_ptr() as *const _) };
+                let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                 let event: Event = event.try_into().unwrap();
                 println!("{event:?}");
             }
