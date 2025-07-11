@@ -1,8 +1,10 @@
-use std::{env, path::PathBuf, process::Command};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
-fn main() -> anyhow::Result<()> {
-    println!("cargo::rerun-if-changed=../fact-ebpf/");
-    let out_dir: PathBuf = env::var("OUT_DIR")?.into();
+fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
     let obj = out_dir
         .join("main.o")
         .into_os_string()
@@ -25,4 +27,23 @@ fn main() -> anyhow::Result<()> {
     } else {
         Err(anyhow::anyhow!("Failed to compile '{ec}'"))
     }
+}
+
+fn generate_bindings(out_dir: &Path) -> anyhow::Result<()> {
+    let bindings = bindgen::Builder::default()
+        .header("../fact-ebpf/types.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .generate()
+        .expect("Failed to generate bindings");
+    bindings
+        .write_to_file(out_dir.join("bindings.rs"))
+        .expect("Failed to write bindings");
+    Ok(())
+}
+
+fn main() -> anyhow::Result<()> {
+    println!("cargo::rerun-if-changed=../fact-ebpf/");
+    let out_dir: PathBuf = env::var("OUT_DIR")?.into();
+    compile_bpf(&out_dir)?;
+    generate_bindings(&out_dir)
 }

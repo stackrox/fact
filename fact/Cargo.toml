@@ -20,6 +20,7 @@ tokio = { workspace = true, features = [
 ] }
 [build-dependencies]
 anyhow = { workspace = true }
+bindgen = { workspace = true }
 
 [[bin]]
 name = "fact"
