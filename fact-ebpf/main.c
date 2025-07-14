@@ -17,8 +17,8 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 #endif
 
 struct helper_t {
-    char buf[PATH_MAX * 2];
-    const unsigned char* array[16];
+  char buf[PATH_MAX * 2];
+  const unsigned char* array[16];
 };
 
 struct {
@@ -29,17 +29,17 @@ struct {
 } helper_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_ARRAY);
-    __type(key, __u32);
-    __type(value, struct path_cfg_t);
-    __uint(max_entries, 64);
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __type(key, __u32);
+  __type(value, struct path_cfg_t);
+  __uint(max_entries, 64);
 } paths_map SEC(".maps");
 
 uint32_t paths_len;
 
 struct {
-	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries, 256 * sizeof(struct event_t));
+  __uint(type, BPF_MAP_TYPE_RINGBUF);
+  __uint(max_entries, 256 * sizeof(struct event_t));
 } rb SEC(".maps");
 // clang-format on
 
