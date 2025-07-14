@@ -15,4 +15,11 @@ struct event_t {
   char host_file[4096];
 };
 
+#define PATH_MAX 4096
+
+struct path_cfg_t {
+  const char path[PATH_MAX];
+  unsigned short len;
+};
+
 #endif  // _TYPES_H_
