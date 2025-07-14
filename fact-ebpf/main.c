@@ -76,6 +76,10 @@ __always_inline bool has_prefix(const char* s, const char* prefix, uint64_t pref
 }
 
 __always_inline bool is_monitored(const char* s) {
+  if (paths_len == 0) {
+    return true;
+  }
+
   for (int key = 0; key < (paths_len & 0xF); key++) {
     struct path_cfg_t* path = bpf_map_lookup_elem(&paths_map, &key);
     if (path == NULL) {
