@@ -9,8 +9,15 @@
 
 #define TASK_COMM_LEN 16
 
-struct event_t {
+typedef struct process_t {
   char comm[TASK_COMM_LEN];
+  unsigned int uid;
+  unsigned int gid;
+  unsigned int login_uid;
+} process_t;
+
+struct event_t {
+  process_t process;
   char filename[4096];
   char host_file[4096];
 };

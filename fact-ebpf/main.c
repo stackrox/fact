@@ -155,25 +155,40 @@ int BPF_PROG(test_file_open, struct file* file) {
   }
 
   if (bpf_d_path(&file->f_path, event->filename, PATH_MAX) < 0) {
-    bpf_ringbuf_discard(event, 0);
     bpf_printk("Failed to read path");
-    return 0;
+    goto end;
   }
 
-  if (is_monitored(event->filename)) {
-    bpf_get_current_comm(event->comm, TASK_COMM_LEN);
-
-    bpf_printk("comm: %s", event->comm);
-    bpf_printk("filename: %s", event->filename);
-    get_path(helper, file->f_path.dentry);
-    bpf_printk("real_path: %s", helper->buf);
-    bpf_probe_read_str(event->host_file, PATH_MAX, helper->buf);
-
-    bpf_printk("Submitting event...");
-    bpf_ringbuf_submit(event, 0);
-  } else {
-    bpf_ringbuf_discard(event, 0);
+  if (!is_monitored(event->filename)) {
+    goto end;
   }
 
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
+  if (task == NULL) {
+    bpf_printk("Failed to get current task");
+    goto end;
+  }
+
+  uint64_t uid_gid = bpf_get_current_uid_gid();
+  event->process.uid = uid_gid & 0xFFFFFFFF;
+  event->process.gid = (uid_gid >> 32) & 0xFFFFFFFF;
+  event->process.login_uid = BPF_CORE_READ(task, loginuid.val);
+
+  bpf_get_current_comm(event->process.comm, TASK_COMM_LEN);
+
+  bpf_printk("comm: %s", event->process.comm);
+  bpf_printk("uid: %s", event->process.uid);
+  bpf_printk("filename: %s", event->filename);
+  get_path(helper, file->f_path.dentry);
+  bpf_printk("real_path: %s", helper->buf);
+  bpf_probe_read_str(event->host_file, PATH_MAX, helper->buf);
+
+  bpf_printk("Submitting event...");
+  bpf_ringbuf_submit(event, 0);
+
+  return 0;
+
+end:
+  bpf_ringbuf_discard(event, 0);
   return 0;
 }
