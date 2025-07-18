@@ -6,7 +6,6 @@
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
-#include <sys/cdefs.h>
 // clang-format on
 
 __always_inline static int64_t process_fill(process_t* p, struct task_struct* task) {
