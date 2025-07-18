@@ -59,8 +59,10 @@ int BPF_PROG(test_file_open, struct file* file) {
   event->is_external_mount = is_external_mount(file, task);
 
   if (event->is_external_mount) {
-    get_host_path(helper, file);
-    bpf_probe_read_str(event->host_file, PATH_MAX, helper->buf);
+    const char* p = get_host_path(helper, file);
+    if (p != NULL) {
+      bpf_probe_read_str(event->host_file, PATH_MAX, p);
+    }
   } else {
     event->host_file[0] = '\0';
   }

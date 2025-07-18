@@ -111,17 +111,40 @@ __always_inline static char* d_path(const struct path* path, char* buf, int bufl
   return &buf[offset];
 }
 
-__always_inline static void get_host_path(struct helper_t* helper, struct file* file) {
+__always_inline static char* get_host_path(struct helper_t* helper, struct file* file) {
   struct dentry* d = BPF_CORE_READ(file, f_path.dentry);
-  int total = 0;
+  int offset = PATH_MAX - 1;
+  helper->buf[PATH_MAX - 1] = '\0';
 
-  for (int i = 0; i < 16; i++) {
-    total = i;
-    const unsigned char* name = BPF_CORE_READ(d, d_name.name);
-    if (name == NULL) {
+  for (int i = 0; i < 16 && offset > 0; i++) {
+    struct qstr d_name;
+    BPF_CORE_READ_INTO(&d_name, d, d_name);
+    if (d_name.name == NULL) {
       break;
     }
-    helper->array[i] = name;
+
+    int len = d_name.len;
+    if (len <= 0 || len >= PATH_MAX) {
+      return NULL;
+    }
+
+    offset -= len;
+    if (offset <= 0) {
+      return NULL;
+    }
+
+    if (bpf_probe_read_kernel(&helper->buf[offset], len, d_name.name) != 0) {
+      return NULL;
+    }
+
+    if (len == 1 && helper->buf[offset] == '/') {
+      // Reached the root
+      offset++;
+      break;
+    }
+
+    offset--;
+    helper->buf[offset] = '/';
 
     struct dentry* parent = BPF_CORE_READ(d, d_parent);
     // if we reached the root
@@ -131,28 +154,7 @@ __always_inline static void get_host_path(struct helper_t* helper, struct file* 
     d = parent;
   }
 
-  unsigned int offset = 0;
-  for (int i = total - 1; i >= 0 && offset < PATH_MAX; i--) {
-    helper->buf[offset] = '/';
-    offset++;
-
-    if (offset >= PATH_MAX) {
-      break;
-    }
-
-    int written = bpf_probe_read_str(&helper->buf[offset], PATH_MAX - offset, helper->array[i]);
-    if (written < 0) {
-      break;
-    }
-    if (helper->buf[offset] == '/') {
-      helper->buf[offset] = '\0';
-      offset--;
-      continue;
-    }
-
-    // bytes written, excluding the null terminator
-    offset += written - 1;
-  }
+  return &helper->buf[offset];
 }
 
 __always_inline static bool is_monitored(const char* s) {
