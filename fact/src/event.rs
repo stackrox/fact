@@ -9,6 +9,7 @@ use bpf::bindings::event_t;
 pub struct Process {
     comm: String,
     args: Vec<String>,
+    exe_path: String,
     uid: u32,
     gid: u32,
     login_uid: u32,
@@ -21,11 +22,15 @@ impl TryFrom<&process_t> for Process {
         let process_t {
             comm,
             args,
+            exe_path,
             uid,
             gid,
             login_uid,
         } = value;
         let comm = unsafe { CStr::from_ptr(comm.as_ptr()) }
+            .to_str()?
+            .to_owned();
+        let exe_path = unsafe { CStr::from_ptr(exe_path.as_ptr()) }
             .to_str()?
             .to_owned();
 
@@ -45,6 +50,7 @@ impl TryFrom<&process_t> for Process {
         Ok(Process {
             comm,
             args: converted_args,
+            exe_path,
             uid: *uid,
             gid: *gid,
             login_uid: *login_uid,
