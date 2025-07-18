@@ -8,6 +8,7 @@ use bpf::bindings::event_t;
 #[derive(Debug, Default)]
 pub struct Process {
     comm: String,
+    args: Vec<String>,
     uid: u32,
     gid: u32,
     login_uid: u32,
@@ -19,6 +20,7 @@ impl TryFrom<&process_t> for Process {
     fn try_from(value: &process_t) -> Result<Self, Self::Error> {
         let process_t {
             comm,
+            args,
             uid,
             gid,
             login_uid,
@@ -27,8 +29,22 @@ impl TryFrom<&process_t> for Process {
             .to_str()?
             .to_owned();
 
+        let mut converted_args = Vec::new();
+        let mut offset = 0;
+        while offset < 4096 {
+            let arg = unsafe { CStr::from_ptr(args.as_ptr().add(offset)) }
+                .to_str()?
+                .to_owned();
+            if arg.is_empty() {
+                break;
+            }
+            offset += arg.len() + 1;
+            converted_args.push(arg);
+        }
+
         Ok(Process {
             comm,
+            args: converted_args,
             uid: *uid,
             gid: *gid,
             login_uid: *login_uid,

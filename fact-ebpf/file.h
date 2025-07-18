@@ -22,10 +22,8 @@ __always_inline static bool has_prefix(const char* s, const char* prefix, uint64
 
   uint64_t offset = 0;
   while (prefix_len > 8) {
-    uint64_t pref;
-    uint64_t s_pref;
-    memcpy(&pref, &prefix[offset], sizeof(pref));
-    memcpy(&s_pref, &s[offset], sizeof(pref));
+    uint64_t pref = *(uint64_t*)&prefix[offset];
+    uint64_t s_pref = *(uint64_t*)&s[offset];
 
     if (s_pref != pref) {
       return false;

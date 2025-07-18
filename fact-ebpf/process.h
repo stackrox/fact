@@ -15,5 +15,25 @@ __always_inline static int64_t process_fill(process_t* p, struct task_struct* ta
   p->gid = (uid_gid >> 32) & 0xFFFFFFFF;
   p->login_uid = BPF_CORE_READ(task, loginuid.val);
   u_int64_t err = bpf_get_current_comm(p->comm, TASK_COMM_LEN);
-  return err;
+  if (err != 0) {
+    bpf_printk("Failed to fill task comm");
+    return err;
+  }
+
+  unsigned long arg_start = BPF_CORE_READ(task, mm, arg_start);
+  unsigned long arg_end = BPF_CORE_READ(task, mm, arg_end);
+  unsigned int len = arg_end - arg_start;
+  bpf_printk("len: %d", len);
+  bpf_printk("arg_start: 0x%X", arg_start);
+  bpf_printk("arg_end: 0x%X", arg_end);
+  if (len > 4095) {
+    len = 4095;
+    p->args[4095] = '\0';  // Ensure empty string at end of buffer
+  }
+  err = bpf_probe_read_user(p->args, len, (const char*)arg_start);
+  if (err != 0) {
+    bpf_printk("Failed to fill task args");
+    return err;
+  }
+  return 0;
 }
