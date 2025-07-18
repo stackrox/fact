@@ -17,6 +17,8 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
             "-O2",
             "-g",
             "-c",
+            "-Wall",
+            "-Werror",
             "../fact-ebpf/main.c",
             "-o",
             &obj,

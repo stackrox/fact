@@ -40,6 +40,7 @@ impl TryFrom<&process_t> for Process {
 #[derive(Debug)]
 pub struct Event {
     process: Process,
+    is_external_mount: bool,
     filename: String,
     host_file: String,
 }
@@ -50,6 +51,7 @@ impl TryFrom<&event_t> for Event {
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let event_t {
             process,
+            is_external_mount,
             filename,
             host_file,
         } = value;
@@ -62,6 +64,7 @@ impl TryFrom<&event_t> for Event {
 
         Ok(Event {
             process: process.try_into()?,
+            is_external_mount: *is_external_mount != 0,
             filename,
             host_file,
         })
