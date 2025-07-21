@@ -11,7 +11,55 @@
 #include <bpf/bpf_core_read.h>
 // clang-format on
 
-__always_inline static int64_t process_fill(process_t* p, struct task_struct* task) {
+__always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
+  if (!bpf_core_enum_value_exists(enum cgroup_subsys_id, cpu_cgrp_id)) {
+    return NULL;
+  }
+
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
+  struct kernfs_node* kn = BPF_CORE_READ(task, cgroups, subsys[cpu_cgrp_id], cgroup, kn);
+  if (kn == NULL) {
+    return NULL;
+  }
+
+  int i = 0;
+  for (; i < 16; i++) {
+    helper->array[i] = (const unsigned char*)BPF_CORE_READ(kn, name);
+    kn = BPF_CORE_READ(kn, __parent);
+    if (kn == NULL) {
+      break;
+    }
+  }
+
+  if (i == 16) {
+    i--;
+  }
+
+  int offset = 0;
+  for (; i >= 0 && offset < PATH_MAX; i--) {
+    helper->buf[offset & (PATH_MAX - 1)] = '/';
+    if (++offset >= PATH_MAX) {
+      return NULL;
+    }
+
+    int len = bpf_probe_read_kernel_str(&helper->buf[offset & (PATH_MAX - 1)], PATH_MAX, helper->array[i]);
+    if (len < 0) {
+      return NULL;
+    }
+
+    if (len == 1) {
+      offset--;
+      continue;
+    }
+
+    offset += len - 1;
+  }
+
+  return helper->buf;
+}
+
+__always_inline static int64_t process_fill(process_t* p) {
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
   uint32_t key = 0;
   uint64_t uid_gid = bpf_get_current_uid_gid();
   p->uid = uid_gid & 0xFFFFFFFF;
@@ -51,6 +99,11 @@ __always_inline static int64_t process_fill(process_t* p, struct task_struct* ta
     return -1;
   }
   bpf_probe_read_str(p->exe_path, PATH_MAX, exe_path);
+
+  const char* cg = get_cpu_cgroup(helper);
+  if (cg != NULL) {
+    bpf_probe_read_str(p->cpu_cgroup, PATH_MAX, cg);
+  }
 
   return 0;
 }

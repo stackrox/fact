@@ -44,19 +44,13 @@ int BPF_PROG(test_file_open, struct file* file) {
     goto end;
   }
 
-  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
-  if (task == NULL) {
-    bpf_printk("Failed to get current task");
-    goto end;
-  }
-
-  int64_t err = process_fill(&event->process, task);
+  int64_t err = process_fill(&event->process);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
     goto end;
   }
 
-  event->is_external_mount = is_external_mount(file, task);
+  event->is_external_mount = is_external_mount(file);
 
   if (event->is_external_mount) {
     const char* p = get_host_path(helper, file);

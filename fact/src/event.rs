@@ -10,9 +10,36 @@ pub struct Process {
     comm: String,
     args: Vec<String>,
     exe_path: String,
+    container_id: Option<String>,
     uid: u32,
     gid: u32,
     login_uid: u32,
+}
+
+fn extract_container_id(cgroup: &str) -> Option<String> {
+    let cgroup = if let Some(i) = cgroup.rfind(".scope") {
+        let (cgroup, _) = cgroup.split_at(i);
+        cgroup
+    } else {
+        cgroup
+    };
+
+    if cgroup.is_empty() || cgroup.len() < 65 {
+        return None;
+    }
+
+    let (_, cgroup) = cgroup.split_at(cgroup.len() - 65);
+    let (c, cgroup) = cgroup.split_at(1);
+    if c != "/" && c != "-" {
+        return None;
+    }
+
+    if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
+        let (cgroup, _) = cgroup.split_at(12);
+        Some(cgroup.to_owned())
+    } else {
+        None
+    }
 }
 
 impl TryFrom<&process_t> for Process {
@@ -23,6 +50,7 @@ impl TryFrom<&process_t> for Process {
             comm,
             args,
             exe_path,
+            cpu_cgroup,
             uid,
             gid,
             login_uid,
@@ -33,6 +61,8 @@ impl TryFrom<&process_t> for Process {
         let exe_path = unsafe { CStr::from_ptr(exe_path.as_ptr()) }
             .to_str()?
             .to_owned();
+        let cpu_cgroup = unsafe { CStr::from_ptr(cpu_cgroup.as_ptr()) }.to_str()?;
+        let container_id = extract_container_id(cpu_cgroup);
 
         let mut converted_args = Vec::new();
         let mut offset = 0;
@@ -51,6 +81,7 @@ impl TryFrom<&process_t> for Process {
             comm,
             args: converted_args,
             exe_path,
+            container_id,
             uid: *uid,
             gid: *gid,
             login_uid: *login_uid,

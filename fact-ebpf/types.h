@@ -13,6 +13,7 @@ typedef struct process_t {
   char comm[TASK_COMM_LEN];
   char args[4096];
   char exe_path[PATH_MAX];
+  char cpu_cgroup[PATH_MAX];
   unsigned int uid;
   unsigned int gid;
   unsigned int login_uid;

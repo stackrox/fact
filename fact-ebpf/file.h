@@ -53,10 +53,6 @@ __always_inline static char* d_path(const struct path* path, char* buf, int bufl
   }
 
   struct task_struct* task = (struct task_struct*)bpf_get_current_task();
-  if (task == NULL) {
-    return NULL;
-  }
-
   int offset = (buflen - 1) & (PATH_MAX - 1);
   buf[offset] = '\0';  // Ensure null termination
 
@@ -176,7 +172,8 @@ __always_inline static bool is_monitored(const char* s) {
   return false;
 }
 
-__always_inline static bool is_external_mount(const struct file* file, const struct task_struct* task) {
+__always_inline static bool is_external_mount(const struct file* file) {
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
   struct dentry* mnt = BPF_CORE_READ(file, f_path.mnt, mnt_root);
   struct dentry* task_root = BPF_CORE_READ(task, fs, root.dentry);
 
