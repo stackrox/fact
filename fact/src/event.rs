@@ -40,6 +40,7 @@ pub struct Process {
     exe_path: String,
     container_id: Option<String>,
     uid: u32,
+    username: &'static str,
     gid: u32,
     login_uid: u32,
     lineage: Vec<Lineage>,
@@ -115,12 +116,15 @@ impl TryFrom<&process_t> for Process {
             converted_args.push(arg);
         }
 
+        let username = host_info::get_username(*uid);
+
         Ok(Process {
             comm,
             args: converted_args,
             exe_path,
             container_id,
             uid: *uid,
+            username,
             gid: *gid,
             login_uid: *login_uid,
             lineage,
