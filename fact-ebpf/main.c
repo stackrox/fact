@@ -44,6 +44,8 @@ int BPF_PROG(test_file_open, struct file* file) {
     goto end;
   }
 
+  event->timestamp = bpf_ktime_get_boot_ns();
+
   int64_t err = process_fill(&event->process);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);

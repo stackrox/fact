@@ -11,6 +11,7 @@ use tokio::{io::unix::AsyncFd, signal, task::yield_now};
 mod bpf;
 pub mod config;
 mod event;
+mod host_info;
 
 use bpf::bindings::{event_t, path_cfg_t};
 

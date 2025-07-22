@@ -1,11 +1,9 @@
 use std::ffi::CStr;
 
-use crate::bpf::{
-    self,
-    bindings::{lineage_t, process_t},
+use crate::{
+    bpf::bindings::{event_t, lineage_t, process_t},
+    host_info,
 };
-
-use bpf::bindings::event_t;
 
 #[allow(dead_code)]
 #[derive(Debug, Default)]
@@ -133,6 +131,7 @@ impl TryFrom<&process_t> for Process {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Event {
+    timestamp: u64,
     process: Process,
     is_external_mount: bool,
     filename: String,
@@ -144,11 +143,13 @@ impl TryFrom<&event_t> for Event {
 
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let event_t {
+            timestamp,
             process,
             is_external_mount,
             filename,
             host_file,
         } = value;
+        let timestamp = host_info::get_boot_time() + timestamp;
         let filename = unsafe { CStr::from_ptr(filename.as_ptr()) }
             .to_str()?
             .to_owned();
@@ -157,6 +158,7 @@ impl TryFrom<&event_t> for Event {
             .to_owned();
 
         Ok(Event {
+            timestamp,
             process: process.try_into()?,
             is_external_mount: *is_external_mount != 0,
             filename,
