@@ -132,6 +132,7 @@ impl TryFrom<&process_t> for Process {
 #[derive(Debug)]
 pub struct Event {
     timestamp: u64,
+    hostname: &'static str,
     process: Process,
     is_external_mount: bool,
     filename: String,
@@ -159,6 +160,7 @@ impl TryFrom<&event_t> for Event {
 
         Ok(Event {
             timestamp,
+            hostname: host_info::get_hostname(),
             process: process.try_into()?,
             is_external_mount: *is_external_mount != 0,
             filename,
