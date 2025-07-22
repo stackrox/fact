@@ -58,6 +58,27 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
   return helper->buf;
 }
 
+__always_inline static void process_fill_lineage(process_t* p, struct helper_t* helper) {
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
+  struct path path;
+  p->lineage_len = 0;
+
+  for (int i = 0; i < LINEAGE_MAX; i++) {
+    struct task_struct* parent = BPF_CORE_READ(task, real_parent);
+    if (task == parent || BPF_CORE_READ(parent, pid) == 0) {
+      return;
+    }
+    task = parent;
+
+    p->lineage[i].uid = BPF_CORE_READ(task, cred, uid.val);
+
+    BPF_CORE_READ_INTO(&path, task, mm, exe_file, f_path);
+    char* exe_path = d_path(&path, helper->buf, PATH_MAX);
+    bpf_probe_read_kernel_str(p->lineage[i].exe_path, PATH_MAX, exe_path);
+    p->lineage_len++;
+  }
+}
+
 __always_inline static int64_t process_fill(process_t* p) {
   struct task_struct* task = (struct task_struct*)bpf_get_current_task();
   uint32_t key = 0;
@@ -104,6 +125,8 @@ __always_inline static int64_t process_fill(process_t* p) {
   if (cg != NULL) {
     bpf_probe_read_str(p->cpu_cgroup, PATH_MAX, cg);
   }
+
+  process_fill_lineage(p, helper);
 
   return 0;
 }

@@ -8,6 +8,12 @@
 
 #define PATH_MAX 4096
 #define TASK_COMM_LEN 16
+#define LINEAGE_MAX 2
+
+typedef struct lineage_t {
+  unsigned int uid;
+  char exe_path[PATH_MAX];
+} lineage_t;
 
 typedef struct process_t {
   char comm[TASK_COMM_LEN];
@@ -17,6 +23,8 @@ typedef struct process_t {
   unsigned int uid;
   unsigned int gid;
   unsigned int login_uid;
+  lineage_t lineage[LINEAGE_MAX];
+  unsigned int lineage_len;
 } process_t;
 
 struct event_t {

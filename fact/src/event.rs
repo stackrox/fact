@@ -1,8 +1,38 @@
 use std::ffi::CStr;
 
-use crate::bpf::{self, bindings::process_t};
+use crate::bpf::{
+    self,
+    bindings::{lineage_t, process_t},
+};
 
 use bpf::bindings::event_t;
+
+#[allow(dead_code)]
+#[derive(Debug, Default)]
+pub struct Lineage {
+    uid: u32,
+    exe_path: String,
+}
+
+impl Lineage {
+    fn new(uid: u32, exe_path: &str) -> Self {
+        Lineage {
+            uid,
+            exe_path: exe_path.to_owned(),
+        }
+    }
+}
+
+impl TryFrom<&lineage_t> for Lineage {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &lineage_t) -> Result<Self, Self::Error> {
+        let lineage_t { uid, exe_path } = value;
+        let exe_path = unsafe { CStr::from_ptr(exe_path.as_ptr()) }.to_str()?;
+
+        Ok(Lineage::new(*uid, exe_path))
+    }
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Default)]
@@ -14,31 +44,34 @@ pub struct Process {
     uid: u32,
     gid: u32,
     login_uid: u32,
+    lineage: Vec<Lineage>,
 }
 
-fn extract_container_id(cgroup: &str) -> Option<String> {
-    let cgroup = if let Some(i) = cgroup.rfind(".scope") {
-        let (cgroup, _) = cgroup.split_at(i);
-        cgroup
-    } else {
-        cgroup
-    };
+impl Process {
+    fn extract_container_id(cgroup: &str) -> Option<String> {
+        let cgroup = if let Some(i) = cgroup.rfind(".scope") {
+            let (cgroup, _) = cgroup.split_at(i);
+            cgroup
+        } else {
+            cgroup
+        };
 
-    if cgroup.is_empty() || cgroup.len() < 65 {
-        return None;
-    }
+        if cgroup.is_empty() || cgroup.len() < 65 {
+            return None;
+        }
 
-    let (_, cgroup) = cgroup.split_at(cgroup.len() - 65);
-    let (c, cgroup) = cgroup.split_at(1);
-    if c != "/" && c != "-" {
-        return None;
-    }
+        let (_, cgroup) = cgroup.split_at(cgroup.len() - 65);
+        let (c, cgroup) = cgroup.split_at(1);
+        if c != "/" && c != "-" {
+            return None;
+        }
 
-    if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
-        let (cgroup, _) = cgroup.split_at(12);
-        Some(cgroup.to_owned())
-    } else {
-        None
+        if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
+            let (cgroup, _) = cgroup.split_at(12);
+            Some(cgroup.to_owned())
+        } else {
+            None
+        }
     }
 }
 
@@ -54,6 +87,8 @@ impl TryFrom<&process_t> for Process {
             uid,
             gid,
             login_uid,
+            lineage,
+            lineage_len,
         } = value;
         let comm = unsafe { CStr::from_ptr(comm.as_ptr()) }
             .to_str()?
@@ -62,7 +97,12 @@ impl TryFrom<&process_t> for Process {
             .to_str()?
             .to_owned();
         let cpu_cgroup = unsafe { CStr::from_ptr(cpu_cgroup.as_ptr()) }.to_str()?;
-        let container_id = extract_container_id(cpu_cgroup);
+        let container_id = Process::extract_container_id(cpu_cgroup);
+
+        let lineage = lineage[..*lineage_len as usize]
+            .iter()
+            .map(Lineage::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
 
         let mut converted_args = Vec::new();
         let mut offset = 0;
@@ -85,6 +125,7 @@ impl TryFrom<&process_t> for Process {
             uid: *uid,
             gid: *gid,
             login_uid: *login_uid,
+            lineage,
         })
     }
 }
