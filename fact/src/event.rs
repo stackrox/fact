@@ -1,9 +1,5 @@
 use std::ffi::CStr;
 
-use fact_api::{
-    file_activity, process_signal::LineageInfo, FileActivity, FileActivityBase, FileOpen,
-    ProcessSignal,
-};
 use uuid::Uuid;
 
 use crate::{
@@ -11,7 +7,10 @@ use crate::{
     host_info,
 };
 
-#[allow(dead_code)]
+fn slice_to_string(s: &[i8]) -> anyhow::Result<String> {
+    Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
+}
+
 #[derive(Debug, Default)]
 pub struct Lineage {
     uid: u32,
@@ -38,17 +37,16 @@ impl TryFrom<&lineage_t> for Lineage {
     }
 }
 
-impl From<Lineage> for LineageInfo {
+impl From<Lineage> for fact_api::process_signal::LineageInfo {
     fn from(value: Lineage) -> Self {
         let Lineage { uid, exe_path } = value;
-        LineageInfo {
+        Self {
             parent_uid: uid,
             parent_exec_file_path: exe_path,
         }
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct Process {
     comm: String,
@@ -65,8 +63,7 @@ pub struct Process {
 impl Process {
     fn extract_container_id(cgroup: &str) -> Option<String> {
         let cgroup = if let Some(i) = cgroup.rfind(".scope") {
-            let (cgroup, _) = cgroup.split_at(i);
-            cgroup
+            cgroup.split_at(i).0
         } else {
             cgroup
         };
@@ -75,46 +72,30 @@ impl Process {
             return None;
         }
 
-        let (_, cgroup) = cgroup.split_at(cgroup.len() - 65);
+        let cgroup = cgroup.split_at(cgroup.len() - 65).1;
         let (c, cgroup) = cgroup.split_at(1);
         if c != "/" && c != "-" {
             return None;
         }
 
         if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
-            let (cgroup, _) = cgroup.split_at(12);
-            Some(cgroup.to_owned())
+            Some(cgroup.split_at(12).0.to_owned())
         } else {
             None
         }
     }
 }
 
-impl TryFrom<&process_t> for Process {
+impl TryFrom<process_t> for Process {
     type Error = anyhow::Error;
 
-    fn try_from(value: &process_t) -> Result<Self, Self::Error> {
-        let process_t {
-            comm,
-            args,
-            exe_path,
-            cpu_cgroup,
-            uid,
-            gid,
-            login_uid,
-            lineage,
-            lineage_len,
-        } = value;
-        let comm = unsafe { CStr::from_ptr(comm.as_ptr()) }
-            .to_str()?
-            .to_owned();
-        let exe_path = unsafe { CStr::from_ptr(exe_path.as_ptr()) }
-            .to_str()?
-            .to_owned();
-        let cpu_cgroup = unsafe { CStr::from_ptr(cpu_cgroup.as_ptr()) }.to_str()?;
+    fn try_from(value: process_t) -> Result<Self, Self::Error> {
+        let comm = slice_to_string(value.comm.as_slice())?;
+        let exe_path = slice_to_string(value.exe_path.as_slice())?;
+        let cpu_cgroup = unsafe { CStr::from_ptr(value.cpu_cgroup.as_ptr()) }.to_str()?;
         let container_id = Process::extract_container_id(cpu_cgroup);
 
-        let lineage = lineage[..*lineage_len as usize]
+        let lineage = value.lineage[..value.lineage_len as usize]
             .iter()
             .map(Lineage::try_from)
             .collect::<Result<Vec<_>, _>>()?;
@@ -122,7 +103,7 @@ impl TryFrom<&process_t> for Process {
         let mut converted_args = Vec::new();
         let mut offset = 0;
         while offset < 4096 {
-            let arg = unsafe { CStr::from_ptr(args.as_ptr().add(offset)) }
+            let arg = unsafe { CStr::from_ptr(value.args.as_ptr().add(offset)) }
                 .to_str()?
                 .to_owned();
             if arg.is_empty() {
@@ -132,23 +113,23 @@ impl TryFrom<&process_t> for Process {
             converted_args.push(arg);
         }
 
-        let username = host_info::get_username(*uid);
+        let username = host_info::get_username(value.uid);
 
         Ok(Process {
             comm,
             args: converted_args,
             exe_path,
             container_id,
-            uid: *uid,
+            uid: value.uid,
             username,
-            gid: *gid,
-            login_uid: *login_uid,
+            gid: value.gid,
+            login_uid: value.login_uid,
             lineage,
         })
     }
 }
 
-impl From<Process> for ProcessSignal {
+impl From<Process> for fact_api::ProcessSignal {
     fn from(value: Process) -> Self {
         let Process {
             comm,
@@ -169,7 +150,7 @@ impl From<Process> for ProcessSignal {
             .reduce(|acc, i| acc + " " + &i)
             .unwrap_or("".to_owned());
 
-        ProcessSignal {
+        Self {
             id: Uuid::new_v4().to_string(),
             container_id,
             creation_time: None,
@@ -180,17 +161,20 @@ impl From<Process> for ProcessSignal {
             uid,
             gid,
             scraped: false,
-            lineage_info: lineage.into_iter().map(LineageInfo::from).collect(),
+            lineage_info: lineage
+                .into_iter()
+                .map(fact_api::process_signal::LineageInfo::from)
+                .collect(),
             login_uid,
             username: username.to_owned(),
         }
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Event {
     timestamp: u64,
+    #[allow(dead_code)]
     hostname: &'static str,
     process: Process,
     is_external_mount: bool,
@@ -202,33 +186,24 @@ impl TryFrom<&event_t> for Event {
     type Error = anyhow::Error;
 
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let event_t {
-            timestamp,
-            process,
-            is_external_mount,
-            filename,
-            host_file,
-        } = value;
-        let timestamp = host_info::get_boot_time() + timestamp;
-        let filename = unsafe { CStr::from_ptr(filename.as_ptr()) }
-            .to_str()?
-            .to_owned();
-        let host_file = unsafe { CStr::from_ptr(host_file.as_ptr()) }
-            .to_str()?
-            .to_owned();
+        let timestamp = host_info::get_boot_time() + value.timestamp;
+        let filename = slice_to_string(value.filename.as_slice())?;
+        let host_file = slice_to_string(value.host_file.as_slice())?;
+        let process = value.process.try_into()?;
+        let is_external_mount = value.is_external_mount != 0;
 
         Ok(Event {
             timestamp,
             hostname: host_info::get_hostname(),
-            process: process.try_into()?,
-            is_external_mount: *is_external_mount != 0,
+            process,
+            is_external_mount,
             filename,
             host_file,
         })
     }
 }
 
-impl From<Event> for FileActivity {
+impl From<Event> for fact_api::FileActivity {
     fn from(value: Event) -> Self {
         let Event {
             timestamp,
@@ -238,22 +213,22 @@ impl From<Event> for FileActivity {
             filename,
             host_file,
         } = value;
-        let activity = FileActivityBase {
+        let activity = fact_api::FileActivityBase {
             path: filename,
             host_path: host_file,
             is_external_mount,
         };
-        let f_act = FileOpen {
+        let f_act = fact_api::FileOpen {
             activity: Some(activity),
         };
 
-        let f_act = file_activity::File::Open(f_act);
+        let f_act = fact_api::file_activity::File::Open(f_act);
 
         let seconds = (timestamp / 1_000_000_000) as i64;
         let nanos = (timestamp % 1_000_000_000) as i32;
         let timestamp = prost_types::Timestamp { seconds, nanos };
 
-        FileActivity {
+        Self {
             timestamp: Some(timestamp),
             process: Some(process.into()),
             file: Some(f_act),
