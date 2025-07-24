@@ -57,6 +57,7 @@ pub struct Process {
     username: &'static str,
     gid: u32,
     login_uid: u32,
+    pid: u32,
     lineage: Vec<Lineage>,
 }
 
@@ -124,6 +125,7 @@ impl TryFrom<process_t> for Process {
             username,
             gid: value.gid,
             login_uid: value.login_uid,
+            pid: value.pid,
             lineage,
         })
     }
@@ -140,6 +142,7 @@ impl From<Process> for fact_api::ProcessSignal {
             username,
             gid,
             login_uid,
+            pid,
             lineage,
         } = value;
 
@@ -157,7 +160,7 @@ impl From<Process> for fact_api::ProcessSignal {
             name: comm,
             args,
             exec_file_path: exe_path,
-            pid: 0,
+            pid,
             uid,
             gid,
             scraped: false,

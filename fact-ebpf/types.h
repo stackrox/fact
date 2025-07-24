@@ -23,6 +23,7 @@ typedef struct process_t {
   unsigned int uid;
   unsigned int gid;
   unsigned int login_uid;
+  unsigned int pid;
   lineage_t lineage[LINEAGE_MAX];
   unsigned int lineage_len;
 } process_t;
