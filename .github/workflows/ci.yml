@@ -17,14 +17,30 @@ jobs:
           - test
     steps:
     - uses: actions/checkout@v4
-    - name: Install libbpf-dev
+      with:
+        submodules: true
+
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libbpf-dev
+        sudo apt-get install -y \
+          libbpf-dev \
+          protobuf-compiler
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - run: cargo ${{ matrix.args }}
 
   container:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: true
     - run: podman build -t fact:latest .
