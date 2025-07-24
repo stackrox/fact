@@ -3,6 +3,8 @@ FROM quay.io/centos/centos:stream9 as builder
 RUN dnf install --enablerepo=crb -y \
         clang \
         libbpf-devel \
+        protobuf-compiler \
+        protobuf-devel \
         cargo-1.84.1 \
         rust-1.84.1 && \
     mkdir /app

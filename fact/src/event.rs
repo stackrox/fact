@@ -1,5 +1,11 @@
 use std::ffi::CStr;
 
+use fact_api::{
+    file_activity, process_signal::LineageInfo, FileActivity, FileActivityBase, FileOpen,
+    ProcessSignal,
+};
+use uuid::Uuid;
+
 use crate::{
     bpf::bindings::{event_t, lineage_t, process_t},
     host_info,
@@ -29,6 +35,16 @@ impl TryFrom<&lineage_t> for Lineage {
         let exe_path = unsafe { CStr::from_ptr(exe_path.as_ptr()) }.to_str()?;
 
         Ok(Lineage::new(*uid, exe_path))
+    }
+}
+
+impl From<Lineage> for LineageInfo {
+    fn from(value: Lineage) -> Self {
+        let Lineage { uid, exe_path } = value;
+        LineageInfo {
+            parent_uid: uid,
+            parent_exec_file_path: exe_path,
+        }
     }
 }
 
@@ -132,6 +148,45 @@ impl TryFrom<&process_t> for Process {
     }
 }
 
+impl From<Process> for ProcessSignal {
+    fn from(value: Process) -> Self {
+        let Process {
+            comm,
+            args,
+            exe_path,
+            container_id,
+            uid,
+            username,
+            gid,
+            login_uid,
+            lineage,
+        } = value;
+
+        let container_id = container_id.unwrap_or("".to_string());
+
+        let args = args
+            .into_iter()
+            .reduce(|acc, i| acc + " " + &i)
+            .unwrap_or("".to_owned());
+
+        ProcessSignal {
+            id: Uuid::new_v4().to_string(),
+            container_id,
+            creation_time: None,
+            name: comm,
+            args,
+            exec_file_path: exe_path,
+            pid: 0,
+            uid,
+            gid,
+            scraped: false,
+            lineage_info: lineage.into_iter().map(LineageInfo::from).collect(),
+            login_uid,
+            username: username.to_owned(),
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Event {
@@ -170,5 +225,38 @@ impl TryFrom<&event_t> for Event {
             filename,
             host_file,
         })
+    }
+}
+
+impl From<Event> for FileActivity {
+    fn from(value: Event) -> Self {
+        let Event {
+            timestamp,
+            hostname: _,
+            process,
+            is_external_mount,
+            filename,
+            host_file,
+        } = value;
+        let activity = FileActivityBase {
+            path: filename,
+            host_path: host_file,
+            is_external_mount,
+        };
+        let f_act = FileOpen {
+            activity: Some(activity),
+        };
+
+        let f_act = file_activity::File::Open(f_act);
+
+        let seconds = (timestamp / 1_000_000_000) as i64;
+        let nanos = (timestamp % 1_000_000_000) as i32;
+        let timestamp = prost_types::Timestamp { seconds, nanos };
+
+        FileActivity {
+            timestamp: Some(timestamp),
+            process: Some(process.into()),
+            file: Some(f_act),
+        }
     }
 }

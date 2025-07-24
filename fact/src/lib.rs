@@ -3,12 +3,14 @@ use aya::{
     programs::Lsm,
     Btf,
 };
+use client::Client;
 use config::FactConfig;
 use event::Event;
 use log::{debug, info};
 use tokio::{io::unix::AsyncFd, signal, task::yield_now};
 
 mod bpf;
+mod client;
 pub mod config;
 mod event;
 mod host_info;
@@ -57,6 +59,13 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     program.load("file_open", &btf)?;
     program.attach()?;
 
+    // Create the gRPC client
+    let mut client = if let Some(url) = config.url.as_ref() {
+        Some(Client::start(url, config.certs)?)
+    } else {
+        None
+    };
+
     // Gather events from the ring buffer and print them out.
     tokio::spawn(async move {
         loop {
@@ -65,7 +74,11 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
             while let Some(event) = ringbuf.next() {
                 let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                 let event: Event = event.try_into().unwrap();
+
                 println!("{event:?}");
+                if let Some(client) = client.as_mut() {
+                    let _ = client.send(event).await;
+                }
             }
             guard.clear_ready();
             yield_now().await;

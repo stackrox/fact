@@ -1,0 +1,18 @@
+[package]
+name = "fact-api"
+version = "0.1.0"
+edition = "2021"
+
+license.workspace = true
+
+[lib]
+
+[dependencies]
+tonic = { workspace = true }
+tokio = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+[build-dependencies]
+anyhow = { workspace = true }
+tonic-build = { workspace = true }
