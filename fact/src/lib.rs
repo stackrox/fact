@@ -55,7 +55,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     // Load the programs
     let btf = Btf::from_sys_fs()?;
-    let program: &mut Lsm = bpf.program_mut("test_file_open").unwrap().try_into()?;
+    let program: &mut Lsm = bpf.program_mut("trace_file_open").unwrap().try_into()?;
     program.load("file_open", &btf)?;
     program.attach()?;
 

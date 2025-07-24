@@ -17,7 +17,7 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 #define FMODE_PWRITE (0x10)
 
 SEC("lsm/file_open")
-int BPF_PROG(test_file_open, struct file* file) {
+int BPF_PROG(trace_file_open, struct file* file) {
   uint32_t key = 0;
   if ((file->f_mode & (FMODE_WRITE | FMODE_PWRITE)) == 0) {
     return 0;

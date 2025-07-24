@@ -2,8 +2,22 @@
 
 ## Prerequisites
 
-1. stable rust toolchains: `rustup toolchain install stable`
-1. clang for the C eBPF probe.
+1. stable rust toolchains.
+1. clang and libbpf headers for the C eBPF probe.
+1. protoc and the Google protobuf definitions for gRPC.
+
+On Fedora, you can install all the dependencies with the following
+commands:
+
+```sh
+sudo dnf install -y \
+    clang \
+    libbpf-devel \
+    protobuf-compiler \
+    protobuf-devel \
+    rustup
+rustup toolchain install stable
+```
 
 ## Build & Run
 
