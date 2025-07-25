@@ -2,8 +2,18 @@ name: Rust CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+    - main
+    - release-*
+    tags:
+    - '*'
   pull_request:
+
+concurrency:
+  # append event name on the off chance that a push to master
+  # runs at the same time as the nightlies - we want both to run
+  group: ${{ github.head_ref || github.run_id }}-${{ github.event_name }}
+  cancel-in-progress: true
 
 jobs:
   basic:
