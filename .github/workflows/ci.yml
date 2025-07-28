@@ -66,4 +66,13 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: true
-    - run: podman build -t fact:latest .
+    - run: make image
+    - uses: astral-sh/setup-uv@v6
+      with:
+        version: "latest"
+        activate-environment: true
+        enable-cache: true
+    - name: Run integration integration-tests
+      run: |
+        uv pip install -r tests/requirements.txt
+        make integration-tests

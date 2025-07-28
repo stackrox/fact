@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::{ffi::CStr, path::PathBuf};
 
 use uuid::Uuid;
 
@@ -181,8 +181,8 @@ pub struct Event {
     hostname: &'static str,
     process: Process,
     is_external_mount: bool,
-    filename: String,
-    host_file: String,
+    pub filename: PathBuf,
+    host_file: PathBuf,
 }
 
 impl TryFrom<&event_t> for Event {
@@ -190,8 +190,8 @@ impl TryFrom<&event_t> for Event {
 
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let timestamp = host_info::get_boot_time() + value.timestamp;
-        let filename = slice_to_string(value.filename.as_slice())?;
-        let host_file = slice_to_string(value.host_file.as_slice())?;
+        let filename = slice_to_string(value.filename.as_slice())?.into();
+        let host_file = slice_to_string(value.host_file.as_slice())?.into();
         let process = value.process.try_into()?;
         let is_external_mount = value.is_external_mount != 0;
 
@@ -217,8 +217,8 @@ impl From<Event> for fact_api::FileActivity {
             host_file,
         } = value;
         let activity = fact_api::FileActivityBase {
-            path: filename,
-            host_path: host_file,
+            path: filename.into_os_string().into_string().unwrap(),
+            host_path: host_file.into_os_string().into_string().unwrap(),
             is_external_mount,
         };
         let f_act = fact_api::FileOpen {

@@ -11,3 +11,5 @@ target/
 # Python stuff
 __pycache__/
 .venv/
+# gRPC generated files
+internalapi/
