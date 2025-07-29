@@ -1,11 +1,9 @@
+use anyhow::Context;
 use aya::{
     maps::{Array, MapData, RingBuf},
     programs::Lsm,
     Btf,
 };
-use client::Client;
-use config::FactConfig;
-use event::Event;
 use log::{debug, info};
 use tokio::{io::unix::AsyncFd, signal, task::yield_now};
 
@@ -14,10 +12,17 @@ mod client;
 pub mod config;
 mod event;
 mod host_info;
+mod pre_flight;
 
 use bpf::bindings::{event_t, path_cfg_t};
+use client::Client;
+use config::FactConfig;
+use event::Event;
+use pre_flight::pre_flight;
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
+    pre_flight().context("Pre-flight checks failed")?;
+
     // Bump the memlock rlimit. This is needed for older kernels that don't use the
     // new memcg based accounting, see https://lwn.net/Articles/837122/
     let rlim = libc::rlimit {
