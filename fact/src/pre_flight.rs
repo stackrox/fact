@@ -14,7 +14,5 @@ fn have_bpf_lsm() -> anyhow::Result<()> {
 }
 
 pub fn pre_flight() -> anyhow::Result<()> {
-    have_bpf_lsm()?;
-
-    Ok(())
+    have_bpf_lsm()
 }
