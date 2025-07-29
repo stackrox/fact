@@ -2,7 +2,7 @@ use std::{collections::HashMap, env, fs::read_to_string, path::PathBuf, sync::La
 
 use libc::{clockid_t, timespec, CLOCK_BOOTTIME, CLOCK_REALTIME};
 
-fn get_host_mount() -> &'static PathBuf {
+pub fn get_host_mount() -> &'static PathBuf {
     static HOST_MOUNT: LazyLock<PathBuf> =
         LazyLock::new(|| env::var("FACT_HOST_MOUNT").unwrap_or("/".into()).into());
     &HOST_MOUNT
