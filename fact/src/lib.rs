@@ -74,31 +74,33 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     program.load("file_open", &btf)?;
     program.attach()?;
 
-    // At this point the BPF code is in the kernel, we start our
-    // healthcheck probe
-    tokio::spawn(async move {
-        let addr = SocketAddr::from(([0, 0, 0, 0], 9000));
-        let listener = TcpListener::bind(addr).await.unwrap();
-        loop {
-            let (stream, _) = listener.accept().await.unwrap();
-            let io = TokioIo::new(stream);
-            tokio::spawn(async move {
-                if let Err(err) = http1::Builder::new()
-                    .serve_connection(
-                        io,
-                        service_fn(|_| async move {
-                            Ok::<Response<Full<Bytes>>, Infallible>(Response::new(Full::new(
-                                Bytes::from(""),
-                            )))
-                        }),
-                    )
-                    .await
-                {
-                    eprintln!("Error serving connection: {err:?}");
-                }
-            });
-        }
-    });
+    if config.healthcheck {
+        // At this point the BPF code is in the kernel, we start our
+        // healthcheck probe
+        tokio::spawn(async move {
+            let addr = SocketAddr::from(([0, 0, 0, 0], 9000));
+            let listener = TcpListener::bind(addr).await.unwrap();
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+                let io = TokioIo::new(stream);
+                tokio::spawn(async move {
+                    if let Err(err) = http1::Builder::new()
+                        .serve_connection(
+                            io,
+                            service_fn(|_| async move {
+                                Ok::<Response<Full<Bytes>>, Infallible>(Response::new(Full::new(
+                                    Bytes::from(""),
+                                )))
+                            }),
+                        )
+                        .await
+                    {
+                        eprintln!("Error serving connection: {err:?}");
+                    }
+                });
+            }
+        });
+    }
 
     // Create the gRPC client
     let mut client = if let Some(url) = config.url.as_ref() {

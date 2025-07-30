@@ -16,4 +16,8 @@ pub struct FactConfig {
     /// Directory holding the mTLS certificates and keys
     #[arg(short, long, env = "FACT_CERTS")]
     pub certs: Option<PathBuf>,
+
+    /// Whether a small healthcheck probe should be run
+    #[arg(long)]
+    pub healthcheck: bool,
 }

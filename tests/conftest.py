@@ -50,7 +50,11 @@ def fact(docker_client, temp_dir, server):
     """
     Run the fact docker container for integration tests.
     """
-    command = ['http://127.0.0.1:9999', '-p', temp_dir]
+    command = [
+        'http://127.0.0.1:9999',
+        '-p', temp_dir,
+        '--healthcheck',
+    ]
     container = docker_client.containers.run(
         'fact:latest',
         command=command,
