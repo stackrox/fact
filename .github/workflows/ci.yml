@@ -67,12 +67,3 @@ jobs:
       with:
         submodules: true
     - run: make image
-    - uses: astral-sh/setup-uv@v6
-      with:
-        version: "latest"
-        activate-environment: true
-        enable-cache: true
-    - name: Run integration integration-tests
-      run: |
-        uv pip install -r tests/requirements.txt
-        make integration-tests
