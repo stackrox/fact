@@ -6,7 +6,7 @@ use aya::{
     programs::Lsm,
     Btf, Ebpf,
 };
-use log::{debug, info};
+use log::info;
 use tokio::{io::unix::AsyncFd, sync::watch::Receiver, task::JoinHandle};
 
 use crate::{client::Client, event::Event};
@@ -25,7 +25,7 @@ pub struct Bpf {
 
 impl Bpf {
     pub fn new(paths: &[PathBuf]) -> anyhow::Result<Self> {
-        Bpf::bump_memlock_rlimit();
+        Bpf::bump_memlock_rlimit()?;
 
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
@@ -60,7 +60,7 @@ impl Bpf {
         Ok(Bpf { obj, fd })
     }
 
-    fn bump_memlock_rlimit() {
+    fn bump_memlock_rlimit() -> anyhow::Result<()> {
         // Bump the memlock rlimit. This is needed for older kernels that don't use the
         // new memcg based accounting, see https://lwn.net/Articles/837122/
         let rlim = libc::rlimit {
@@ -69,8 +69,9 @@ impl Bpf {
         };
         let ret = unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlim) };
         if ret != 0 {
-            debug!("remove limit on locked memory failed, ret is: {ret}");
+            bail!("remove limit on locked memory failed, ret is: {ret}");
         }
+        Ok(())
     }
 
     // Gather events from the ring buffer and print them out.
