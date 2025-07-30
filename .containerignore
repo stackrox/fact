@@ -4,5 +4,6 @@ target/
 
 # Python stuff
 mock-server/
+tests/
 __pycache__/
 .venv/
