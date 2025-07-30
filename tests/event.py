@@ -6,10 +6,15 @@ from internalapi.sensor.sfa_pb2 import FileActivity
 
 
 class EventType(Enum):
+    """Enumeration for different types of file activity events."""
     OPEN = 1
 
 
 class Process:
+    """
+    Represents a process with its attributes.
+    """
+
     def __init__(self,
                  uid: int = 0,
                  name: str = '',
@@ -62,6 +67,11 @@ class Process:
 
 
 class Event:
+    """
+    Represents a file activity event, associating a process with an
+    event type and a file.
+    """
+
     def __init__(self,
                  process: Process,
                  event_type: EventType = EventType.OPEN,

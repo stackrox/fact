@@ -13,6 +13,9 @@ from server import FileActivityService
 
 @pytest.fixture
 def temp_dir():
+    """
+    Create a temporary directory for tests and clean it up afterwards.
+    """
     cwd = os.getcwd()
     tmp = mkdtemp(prefix='fact-test-', dir=cwd)
     yield tmp
@@ -33,6 +36,9 @@ def docker_client():
 
 @pytest.fixture
 def server():
+    """
+    Fixture to start and stop the FileActivityService.
+    """
     s = FileActivityService()
     s.serve()
     yield s
@@ -41,6 +47,9 @@ def server():
 
 @pytest.fixture
 def fact(docker_client, temp_dir, server):
+    """
+    Run the fact docker container for integration tests.
+    """
     command = ['http://127.0.0.1:9999', '-p', temp_dir]
     container = docker_client.containers.run(
         'fact:latest',
@@ -92,4 +101,8 @@ def fact(docker_client, temp_dir, server):
 
 @pytest.fixture
 def executor():
+    """
+    Fixture that provides a ThreadPoolExecutor for concurrent operations
+    in tests.
+    """
     return futures.ThreadPoolExecutor(max_workers=2)
