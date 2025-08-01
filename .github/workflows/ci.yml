@@ -150,7 +150,6 @@ jobs:
     - name: Unarchive logs
       if: always()
       run: |
-        ls -la "${GITHUB_WORKSPACE}/fact/tests"/**
         cd "${GITHUB_WORKSPACE}/fact/tests"
         if [[ -f "logs.tar.gz" ]]; then
           tar xzf "logs.tar.gz"

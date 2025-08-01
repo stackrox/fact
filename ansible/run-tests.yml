@@ -39,7 +39,6 @@
       - name: Run tests
         ansible.builtin.shell:
           cmd: |
-            echo "${FACT_TAG:-undefined}"
             cd "${HOME}/fact"
             source ".venv/bin/activate"
             make integration-tests
