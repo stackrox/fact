@@ -1,7 +1,9 @@
+include ../constants.mk
+
 all: pytest
 
 pytest: grpc-gen
-	pytest
+	pytest --tag="${FACT_TAG}"
 
 PYOUT = $(CURDIR)
 

@@ -45,8 +45,18 @@ def server():
     s.stop()
 
 
+@pytest.fixture(scope='session', autouse=True)
+def get_image(request, docker_client):
+    tag = request.config.getoption('--tag')
+    image = f'quay.io/rhacs-eng/fact:{tag}'
+    try:
+        docker_client.images.get(image)
+    except docker.errors.ImageNotFound:
+        docker_client.images.pull(image)
+
+
 @pytest.fixture
-def fact(docker_client, temp_dir, server):
+def fact(request, docker_client, temp_dir, server):
     """
     Run the fact docker container for integration tests.
     """
@@ -55,8 +65,9 @@ def fact(docker_client, temp_dir, server):
         '-p', temp_dir,
         '--health-check',
     ]
+    tag = request.config.getoption('--tag')
     container = docker_client.containers.run(
-        'fact:latest',
+        f'quay.io/rhacs-eng/fact:{tag}',
         command=command,
         detach=True,
         environment={
@@ -110,3 +121,8 @@ def executor():
     in tests.
     """
     return futures.ThreadPoolExecutor(max_workers=2)
+
+
+def pytest_addoption(parser):
+    parser.addoption('--tag', action='store', default='latest',
+                     help='The tag to be used for testing')
