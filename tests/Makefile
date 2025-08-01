@@ -3,7 +3,7 @@ include ../constants.mk
 all: pytest
 
 pytest: grpc-gen
-	pytest --tag="${FACT_TAG}"
+	pytest --tag="${FACT_TAG}" --junit-xml=results.xml
 
 PYOUT = $(CURDIR)
 
@@ -20,4 +20,9 @@ grpc-gen: ${ARTIFACTS}
 		--grpc_python_out=${PYOUT} \
 		${ARTIFACTS}
 
-.PHONY: all pytest grpc-gen
+clean:
+	rm -rf logs/
+	rm -rf logs.tar.gz
+	rm -f results.xml
+
+.PHONY: all pytest grpc-gen clean

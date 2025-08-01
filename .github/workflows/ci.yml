@@ -146,3 +146,29 @@ jobs:
       if: always()
       run: |
         make -C "./collector/ansible" destroy-vms
+
+    - name: Unarchive logs
+      if: always()
+      run: |
+        ls -la "${GITHUB_WORKSPACE}/fact/tests"/**
+        cd "${GITHUB_WORKSPACE}/fact/tests"
+        if [[ -f "logs.tar.gz" ]]; then
+          tar xzf "logs.tar.gz"
+          rm -f "logs.tar.gz"
+        fi
+
+    - name: Test summary
+      uses: test-summary/action@v2
+      if: always()
+      with:
+        paths: ${{ github.workspace }}/fact/tests/results.xml
+
+    - name: Store artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs
+        path: |
+          ${{ github.workspace }}/fact/tests/logs
+          ${{ github.workspace }}/fact/tests/results.xml
+        if-no-files-found: ignore

@@ -35,10 +35,28 @@
         virtualenv: ./fact/.venv
         virtualenv_command: python3 -m venv
 
-    - name: Run tests
-      ansible.builtin.shell:
-        cmd: |
-          echo "${FACT_TAG:-undefined}"
-          cd "${HOME}/fact"
-          source ".venv/bin/activate"
-          make integration-tests
+    - block:
+      - name: Run tests
+        ansible.builtin.shell:
+          cmd: |
+            echo "${FACT_TAG:-undefined}"
+            cd "${HOME}/fact"
+            source ".venv/bin/activate"
+            make integration-tests
+      always:
+      - name: Retrieve results
+        ansible.builtin.fetch:
+          src: "{{ ansible_env.HOME }}/fact/tests/results.xml"
+          dest: ../tests/
+          flat: true
+
+      - name: Compress log files
+        community.general.archive:
+          path: "{{ ansible_env.HOME }}/fact/tests/logs"
+          dest: "{{ ansible_env.HOME }}/fact/tests/logs.tar.gz"
+
+      - name: Fetch log files
+        ansible.builtin.fetch:
+          src: "{{ ansible_env.HOME }}/fact/tests/logs.tar.gz"
+          dest: ../tests/logs.tar.gz
+          flat: true

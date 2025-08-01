@@ -18,4 +18,7 @@ image:
 integration-tests:
 	make -C tests
 
-.PHONY: tag mock-server integration-tests image image-name
+clean:
+	make -C tests clean
+
+.PHONY: tag mock-server integration-tests image image-name clean
