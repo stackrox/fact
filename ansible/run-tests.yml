@@ -1,0 +1,61 @@
+---
+- name: Run integration tests
+  hosts: "job_id_{{ job_id }}"
+  environment:
+    FACT_TAG: "{{ fact.tag | default(None) }}"
+
+  tasks:
+    - name: Install dependencies
+      become: true
+      community.general.rpm_ostree_pkg:
+        apply_live: true
+        name:
+          - make
+          - python3-packaging
+          - python3-requests
+        state: present
+
+    - name: Login to quay.io
+      community.docker.docker_login:
+        registry_url: quay.io
+        username: "{{ quay.username }}"
+        password: "{{ quay.password }}"
+
+    - name: Clone the repo
+      ansible.builtin.git:
+        repo: https://github.com/stackrox/fact
+        dest: ./fact
+        version: "{{ fact.version }}"
+        update: false
+
+    - name: Install python packages
+      ansible.builtin.pip:
+        requirements: ./fact/tests/requirements.txt
+        chdir: "{{ ansible_env.HOME }}"
+        virtualenv: ./fact/.venv
+        virtualenv_command: python3 -m venv
+
+    - block:
+      - name: Run tests
+        ansible.builtin.shell:
+          cmd: |
+            cd "${HOME}/fact"
+            source ".venv/bin/activate"
+            make integration-tests
+      always:
+      - name: Retrieve results
+        ansible.builtin.fetch:
+          src: "{{ ansible_env.HOME }}/fact/tests/results.xml"
+          dest: ../tests/
+          flat: true
+
+      - name: Compress log files
+        community.general.archive:
+          path: "{{ ansible_env.HOME }}/fact/tests/logs"
+          dest: "{{ ansible_env.HOME }}/fact/tests/logs.tar.gz"
+
+      - name: Fetch log files
+        ansible.builtin.fetch:
+          src: "{{ ansible_env.HOME }}/fact/tests/logs.tar.gz"
+          dest: ../tests/logs.tar.gz
+          flat: true
