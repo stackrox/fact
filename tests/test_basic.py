@@ -18,7 +18,7 @@ def test_open(fact, temp_dir, server, executor):
     """
     # File Under Test
     fut = os.path.join(temp_dir, 'test.txt')
-    with open(fut+'x', 'w') as f:
+    with open(fut, 'w') as f:
         f.write('This is a test')
 
     p = Process(name='pytest', uid=os.getuid(),
