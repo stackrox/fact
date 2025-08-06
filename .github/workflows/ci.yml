@@ -41,6 +41,9 @@ jobs:
       run: |
         import os
 
+        # Remove the hyphens from arguments like --release, then join
+        # all words with hyphens to have a key that is valid for GHA
+        # caching.
         args='${{ matrix.args }}'.replace('-', '').split()
         args='-'.join(args)
         with open(os.environ.get('GITHUB_OUTPUT'), 'a') as f:
