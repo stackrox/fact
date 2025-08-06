@@ -46,7 +46,7 @@ def server():
 
 
 @pytest.fixture
-def logs(request):
+def logs_dir(request):
     logs = os.path.join(os.getcwd(), 'logs', request.node.name)
     os.makedirs(logs, exist_ok=True)
     return logs
@@ -69,7 +69,7 @@ def dump_logs(container, file):
 
 
 @pytest.fixture
-def fact(request, docker_client, temp_dir, server, logs):
+def fact(request, docker_client, temp_dir, server, logs_dir):
     """
     Run the fact docker container for integration tests.
     """
@@ -105,7 +105,7 @@ def fact(request, docker_client, temp_dir, server, logs):
             },
         },
     )
-    log_file = os.path.join(logs, 'fact.log')
+    log_file = os.path.join(logs_dir, 'fact.log')
 
     # Wait for container to be ready
     for _ in range(3):
