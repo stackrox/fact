@@ -1,6 +1,7 @@
 from concurrent import futures
 from collections import deque
 from threading import Event
+from time import sleep
 
 from google.protobuf.json_format import MessageToJson
 import grpc
@@ -78,3 +79,25 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
             bool: True if the server is running, False otherwise.
         """
         return self.running.is_set()
+
+    def wait_event(self, event: Event):
+        """
+        Continuously checks the server for incoming events until the
+        specified event is found.
+
+        This method is blocking, the intended use case is that it is
+        called from a context that can timeout, (i.e: by using an async
+        executor with result or wait).
+
+        Args:
+            server: The server instance to retrieve events from.
+            event (Event): The event to search for.
+        """
+        while self.is_running():
+            msg = self.get_next()
+            if msg is None:
+                sleep(0.5)
+                continue
+
+            if event == msg:
+                break

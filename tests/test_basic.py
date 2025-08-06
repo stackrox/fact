@@ -4,25 +4,6 @@ from time import sleep
 from event import Event, Process
 
 
-def find_event(server, event: Event):
-    """
-    Continuously checks the server for incoming events until the
-    specified event is found.
-
-    Args:
-        server: The server instance to retrieve events from.
-        event (Event): The event to search for.
-    """
-    while server.is_running():
-        msg = server.get_next()
-        if msg is None:
-            sleep(0.5)
-            continue
-
-        if event == msg:
-            break
-
-
 def test_open(fact, temp_dir, server, executor):
     """
     Tests the opening of a file and verifies that the corresponding
@@ -45,6 +26,6 @@ def test_open(fact, temp_dir, server, executor):
 
     e = Event(process=p, file=fut)
 
-    fs = executor.submit(find_event, server, e)
+    fs = executor.submit(server.wait_event, e)
 
     fs.result(timeout=5)

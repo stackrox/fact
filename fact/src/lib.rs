@@ -132,10 +132,10 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
                     }
                     guard.clear_ready();
                 }
-                    _ = rx.recv() => {
-                        info!("Stopping BPF worker...");
-                        return;
-                    }
+                _ = rx.recv() => {
+                    info!("Stopping BPF worker...");
+                    return;
+                }
             }
         }
     });
