@@ -407,6 +407,7 @@ dependencies = [
  "log",
  "prost",
  "prost-types",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tonic",
