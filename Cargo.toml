@@ -34,3 +34,4 @@ tonic-build = "0.13.1"
 uuid = { version = "1.17.0", features = ["v4"] }
 which = { version = "6.0.0", default-features = false }
 bindgen = "0.72.0"
+tempfile = { version = "3.20.0", default-features = false }
