@@ -67,8 +67,8 @@ impl Output {
             loop {
                 tokio::select! {
                     event = rx.recv() => {
-                        let event = Arc::unwrap_or_clone(event.expect("Failed to receive event"));
-                        match serde_json::to_string(&event) {
+                        let event = event.expect("Failed to receive event");
+                        match serde_json::to_string(&*event) {
                             Ok(e) => println!("{e}"),
                             Err(e) => warn!("There was an error serializing an event: {e}"),
                         }
