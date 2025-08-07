@@ -4,6 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
@@ -15,7 +16,7 @@ fn slice_to_string(s: &[i8]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct Lineage {
     uid: u32,
     exe_path: String,
@@ -51,7 +52,7 @@ impl From<Lineage> for fact_api::process_signal::LineageInfo {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct Process {
     comm: String,
     args: Vec<String>,
@@ -224,7 +225,7 @@ impl From<Process> for fact_api::ProcessSignal {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Event {
     timestamp: u64,
     #[allow(dead_code)]
