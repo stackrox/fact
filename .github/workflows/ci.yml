@@ -36,6 +36,19 @@ jobs:
         sudo apt-get install -y \
           libbpf-dev \
           protobuf-compiler
+    - shell: python
+      id: args
+      run: |
+        import os
+
+        # Remove the hyphens from arguments like --release, then join
+        # all words with hyphens to have a key that is valid for GHA
+        # caching.
+        args='${{ matrix.args }}'.replace('-', '').split()
+        args='-'.join(args)
+        with open(os.environ.get('GITHUB_OUTPUT'), 'a') as f:
+          f.write(f'args={args}')
+
     - uses: actions/cache@v4
       with:
         path: |
@@ -44,7 +57,7 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ steps.args.outputs.args }}-${{ hashFiles('**/Cargo.lock') }}
     - run: cargo ${{ matrix.args }}
 
   container:
