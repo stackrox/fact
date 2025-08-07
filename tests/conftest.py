@@ -77,6 +77,7 @@ def fact(request, docker_client, temp_dir, server, logs_dir):
         'http://127.0.0.1:9999',
         '-p', temp_dir,
         '--health-check',
+        '--json',
     ]
     tag = request.config.getoption('--tag')
     container = docker_client.containers.run(
