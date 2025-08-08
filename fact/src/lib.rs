@@ -1,6 +1,6 @@
 use anyhow::Context;
 use bpf::Bpf;
-use log::info;
+use log::{info, debug};
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::watch::channel,
@@ -21,7 +21,12 @@ use pre_flight::pre_flight;
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let (tx, rx) = channel(true);
 
-    pre_flight().context("Pre-flight checks failed")?;
+    if !config.skip_pre_flight {
+        debug!("Performing pre-flight checks");
+        pre_flight().context("Pre-flight checks failed")?;
+    } else {
+        debug!("Skipping pre-flight checks");
+    }
 
     let bpf = Bpf::new(&config.paths)?;
 
