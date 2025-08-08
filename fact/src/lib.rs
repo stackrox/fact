@@ -31,7 +31,12 @@ use event::Event;
 use pre_flight::pre_flight;
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
-    pre_flight().context("Pre-flight checks failed")?;
+    if !config.skip_preflight {
+        debug!("Performing pre-flight checks");
+        pre_flight().context("Pre-flight checks failed")?;
+    } else {
+        debug!("Skipping pre-flight checks");
+    }
 
     // Bump the memlock rlimit. This is needed for older kernels that don't use the
     // new memcg based accounting, see https://lwn.net/Articles/837122/
