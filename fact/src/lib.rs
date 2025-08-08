@@ -74,9 +74,9 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     program.load("file_open", &btf)?;
     program.attach()?;
 
-    if config.healthcheck {
+    if config.health_check {
         // At this point the BPF code is in the kernel, we start our
-        // healthcheck probe
+        // health_check probe
         tokio::spawn(async move {
             let addr = SocketAddr::from(([0, 0, 0, 0], 9000));
             let listener = TcpListener::bind(addr).await.unwrap();

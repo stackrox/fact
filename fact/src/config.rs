@@ -17,7 +17,7 @@ pub struct FactConfig {
     #[arg(short, long, env = "FACT_CERTS")]
     pub certs: Option<PathBuf>,
 
-    /// Whether a small healthcheck probe should be run
+    /// Whether a small health_check probe should be run
     #[arg(long)]
-    pub healthcheck: bool,
+    pub health_check: bool,
 }

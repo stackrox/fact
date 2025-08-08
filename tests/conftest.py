@@ -53,7 +53,7 @@ def fact(docker_client, temp_dir, server):
     command = [
         'http://127.0.0.1:9999',
         '-p', temp_dir,
-        '--healthcheck',
+        '--health-check',
     ]
     container = docker_client.containers.run(
         'fact:latest',
@@ -84,7 +84,7 @@ def fact(docker_client, temp_dir, server):
             resp = requests.get('http://127.0.0.1:9000')
             if resp.status_code == 200:
                 break
-        except Exception as e:
+        except (requests.RequestException, requests.ConnectionError) as e:
             print(e)
         sleep(1)
     else:
