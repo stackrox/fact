@@ -10,6 +10,7 @@ use tokio::{
 mod bpf;
 pub mod config;
 mod event;
+mod grpc;
 mod health_check;
 mod host_info;
 mod output;
