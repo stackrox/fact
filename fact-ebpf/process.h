@@ -17,7 +17,10 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
   }
 
   struct task_struct* task = (struct task_struct*)bpf_get_current_task();
-  struct kernfs_node* kn = BPF_CORE_READ(task, cgroups, subsys[cpu_cgrp_id], cgroup, kn);
+  // We're guessing which cgroup v2 controllers are enabled for this task. The
+  // assumption is that memory controller is present more often than
+  // cpu & cpuacct.
+  struct kernfs_node* kn = BPF_CORE_READ(task, cgroups, subsys[memory_cgrp_id], cgroup, kn);
   if (kn == NULL) {
     return NULL;
   }

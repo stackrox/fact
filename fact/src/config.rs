@@ -24,4 +24,8 @@ pub struct FactConfig {
     /// Whether to perform a pre flight check
     #[arg(long, default_value_t = false)]
     pub skip_preflight: bool,
+
+    /// Whether to log raw ringbuf data
+    #[arg(long)]
+    pub show_raw_bpf: bool,
 }

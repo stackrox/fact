@@ -126,7 +126,11 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
                     let ringbuf = guard.get_inner_mut();
                     while let Some(event) = ringbuf.next() {
                         let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                        println!("{event:?}");
+
+                        if config.show_raw_bpf {
+                            println!("{event:?}");
+                        }
+
                         let event: Event = event.try_into().unwrap();
 
                         if config.paths.is_empty() || config.paths.iter().any(|p| event.filename.starts_with(p)) {
