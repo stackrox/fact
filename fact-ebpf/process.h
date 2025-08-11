@@ -12,7 +12,8 @@
 // clang-format on
 
 __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
-  if (!bpf_core_enum_value_exists(enum cgroup_subsys_id, cpu_cgrp_id)) {
+  if (!bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id)) {
+    bpf_printk("cgroup_subsys_id enum value does not exist");
     return NULL;
   }
 
@@ -22,12 +23,14 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
   // cpu & cpuacct.
   struct kernfs_node* kn = BPF_CORE_READ(task, cgroups, subsys[memory_cgrp_id], cgroup, kn);
   if (kn == NULL) {
+    bpf_printk("kernfs node is empty");
     return NULL;
   }
 
   int i = 0;
   for (; i < 16; i++) {
     helper->array[i] = (const unsigned char*)BPF_CORE_READ(kn, name);
+    bpf_printk("read %p to %d", helper->array[i], i);
     if (bpf_core_field_exists(kn->__parent)) {
       kn = BPF_CORE_READ(kn, __parent);
     } else {
@@ -47,13 +50,19 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
 
   int offset = 0;
   for (; i >= 0 && offset < PATH_MAX; i--) {
+    if (helper->array[i] == NULL)
+      continue;
+
     helper->buf[offset & (PATH_MAX - 1)] = '/';
     if (++offset >= PATH_MAX) {
+      bpf_printk("Hit PATH_MAX");
       return NULL;
     }
 
     int len = bpf_probe_read_kernel_str(&helper->buf[offset & (PATH_MAX - 1)], PATH_MAX, helper->array[i]);
     if (len < 0) {
+      bpf_printk("Hit len < 0, len %d, i %d, dst %p, src %p, size %d",
+                  len, i, &helper->buf[offset & (PATH_MAX - 1)], helper->array[i], PATH_MAX);
       return NULL;
     }
 
