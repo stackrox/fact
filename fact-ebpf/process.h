@@ -11,13 +11,17 @@
 #include <bpf/bpf_core_read.h>
 // clang-format on
 
-__always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
-  if (!bpf_core_enum_value_exists(enum cgroup_subsys_id, cpu_cgrp_id)) {
+__always_inline static const char* get_memory_cgroup(struct helper_t* helper) {
+  if (!bpf_core_enum_value_exists(enum cgroup_subsys_id, memory_cgrp_id)) {
     return NULL;
   }
 
   struct task_struct* task = (struct task_struct*)bpf_get_current_task();
-  struct kernfs_node* kn = BPF_CORE_READ(task, cgroups, subsys[cpu_cgrp_id], cgroup, kn);
+
+  // We're guessing which cgroup controllers are enabled for this task. The
+  // assumption is that memory controller is present more often than
+  // cpu & cpuacct.
+  struct kernfs_node* kn = BPF_CORE_READ(task, cgroups, subsys[memory_cgrp_id], cgroup, kn);
   if (kn == NULL) {
     return NULL;
   }
@@ -122,9 +126,9 @@ __always_inline static int64_t process_fill(process_t* p) {
   }
   bpf_probe_read_str(p->exe_path, PATH_MAX, exe_path);
 
-  const char* cg = get_cpu_cgroup(helper);
+  const char* cg = get_memory_cgroup(helper);
   if (cg != NULL) {
-    bpf_probe_read_str(p->cpu_cgroup, PATH_MAX, cg);
+    bpf_probe_read_str(p->memory_cgroup, PATH_MAX, cg);
   }
 
   process_fill_lineage(p, helper);
