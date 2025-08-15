@@ -1,11 +1,21 @@
+use std::{convert::Infallible, net::SocketAddr};
+
 use anyhow::Context;
 use aya::{
     maps::{Array, MapData, RingBuf},
     programs::Lsm,
     Btf,
 };
+use http_body_util::Full;
+use hyper::{body::Bytes, server::conn::http1, service::service_fn, Response};
+use hyper_util::rt::TokioIo;
 use log::{debug, info};
-use tokio::{io::unix::AsyncFd, signal, task::yield_now};
+use tokio::{
+    io::unix::AsyncFd,
+    net::TcpListener,
+    signal::unix::{signal, SignalKind},
+    sync::mpsc::channel,
+};
 
 mod bpf;
 mod client;
@@ -64,6 +74,34 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     program.load("file_open", &btf)?;
     program.attach()?;
 
+    if config.health_check {
+        // At this point the BPF code is in the kernel, we start our
+        // health_check probe
+        tokio::spawn(async move {
+            let addr = SocketAddr::from(([0, 0, 0, 0], 9000));
+            let listener = TcpListener::bind(addr).await.unwrap();
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+                let io = TokioIo::new(stream);
+                tokio::spawn(async move {
+                    if let Err(err) = http1::Builder::new()
+                        .serve_connection(
+                            io,
+                            service_fn(|_| async move {
+                                Ok::<Response<Full<Bytes>>, Infallible>(Response::new(Full::new(
+                                    Bytes::from(""),
+                                )))
+                            }),
+                        )
+                        .await
+                    {
+                        eprintln!("Error serving connection: {err:?}");
+                    }
+                });
+            }
+        });
+    }
+
     // Create the gRPC client
     let mut client = if let Some(url) = config.url.as_ref() {
         Some(Client::start(url, config.certs)?)
@@ -71,28 +109,43 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         None
     };
 
+    let (tx, mut rx) = channel(1);
+
+    info!("Starting BPF worker...");
     // Gather events from the ring buffer and print them out.
     tokio::spawn(async move {
         loop {
-            let mut guard = async_fd.readable_mut().await.unwrap();
-            let ringbuf = guard.get_inner_mut();
-            while let Some(event) = ringbuf.next() {
-                let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                let event: Event = event.try_into().unwrap();
+            tokio::select! {
+                guard = async_fd.readable_mut() => {
+                    let mut guard = guard.unwrap();
+                    let ringbuf = guard.get_inner_mut();
+                    while let Some(event) = ringbuf.next() {
+                        let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
+                        let event: Event = event.try_into().unwrap();
 
-                println!("{event:?}");
-                if let Some(client) = client.as_mut() {
-                    let _ = client.send(event).await;
+                        if config.paths.is_empty() || config.paths.iter().any(|p| event.filename.starts_with(p)) {
+                            println!("{event:?}");
+                            if let Some(client) = client.as_mut() {
+                                let _ = client.send(event).await;
+                            }
+                        }
+                    }
+                    guard.clear_ready();
+                }
+                _ = rx.recv() => {
+                    info!("Stopping BPF worker...");
+                    return;
                 }
             }
-            guard.clear_ready();
-            yield_now().await;
         }
     });
 
-    let ctrl_c = signal::ctrl_c();
-    info!("Waiting for Ctrl-C...");
-    ctrl_c.await?;
+    let mut sigterm = signal(SignalKind::terminate())?;
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = sigterm.recv() => {}
+    }
+    tx.send(()).await?;
     info!("Exiting...");
 
     Ok(())

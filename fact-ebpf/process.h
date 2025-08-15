@@ -25,7 +25,14 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
   int i = 0;
   for (; i < 16; i++) {
     helper->array[i] = (const unsigned char*)BPF_CORE_READ(kn, name);
-    kn = BPF_CORE_READ(kn, __parent);
+    if (bpf_core_field_exists(kn->__parent)) {
+      kn = BPF_CORE_READ(kn, __parent);
+    } else {
+      struct {
+        struct kernfs_node* parent;
+      }* kn_old = (void*)kn;
+      kn = BPF_CORE_READ(kn_old, parent);
+    }
     if (kn == NULL) {
       break;
     }

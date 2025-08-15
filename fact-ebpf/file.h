@@ -30,6 +30,7 @@ __always_inline static bool has_prefix(const char* s, const char* prefix, uint64
     }
 
     prefix_len -= 8;
+    offset += 8;
   }
 
   for (int i = 0; i < prefix_len; i++) {

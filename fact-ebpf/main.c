@@ -40,9 +40,11 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto end;
   }
 
+  /* TODO: ROX-30438 This causes a verifier issue with long paths
   if (!is_monitored(event->filename)) {
     goto end;
   }
+  */
 
   event->timestamp = bpf_ktime_get_boot_ns();
 
