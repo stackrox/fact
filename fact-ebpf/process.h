@@ -44,6 +44,10 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
 
   int offset = 0;
   for (; i >= 0 && offset < PATH_MAX; i--) {
+    // Skip empty directories
+    if (helper->array[i] == NULL)
+      continue;
+
     helper->buf[offset & (PATH_MAX - 1)] = '/';
     if (++offset >= PATH_MAX) {
       return NULL;
@@ -51,6 +55,8 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
 
     int len = bpf_probe_read_kernel_str(&helper->buf[offset & (PATH_MAX - 1)], PATH_MAX, helper->array[i]);
     if (len < 0) {
+      // We should have skipped all empty entries, any other error is a genuine
+      // problem, stop processing.
       return NULL;
     }
 
