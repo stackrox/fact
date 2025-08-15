@@ -31,7 +31,12 @@ use event::Event;
 use pre_flight::pre_flight;
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
-    pre_flight().context("Pre-flight checks failed")?;
+    if !config.skip_preflight {
+        debug!("Performing pre-flight checks");
+        pre_flight().context("Pre-flight checks failed")?;
+    } else {
+        debug!("Skipping pre-flight checks");
+    }
 
     // Bump the memlock rlimit. This is needed for older kernels that don't use the
     // new memcg based accounting, see https://lwn.net/Articles/837122/
@@ -121,6 +126,11 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
                     let ringbuf = guard.get_inner_mut();
                     while let Some(event) = ringbuf.next() {
                         let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
+
+                        if config.show_raw_bpf {
+                            println!("{event:?}");
+                        }
+
                         let event: Event = event.try_into().unwrap();
 
                         if config.paths.is_empty() || config.paths.iter().any(|p| event.filename.starts_with(p)) {
