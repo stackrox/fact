@@ -87,7 +87,7 @@ jobs:
       with:
         repository: stackrox/collector
         path: collector
-        ref: mauro/fact/adjust-workflows
+        ref: master
     - uses: actions/setup-python@v5
       with:
         python-version: "3.10"
