@@ -31,7 +31,7 @@ typedef struct process_t {
 struct event_t {
   unsigned long timestamp;
   process_t process;
-  char is_external_mount;
+  unsigned long mnt_namespace;
   char filename[PATH_MAX];
   char host_file[PATH_MAX];
 };

@@ -54,15 +54,11 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto end;
   }
 
-  event->is_external_mount = is_external_mount(file);
+  event->mnt_namespace = get_mnt_namespace();
 
-  if (event->is_external_mount) {
-    const char* p = get_host_path(helper, file);
-    if (p != NULL) {
-      bpf_probe_read_str(event->host_file, PATH_MAX, p);
-    }
-  } else {
-    event->host_file[0] = '\0';
+  const char* p = get_host_path(helper, file);
+  if (p != NULL) {
+    bpf_probe_read_str(event->host_file, PATH_MAX, p);
   }
 
   bpf_ringbuf_submit(event, 0);

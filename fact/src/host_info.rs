@@ -1,6 +1,12 @@
-use std::{collections::HashMap, env, fs::read_to_string, path::PathBuf, sync::LazyLock};
+use log::debug;
+use std::{
+    collections::HashMap, env, ffi::c_char, fs::read_to_string, mem, path::PathBuf, sync::LazyLock,
+};
 
-use libc::{clockid_t, timespec, CLOCK_BOOTTIME, CLOCK_REALTIME};
+use libc::{
+    clockid_t, statx, timespec, AT_FDCWD, AT_NO_AUTOMOUNT, AT_STATX_SYNC_AS_STAT, CLOCK_BOOTTIME,
+    CLOCK_REALTIME, STATX_INO,
+};
 
 pub fn get_host_mount() -> &'static PathBuf {
     static HOST_MOUNT: LazyLock<PathBuf> =
@@ -63,4 +69,36 @@ pub fn get_username(uid: u32) -> &'static str {
         Some(u) => u.as_str(),
         None => "",
     }
+}
+
+// get_mnt_namespace
+//
+// Returns a mount namespace of the host. Since we're running as a privileged
+// process, it's equivalent to our mount namespace, thus extract it as an inode
+// of /proc/self/ns/mnt . We should get the same result if we try to use
+// /proc/1/ns/mnt .
+pub fn get_mnt_namespace() -> u64 {
+    static HOST_MNT_NAMESPACE: LazyLock<u64> = LazyLock::new(|| {
+        let mut file_stats = unsafe { mem::zeroed() };
+        let path: *const c_char = c"/proc/self/ns/mnt".as_ptr().cast();
+        let ret = unsafe {
+            statx(
+                AT_FDCWD,
+                path,
+                AT_STATX_SYNC_AS_STAT | AT_NO_AUTOMOUNT,
+                STATX_INO,
+                &mut file_stats,
+            )
+        };
+
+        if ret == 0 {
+            debug!("Host mount namespace {}", file_stats.stx_ino);
+        } else {
+            panic!("Failed to get host mount namespace: {ret}");
+        }
+
+        file_stats.stx_ino
+    });
+
+    *HOST_MNT_NAMESPACE
 }
