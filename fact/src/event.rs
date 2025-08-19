@@ -193,7 +193,7 @@ impl TryFrom<&event_t> for Event {
         let filename = slice_to_string(value.filename.as_slice())?.into();
         let host_file = slice_to_string(value.host_file.as_slice())?.into();
         let process = value.process.try_into()?;
-        let is_external_mount = value.is_external_mount != 0;
+        let is_external_mount = value.mnt_namespace != host_info::get_mnt_namespace();
 
         Ok(Event {
             timestamp,

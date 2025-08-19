@@ -144,3 +144,10 @@ __always_inline static int64_t process_fill(process_t* p) {
 
   return 0;
 }
+
+__always_inline static unsigned long get_mnt_namespace() {
+  struct task_struct* task = (struct task_struct*) bpf_get_current_task();
+  struct ns_common ns = BPF_CORE_READ(task, nsproxy, mnt_ns, ns);
+
+  return ns.inum;
+}
