@@ -1,0 +1,35 @@
+---
+- name: Run unit tests
+  hosts: "job_id_{{ job_id }}"
+  become: true
+
+  tasks:
+    - name: Install dependencies
+      community.general.rpm_ostree_pkg:
+        name:
+          - clang
+          - libbpf-devel
+          - protobuf-compiler
+          - protobuf-devel
+          - rustup
+        state: present
+
+    - name: Apply install
+      ansible.builtin.command: rpm-ostree apply-live --allow-replacement
+
+    - name: Install rust toolchain
+      ansible.builtin.command: rustup-init -y --profile minimal
+
+    - name: Clone the repo
+      ansible.builtin.git:
+        repo: https://github.com/stackrox/fact
+        dest: ./fact
+        version: "{{ fact.version }}"
+        update: false
+
+    - name: Run the tests
+      environment:
+        PATH: "/root/.cargo/bin:{{ ansible_env.PATH }}"
+      ansible.builtin.command:
+        cmd: cargo test --features=bpf-test
+        chdir: ./fact/
