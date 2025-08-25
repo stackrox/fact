@@ -24,7 +24,7 @@ jobs:
         args:
           - build --release
           - clippy -- -D warnings
-          - test
+          - test --features=bpf-test --config 'target."cfg(all())".runner="sudo -E"'
     steps:
     - uses: actions/checkout@v4
       with:
@@ -44,7 +44,7 @@ jobs:
         # Remove the hyphens from arguments like --release, then join
         # all words with hyphens to have a key that is valid for GHA
         # caching.
-        args='${{ matrix.args }}'.replace('-', '').split()
+        args="""${{ matrix.args }}""".replace('-', '').split()
         args='-'.join(args)
         with open(os.environ.get('GITHUB_OUTPUT'), 'a') as f:
           f.write(f'args={args}')
