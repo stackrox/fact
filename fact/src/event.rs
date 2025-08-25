@@ -1,4 +1,9 @@
-use std::{ffi::CStr, path::PathBuf};
+use std::{
+    env,
+    ffi::CStr,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use uuid::Uuid;
 
@@ -11,7 +16,7 @@ fn slice_to_string(s: &[i8]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Lineage {
     uid: u32,
     exe_path: String,
@@ -47,7 +52,7 @@ impl From<Lineage> for fact_api::process_signal::LineageInfo {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Process {
     comm: String,
     args: Vec<String>,
@@ -62,6 +67,41 @@ pub struct Process {
 }
 
 impl Process {
+    /// Create a representation of the current process as best as
+    /// possible.
+    ///
+    /// Useful for testing.
+    pub fn current() -> Self {
+        let exe_path = env::current_exe()
+            .expect("Failed to get current exe")
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let args = std::env::args().collect::<Vec<_>>();
+        let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
+        let container_id = Process::extract_container_id(&cgroup);
+        let uid = unsafe { libc::getuid() };
+        let gid = unsafe { libc::getgid() };
+        let pid = std::process::id();
+        let login_uid = std::fs::read_to_string("/proc/self/loginuid")
+            .expect("Failed to read loginuid")
+            .parse()
+            .expect("Failed to parse login_uid");
+
+        Self {
+            comm: "".to_string(),
+            args,
+            exe_path,
+            container_id,
+            uid,
+            username: "",
+            gid,
+            login_uid,
+            pid,
+            lineage: vec![],
+        }
+    }
+
     fn extract_container_id(cgroup: &str) -> Option<String> {
         let cgroup = if let Some(i) = cgroup.rfind(".scope") {
             cgroup.split_at(i).0
@@ -84,6 +124,18 @@ impl Process {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+impl PartialEq for Process {
+    fn eq(&self, other: &Self) -> bool {
+        self.uid == other.uid
+            && self.login_uid == other.login_uid
+            && self.gid == other.gid
+            && self.exe_path == other.exe_path
+            && self.args == other.args
+            && self.container_id == other.container_id
     }
 }
 
@@ -174,7 +226,7 @@ impl From<Process> for fact_api::ProcessSignal {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Event {
     timestamp: u64,
     #[allow(dead_code)]
@@ -183,6 +235,40 @@ pub struct Event {
     is_external_mount: bool,
     pub filename: PathBuf,
     host_file: PathBuf,
+}
+
+impl Event {
+    pub fn new(
+        hostname: &'static str,
+        is_external_mount: bool,
+        filename: PathBuf,
+        host_file: PathBuf,
+        process: Process,
+    ) -> Self {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as _;
+        Event {
+            timestamp,
+            hostname,
+            process,
+            is_external_mount,
+            filename,
+            host_file,
+        }
+    }
+}
+
+#[cfg(test)]
+impl PartialEq for Event {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_external_mount == other.is_external_mount
+            && self.hostname == other.hostname
+            && self.filename == other.filename
+            && self.host_file == other.host_file
+            && self.process == other.process
+    }
 }
 
 impl TryFrom<&event_t> for Event {
