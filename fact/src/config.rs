@@ -24,4 +24,8 @@ pub struct FactConfig {
     /// Whether to perform a pre flight check
     #[arg(long)]
     pub skip_pre_flight: bool,
+
+    /// Force events to be output as JSON to stdout
+    #[arg(long, short)]
+    pub json: bool,
 }
