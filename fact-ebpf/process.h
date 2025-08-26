@@ -45,8 +45,9 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
   int offset = 0;
   for (; i >= 0 && offset < PATH_MAX; i--) {
     // Skip empty directories
-    if (helper->array[i] == NULL)
+    if (helper->array[i] == NULL) {
       continue;
+    }
 
     helper->buf[offset & (PATH_MAX - 1)] = '/';
     if (++offset >= PATH_MAX) {
@@ -99,7 +100,7 @@ __always_inline static int64_t process_fill(process_t* p) {
   p->uid = uid_gid & 0xFFFFFFFF;
   p->gid = (uid_gid >> 32) & 0xFFFFFFFF;
   p->login_uid = BPF_CORE_READ(task, loginuid.val);
-  p->pid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
+  p->pid = (bpf_get_current_pid_tgid() >> 32) & 0xFFFFFFFF;
   u_int64_t err = bpf_get_current_comm(p->comm, TASK_COMM_LEN);
   if (err != 0) {
     bpf_printk("Failed to fill task comm");
@@ -146,7 +147,7 @@ __always_inline static int64_t process_fill(process_t* p) {
 }
 
 __always_inline static unsigned long get_mnt_namespace() {
-  struct task_struct* task = (struct task_struct*) bpf_get_current_task();
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
   struct ns_common ns = BPF_CORE_READ(task, nsproxy, mnt_ns, ns);
 
   return ns.inum;

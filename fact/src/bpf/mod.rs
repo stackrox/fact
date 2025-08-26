@@ -146,7 +146,7 @@ mod bpf_tests {
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
         let paths = vec![monitored_path.clone()];
-        let is_external_mount = true;
+        let is_external_mount = false;
 
         executor.block_on(async {
             let bpf = Bpf::new(&paths).expect("Failed to load BPF code");
