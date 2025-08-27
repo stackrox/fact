@@ -3,7 +3,7 @@ include ../constants.mk
 all: pytest
 
 pytest: grpc-gen
-	pytest --tag="${FACT_TAG}" --junit-xml=results.xml
+	pytest --image="${FACT_IMAGE_NAME}" --junit-xml=results.xml
 
 PYOUT = $(CURDIR)
 

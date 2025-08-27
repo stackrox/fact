@@ -54,8 +54,7 @@ def logs_dir(request):
 
 @pytest.fixture(scope='session', autouse=True)
 def get_image(request, docker_client):
-    tag = request.config.getoption('--tag')
-    image = f'quay.io/rhacs-eng/fact:{tag}'
+    image = request.config.getoption('--image')
     try:
         docker_client.images.get(image)
     except docker.errors.ImageNotFound:
@@ -78,9 +77,9 @@ def fact(request, docker_client, temp_dir, server, logs_dir):
         '-p', temp_dir,
         '--health-check',
     ]
-    tag = request.config.getoption('--tag')
+    image = request.config.getoption('--image')
     container = docker_client.containers.run(
-        f'quay.io/rhacs-eng/fact:{tag}',
+        image,
         command=command,
         detach=True,
         environment={
@@ -141,5 +140,5 @@ def executor():
 
 
 def pytest_addoption(parser):
-    parser.addoption('--tag', action='store', default='latest',
-                     help='The tag to be used for testing')
+    parser.addoption('--image', action='store', default='quay.io/stackrox-io/fact:latest',
+                     help='The image to be used for testing')
