@@ -9,7 +9,7 @@ spec:
   - name: slack-notification
     params:
     - name: message
-      value: ':x: `{{event_type}}` pipeline for <https://console.redhat.com/application-pipeline/workspaces/rh-acs/applications/acs/pipelineruns/$(context.pipelineRun.name)|$(context.pipelineRun.name)> (`$(params.output-image-repo)`, revision <$(params.git-url)/commit/$(params.revision)|$(params.revision)>) has failed.'
+      value: ':x: `{{event_type}}` pipeline for <https://konflux-ui.apps.stone-prd-rh01.pg1f.p1.openshiftapps.com/ns/rh-acs-tenant/applications/acs/pipelineruns/$(context.pipelineRun.name)|$(context.pipelineRun.name)> (`$(params.output-image-repo)`, revision <$(params.git-url)/commit/$(params.revision)|$(params.revision)>) has failed.'
     - name: key-name
       value: 'acs-konflux-notifications'
     when:
@@ -65,10 +65,6 @@ spec:
     type: string
   - description: Output Image Repository
     name: output-image-repo
-    type: string
-  - default: "-fast"
-    description: Suffix that will be appended to the output image tag.
-    name: output-tag-suffix
     type: string
   - default: .
     description: Path to the source code of an application's component from where
@@ -209,7 +205,7 @@ spec:
   - name: determine-image-tag
     params:
     - name: TAG_SUFFIX
-      value: $(params.output-tag-suffix)
+      value: ""
     - name: SOURCE_ARTIFACT
       value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
     taskRef:
@@ -234,9 +230,6 @@ spec:
       value: $(params.oci-artifact-expires-after)
     - name: ACTIVATION_KEY
       value: subscription-manager-activation-key-prod
-    # Required for the RPM prefetching support.
-    - name: dev-package-managers
-      value: "true"
     taskRef:
       params:
       - name: name
@@ -250,7 +243,7 @@ spec:
     - name: git-basic-auth
       workspace: git-auth
 
-  # TODO: Add ppc64le, s390x and arm64 builds
+  # TODO: switch this task to matrix and add ppc64le, s390x and arm64 builds
   - name: build-container-amd64
     params:
     - name: IMAGE

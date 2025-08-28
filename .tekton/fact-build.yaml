@@ -28,7 +28,6 @@ spec:
   - name: image-expires-after
     value: '13w'
   - name: output-image-repo
-    # TODO: set this to quay.io/rhacs-eng/release-fact
     value: quay.io/rhacs-eng/fact
   - name: path-context
     value: .
@@ -68,83 +67,16 @@ spec:
           cpu: 4
         requests:
           cpu: 4
-    - name: use-trusted-artifact
-      # use-/create-trusted-artifact gets OOM-killed when a cluster is loaded. Bigger mem limits==request should help.
-      computeResources: &ta-resources
-        limits:
-          memory: 6Gi
-        requests:
-          memory: 6Gi
-
-  - pipelineTaskName: clone-repository
-    stepSpecs:
-    - name: create-trusted-artifact
-      computeResources: *ta-resources
-  - pipelineTaskName: determine-image-expiration
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
-  - pipelineTaskName: determine-image-tag
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
-  - pipelineTaskName: prefetch-dependencies
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
-    - name: create-trusted-artifact
-      computeResources: *ta-resources
-    - name: prefetch-dependencies
-      # We saw prefetch-dependencies _step_ also OOMKill-ed, therefore bumping its memory compared to default.
-      computeResources:
-        limits:
-          memory: 6Gi
-        requests:
-          cpu: "1"
-          memory: 6Gi
-# TODO: implement multi-arch builds
-#   - pipelineTaskName: build-container-s390x
-#     stepSpecs:
-#     - name: use-trusted-artifact
-#       computeResources: *ta-resources
-#   - pipelineTaskName: build-container-ppc64le
-#     stepSpecs:
-#     - name: use-trusted-artifact
-#       computeResources: *ta-resources
-#   - pipelineTaskName: build-container-arm64
-#     stepSpecs:
-#     - name: use-trusted-artifact
-#       computeResources: *ta-resources
-  - pipelineTaskName: build-source-image
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
-  - pipelineTaskName: sast-shell-check
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
-  - pipelineTaskName: sast-unicode-check
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
-  - pipelineTaskName: sast-snyk-check
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
-  - pipelineTaskName: push-dockerfile
-    stepSpecs:
-    - name: use-trusted-artifact
-      computeResources: *ta-resources
 
   taskRunTemplate:
     serviceAccountName: build-pipeline-fact
 
   timeouts:
-    # The pipeline regularly takes >1h to finish.
+    # The pipeline regularly takes a couple minutes to finish.
     # When changing the value here, make sure to adjust wait-for-images time limit in .github/workflows/konflux-tests.yml
-    tasks: 2h
+    tasks: 30m
     finally: 10m
-    pipeline: 2h10m
+    pipeline: 40m
 
   pipelineRef:
     name: fact-component-pipeline

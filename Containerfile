@@ -6,8 +6,7 @@ RUN dnf install --enablerepo=crb -y \
         protobuf-compiler \
         protobuf-devel \
         cargo-1.84.1 \
-        rust-1.84.1 && \
-    mkdir /app
+        rust-1.84.1
 
 WORKDIR /app
 

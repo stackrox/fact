@@ -54,6 +54,8 @@ sslverifystatus = 1
 metadata_expire = 86400
 enabled_metadata = 0
 
+# codeready-builder is required for the libbpf-devel and protobuf-devel
+# packages
 [codeready-builder-for-rhel-9-$basearch-rpms]
 name = Red Hat CodeReady Linux Builder for RHEL 9 $basearch (RPMs)
 baseurl = https://cdn.redhat.com/content/dist/rhel9/9/$basearch/codeready-builder/os

@@ -14,4 +14,4 @@ context:
   bare: true
 # TODO: Add s390x, ppc64le and aarch64
 arches:
-  - x86_64
+- x86_64
