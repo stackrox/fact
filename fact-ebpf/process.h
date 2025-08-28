@@ -109,11 +109,8 @@ __always_inline static int64_t process_fill(process_t* p) {
 
   unsigned long arg_start = BPF_CORE_READ(task, mm, arg_start);
   unsigned long arg_end = BPF_CORE_READ(task, mm, arg_end);
-  unsigned int len = arg_end - arg_start;
-  if (len > 4095) {
-    len = 4095;
-    p->args[4095] = '\0';  // Ensure empty string at end of buffer
-  }
+  unsigned int len = (arg_end - arg_start) & 0xFFF;
+  p->args[4095] = '\0';  // Ensure string termination at end of buffer
   err = bpf_probe_read_user(p->args, len, (const char*)arg_start);
   if (err != 0) {
     bpf_printk("Failed to fill task args");

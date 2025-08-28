@@ -1,0 +1,17 @@
+# This rpms.in.yaml and other rpms.* files define how to make RPM packages available for Konflux image builds.
+# See our docs here: https://spaces.redhat.com/display/StackRox/How+to+prefetch+RPMs+for+ACS+Konflux+builds
+
+packages:
+- cargo
+- clang
+- libbpf-devel
+- protobuf-compiler
+- protobuf-devel
+- rust
+contentOrigin:
+  repofiles: ["rpms.rhel.repo"]
+context:
+  bare: true
+# TODO: Add s390x, ppc64le and aarch64
+arches:
+- x86_64

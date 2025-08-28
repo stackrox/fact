@@ -1,0 +1,83 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/stackrox/fact?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/pull_request_number: '{{pull_request_number}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/max-keep-runs: "500"
+    pipelinesascode.tekton.dev/on-cel-expression: |
+      (event == "pull_request" && body.action != "ready_for_review") || (
+        event == "push" && target_branch.matches("^(main|release-.*|refs/tags/.*)$")
+      )
+  labels:
+    appstudio.openshift.io/application: acs
+    appstudio.openshift.io/component: fact
+    pipelines.appstudio.openshift.io/type: build
+  name: fact-on-push
+  namespace: rh-acs-tenant
+
+spec:
+  params:
+  - name: dockerfile
+    value: konflux.Containerfile
+  - name: git-url
+    value: '{{source_url}}'
+  - name: image-expires-after
+    value: '13w'
+  - name: output-image-repo
+    value: quay.io/rhacs-eng/fact
+  - name: path-context
+    value: .
+  - name: revision
+    value: '{{revision}}'
+  - name: rebuild
+    value: 'true'
+  - name: hermetic
+    value: "true"
+  - name: prefetch-input
+    value: '[{ "type": "rpm", "path": "." }, {"type": "cargo", "path": "."}]'
+  - name: clone-depth
+    value: '0'
+  - name: clone-fetch-tags
+    value: 'true'
+  - name: clone-submodules
+    value: 'true'
+  - name: build-source-image
+    value: 'true'
+
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+
+  taskRunSpecs:
+
+  # Only adjusting computeResources for amd64 build because
+  # multi-arch builds happen off cluster
+  - pipelineTaskName: build-container-amd64
+    stepSpecs:
+    - name: build
+      # CPU requests are increased to speed up builds compared to the defaults.
+      # Defaults: https://github.com/redhat-appstudio/build-definitions/blob/main/task/buildah/0.1/buildah.yaml#L126
+      computeResources:
+        limits:
+          cpu: 4
+        requests:
+          cpu: 4
+
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-fact
+
+  timeouts:
+    # The pipeline regularly takes a couple minutes to finish.
+    # When changing the value here, make sure to adjust wait-for-images time limit in .github/workflows/konflux-tests.yml
+    tasks: 30m
+    finally: 10m
+    pipeline: 40m
+
+  pipelineRef:
+    name: fact-component-pipeline
+
