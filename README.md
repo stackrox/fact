@@ -30,6 +30,20 @@ cargo run --release --config 'target."cfg(all())".runner="sudo -E"'
 Cargo build scripts are used to automatically build the eBPF correctly
 and include it in the program.
 
+## Running eBPF unit tests
+
+There is some specific unit tests that execute just the eBPF code and
+the worker retrieving events from them. In order to run these, root
+privileges are required, so a feature is used to exclude them when
+running `cargo test`.
+
+In order to run these tests as part of the unit test suite y use the
+following command:
+
+```shell
+cargo test --config 'target."cfg(all())".runner="sudo -E" --features=bpf-test
+```
+
 ## License
 
 With the exception of eBPF code, fact is distributed under the terms
