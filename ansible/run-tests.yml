@@ -2,7 +2,7 @@
 - name: Run integration tests
   hosts: "job_id_{{ job_id }}"
   environment:
-    FACT_TAG: "{{ fact.tag | default(None) }}"
+    FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
 
   tasks:
     - name: Install dependencies
