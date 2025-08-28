@@ -1,5 +1,4 @@
 use std::{
-    env,
     ffi::CStr,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
@@ -69,10 +68,9 @@ pub struct Process {
 impl Process {
     /// Create a representation of the current process as best as
     /// possible.
-    ///
-    /// Useful for testing.
+    #[cfg(test)]
     pub fn current() -> Self {
-        let exe_path = env::current_exe()
+        let exe_path = std::env::current_exe()
             .expect("Failed to get current exe")
             .into_os_string()
             .into_string()

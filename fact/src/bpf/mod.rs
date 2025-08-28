@@ -6,7 +6,7 @@ use aya::{
     programs::Lsm,
     Btf, Ebpf,
 };
-use log::info;
+use log::{debug, error, info};
 use tokio::{
     io::unix::AsyncFd,
     sync::{broadcast, watch::Receiver},
@@ -97,7 +97,14 @@ impl Bpf {
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                            let event: Arc<Event> = Arc::new(event.try_into().unwrap());
+                            let event = match Event::try_from(event) {
+                                Ok(event) => Arc::new(event),
+                                Err(e) => {
+                                    error!("Failed to parse event: '{e}'");
+                                    debug!("Event: {event:?}");
+                                    continue;
+                                }
+                            };
 
                             if paths.is_empty() || paths.iter().any(|p| event.filename.starts_with(p)) {
                                 output
