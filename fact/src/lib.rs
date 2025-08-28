@@ -1,28 +1,27 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use bpf::Bpf;
-use log::{info, debug};
+use log::{debug, info};
+use output::Output;
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::{broadcast, watch},
 };
 
 mod bpf;
-mod client;
 pub mod config;
 mod event;
+mod grpc;
 mod health_check;
 mod host_info;
+mod output;
 mod pre_flight;
 
-use client::Client;
 use config::FactConfig;
 use pre_flight::pre_flight;
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let (run_tx, run_rx) = watch::channel(true);
-    let (output_tx, mut output_rx) = broadcast::channel(100);
+    let (tx, rx) = broadcast::channel(100);
 
     if !config.skip_pre_flight {
         debug!("Performing pre-flight checks");
@@ -39,38 +38,11 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         health_check::start();
     }
 
-    // Create the gRPC client
-    let mut client = if let Some(url) = config.url.as_ref() {
-        Some(Client::start(url, config.certs)?)
-    } else {
-        None
-    };
-
-    let mut running = run_rx.clone();
-
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                event = output_rx.recv() => {
-                    let event = Arc::unwrap_or_clone(event.expect("Failed to receive event"));
-
-                    println!("{event:?}");
-                    if let Some(client) = client.as_mut() {
-                         client.send(event).await.unwrap();
-                    }
-                },
-                _ = running.changed() => {
-                    if !*running.borrow() {
-                        info!("Stopping output worker...");
-                        return;
-                    }
-                }
-            }
-        }
-    });
+    let output = Output::new(run_rx.clone(), rx);
+    output.start(&config)?;
 
     // Gather events from the ring buffer and print them out.
-    Bpf::start_worker(output_tx, bpf.fd, config.paths, run_rx.clone());
+    Bpf::start_worker(tx, bpf.fd, config.paths, run_rx);
 
     let mut sigterm = signal(SignalKind::terminate())?;
     tokio::select! {
