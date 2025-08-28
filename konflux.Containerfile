@@ -1,7 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi:latest AS builder
-
-ARG FACT_TAG
-RUN if [[ "$FACT_TAG" == "" ]]; then >&2 echo "error: required FACT_TAG arg is unset"; exit 6; fi
+FROM registry.access.redhat.com/ubi9/ubi@sha256:d0ef82ed2d57e186fc1fa10cab62309e8c5ae7d1d7adbbcdefee6ae5e72ecc4e AS builder
 
 RUN dnf install -y \
         clang \
@@ -9,8 +6,7 @@ RUN dnf install -y \
         protobuf-compiler \
         protobuf-devel \
         cargo \
-        rust && \
-    mkdir /app
+        rust
 
 WORKDIR /app
 
@@ -18,9 +14,10 @@ COPY . .
 
 RUN cargo build --release
 
-FROM registry.access.redhat.com/ubi9/ubi-micro:latest
+FROM registry.access.redhat.com/ubi9/ubi-micro@sha256:f2516e808dd108b17014693eff2be3d29a3c987d845114e506aa0380e488672e
 
 ARG FACT_TAG
+RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 
 LABEL \
     com.redhat.license_terms="https://www.redhat.com/agreements" \
