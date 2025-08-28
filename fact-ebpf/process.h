@@ -45,8 +45,9 @@ __always_inline static const char* get_cpu_cgroup(struct helper_t* helper) {
   int offset = 0;
   for (; i >= 0 && offset < PATH_MAX; i--) {
     // Skip empty directories
-    if (helper->array[i] == NULL)
+    if (helper->array[i] == NULL) {
       continue;
+    }
 
     helper->buf[offset & (PATH_MAX - 1)] = '/';
     if (++offset >= PATH_MAX) {
@@ -108,7 +109,7 @@ __always_inline static int64_t process_fill(process_t* p) {
 
   unsigned long arg_start = BPF_CORE_READ(task, mm, arg_start);
   unsigned long arg_end = BPF_CORE_READ(task, mm, arg_end);
-  unsigned int len = arg_end - arg_start;
+  unsigned int len = (arg_end - arg_start) & 0xFFFF;
   if (len > 4095) {
     len = 4095;
     p->args[4095] = '\0';  // Ensure empty string at end of buffer
@@ -146,7 +147,7 @@ __always_inline static int64_t process_fill(process_t* p) {
 }
 
 __always_inline static unsigned long get_mnt_namespace() {
-  struct task_struct* task = (struct task_struct*) bpf_get_current_task();
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
   struct ns_common ns = BPF_CORE_READ(task, nsproxy, mnt_ns, ns);
 
   return ns.inum;
