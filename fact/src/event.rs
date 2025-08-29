@@ -153,8 +153,9 @@ impl TryFrom<process_t> for Process {
             .collect::<Result<Vec<_>, _>>()?;
 
         let mut converted_args = Vec::new();
+        let args_len = value.args_len as usize;
         let mut offset = 0;
-        while offset < 4096 {
+        while offset < args_len {
             let arg = unsafe { CStr::from_ptr(value.args.as_ptr().add(offset)) }
                 .to_str()?
                 .to_owned();
