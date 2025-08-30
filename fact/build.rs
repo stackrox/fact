@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::{
     env,
     path::{Path, PathBuf},
@@ -5,12 +6,11 @@ use std::{
 };
 
 fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
-    let obj = out_dir
-        .join("main.o")
-        .into_os_string()
-        .into_string()
-        .unwrap();
-    let ec = Command::new("clang")
+    let obj = match out_dir.join("main.o").into_os_string().into_string() {
+        Ok(s) => s,
+        Err(os_string) => anyhow::bail!("Failed to convert path to string {:?}", os_string),
+    };
+    match Command::new("clang")
         .args([
             "-target",
             "bpf",
@@ -23,12 +23,16 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
             "-o",
             &obj,
         ])
-        .status()?;
-    if ec.success() {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!("Failed to compile '{ec}'"))
+        .status()
+    {
+        Ok(status) => {
+            if !status.success() {
+                anyhow::bail!("Failed to compile eBPF. See stderr for details.");
+            }
+        }
+        Err(e) => anyhow::bail!("Failed to execute clang: {}", e),
     }
+    Ok(())
 }
 
 fn generate_bindings(out_dir: &Path) -> anyhow::Result<()> {
@@ -36,16 +40,17 @@ fn generate_bindings(out_dir: &Path) -> anyhow::Result<()> {
         .header("../fact-ebpf/types.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
-        .expect("Failed to generate bindings");
+        .context("Failed to generate bindings")?;
     bindings
         .write_to_file(out_dir.join("bindings.rs"))
-        .expect("Failed to write bindings");
-    Ok(())
+        .context("Failed to write bindings")
 }
 
 fn main() -> anyhow::Result<()> {
     println!("cargo::rerun-if-changed=../fact-ebpf/");
-    let out_dir: PathBuf = env::var("OUT_DIR")?.into();
-    compile_bpf(&out_dir)?;
+    let out_dir: PathBuf = env::var("OUT_DIR")
+        .context("Failed to interpret OUT_DIR environment variable")?
+        .into();
+    compile_bpf(&out_dir).context("Failed to compile eBPF")?;
     generate_bindings(&out_dir)
 }
