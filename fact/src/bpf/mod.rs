@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{io, path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Context};
 use aya::{
@@ -75,7 +75,10 @@ impl Bpf {
         };
         let ret = unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &rlim) };
         if ret != 0 {
-            bail!("remove limit on locked memory failed, ret is: {ret}");
+            bail!(
+                "Remove limit on locked memory failed, ret: {ret}, errno: {:?}",
+                io::Error::last_os_error()
+            );
         }
         Ok(())
     }
