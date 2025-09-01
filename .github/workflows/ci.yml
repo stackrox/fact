@@ -84,18 +84,47 @@ jobs:
         registry: quay.io
         username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
         password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
-    - run: docker push "$(make image-name)"
+    - run: docker push "$(make image-name)-${{ matrix.arch }}"
 
   tag:
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      image-name: ${{ steps.image-name.outputs.image-name }}
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: true
     - id: tag
       run: echo "tag=$(make tag)" >> "$GITHUB_OUTPUT"
+
+    - id: image-name
+      run: echo "image-name=$(make image-name)" >> "$GITHUB_OUTPUT"
+
+  manifest:
+    runs-on: ubuntu-24.04
+    needs:
+      - container
+      - tag
+    env:
+      ARCHS: amd64 arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: stackrox/collector
+          path: collector
+          ref: master
+
+      - uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
+          password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
+
+      - uses: ./collector/.github/actions/create-multi-arch-manifest
+        with:
+          base-image: ${{ needs.tag.outputs.image-name }}
+          archs: ${{ env.ARCHS }}
 
   integration-tests:
     needs:
