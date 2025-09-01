@@ -125,7 +125,7 @@ jobs:
           username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
           password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
 
-      - uses: ./collector/.github/actions/create-multi-arch-manifest
+      - uses: ./collector/.github/actions/create-multiarch-manifest
         with:
           base-image: ${{ needs.tag.outputs.image-name }}
           archs: ${{ env.ARCHS }}
