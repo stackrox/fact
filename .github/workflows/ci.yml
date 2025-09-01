@@ -71,6 +71,8 @@ jobs:
           - amd64
           - arm64
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
+    env:
+      FACT_ARCH: ${{ matrix.arch }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -83,8 +85,6 @@ jobs:
         username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
         password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
     - run: docker push "$(make image-name)"
-      env:
-        FACT_ARCH: ${{ matrix.arch }}
 
   tag:
     runs-on: ubuntu-24.04
