@@ -1,4 +1,4 @@
 [submodule "third_party/stackrox"]
 	path = third_party/stackrox
 	url = https://github.com/stackrox/stackrox
-	branch = mauro/sfa/ROX-30252-protobuf-definitions
+	branch = master
