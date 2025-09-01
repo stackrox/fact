@@ -107,6 +107,8 @@ jobs:
         password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
 
     - run: docker push "$(make image-name)"
+      env:
+        FACT_ARCH: ${{ matrix.arch }}
 
   manifest:
     runs-on: ubuntu-24.04
