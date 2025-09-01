@@ -12,7 +12,7 @@ use crate::{
     host_info,
 };
 
-fn slice_to_string(s: &[i8]) -> anyhow::Result<String> {
+fn slice_to_string(s: &[std::os::raw::c_char]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
 }
 

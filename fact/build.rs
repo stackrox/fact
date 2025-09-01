@@ -19,6 +19,7 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
             "-c",
             "-Wall",
             "-Werror",
+            &format!("-D__TARGET_ARCH_{}", env::var("CARGO_CFG_TARGET_ARCH")?),
             "../fact-ebpf/main.c",
             "-o",
             &obj,
