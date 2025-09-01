@@ -21,6 +21,13 @@ on:
 jobs:
   integration-tests:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        vm:
+          - fedora-coreos
+          - fcarm
+
     steps:
     - uses: actions/checkout@v4
       with:
@@ -53,7 +60,7 @@ jobs:
         ppc64le-key: ${{ secrets.IBM_CLOUD_POWER_API_KEY }}
         redhat-username: ${{ secrets.REDHAT_USERNAME }}
         redhat-password: ${{ secrets.REDHAT_PASSWORD }}
-        vm-type: fedora-coreos
+        vm-type: ${{ matrix.vm }}
         job-tag: ${{ inputs.job-tag }}
         workspace: ${{ github.workspace }}/collector
 
