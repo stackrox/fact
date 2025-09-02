@@ -144,8 +144,8 @@ impl TryFrom<process_t> for Process {
     fn try_from(value: process_t) -> Result<Self, Self::Error> {
         let comm = slice_to_string(value.comm.as_slice())?;
         let exe_path = slice_to_string(value.exe_path.as_slice())?;
-        let cpu_cgroup = unsafe { CStr::from_ptr(value.cpu_cgroup.as_ptr()) }.to_str()?;
-        let container_id = Process::extract_container_id(cpu_cgroup);
+        let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
+        let container_id = Process::extract_container_id(memory_cgroup);
 
         let lineage = value.lineage[..value.lineage_len as usize]
             .iter()
