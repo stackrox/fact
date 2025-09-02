@@ -18,15 +18,20 @@ on:
         type: string
         default: ''
 
+      # this is temporary, will be removed once Konflux builds have been
+      # modified to support Arm
+      vm_list:
+        description: JSON list of VMs to test on
+        default: '["fedora-coreos","fcarm"]'
+        type: string
+
 jobs:
   integration-tests:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        vm:
-          - fedora-coreos
-          - fcarm
+        vm: "${{ fromJSON(inputs.vm_list) }}"
 
     steps:
     - uses: actions/checkout@v4
