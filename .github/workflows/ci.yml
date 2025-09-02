@@ -63,33 +63,6 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ steps.args.outputs.args }}-${{ hashFiles('**/Cargo.lock') }}
     - run: cargo ${{ matrix.args }}
 
-  container:
-    strategy:
-      fail-fast: false
-      matrix:
-        arch:
-          - amd64
-          - arm64
-    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: true
-
-    - run: |
-        echo "FACT_TAG=$(make tag)-${{ matrix.arch }}" >> "$GITHUB_ENV"
-
-    - run: make image
-
-    - name: Login to quay.io/stackrox-io
-      uses: docker/login-action@v3
-      with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
-        password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
-
-    - run: docker push "$(make image-name)"
-
   vars:
     runs-on: ubuntu-24.04
     outputs:
@@ -102,10 +75,38 @@ jobs:
 
     - id: vars
       run: |
-        {
-          echo "tag=$(make tag)"
-          echo "image-name=$(make image-name)"
-        } >> "$GITHUB_OUTPUT"
+        cat << EOF >> "$GITHUB_OUTPUT"
+        tag=$(make tag)
+        image-name=$(make image-name)
+        EOF
+
+  container:
+    needs:
+      - vars
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - arm64
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
+    env:
+      FACT_TAG: ${{ needs.vars.outputs.tag }}-${{ matrix.arch }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - run: make image
+
+    - name: Login to quay.io/stackrox-io
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
+        password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
+
+    - run: docker push "$(make image-name)"
 
   manifest:
     runs-on: ubuntu-24.04

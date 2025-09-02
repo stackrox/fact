@@ -18,7 +18,7 @@ on:
         type: string
         default: ''
 
-      # this is temporary, will be removed once Konflux builds have been
+      # TODO: Remove once Konflux builds have been
       # modified to support Arm
       vm_list:
         description: JSON list of VMs to test on
