@@ -90,26 +90,28 @@ jobs:
 
     - run: docker push "$(make image-name)"
 
-  tag:
+  vars:
     runs-on: ubuntu-24.04
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
-      image-name: ${{ steps.image-name.outputs.image-name }}
+      tag: ${{ steps.vars.outputs.tag }}
+      image-name: ${{ steps.vars.outputs.image-name }}
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: true
-    - id: tag
-      run: echo "tag=$(make tag)" >> "$GITHUB_OUTPUT"
 
-    - id: image-name
-      run: echo "image-name=$(make image-name)" >> "$GITHUB_OUTPUT"
+    - id: vars
+      run: |
+        {
+          echo "tag=$(make tag)"
+          echo "image-name=$(make image-name)"
+        } >> "$GITHUB_OUTPUT"
 
   manifest:
     runs-on: ubuntu-24.04
     needs:
       - container
-      - tag
+      - vars
     env:
       ARCHS: amd64 arm64
     steps:
@@ -127,15 +129,14 @@ jobs:
 
       - uses: ./collector/.github/actions/create-multiarch-manifest
         with:
-          base-image: ${{ needs.tag.outputs.image-name }}
+          base-image: ${{ needs.vars.outputs.image-name }}
           archs: ${{ env.ARCHS }}
 
   integration-tests:
     needs:
-      - container
-      - tag
+      - vars
       - manifest
     uses: ./.github/workflows/integration-tests.yml
     with:
-      tag: ${{ needs.tag.outputs.tag }}
+      tag: ${{ needs.vars.outputs.tag }}
     secrets: inherit

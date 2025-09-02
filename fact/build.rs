@@ -5,11 +5,14 @@ use std::{
     process::Command,
 };
 
-fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
+fn compile_bpf(out_dir: &Path, arch: &str) -> anyhow::Result<()> {
     let obj = match out_dir.join("main.o").into_os_string().into_string() {
         Ok(s) => s,
         Err(os_string) => anyhow::bail!("Failed to convert path to string {:?}", os_string),
     };
+
+    let target_arch = format!("-D__TARGET_ARCH_{}", arch);
+
     match Command::new("clang")
         .args([
             "-target",
@@ -19,7 +22,7 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
             "-c",
             "-Wall",
             "-Werror",
-            &format!("-D__TARGET_ARCH_{}", env::var("CARGO_CFG_TARGET_ARCH")?),
+            &target_arch,
             "../fact-ebpf/main.c",
             "-o",
             &obj,
@@ -52,6 +55,7 @@ fn main() -> anyhow::Result<()> {
     let out_dir: PathBuf = env::var("OUT_DIR")
         .context("Failed to interpret OUT_DIR environment variable")?
         .into();
-    compile_bpf(&out_dir).context("Failed to compile eBPF")?;
+    let arch = env::var("CARGO_CFG_TARGET_ARCH")?;
+    compile_bpf(&out_dir, &arch).context("Failed to compile eBPF")?;
     generate_bindings(&out_dir)
 }

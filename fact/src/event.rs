@@ -1,5 +1,6 @@
 use std::{
     ffi::CStr,
+    os::raw::c_char,
     path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -12,7 +13,7 @@ use crate::{
     host_info,
 };
 
-fn slice_to_string(s: &[std::os::raw::c_char]) -> anyhow::Result<String> {
+fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
 }
 
