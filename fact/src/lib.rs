@@ -1,6 +1,7 @@
 use anyhow::Context;
 use bpf::Bpf;
 use log::{debug, info};
+use metrics::exporter::Exporter;
 use output::Output;
 use tokio::{
     signal::unix::{signal, SignalKind},
@@ -13,6 +14,7 @@ mod event;
 mod grpc;
 mod health_check;
 mod host_info;
+mod metrics;
 mod output;
 mod pre_flight;
 
@@ -30,6 +32,9 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         debug!("Skipping pre-flight checks");
     }
 
+    let exporter = Exporter::new();
+    exporter.start(run_rx.clone());
+
     let bpf = Bpf::new(&config.paths)?;
 
     if config.health_check {
@@ -38,11 +43,17 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         health_check::start();
     }
 
-    let output = Output::new(run_rx.clone(), rx);
+    let output = Output::new(run_rx.clone(), rx, exporter.metrics.output.clone());
     output.start(&config)?;
 
     // Gather events from the ring buffer and print them out.
-    Bpf::start_worker(tx, bpf.fd, config.paths, run_rx);
+    Bpf::start_worker(
+        tx,
+        bpf.fd,
+        config.paths,
+        run_rx,
+        exporter.metrics.bpf_worker.clone(),
+    );
 
     let mut sigterm = signal(SignalKind::terminate())?;
     tokio::select! {

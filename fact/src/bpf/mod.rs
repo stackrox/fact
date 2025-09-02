@@ -13,7 +13,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::event::Event;
+use crate::{event::Event, metrics::EventCounter};
 
 pub mod bindings;
 
@@ -89,6 +89,7 @@ impl Bpf {
         mut fd: AsyncFd<RingBuf<MapData>>,
         paths: Vec<PathBuf>,
         mut running: Receiver<bool>,
+        event_counter: EventCounter,
     ) -> JoinHandle<()> {
         info!("Starting BPF worker...");
         info!("Monitoring: {paths:?}");
@@ -105,15 +106,19 @@ impl Bpf {
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     debug!("Event: {event:?}");
+                                    event_counter.dropped();
                                     continue;
                                 }
                             };
 
                             if paths.is_empty() || paths.iter().any(|p| event.filename.starts_with(p)) {
+                                event_counter.added();
                                 output
                                     .send(event)
                                     .context("Failed to send event, all receivers exitted")
                                     .unwrap();
+                            } else {
+                                event_counter.ignored();
                             }
                         }
                         guard.clear_ready();
@@ -138,7 +143,7 @@ mod bpf_tests {
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
-    use crate::{event::Process, host_info};
+    use crate::{event::Process, host_info, metrics::exporter::Exporter};
 
     use super::*;
 
@@ -162,8 +167,16 @@ mod bpf_tests {
             let bpf = Bpf::new(&paths).expect("Failed to load BPF code");
             let (tx, mut rx) = broadcast::channel(100);
             let (run_tx, run_rx) = watch::channel(true);
+            // Create a metrics exporter, but don't start it
+            let exporter = Exporter::new();
 
-            Bpf::start_worker(tx, bpf.fd, paths, run_rx);
+            Bpf::start_worker(
+                tx,
+                bpf.fd,
+                paths,
+                run_rx,
+                exporter.metrics.bpf_worker.clone(),
+            );
 
             // Create a file
             let file =
