@@ -1,6 +1,6 @@
 ---
 - name: Run integration tests
-  hosts: "job_id_{{ job_id }}"
+  hosts: "platform_*:&job_id_{{ job_id }}"
   environment:
     FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
 

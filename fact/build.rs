@@ -10,6 +10,9 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
         Ok(s) => s,
         Err(os_string) => anyhow::bail!("Failed to convert path to string {:?}", os_string),
     };
+
+    let target_arch = format!("-D__TARGET_ARCH_{}", env::var("CARGO_CFG_TARGET_ARCH")?);
+
     match Command::new("clang")
         .args([
             "-target",
@@ -19,6 +22,7 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
             "-c",
             "-Wall",
             "-Werror",
+            &target_arch,
             "../fact-ebpf/main.c",
             "-o",
             &obj,
