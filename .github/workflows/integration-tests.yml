@@ -117,7 +117,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: test-logs
+        name: ${{ matrix.vm }}-test-logs
         path: |
           ${{ github.workspace }}/fact/tests/logs
           ${{ github.workspace }}/fact/tests/results.xml
