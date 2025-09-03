@@ -12,6 +12,7 @@ contentOrigin:
   repofiles: ["rpms.rhel.repo"]
 context:
   bare: true
-# TODO: Add s390x, ppc64le and aarch64
+# TODO: Add s390x, ppc64le
 arches:
 - x86_64
+- aarch64
