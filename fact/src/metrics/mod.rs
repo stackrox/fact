@@ -5,9 +5,11 @@ use prometheus_client::{
 };
 
 pub mod exporter;
+mod kernel_metrics;
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelValue, Copy)]
 enum LabelValues {
+    Total,
     Added,
     Dropped,
     Ignored,

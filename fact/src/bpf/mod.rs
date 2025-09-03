@@ -2,7 +2,7 @@ use std::{io, path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Context};
 use aya::{
-    maps::{MapData, RingBuf},
+    maps::{MapData, PerCpuArray, RingBuf},
     programs::Lsm,
     Btf, Ebpf,
 };
@@ -17,7 +17,7 @@ use crate::{event::Event, metrics::EventCounter};
 
 pub mod bindings;
 
-use bindings::event_t;
+use bindings::{event_t, metrics_t};
 
 pub struct Bpf {
     // The Ebpf object needs to live for as long as we want to keep the
@@ -64,6 +64,14 @@ impl Bpf {
         trace_file_open.attach()?;
 
         Ok(Bpf { obj, fd })
+    }
+
+    pub fn get_metrics(&mut self) -> anyhow::Result<PerCpuArray<MapData, metrics_t>> {
+        let metrics = match self.obj.take_map("metrics") {
+            Some(m) => m,
+            None => bail!("metrics map not found"),
+        };
+        Ok(PerCpuArray::try_from(metrics)?)
     }
 
     fn bump_memlock_rlimit() -> anyhow::Result<()> {
@@ -164,11 +172,11 @@ mod bpf_tests {
         let is_external_mount = false;
 
         executor.block_on(async {
-            let bpf = Bpf::new(&paths).expect("Failed to load BPF code");
+            let mut bpf = Bpf::new(&paths).expect("Failed to load BPF code");
             let (tx, mut rx) = broadcast::channel(100);
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it
-            let exporter = Exporter::new();
+            let exporter = Exporter::new(bpf.get_metrics().unwrap());
 
             Bpf::start_worker(
                 tx,

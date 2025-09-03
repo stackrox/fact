@@ -33,4 +33,12 @@ struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
   __uint(max_entries, 256 * sizeof(struct event_t));
 } rb SEC(".maps");
+
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, __u32);
+  __type(value, struct metrics_t);
+  __uint(max_entries, 1);
+} metrics SEC(".maps");
+
 // clang-format on
