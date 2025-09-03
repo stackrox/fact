@@ -32,16 +32,16 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         debug!("Skipping pre-flight checks");
     }
 
-    let exporter = Exporter::new();
-    exporter.start(run_rx.clone());
-
-    let bpf = Bpf::new(&config.paths)?;
+    let mut bpf = Bpf::new(&config.paths)?;
 
     if config.health_check {
         // At this point the BPF code is in the kernel, we can start our
         // healthcheck probe
         health_check::start();
     }
+
+    let exporter = Exporter::new(bpf.get_metrics()?);
+    exporter.start(run_rx.clone());
 
     let output = Output::new(run_rx.clone(), rx, exporter.metrics.output.clone());
     output.start(&config)?;

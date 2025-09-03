@@ -41,3 +41,15 @@ struct path_cfg_t {
   const char path[PATH_MAX];
   unsigned short len;
 };
+
+// Metrics types
+struct metrics_by_type_t {
+  unsigned long long total;
+  unsigned long long added;
+  unsigned long long dropped;
+  unsigned long long ignored;
+};
+
+struct metrics_t {
+  struct metrics_by_type_t file_open;
+};

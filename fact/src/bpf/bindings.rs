@@ -34,3 +34,33 @@ impl Default for path_cfg_t {
 }
 
 unsafe impl Pod for path_cfg_t {}
+
+impl metrics_t {
+    pub fn accumulate(&self, other: &metrics_t) -> metrics_t {
+        let mut m = metrics_t {
+            file_open: self.file_open,
+        };
+
+        m.file_open.total += other.file_open.total;
+        m.file_open.added += other.file_open.added;
+        m.file_open.dropped += other.file_open.dropped;
+        m.file_open.ignored += other.file_open.ignored;
+
+        m
+    }
+}
+
+impl Default for metrics_t {
+    fn default() -> Self {
+        metrics_t {
+            file_open: metrics_by_type_t {
+                total: 0,
+                added: 0,
+                dropped: 0,
+                ignored: 0,
+            },
+        }
+    }
+}
+
+unsafe impl Pod for metrics_t {}
