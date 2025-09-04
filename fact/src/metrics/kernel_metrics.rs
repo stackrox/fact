@@ -1,7 +1,10 @@
 use aya::maps::{MapData, PerCpuArray};
 use prometheus_client::registry::Registry;
 
-use crate::bpf::bindings::{metrics_by_type_t, metrics_t};
+use crate::{
+    bpf::bindings::{metrics_by_type_t, metrics_t},
+    metrics::MetricEvents,
+};
 
 use super::{EventCounter, LabelValues};
 
@@ -30,47 +33,41 @@ impl KernelMetrics {
         }
     }
 
-    pub fn collect(&self) -> anyhow::Result<()> {
-        let metrics = self.map.get(&0, 0)?.iter().fold(
-            metrics_t {
-                file_open: metrics_by_type_t {
-                    total: 0,
-                    added: 0,
-                    dropped: 0,
-                    ignored: 0,
-                },
-            },
-            |acc, x| acc.accumulate(x),
-        );
-
-        self.file_open.counter.clear();
-        self.file_open
-            .counter
-            .get_or_create(&super::MetricEvents {
-                label: LabelValues::Added,
-            })
-            .inc_by(metrics.file_open.added);
-
-        self.file_open
-            .counter
-            .get_or_create(&super::MetricEvents {
-                label: LabelValues::Ignored,
-            })
-            .inc_by(metrics.file_open.ignored);
-
-        self.file_open
-            .counter
-            .get_or_create(&super::MetricEvents {
-                label: LabelValues::Dropped,
-            })
-            .inc_by(metrics.file_open.dropped);
-
-        self.file_open
-            .counter
-            .get_or_create(&super::MetricEvents {
+    fn refresh_labels(ec: &EventCounter, m: &metrics_by_type_t) {
+        ec.counter.clear();
+        ec.counter
+            .get_or_create(&MetricEvents {
                 label: LabelValues::Total,
             })
-            .inc_by(metrics.file_open.total);
+            .inc_by(m.total);
+
+        ec.counter
+            .get_or_create(&MetricEvents {
+                label: LabelValues::Added,
+            })
+            .inc_by(m.added);
+
+        ec.counter
+            .get_or_create(&MetricEvents {
+                label: LabelValues::Dropped,
+            })
+            .inc_by(m.dropped);
+
+        ec.counter
+            .get_or_create(&MetricEvents {
+                label: LabelValues::Ignored,
+            })
+            .inc_by(m.ignored);
+    }
+
+    pub fn collect(&self) -> anyhow::Result<()> {
+        let metrics = self
+            .map
+            .get(&0, 0)?
+            .iter()
+            .fold(metrics_t::default(), |acc, x| acc.accumulate(x));
+
+        KernelMetrics::refresh_labels(&self.file_open, &metrics.file_open);
 
         Ok(())
     }

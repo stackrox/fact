@@ -42,6 +42,7 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
 fn generate_bindings(out_dir: &Path) -> anyhow::Result<()> {
     let bindings = bindgen::Builder::default()
         .header("../fact-ebpf/types.h")
+        .derive_default(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .context("Failed to generate bindings")?;
