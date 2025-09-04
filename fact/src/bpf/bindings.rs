@@ -22,9 +22,9 @@ impl path_cfg_t {
 
 unsafe impl Pod for path_cfg_t {}
 
-impl metrics_by_type_t {
-    fn accumulate(&self, other: &metrics_by_type_t) -> metrics_by_type_t {
-        let mut m = metrics_by_type_t { ..*self };
+impl metrics_by_hook_t {
+    fn accumulate(&self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
+        let mut m = metrics_by_hook_t { ..*self };
 
         m.total += other.total;
         m.added += other.added;

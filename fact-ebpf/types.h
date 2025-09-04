@@ -43,7 +43,7 @@ struct path_cfg_t {
 };
 
 // Metrics types
-struct metrics_by_type_t {
+struct metrics_by_hook_t {
   unsigned long long total;
   unsigned long long added;
   unsigned long long dropped;
@@ -51,5 +51,5 @@ struct metrics_by_type_t {
 };
 
 struct metrics_t {
-  struct metrics_by_type_t file_open;
+  struct metrics_by_hook_t file_open;
 };

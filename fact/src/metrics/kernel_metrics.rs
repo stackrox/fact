@@ -2,7 +2,7 @@ use aya::maps::{MapData, PerCpuArray};
 use prometheus_client::registry::Registry;
 
 use crate::{
-    bpf::bindings::{metrics_by_type_t, metrics_t},
+    bpf::bindings::{metrics_by_hook_t, metrics_t},
     metrics::MetricEvents,
 };
 
@@ -18,11 +18,7 @@ impl KernelMetrics {
         let file_open = EventCounter::new(
             "kernel_file_open_events",
             "Events processed by the file_open LSM hook",
-            &[
-                LabelValues::Added,
-                LabelValues::Ignored,
-                LabelValues::Dropped,
-            ],
+            &[], // Labels are not needed since `collect` will add them all
         );
 
         file_open.register(reg);
@@ -33,7 +29,7 @@ impl KernelMetrics {
         }
     }
 
-    fn refresh_labels(ec: &EventCounter, m: &metrics_by_type_t) {
+    fn refresh_labels(ec: &EventCounter, m: &metrics_by_hook_t) {
         ec.counter.clear();
         ec.counter
             .get_or_create(&MetricEvents {
