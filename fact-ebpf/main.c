@@ -54,8 +54,6 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto end;
   }
 
-  event->mnt_namespace = get_mnt_namespace();
-
   const char* p = get_host_path(helper, file);
   if (p != NULL) {
     bpf_probe_read_str(event->host_file, PATH_MAX, p);

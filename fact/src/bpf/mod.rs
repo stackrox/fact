@@ -13,7 +13,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::event::Event;
+use crate::{event::Event, host_info};
 
 pub mod bindings;
 
@@ -35,6 +35,11 @@ impl Bpf {
         // at runtime.
         let mut obj = aya::EbpfLoader::new()
             .set_global("paths_len", &(paths.len() as u32), true)
+            .set_global(
+                "host_mnt_namespace",
+                &host_info::get_host_mnt_namespace(),
+                true,
+            )
             .load(aya::include_bytes_aligned!(concat!(
                 env!("OUT_DIR"),
                 "/main.o"
@@ -156,7 +161,6 @@ mod bpf_tests {
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
         let paths = vec![monitored_path.clone()];
-        let is_external_mount = false;
 
         executor.block_on(async {
             let bpf = Bpf::new(&paths).expect("Failed to load BPF code");
@@ -172,7 +176,6 @@ mod bpf_tests {
 
             let expected = Event::new(
                 host_info::get_hostname(),
-                is_external_mount,
                 file.path().to_path_buf(),
                 file.path().to_path_buf(),
                 Process::current(),

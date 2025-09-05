@@ -33,4 +33,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
   __uint(max_entries, 256 * sizeof(struct event_t));
 } rb SEC(".maps");
+
+uint64_t host_mnt_namespace;
+
 // clang-format on
