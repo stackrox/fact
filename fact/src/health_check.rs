@@ -9,8 +9,7 @@ pub fn start() -> JoinHandle<()> {
     tokio::spawn(async move {
         let addr = SocketAddr::from(([0, 0, 0, 0], 9000));
         let listener = TcpListener::bind(addr).await.unwrap();
-        loop {
-            let (stream, _) = listener.accept().await.unwrap();
+        while let Ok((stream, _)) = listener.accept().await {
             let io = TokioIo::new(stream);
             tokio::spawn(async move {
                 if let Err(err) = http1::Builder::new()
