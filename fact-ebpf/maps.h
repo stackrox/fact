@@ -41,4 +41,6 @@ struct {
   __uint(max_entries, 1);
 } metrics SEC(".maps");
 
+uint64_t host_mnt_namespace;
+
 // clang-format on

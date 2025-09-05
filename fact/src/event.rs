@@ -64,6 +64,7 @@ pub struct Process {
     gid: u32,
     login_uid: u32,
     pid: u32,
+    is_external_mount: bool,
     lineage: Vec<Lineage>,
 }
 
@@ -72,6 +73,8 @@ impl Process {
     /// possible.
     #[cfg(test)]
     pub fn current() -> Self {
+        use crate::host_info::{get_host_mnt_namespace, get_mnt_namespace};
+
         let exe_path = std::env::current_exe()
             .expect("Failed to get current exe")
             .into_os_string()
@@ -88,6 +91,8 @@ impl Process {
             .parse()
             .expect("Failed to parse login_uid");
 
+        let is_external_mount = get_host_mnt_namespace() != get_mnt_namespace(&pid.to_string());
+
         Self {
             comm: "".to_string(),
             args,
@@ -98,6 +103,7 @@ impl Process {
             gid,
             login_uid,
             pid,
+            is_external_mount,
             lineage: vec![],
         }
     }
@@ -136,6 +142,7 @@ impl PartialEq for Process {
             && self.exe_path == other.exe_path
             && self.args == other.args
             && self.container_id == other.container_id
+            && self.is_external_mount == other.is_external_mount
     }
 }
 
@@ -147,6 +154,7 @@ impl TryFrom<process_t> for Process {
         let exe_path = slice_to_string(value.exe_path.as_slice())?;
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
         let container_id = Process::extract_container_id(memory_cgroup);
+        let is_external_mount = value.is_external_mount != 0;
 
         let lineage = value.lineage[..value.lineage_len as usize]
             .iter()
@@ -179,6 +187,7 @@ impl TryFrom<process_t> for Process {
             gid: value.gid,
             login_uid: value.login_uid,
             pid: value.pid,
+            is_external_mount,
             lineage,
         })
     }
@@ -196,6 +205,7 @@ impl From<Process> for fact_api::ProcessSignal {
             gid,
             login_uid,
             pid,
+            is_external_mount,
             lineage,
         } = value;
 
@@ -223,6 +233,7 @@ impl From<Process> for fact_api::ProcessSignal {
                 .collect(),
             login_uid,
             username: username.to_owned(),
+            is_external_mount,
         }
     }
 }
@@ -233,7 +244,6 @@ pub struct Event {
     #[allow(dead_code)]
     hostname: &'static str,
     process: Process,
-    is_external_mount: bool,
     pub filename: PathBuf,
     host_file: PathBuf,
 }
@@ -241,7 +251,6 @@ pub struct Event {
 impl Event {
     pub fn new(
         hostname: &'static str,
-        is_external_mount: bool,
         filename: PathBuf,
         host_file: PathBuf,
         process: Process,
@@ -254,7 +263,6 @@ impl Event {
             timestamp,
             hostname,
             process,
-            is_external_mount,
             filename,
             host_file,
         }
@@ -264,8 +272,7 @@ impl Event {
 #[cfg(test)]
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
-        self.is_external_mount == other.is_external_mount
-            && self.hostname == other.hostname
+        self.hostname == other.hostname
             && self.filename == other.filename
             && self.host_file == other.host_file
             && self.process == other.process
@@ -280,13 +287,11 @@ impl TryFrom<&event_t> for Event {
         let filename = slice_to_string(value.filename.as_slice())?.into();
         let host_file = slice_to_string(value.host_file.as_slice())?.into();
         let process = value.process.try_into()?;
-        let is_external_mount = value.mnt_namespace != host_info::get_mnt_namespace();
 
         Ok(Event {
             timestamp,
             hostname: host_info::get_hostname(),
             process,
-            is_external_mount,
             filename,
             host_file,
         })
@@ -299,14 +304,12 @@ impl From<Event> for fact_api::FileActivity {
             timestamp,
             hostname: _,
             process,
-            is_external_mount,
             filename,
             host_file,
         } = value;
         let activity = fact_api::FileActivityBase {
             path: filename.into_os_string().into_string().unwrap(),
             host_path: host_file.into_os_string().into_string().unwrap(),
-            is_external_mount,
         };
         let f_act = fact_api::FileOpen {
             activity: Some(activity),
