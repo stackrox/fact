@@ -96,9 +96,9 @@ impl Output {
                             }
                         };
                         match serde_json::to_string(&*event) {
-                            Ok(e) => {
+                            Ok(event) => {
                                 event_counter.added();
-                                println!("{e}");
+                                println!("{event}");
                             }
                             Err(e) => {
                                 event_counter.dropped();

@@ -40,18 +40,19 @@ int BPF_PROG(trace_file_open, struct file* file) {
 
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
+    m->file_open.ringbuffer_full++;
     bpf_printk("Failed to get event entry");
     return 0;
   }
 
   if (bpf_d_path(&file->f_path, event->filename, PATH_MAX) < 0) {
     bpf_printk("Failed to read path");
-    goto end;
+    goto error;
   }
 
   /* TODO: ROX-30438 This causes a verifier issue with long paths
   if (!is_monitored(event->filename)) {
-    goto end;
+    goto error;
   }
   */
 
@@ -60,7 +61,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
   int64_t err = process_fill(&event->process);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
-    goto end;
+    goto error;
   }
 
   event->mnt_namespace = get_mnt_namespace();
@@ -75,8 +76,8 @@ int BPF_PROG(trace_file_open, struct file* file) {
 
   return 0;
 
-end:
-  m->file_open.dropped++;
+error:
+  m->file_open.error++;
   bpf_ringbuf_discard(event, 0);
   return 0;
 }

@@ -45,15 +45,21 @@ impl KernelMetrics {
 
         ec.counter
             .get_or_create(&MetricEvents {
-                label: LabelValues::Dropped,
+                label: LabelValues::Error,
             })
-            .inc_by(m.dropped);
+            .inc_by(m.error);
 
         ec.counter
             .get_or_create(&MetricEvents {
                 label: LabelValues::Ignored,
             })
             .inc_by(m.ignored);
+
+        ec.counter
+            .get_or_create(&MetricEvents {
+                label: LabelValues::RingbufferFull,
+            })
+            .inc_by(m.ringbuffer_full);
     }
 
     pub fn collect(&self) -> anyhow::Result<()> {

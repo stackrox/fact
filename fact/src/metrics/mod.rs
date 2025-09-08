@@ -13,6 +13,8 @@ enum LabelValues {
     Added,
     Dropped,
     Ignored,
+    Error,
+    RingbufferFull,
 }
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelSet)]

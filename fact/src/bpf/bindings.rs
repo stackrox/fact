@@ -28,8 +28,9 @@ impl metrics_by_hook_t {
 
         m.total += other.total;
         m.added += other.added;
-        m.dropped += other.dropped;
+        m.error += other.error;
         m.ignored += other.ignored;
+        m.ringbuffer_full += other.ringbuffer_full;
 
         m
     }

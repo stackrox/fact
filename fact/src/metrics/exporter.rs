@@ -37,6 +37,7 @@ impl Exporter {
         let registry = self.registry.clone();
         let kernel_metrics = self.kernel_metrics.clone();
         tokio::spawn(async move {
+            // TODO ROX-30811: Make socket and address configurable
             let addr = SocketAddr::from(([0, 0, 0, 0], 9001));
             let tcp_listener = TcpListener::bind(addr).await.unwrap();
             let server = http1::Builder::new();

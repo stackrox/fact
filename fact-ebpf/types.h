@@ -46,8 +46,9 @@ struct path_cfg_t {
 struct metrics_by_hook_t {
   unsigned long long total;
   unsigned long long added;
-  unsigned long long dropped;
+  unsigned long long error;
   unsigned long long ignored;
+  unsigned long long ringbuffer_full;
 };
 
 struct metrics_t {
