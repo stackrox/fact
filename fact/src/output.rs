@@ -6,16 +6,25 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{config::FactConfig, event::Event, grpc};
+use crate::{config::FactConfig, event::Event, grpc, metrics::OutputMetrics};
 
 pub struct Output {
     running: watch::Receiver<bool>,
     rx: broadcast::Receiver<Arc<Event>>,
+    metrics: OutputMetrics,
 }
 
 impl Output {
-    pub fn new(running: watch::Receiver<bool>, rx: broadcast::Receiver<Arc<Event>>) -> Self {
-        Output { running, rx }
+    pub fn new(
+        running: watch::Receiver<bool>,
+        rx: broadcast::Receiver<Arc<Event>>,
+        metrics: OutputMetrics,
+    ) -> Self {
+        Output {
+            running,
+            rx,
+            metrics,
+        }
     }
 
     pub fn start(&self, config: &FactConfig) -> anyhow::Result<Vec<JoinHandle<()>>> {
@@ -40,14 +49,24 @@ impl Output {
 
     fn start_grpc(&self, url: String, certs: Option<PathBuf>) -> anyhow::Result<JoinHandle<()>> {
         let mut client = grpc::Client::start(&url, certs)?;
+        let event_counter = self.metrics.grpc.clone();
         let (mut running, mut rx) = self.clone_receivers();
 
         let h = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     event = rx.recv() => {
-                        let event = Arc::unwrap_or_clone(event.expect("Failed to receive event"));
-                        client.send(event).await.unwrap();
+                        match event {
+                            Ok(event) => {
+                                event_counter.added();
+                                let event = Arc::unwrap_or_clone(event);
+                                client.send(event).await.unwrap();
+                            }
+                            Err(e) => {
+                                event_counter.dropped();
+                                warn!("Failed to receive event: '{e}'");
+                            }
+                        }
                     },
                     _ = running.changed() => {
                         if !*running.borrow() {
@@ -63,14 +82,28 @@ impl Output {
 
     fn start_stdout(&self) -> anyhow::Result<JoinHandle<()>> {
         let (mut running, mut rx) = self.clone_receivers();
+        let event_counter = self.metrics.stdout.clone();
         let h = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     event = rx.recv() => {
-                        let event = event.expect("Failed to receive event");
+                        let event = match event {
+                            Ok(event) => event,
+                            Err(e) => {
+                                event_counter.dropped();
+                                warn!("Failed to receive event: {e}");
+                                continue;
+                            }
+                        };
                         match serde_json::to_string(&*event) {
-                            Ok(e) => println!("{e}"),
-                            Err(e) => warn!("There was an error serializing an event: {e}"),
+                            Ok(event) => {
+                                event_counter.added();
+                                println!("{event}");
+                            }
+                            Err(e) => {
+                                event_counter.dropped();
+                                warn!("There was an error serializing an event: {e}")
+                            }
                         }
                     },
                     _ = running.changed() => {

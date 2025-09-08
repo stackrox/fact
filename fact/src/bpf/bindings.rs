@@ -6,13 +6,6 @@ use libc::memcpy;
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 impl path_cfg_t {
-    pub fn new() -> Self {
-        path_cfg_t {
-            path: [0; 4096],
-            len: 0,
-        }
-    }
-
     pub fn set(&mut self, path: &str) {
         let len = path.len();
         unsafe {
@@ -27,10 +20,28 @@ impl path_cfg_t {
     }
 }
 
-impl Default for path_cfg_t {
-    fn default() -> Self {
-        Self::new()
+unsafe impl Pod for path_cfg_t {}
+
+impl metrics_by_hook_t {
+    fn accumulate(&self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
+        let mut m = metrics_by_hook_t { ..*self };
+
+        m.total += other.total;
+        m.added += other.added;
+        m.error += other.error;
+        m.ignored += other.ignored;
+        m.ringbuffer_full += other.ringbuffer_full;
+
+        m
     }
 }
 
-unsafe impl Pod for path_cfg_t {}
+impl metrics_t {
+    pub fn accumulate(&self, other: &metrics_t) -> metrics_t {
+        let mut m = metrics_t { ..*self };
+        m.file_open = m.file_open.accumulate(&other.file_open);
+        m
+    }
+}
+
+unsafe impl Pod for metrics_t {}

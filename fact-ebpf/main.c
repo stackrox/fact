@@ -19,7 +19,16 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
   uint32_t key = 0;
+  struct metrics_t* m = bpf_map_lookup_elem(&metrics, &key);
+  if (m == NULL) {
+    bpf_printk("Failed to get metrics entry, this should not happen");
+    return 0;
+  }
+
+  m->file_open.total++;
+
   if ((file->f_mode & (FMODE_WRITE | FMODE_PWRITE)) == 0) {
+    m->file_open.ignored++;
     return 0;
   }
 
@@ -31,18 +40,19 @@ int BPF_PROG(trace_file_open, struct file* file) {
 
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
+    m->file_open.ringbuffer_full++;
     bpf_printk("Failed to get event entry");
     return 0;
   }
 
   if (bpf_d_path(&file->f_path, event->filename, PATH_MAX) < 0) {
     bpf_printk("Failed to read path");
-    goto end;
+    goto error;
   }
 
   /* TODO: ROX-30438 This causes a verifier issue with long paths
   if (!is_monitored(event->filename)) {
-    goto end;
+    goto error;
   }
   */
 
@@ -51,7 +61,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
   int64_t err = process_fill(&event->process);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
-    goto end;
+    goto error;
   }
 
   event->mnt_namespace = get_mnt_namespace();
@@ -61,11 +71,13 @@ int BPF_PROG(trace_file_open, struct file* file) {
     bpf_probe_read_str(event->host_file, PATH_MAX, p);
   }
 
+  m->file_open.added++;
   bpf_ringbuf_submit(event, 0);
 
   return 0;
 
-end:
+error:
+  m->file_open.error++;
   bpf_ringbuf_discard(event, 0);
   return 0;
 }
