@@ -149,7 +149,7 @@ __always_inline static int64_t process_fill(process_t* p) {
     bpf_probe_read_str(p->memory_cgroup, PATH_MAX, cg);
   }
 
-  p->is_external_mount = get_mnt_namespace() != host_mnt_namespace;
+  p->in_root_mount_ns = get_mnt_namespace() == host_mnt_namespace;
 
   process_fill_lineage(p, helper);
 

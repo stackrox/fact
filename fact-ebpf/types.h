@@ -27,7 +27,7 @@ typedef struct process_t {
   unsigned int pid;
   lineage_t lineage[LINEAGE_MAX];
   unsigned int lineage_len;
-  char is_external_mount;
+  char in_root_mount_ns;
 } process_t;
 
 struct event_t {

@@ -64,7 +64,7 @@ pub struct Process {
     gid: u32,
     login_uid: u32,
     pid: u32,
-    is_external_mount: bool,
+    in_root_mount_ns: bool,
     lineage: Vec<Lineage>,
 }
 
@@ -91,7 +91,7 @@ impl Process {
             .parse()
             .expect("Failed to parse login_uid");
 
-        let is_external_mount = get_host_mnt_namespace() != get_mnt_namespace(&pid.to_string());
+        let in_root_mount_ns = get_host_mnt_namespace() == get_mnt_namespace(&pid.to_string());
 
         Self {
             comm: "".to_string(),
@@ -103,7 +103,7 @@ impl Process {
             gid,
             login_uid,
             pid,
-            is_external_mount,
+            in_root_mount_ns,
             lineage: vec![],
         }
     }
@@ -142,7 +142,7 @@ impl PartialEq for Process {
             && self.exe_path == other.exe_path
             && self.args == other.args
             && self.container_id == other.container_id
-            && self.is_external_mount == other.is_external_mount
+            && self.in_root_mount_ns == other.in_root_mount_ns
     }
 }
 
@@ -154,7 +154,7 @@ impl TryFrom<process_t> for Process {
         let exe_path = slice_to_string(value.exe_path.as_slice())?;
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
         let container_id = Process::extract_container_id(memory_cgroup);
-        let is_external_mount = value.is_external_mount != 0;
+        let in_root_mount_ns = value.in_root_mount_ns != 0;
 
         let lineage = value.lineage[..value.lineage_len as usize]
             .iter()
@@ -187,7 +187,7 @@ impl TryFrom<process_t> for Process {
             gid: value.gid,
             login_uid: value.login_uid,
             pid: value.pid,
-            is_external_mount,
+            in_root_mount_ns,
             lineage,
         })
     }
@@ -205,7 +205,7 @@ impl From<Process> for fact_api::ProcessSignal {
             gid,
             login_uid,
             pid,
-            is_external_mount,
+            in_root_mount_ns,
             lineage,
         } = value;
 
@@ -233,7 +233,7 @@ impl From<Process> for fact_api::ProcessSignal {
                 .collect(),
             login_uid,
             username: username.to_owned(),
-            is_external_mount,
+            in_root_mount_ns,
         }
     }
 }
