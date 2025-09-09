@@ -35,11 +35,7 @@ impl Bpf {
         // at runtime.
         let mut obj = aya::EbpfLoader::new()
             .set_global("paths_len", &(paths.len() as u32), true)
-            .set_global(
-                "host_mnt_namespace",
-                &host_info::get_host_mnt_namespace(),
-                true,
-            )
+            .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
             .load(aya::include_bytes_aligned!(concat!(
                 env!("OUT_DIR"),
                 "/main.o"

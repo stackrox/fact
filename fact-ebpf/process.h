@@ -97,7 +97,7 @@ __always_inline static void process_fill_lineage(process_t* p, struct helper_t* 
   }
 }
 
-__always_inline static unsigned long get_mnt_namespace() {
+__always_inline static unsigned long get_mount_ns() {
   struct task_struct* task = (struct task_struct*)bpf_get_current_task();
   struct ns_common ns = BPF_CORE_READ(task, nsproxy, mnt_ns, ns);
 
@@ -149,7 +149,7 @@ __always_inline static int64_t process_fill(process_t* p) {
     bpf_probe_read_str(p->memory_cgroup, PATH_MAX, cg);
   }
 
-  p->in_root_mount_ns = get_mnt_namespace() == host_mnt_namespace;
+  p->in_root_mount_ns = get_mount_ns() == host_mount_ns;
 
   process_fill_lineage(p, helper);
 

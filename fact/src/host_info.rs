@@ -77,7 +77,7 @@ pub fn get_username(uid: u32) -> &'static str {
     }
 }
 
-pub fn get_mnt_namespace(pid: &str) -> u64 {
+pub fn get_mount_ns(pid: &str) -> u64 {
     let mut file_stats = unsafe { mem::zeroed() };
     let path = PathBuf::from("/proc").join(pid).join("ns/mnt");
     let path = CString::new(path.to_str().unwrap()).unwrap();
@@ -101,12 +101,12 @@ pub fn get_mnt_namespace(pid: &str) -> u64 {
     file_stats.stx_ino
 }
 
-// get_mnt_namespace
+// get_host_mount_ns
 //
 // Returns a mount namespace of the host. Since we're running as a privileged
 // process, it's equivalent to our mount namespace, thus extract it as an inode
 // of /proc/self/ns/mnt. We should get the same result if we try to use
 // /proc/1/ns/mnt .
-pub fn get_host_mnt_namespace() -> u64 {
-    get_mnt_namespace("self")
+pub fn get_host_mount_ns() -> u64 {
+    get_mount_ns("self")
 }

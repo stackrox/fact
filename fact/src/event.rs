@@ -73,7 +73,7 @@ impl Process {
     /// possible.
     #[cfg(test)]
     pub fn current() -> Self {
-        use crate::host_info::{get_host_mnt_namespace, get_mnt_namespace};
+        use crate::host_info::{get_host_mount_ns, get_mount_ns};
 
         let exe_path = std::env::current_exe()
             .expect("Failed to get current exe")
@@ -91,7 +91,7 @@ impl Process {
             .parse()
             .expect("Failed to parse login_uid");
 
-        let in_root_mount_ns = get_host_mnt_namespace() == get_mnt_namespace(&pid.to_string());
+        let in_root_mount_ns = get_host_mount_ns() == get_mount_ns(&pid.to_string());
 
         Self {
             comm: "".to_string(),
