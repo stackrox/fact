@@ -25,16 +25,16 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let (run_tx, run_rx) = watch::channel(true);
     let (tx, rx) = broadcast::channel(100);
 
-    if !config.skip_pre_flight {
+    if !config.skip_pre_flight() {
         debug!("Performing pre-flight checks");
         pre_flight().context("Pre-flight checks failed")?;
     } else {
         debug!("Skipping pre-flight checks");
     }
 
-    let mut bpf = Bpf::new(&config.paths)?;
+    let mut bpf = Bpf::new(config.paths())?;
 
-    if config.health_check {
+    if config.health_check() {
         // At this point the BPF code is in the kernel, we can start our
         // healthcheck probe
         health_check::start();
@@ -50,7 +50,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     Bpf::start_worker(
         tx,
         bpf.fd,
-        config.paths,
+        config.paths().to_vec(),
         run_rx,
         exporter.metrics.bpf_worker.clone(),
     );

@@ -1,4 +1,4 @@
-use std::{fs::read_to_string, path::PathBuf};
+use std::{fs::read_to_string, path::Path};
 
 use anyhow::bail;
 use fact_api::{file_activity_service_client::FileActivityServiceClient, FileActivity};
@@ -18,10 +18,10 @@ struct Certs {
     pub identity: Identity,
 }
 
-impl TryFrom<PathBuf> for Certs {
+impl TryFrom<&Path> for Certs {
     type Error = anyhow::Error;
 
-    fn try_from(path: PathBuf) -> Result<Self, Self::Error> {
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
         let ca = read_to_string(path.join("ca.pem"))?;
         let ca = Certificate::from_pem(ca);
         let cert = read_to_string(path.join("cert.pem"))?;
@@ -51,15 +51,15 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn start(url: &str, certs: Option<PathBuf>) -> anyhow::Result<Self> {
+    pub fn start(url: &str, certs: Option<&Path>) -> anyhow::Result<Self> {
         let (tx, rx) = mpsc::channel(100);
         let rx = ReceiverStream::new(rx);
         let url = url.to_owned();
+        let certs = certs.map(Certs::try_from).transpose()?;
 
         tokio::spawn(async move {
             let mut channel = Channel::from_shared(url).unwrap();
-            if let Some(certs) = certs.as_ref() {
-                let certs: Certs = certs.clone().try_into().unwrap();
+            if let Some(certs) = certs {
                 let tls = ClientTlsConfig::new()
                     .domain_name("sensor.stackrox.svc")
                     .ca_certificate(certs.ca.clone())

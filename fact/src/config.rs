@@ -1,31 +1,250 @@
-use std::path::PathBuf;
+use std::{
+    fs::read_to_string,
+    path::{Path, PathBuf},
+};
 
+use anyhow::{bail, Context};
 use clap::Parser;
+use log::debug;
+use yaml_rust2::{Yaml, YamlLoader};
+
+#[derive(Debug, Default)]
+pub struct FactConfig {
+    paths: Option<Vec<PathBuf>>,
+    url: Option<String>,
+    certs: Option<PathBuf>,
+    health_check: Option<bool>,
+    skip_pre_flight: Option<bool>,
+    json: Option<bool>,
+}
+
+impl FactConfig {
+    pub fn new(paths: &[&str]) -> anyhow::Result<Self> {
+        let mut config = paths
+            .iter()
+            .filter_map(|p| {
+                let p = Path::new(p);
+                if p.exists() {
+                    Some(p)
+                } else {
+                    None
+                }
+            })
+            .map(|p| {
+                let content =
+                    read_to_string(p).with_context(|| format!("Failed to read {}", p.display()))?;
+                let parsed = YamlLoader::load_from_str(&content)
+                    .with_context(|| format!("Failed to parse YAML file {}", p.display()))?;
+                FactConfig::try_from(parsed)
+                    .with_context(|| format!("Error while processing {}", p.display()))
+            })
+            .try_fold(
+                FactConfig::default(),
+                |mut config: FactConfig, other: anyhow::Result<FactConfig>| {
+                    config.update(&other?);
+                    Ok::<FactConfig, anyhow::Error>(config)
+                },
+            )?;
+
+        // Once file configuration is handled, apply CLI arguments
+        let args = FactCli::try_parse()?;
+        config.update(&args.to_config());
+
+        debug!("Configuration: {config:?}");
+        Ok(config)
+    }
+
+    pub fn update(&mut self, from: &FactConfig) {
+        if let Some(paths) = from.paths.as_deref() {
+            self.paths = Some(paths.to_owned());
+        }
+
+        if let Some(url) = from.url.as_deref() {
+            self.url = Some(url.to_owned());
+        }
+
+        if let Some(certs) = from.certs.as_deref() {
+            self.certs = Some(certs.to_owned());
+        }
+
+        if let Some(health_check) = from.health_check {
+            self.health_check = Some(health_check);
+        }
+
+        if let Some(skip_pre_flight) = from.skip_pre_flight {
+            self.skip_pre_flight = Some(skip_pre_flight);
+        }
+
+        if let Some(json) = from.json {
+            self.json = Some(json);
+        }
+    }
+
+    pub fn paths(&self) -> &[PathBuf] {
+        self.paths.as_ref().map(|v| v.as_ref()).unwrap_or(&[])
+    }
+
+    pub fn url(&self) -> Option<&str> {
+        self.url.as_deref()
+    }
+
+    pub fn certs(&self) -> Option<&Path> {
+        self.certs.as_deref()
+    }
+
+    pub fn health_check(&self) -> bool {
+        self.health_check.unwrap_or(false)
+    }
+
+    pub fn skip_pre_flight(&self) -> bool {
+        self.skip_pre_flight.unwrap_or(false)
+    }
+
+    pub fn json(&self) -> bool {
+        self.json.unwrap_or(false)
+    }
+}
+
+impl TryFrom<Vec<Yaml>> for FactConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Vec<Yaml>) -> Result<Self, Self::Error> {
+        if value.is_empty() {
+            // Ignore empty configuration
+            return Ok(Default::default());
+        }
+
+        if value.len() > 1 {
+            bail!("YAML file contains multiple documents");
+        }
+
+        let mut config = FactConfig::default();
+        let value = &value[0];
+        if value.is_null() {
+            return Ok(config);
+        }
+
+        let Some(value) = value.as_hash() else {
+            bail!("Wrong configuration type");
+        };
+
+        for (k, v) in value.iter() {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}")
+            };
+
+            match k {
+                "paths" if v.is_array() => {
+                    let paths = v
+                        .as_vec()
+                        .unwrap()
+                        .iter()
+                        .map(|p| {
+                            let Some(p) = p.as_str() else {
+                                bail!("Path has invalid type: {p:?}");
+                            };
+                            Ok(PathBuf::from(p))
+                        })
+                        .collect::<anyhow::Result<_>>()?;
+                    config.paths = Some(paths);
+                }
+                "paths" if v.is_null() => {
+                    config.paths = Some(Vec::new());
+                }
+                "url" => {
+                    let Some(url) = v.as_str() else {
+                        bail!("url field has incorrect type: {v:?}");
+                    };
+                    config.url = Some(url.to_owned());
+                }
+                "certs" => {
+                    let Some(certs) = v.as_str() else {
+                        bail!("certs field has incorrect type: {v:?}");
+                    };
+                    config.certs = Some(PathBuf::from(certs));
+                }
+                "health_check" => {
+                    let Some(hc) = v.as_bool() else {
+                        bail!("health_check field has incorrect type: {v:?}");
+                    };
+                    config.health_check = Some(hc);
+                }
+                "skip_pre_flight" => {
+                    let Some(spf) = v.as_bool() else {
+                        bail!("skip_pre_flight field has incorrect type: {v:?}");
+                    };
+                    config.skip_pre_flight = Some(spf);
+                }
+                "json" => {
+                    let Some(json) = v.as_bool() else {
+                        bail!("json field has incorrect type: {v:?}");
+                    };
+                    config.json = Some(json);
+                }
+                name => bail!("Invalid field '{name}' with value: {v:?}"),
+            }
+        }
+
+        Ok(config)
+    }
+}
 
 #[derive(Debug, Parser)]
 #[clap(version, about)]
-pub struct FactConfig {
+pub struct FactCli {
     /// List of paths to be monitored
-    #[clap(short, long, num_args = 0..16, value_delimiter = ':')]
-    pub paths: Vec<PathBuf>,
+    #[clap(short, long, num_args = 0..16, value_delimiter = ':', env = "FACT_PATHS")]
+    paths: Option<Vec<PathBuf>>,
 
     /// URL to forward the packages to
     #[arg(env = "FACT_URL")]
-    pub url: Option<String>,
+    url: Option<String>,
 
     /// Directory holding the mTLS certificates and keys
     #[arg(short, long, env = "FACT_CERTS")]
-    pub certs: Option<PathBuf>,
+    certs: Option<PathBuf>,
 
     /// Whether a small health_check probe should be run
-    #[arg(long)]
-    pub health_check: bool,
+    #[arg(long, overrides_with("no_health_check"), env = "FACT_HEALTH_CHECK")]
+    health_check: bool,
+    #[arg(long, overrides_with = "health_check", hide(true))]
+    no_health_check: bool,
 
     /// Whether to perform a pre flight check
-    #[arg(long)]
-    pub skip_pre_flight: bool,
+    #[arg(
+        long,
+        overrides_with = "no_skip_pre_flight",
+        env = "FACT_SKIP_PRE_FLIGHT"
+    )]
+    skip_pre_flight: bool,
+    #[arg(long, overrides_with = "skip_pre_flight", hide(true))]
+    no_skip_pre_flight: bool,
 
     /// Force events to be output as JSON to stdout
-    #[arg(long, short)]
-    pub json: bool,
+    #[arg(long, short, overrides_with = "no_json", env = "FACT_JSON")]
+    json: bool,
+    #[arg(long, short, overrides_with = "json", hide(true))]
+    no_json: bool,
+}
+
+impl FactCli {
+    fn to_config(&self) -> FactConfig {
+        FactConfig {
+            paths: self.paths.clone(),
+            url: self.url.clone(),
+            certs: self.certs.clone(),
+            health_check: resolve_bool_arg(self.health_check, self.no_health_check),
+            skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
+            json: resolve_bool_arg(self.json, self.no_json),
+        }
+    }
+}
+
+fn resolve_bool_arg(yes: bool, no: bool) -> Option<bool> {
+    match (yes, no) {
+        (true, false) => Some(true),
+        (false, true) => Some(false),
+        (false, false) => None,
+        (_, _) => unreachable!("clap should make this impossible"),
+    }
 }
