@@ -8,7 +8,7 @@ use clap::Parser;
 use log::debug;
 use yaml_rust2::{Yaml, YamlLoader};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     url: Option<String>,
@@ -17,6 +17,9 @@ pub struct FactConfig {
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
 }
+
+#[cfg(test)]
+mod tests;
 
 impl FactConfig {
     pub fn new(paths: &[&str]) -> anyhow::Result<Self> {
@@ -33,10 +36,8 @@ impl FactConfig {
             .map(|p| {
                 let content =
                     read_to_string(p).with_context(|| format!("Failed to read {}", p.display()))?;
-                let parsed = YamlLoader::load_from_str(&content)
-                    .with_context(|| format!("Failed to parse YAML file {}", p.display()))?;
-                FactConfig::try_from(parsed)
-                    .with_context(|| format!("Error while processing {}", p.display()))
+                FactConfig::try_from(content.as_str())
+                    .with_context(|| format!("parsing error while processing {}", p.display()))
             })
             .try_fold(
                 FactConfig::default(),
@@ -102,6 +103,14 @@ impl FactConfig {
 
     pub fn json(&self) -> bool {
         self.json.unwrap_or(false)
+    }
+}
+
+impl TryFrom<&str> for FactConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        YamlLoader::load_from_str(value)?.try_into()
     }
 }
 
