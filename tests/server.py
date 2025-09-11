@@ -103,7 +103,8 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
 
         Args:
             server: The server instance to retrieve events from.
-            event (Event): The event to search for.
+            event (list[Event]): The events to search for.
+            ignored (list[Event]): List of events that should not happen.
 
         Raises:
             TimeoutError: If the required events are not found in 5 seconds.

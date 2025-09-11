@@ -13,8 +13,6 @@ def test_open(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
-        executor: A thread pool executor to run the wait_events function
-                  concurrently.
     """
     # File Under Test
     fut = os.path.join(monitored_dir, 'test.txt')
@@ -36,8 +34,6 @@ def test_multiple(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
-        executor: A thread pool executor to run the wait_events function
-                  concurrently.
     """
     events = []
     # File Under Test
@@ -62,8 +58,6 @@ def test_multiple_access(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
-        executor: A thread pool executor to run the wait_events function
-                  concurrently.
     """
     events = []
     # File Under Test
@@ -87,10 +81,9 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
 
     Args:
         fact: Fixture for file activity (only required to be running).
-        temp_dir: Temporary directory path for creating the test file.
+        monitored_dir: Temporary directory path for creating the test file.
+        ignored_dir: Temporary directory path that is not monitored by fact.
         server: The server instance to communicate with.
-        executor: A thread pool executor to run the wait_events function
-                  concurrently.
     """
     p = Process()
 
