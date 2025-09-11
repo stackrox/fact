@@ -151,15 +151,6 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
     assert exit_status['StatusCode'] == 0
 
 
-@pytest.fixture
-def executor():
-    """
-    Fixture that provides a ThreadPoolExecutor for concurrent operations
-    in tests.
-    """
-    return futures.ThreadPoolExecutor(max_workers=2)
-
-
 def pytest_addoption(parser):
     parser.addoption('--image', action='store', default='quay.io/stackrox-io/fact:latest',
                      help='The image to be used for testing')

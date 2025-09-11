@@ -4,7 +4,7 @@ from time import sleep
 from event import Event, Process
 
 
-def test_open(fact, monitored_dir, server, executor):
+def test_open(fact, monitored_dir, server):
     """
     Tests the opening of a file and verifies that the corresponding
     event is captured by the server.
@@ -24,12 +24,10 @@ def test_open(fact, monitored_dir, server, executor):
     e = Event(process=Process(), file=fut)
     print(f'Waiting for event: {e}')
 
-    fs = executor.submit(server.wait_events, [e])
-
-    fs.result(timeout=5)
+    server.wait_events([e])
 
 
-def test_multiple(fact, monitored_dir, server, executor):
+def test_multiple(fact, monitored_dir, server):
     """
     Tests the opening of multiple files and verifies that the
     corresponding events are captured by the server.
@@ -52,12 +50,10 @@ def test_multiple(fact, monitored_dir, server, executor):
         print(f'Waiting for event: {e}')
         events.append(e)
 
-    fs = executor.submit(server.wait_events, events)
-
-    fs.result(timeout=5)
+    server.wait_events(events)
 
 
-def test_multiple_access(fact, monitored_dir, server, executor):
+def test_multiple_access(fact, monitored_dir, server):
     """
     Tests multiple opening of a file and verifies that the
     corresponding events are captured by the server.
@@ -81,12 +77,10 @@ def test_multiple_access(fact, monitored_dir, server, executor):
         print(f'Waiting for event: {e}')
         events.append(e)
 
-    fs = executor.submit(server.wait_events, events)
-
-    fs.result(timeout=5)
+    server.wait_events(events)
 
 
-def test_ignored(fact, monitored_dir, ignored_dir, server, executor):
+def test_ignored(fact, monitored_dir, ignored_dir, server):
     """
     Tests that open events on ignored files are not captured by the
     server.
@@ -116,6 +110,4 @@ def test_ignored(fact, monitored_dir, ignored_dir, server, executor):
     e = Event(process=p, file=fut)
     print(f'Waiting for event: {e}')
 
-    fs = executor.submit(server.wait_events, [e], ignored=[ignored_event])
-
-    fs.result(timeout=5)
+    server.wait_events([e], ignored=[ignored_event])
