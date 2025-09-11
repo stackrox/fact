@@ -120,7 +120,7 @@ def test_external_process(fact, monitored_dir, server):
     # File Under Test
     fut = os.path.join(monitored_dir, 'test.txt')
     proc = subprocess.Popen(
-        f'echo "This is a test" > {fut}; sleep 1', shell=True)
+        f'echo "This is a test" > {fut}; sleep 5', shell=True)
 
     e = Event(process=Process(proc.pid), file=fut)
     print(f'Waiting for event: {e}')
