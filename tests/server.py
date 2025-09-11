@@ -80,7 +80,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         """
         return self.running.is_set()
 
-    def wait_event(self, event: Event):
+    def wait_events(self, events: list[Event], ignored: list[Event] = []):
         """
         Continuously checks the server for incoming events until the
         specified event is found.
@@ -99,5 +99,10 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
                 sleep(0.5)
                 continue
 
-            if event == msg:
-                break
+            if msg in ignored:
+                raise ValueError(f'Caught ignored event: {msg}')
+
+            if msg in events:
+                events.remove(msg)
+                if len(events) == 0:
+                    break

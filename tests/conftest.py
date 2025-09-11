@@ -12,9 +12,21 @@ from server import FileActivityService
 
 
 @pytest.fixture
-def temp_dir():
+def monitored_dir():
     """
     Create a temporary directory for tests and clean it up afterwards.
+    """
+    cwd = os.getcwd()
+    tmp = mkdtemp(prefix='fact-test-', dir=cwd)
+    yield tmp
+    rmtree(tmp)
+
+
+@pytest.fixture
+def ignored_dir():
+    """
+    Create a temporary directory for tests that will not be monitored
+    by fact. After tests are done, the directory is cleaned up.
     """
     cwd = os.getcwd()
     tmp = mkdtemp(prefix='fact-test-', dir=cwd)
@@ -47,7 +59,8 @@ def server():
 
 @pytest.fixture
 def logs_dir(request):
-    logs = os.path.join(os.getcwd(), 'logs', request.node.name)
+    logs = os.path.join(os.getcwd(), 'logs',
+                        request.node.__module__, request.node.name)
     os.makedirs(logs, exist_ok=True)
     return logs
 
@@ -68,13 +81,13 @@ def dump_logs(container, file):
 
 
 @pytest.fixture
-def fact(request, docker_client, temp_dir, server, logs_dir):
+def fact(request, docker_client, monitored_dir, server, logs_dir):
     """
     Run the fact docker container for integration tests.
     """
     command = [
         'http://127.0.0.1:9999',
-        '-p', temp_dir,
+        '-p', monitored_dir,
         '--health-check',
         '--json',
     ]
