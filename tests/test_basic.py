@@ -21,10 +21,8 @@ def test_open(fact, temp_dir, server, executor):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    p = Process(name='pytest', uid=os.getuid(),
-                pid=os.getpid(), gid=os.getgid())
-
-    e = Event(process=p, file=fut)
+    e = Event(process=Process(), file=fut)
+    print(f'Waiting for event: {e}')
 
     fs = executor.submit(server.wait_event, e)
 
