@@ -60,7 +60,7 @@ def server():
 @pytest.fixture
 def logs_dir(request):
     logs = os.path.join(os.getcwd(), 'logs',
-                        request.node.__module__, request.node.name)
+                        request.module.__name__, request.node.name)
     os.makedirs(logs, exist_ok=True)
     return logs
 
@@ -118,8 +118,8 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
             },
         },
     )
-    log_file = os.path.join(logs_dir, 'fact.log')
 
+    container_log = os.path.join(logs_dir, 'fact.log')
     # Wait for container to be ready
     for _ in range(3):
         try:
@@ -131,15 +131,22 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
         sleep(1)
     else:
         container.stop(timeout=1)
-        dump_logs(container, log_file)
+        dump_logs(container, container_log)
         container.remove()
         pytest.fail('fact failed to start')
 
     yield container
 
+    # Capture prometheus metrics before stopping the container
+    metric_log = os.path.join(logs_dir, 'metrics')
+    resp = requests.get('http://127.0.0.1:9001')
+    if resp.status_code == 200:
+        with open(metric_log, 'w') as f:
+            f.write(resp.text)
+
     container.stop(timeout=1)
     exit_status = container.wait(timeout=1)
-    dump_logs(container, log_file)
+    dump_logs(container, container_log)
     container.remove()
     assert exit_status['StatusCode'] == 0
 

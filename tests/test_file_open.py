@@ -13,7 +13,7 @@ def test_open(fact, monitored_dir, server, executor):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
-        executor: A thread pool executor to run the find_event function
+        executor: A thread pool executor to run the wait_events function
                   concurrently.
     """
     # File Under Test
@@ -29,6 +29,34 @@ def test_open(fact, monitored_dir, server, executor):
     fs.result(timeout=5)
 
 
+def test_multiple(fact, monitored_dir, server, executor):
+    """
+    Tests the opening of multiple files and verifies that the
+    corresponding events are captured by the server.
+
+    Args:
+        fact: Fixture for file activity (only required to be running).
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+        executor: A thread pool executor to run the wait_events function
+                  concurrently.
+    """
+    events = []
+    # File Under Test
+    for i in range(3):
+        fut = os.path.join(monitored_dir, f'{i}.txt')
+        with open(fut, 'w') as f:
+            f.write('This is a test')
+
+        e = Event(process=Process(), file=fut)
+        print(f'Waiting for event: {e}')
+        events.append(e)
+
+    fs = executor.submit(server.wait_events, events)
+
+    fs.result(timeout=5)
+
+
 def test_ignored(fact, monitored_dir, ignored_dir, server, executor):
     """
     Tests that open events on ignored files are not captured by the
@@ -38,7 +66,7 @@ def test_ignored(fact, monitored_dir, ignored_dir, server, executor):
         fact: Fixture for file activity (only required to be running).
         temp_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
-        executor: A thread pool executor to run the find_event function
+        executor: A thread pool executor to run the wait_events function
                   concurrently.
     """
     p = Process()
