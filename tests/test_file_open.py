@@ -1,4 +1,5 @@
 import os
+import subprocess
 from time import sleep
 
 from event import Event, Process
@@ -104,3 +105,24 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
     print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
+
+
+def test_external_process(fact, monitored_dir, server):
+    """
+    Tests the opening of a file by an external process and verifies that
+    the corresponding event is captured by the server.
+
+    Args:
+        fact: Fixture for file activity (only required to be running).
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = os.path.join(monitored_dir, 'test.txt')
+    proc = subprocess.Popen(
+        f'echo "This is a test" > {fut}; sleep 1', shell=True)
+
+    e = Event(process=Process(proc.pid), file=fut)
+    print(f'Waiting for event: {e}')
+
+    server.wait_events([e])

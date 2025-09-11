@@ -2,7 +2,10 @@ use std::{path::Path, sync::Arc};
 
 use log::{info, warn};
 use tokio::{
-    sync::{broadcast, watch},
+    sync::{
+        broadcast::{self, error::RecvError},
+        watch,
+    },
     task::JoinHandle,
 };
 
@@ -62,6 +65,10 @@ impl Output {
                                 let event = Arc::unwrap_or_clone(event);
                                 client.send(event).await.unwrap();
                             }
+                            Err(RecvError::Closed) => {
+                                info!("Channel closed, stopping gRPC output...");
+                                return;
+                            }
                             Err(e) => {
                                 event_counter.dropped();
                                 warn!("Failed to receive event: '{e}'");
@@ -89,6 +96,10 @@ impl Output {
                     event = rx.recv() => {
                         let event = match event {
                             Ok(event) => event,
+                            Err(RecvError::Closed) => {
+                                info!("Channel closed, stopping stdout output...");
+                                return;
+                            }
                             Err(e) => {
                                 event_counter.dropped();
                                 warn!("Failed to receive event: {e}");
