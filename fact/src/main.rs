@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::str::FromStr;
 
-use clap::Parser;
+use fact::config::FactConfig;
 use log::LevelFilter;
 
 #[tokio::main]
@@ -24,7 +24,12 @@ async fn main() -> anyhow::Result<()> {
         })
         .init();
 
-    let config = fact::config::FactConfig::try_parse()?;
+    let config = FactConfig::new(&[
+        "/etc/stackrox/fact.yml",
+        "/etc/stackrox/fact.yaml",
+        "fact.yml",
+        "fact.yaml",
+    ])?;
 
     fact::run(config).await
 }

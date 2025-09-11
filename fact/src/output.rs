@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use log::{info, warn};
 use tokio::{
@@ -29,12 +29,12 @@ impl Output {
 
     pub fn start(&self, config: &FactConfig) -> anyhow::Result<Vec<JoinHandle<()>>> {
         let mut handles = Vec::new();
-        if let Some(url) = config.url.as_ref() {
-            let h = self.start_grpc(url.clone(), config.certs.clone())?;
+        if let Some(url) = config.url() {
+            let h = self.start_grpc(url, config.certs())?;
             handles.push(h)
         };
 
-        if handles.is_empty() || config.json {
+        if handles.is_empty() || config.json() {
             handles.push(self.start_stdout()?);
         }
 
@@ -47,8 +47,8 @@ impl Output {
         (running, rx)
     }
 
-    fn start_grpc(&self, url: String, certs: Option<PathBuf>) -> anyhow::Result<JoinHandle<()>> {
-        let mut client = grpc::Client::start(&url, certs)?;
+    fn start_grpc(&self, url: &str, certs: Option<&Path>) -> anyhow::Result<JoinHandle<()>> {
+        let mut client = grpc::Client::start(url, certs)?;
         let event_counter = self.metrics.grpc.clone();
         let (mut running, mut rx) = self.clone_receivers();
 
