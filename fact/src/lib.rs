@@ -32,7 +32,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         debug!("Skipping pre-flight checks");
     }
 
-    let mut bpf = Bpf::new(config.paths())?;
+    let mut bpf = Bpf::new(&config)?;
 
     if config.health_check() {
         // At this point the BPF code is in the kernel, we can start our

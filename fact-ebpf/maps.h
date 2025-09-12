@@ -31,7 +31,6 @@ uint32_t paths_len;
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
-  __uint(max_entries, 256 * sizeof(struct event_t));
 } rb SEC(".maps");
 
 struct {
