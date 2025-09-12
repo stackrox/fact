@@ -75,6 +75,13 @@ fn parsing() {
             },
         ),
         (
+            "ringbuf_size: 64",
+            FactConfig {
+                ringbuf_size: Some(64),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
@@ -83,6 +90,7 @@ fn parsing() {
             health_check: true
             skip_pre_flight: false
             json: false
+            ringbuf_size: 8192
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -91,6 +99,7 @@ fn parsing() {
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
                 json: Some(false),
+                ringbuf_size: Some(8192),
             },
         ),
     ];
@@ -135,6 +144,17 @@ paths:
             "skip_pre_flight field has incorrect type: Integer(4)",
         ),
         ("json: 4", "json field has incorrect type: Integer(4)"),
+        (
+            "ringbuf_size: true",
+            "ringbuf_size field has incorrect type: Boolean(true)",
+        ),
+        ("ringbuf_size: 0", "ringbuf_size out of range: 0"),
+        ("ringbuf_size: -128", "ringbuf_size out of range: -128"),
+        (
+            &format!("ringbuf_size: {}", u32::MAX),
+            &format!("ringbuf_size out of range: {}", u32::MAX),
+        ),
+        ("ringbuf_size: 65", "ringbuf_size is not a power of 2: 65"),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
     for (input, expected) in tests {
@@ -357,6 +377,7 @@ fn update() {
             health_check: true
             skip_pre_flight: false
             json: false
+            ringbuf_size: 16384
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
@@ -365,6 +386,7 @@ fn update() {
                 health_check: Some(false),
                 skip_pre_flight: Some(true),
                 json: Some(true),
+                ringbuf_size: Some(64),
             },
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -373,6 +395,7 @@ fn update() {
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
                 json: Some(false),
+                ringbuf_size: Some(16384),
             },
         ),
     ];
@@ -384,4 +407,17 @@ fn update() {
         config.update(&input);
         assert_eq!(config, expected);
     }
+}
+
+#[test]
+fn defaults() {
+    let config = FactConfig::default();
+    let default_paths: &[PathBuf] = &[];
+    assert_eq!(config.paths(), default_paths);
+    assert_eq!(config.url(), None);
+    assert_eq!(config.certs(), None);
+    assert!(!config.health_check());
+    assert!(!config.skip_pre_flight());
+    assert!(!config.json());
+    assert_eq!(config.ringbuf_size(), 8192);
 }

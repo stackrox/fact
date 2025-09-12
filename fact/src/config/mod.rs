@@ -16,6 +16,7 @@ pub struct FactConfig {
     health_check: Option<bool>,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
+    ringbuf_size: Option<u32>,
 }
 
 #[cfg(test)]
@@ -51,7 +52,7 @@ impl FactConfig {
         let args = FactCli::try_parse()?;
         config.update(&args.to_config());
 
-        debug!("Configuration: {config:?}");
+        debug!("{config:#?}");
         Ok(config)
     }
 
@@ -79,6 +80,10 @@ impl FactConfig {
         if let Some(json) = from.json {
             self.json = Some(json);
         }
+
+        if let Some(ringbuf_size) = from.ringbuf_size {
+            self.ringbuf_size = Some(ringbuf_size);
+        }
     }
 
     pub fn paths(&self) -> &[PathBuf] {
@@ -103,6 +108,10 @@ impl FactConfig {
 
     pub fn json(&self) -> bool {
         self.json.unwrap_or(false)
+    }
+
+    pub fn ringbuf_size(&self) -> u32 {
+        self.ringbuf_size.unwrap_or(8192)
     }
 }
 
@@ -190,6 +199,19 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.json = Some(json);
                 }
+                "ringbuf_size" => {
+                    let Some(rb_size) = v.as_i64() else {
+                        bail!("ringbuf_size field has incorrect type: {v:?}");
+                    };
+                    if rb_size < 64 || rb_size > (u32::MAX / 1024) as i64 {
+                        bail!("ringbuf_size out of range: {rb_size}");
+                    }
+                    let rb_size = rb_size as u32;
+                    if rb_size.count_ones() != 1 {
+                        bail!("ringbuf_size is not a power of 2: {rb_size}");
+                    }
+                    config.ringbuf_size = Some(rb_size);
+                }
                 name => bail!("Invalid field '{name}' with value: {v:?}"),
             }
         }
@@ -234,6 +256,17 @@ pub struct FactCli {
     json: bool,
     #[arg(long, short, overrides_with = "json", hide(true))]
     no_json: bool,
+
+    /// Sets the size of the ringbuffer to be used in kilobytes
+    ///
+    /// The size must be a power of 2, preferably a multiple of the page
+    /// size on the running system (usually 4KB).
+    /// The minimum allowed size is 64KB.
+    /// There is no maximum size, but it is recommended to keep this
+    /// at a reasonable value.
+    /// Default value is 8MB.
+    #[arg(long, short, env = "FACT_RINGBUF_SIZE")]
+    ringbuf_size: Option<u32>,
 }
 
 impl FactCli {
@@ -245,6 +278,7 @@ impl FactCli {
             health_check: resolve_bool_arg(self.health_check, self.no_health_check),
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),
+            ringbuf_size: self.ringbuf_size,
         }
     }
 }
