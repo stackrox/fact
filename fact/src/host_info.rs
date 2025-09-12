@@ -1,6 +1,12 @@
 use log::debug;
 use std::{
-    collections::HashMap, env, ffi::c_char, fs::read_to_string, mem, path::PathBuf, sync::LazyLock,
+    collections::HashMap,
+    env,
+    ffi::{c_char, CString},
+    fs::read_to_string,
+    mem,
+    path::PathBuf,
+    sync::LazyLock,
 };
 
 use libc::{
@@ -71,34 +77,36 @@ pub fn get_username(uid: u32) -> &'static str {
     }
 }
 
-// get_mnt_namespace
+pub fn get_mount_ns(pid: &str) -> u64 {
+    let mut file_stats = unsafe { mem::zeroed() };
+    let path = PathBuf::from("/proc").join(pid).join("ns/mnt");
+    let path = CString::new(path.to_str().unwrap()).unwrap();
+    let path: *const c_char = path.as_ptr().cast();
+    let ret = unsafe {
+        statx(
+            AT_FDCWD,
+            path,
+            AT_STATX_SYNC_AS_STAT | AT_NO_AUTOMOUNT,
+            STATX_INO,
+            &mut file_stats,
+        )
+    };
+
+    if ret == 0 {
+        debug!("Host mount namespace {}", file_stats.stx_ino);
+    } else {
+        panic!("Failed to get host mount namespace: {ret}");
+    }
+
+    file_stats.stx_ino
+}
+
+// get_host_mount_ns
 //
 // Returns a mount namespace of the host. Since we're running as a privileged
 // process, it's equivalent to our mount namespace, thus extract it as an inode
-// of /proc/self/ns/mnt . We should get the same result if we try to use
+// of /proc/self/ns/mnt. We should get the same result if we try to use
 // /proc/1/ns/mnt .
-pub fn get_mnt_namespace() -> u64 {
-    static HOST_MNT_NAMESPACE: LazyLock<u64> = LazyLock::new(|| {
-        let mut file_stats = unsafe { mem::zeroed() };
-        let path: *const c_char = c"/proc/self/ns/mnt".as_ptr().cast();
-        let ret = unsafe {
-            statx(
-                AT_FDCWD,
-                path,
-                AT_STATX_SYNC_AS_STAT | AT_NO_AUTOMOUNT,
-                STATX_INO,
-                &mut file_stats,
-            )
-        };
-
-        if ret == 0 {
-            debug!("Host mount namespace {}", file_stats.stx_ino);
-        } else {
-            panic!("Failed to get host mount namespace: {ret}");
-        }
-
-        file_stats.stx_ino
-    });
-
-    *HOST_MNT_NAMESPACE
+pub fn get_host_mount_ns() -> u64 {
+    get_mount_ns("self")
 }

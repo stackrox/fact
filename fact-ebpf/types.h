@@ -27,12 +27,12 @@ typedef struct process_t {
   unsigned int pid;
   lineage_t lineage[LINEAGE_MAX];
   unsigned int lineage_len;
+  char in_root_mount_ns;
 } process_t;
 
 struct event_t {
   unsigned long timestamp;
   process_t process;
-  unsigned long mnt_namespace;
   char filename[PATH_MAX];
   char host_file[PATH_MAX];
 };
