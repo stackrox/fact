@@ -12,9 +12,21 @@ from server import FileActivityService
 
 
 @pytest.fixture
-def temp_dir():
+def monitored_dir():
     """
     Create a temporary directory for tests and clean it up afterwards.
+    """
+    cwd = os.getcwd()
+    tmp = mkdtemp(prefix='fact-test-', dir=cwd)
+    yield tmp
+    rmtree(tmp)
+
+
+@pytest.fixture
+def ignored_dir():
+    """
+    Create a temporary directory for tests that will not be monitored
+    by fact. After tests are done, the directory is cleaned up.
     """
     cwd = os.getcwd()
     tmp = mkdtemp(prefix='fact-test-', dir=cwd)
@@ -47,7 +59,8 @@ def server():
 
 @pytest.fixture
 def logs_dir(request):
-    logs = os.path.join(os.getcwd(), 'logs', request.node.name)
+    logs = os.path.join(os.getcwd(), 'logs',
+                        request.module.__name__, request.node.name)
     os.makedirs(logs, exist_ok=True)
     return logs
 
@@ -68,13 +81,13 @@ def dump_logs(container, file):
 
 
 @pytest.fixture
-def fact(request, docker_client, temp_dir, server, logs_dir):
+def fact(request, docker_client, monitored_dir, server, logs_dir):
     """
     Run the fact docker container for integration tests.
     """
     command = [
         'http://127.0.0.1:9999',
-        '-p', temp_dir,
+        '-p', monitored_dir,
         '--health-check',
         '--json',
     ]
@@ -105,8 +118,8 @@ def fact(request, docker_client, temp_dir, server, logs_dir):
             },
         },
     )
-    log_file = os.path.join(logs_dir, 'fact.log')
 
+    container_log = os.path.join(logs_dir, 'fact.log')
     # Wait for container to be ready
     for _ in range(3):
         try:
@@ -118,26 +131,24 @@ def fact(request, docker_client, temp_dir, server, logs_dir):
         sleep(1)
     else:
         container.stop(timeout=1)
-        dump_logs(container, log_file)
+        dump_logs(container, container_log)
         container.remove()
         pytest.fail('fact failed to start')
 
     yield container
 
+    # Capture prometheus metrics before stopping the container
+    metric_log = os.path.join(logs_dir, 'metrics')
+    resp = requests.get('http://127.0.0.1:9001')
+    if resp.status_code == 200:
+        with open(metric_log, 'w') as f:
+            f.write(resp.text)
+
     container.stop(timeout=1)
     exit_status = container.wait(timeout=1)
-    dump_logs(container, log_file)
+    dump_logs(container, container_log)
     container.remove()
     assert exit_status['StatusCode'] == 0
-
-
-@pytest.fixture
-def executor():
-    """
-    Fixture that provides a ThreadPoolExecutor for concurrent operations
-    in tests.
-    """
-    return futures.ThreadPoolExecutor(max_workers=2)
 
 
 def pytest_addoption(parser):
