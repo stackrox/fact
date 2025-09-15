@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, non_camel_case_types, non_upper_case_globals)]
 
 use aya::Pod;
 use libc::memcpy;

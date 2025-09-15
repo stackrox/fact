@@ -1,15 +1,18 @@
-use std::{
-    ffi::CStr,
-    os::raw::c_char,
-    path::PathBuf,
-    time::{SystemTime, UNIX_EPOCH},
-};
+#[cfg(test)]
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
 
+use fact_api::FileActivity;
 use serde::Serialize;
 use uuid::Uuid;
 
+#[cfg(test)]
+use crate::bpf::bindings::file_activity_type_t;
 use crate::{
-    bpf::bindings::{event_t, lineage_t, process_t},
+    bpf::bindings::{
+        event_t, file_activity_type_t_FILE_ACTIVITY_CREATION,
+        file_activity_type_t_FILE_ACTIVITY_OPEN, lineage_t, process_t,
+    },
     host_info,
 };
 
@@ -239,16 +242,98 @@ impl From<Process> for fact_api::ProcessSignal {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Event {
+pub enum Event {
+    Open(EventOpen),
+    Creation(EventCreation),
+}
+
+impl Event {
+    #[cfg(test)]
+    #[allow(non_upper_case_globals)]
+    pub fn new(
+        event_type: file_activity_type_t,
+        hostname: &'static str,
+        filename: PathBuf,
+        host_file: PathBuf,
+        process: Process,
+    ) -> Self {
+        match event_type {
+            file_activity_type_t_FILE_ACTIVITY_OPEN => {
+                EventOpen::new(hostname, filename, host_file, process).into()
+            }
+            file_activity_type_t_FILE_ACTIVITY_CREATION => {
+                EventCreation::new(hostname, filename, host_file, process).into()
+            }
+            invalid => unreachable!("Invalid event type: {invalid}"),
+        }
+    }
+
+    pub fn is_monitored(&self, paths: &[PathBuf]) -> bool {
+        match self {
+            Event::Open(e) => e.is_monitored(paths),
+            Event::Creation(e) => e.is_monitored(paths),
+        }
+    }
+}
+
+impl TryFrom<&event_t> for Event {
+    type Error = anyhow::Error;
+
+    #[allow(non_upper_case_globals)]
+    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
+        match value.type_ {
+            file_activity_type_t_FILE_ACTIVITY_OPEN => Ok(EventOpen::try_from(value)?.into()),
+            file_activity_type_t_FILE_ACTIVITY_CREATION => {
+                Ok(EventCreation::try_from(value)?.into())
+            }
+            id => unreachable!("Invalid event type: {id}"),
+        }
+    }
+}
+
+impl From<Event> for FileActivity {
+    fn from(value: Event) -> Self {
+        match value {
+            Event::Open(event) => event.into(),
+            Event::Creation(event) => event.into(),
+        }
+    }
+}
+
+impl From<EventOpen> for Event {
+    fn from(value: EventOpen) -> Self {
+        Event::Open(value)
+    }
+}
+
+impl From<EventCreation> for Event {
+    fn from(value: EventCreation) -> Self {
+        Event::Creation(value)
+    }
+}
+
+#[cfg(test)]
+impl PartialEq for Event {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Event::Open(this), Event::Open(other)) => this == other,
+            (Event::Creation(this), Event::Creation(other)) => this == other,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EventOpen {
     timestamp: u64,
-    #[allow(dead_code)]
     hostname: &'static str,
     process: Process,
     pub filename: PathBuf,
     host_file: PathBuf,
 }
 
-impl Event {
+impl EventOpen {
+    #[cfg(test)]
     pub fn new(
         hostname: &'static str,
         filename: PathBuf,
@@ -259,7 +344,7 @@ impl Event {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos() as _;
-        Event {
+        EventOpen {
             timestamp,
             hostname,
             process,
@@ -267,10 +352,14 @@ impl Event {
             host_file,
         }
     }
+
+    fn is_monitored(&self, paths: &[PathBuf]) -> bool {
+        paths.is_empty() || paths.iter().any(|p| self.filename.starts_with(p))
+    }
 }
 
 #[cfg(test)]
-impl PartialEq for Event {
+impl PartialEq for EventOpen {
     fn eq(&self, other: &Self) -> bool {
         self.hostname == other.hostname
             && self.filename == other.filename
@@ -279,7 +368,7 @@ impl PartialEq for Event {
     }
 }
 
-impl TryFrom<&event_t> for Event {
+impl TryFrom<&event_t> for EventOpen {
     type Error = anyhow::Error;
 
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
@@ -288,7 +377,7 @@ impl TryFrom<&event_t> for Event {
         let host_file = slice_to_string(value.host_file.as_slice())?.into();
         let process = value.process.try_into()?;
 
-        Ok(Event {
+        Ok(EventOpen {
             timestamp,
             hostname: host_info::get_hostname(),
             process,
@@ -298,9 +387,9 @@ impl TryFrom<&event_t> for Event {
     }
 }
 
-impl From<Event> for fact_api::FileActivity {
-    fn from(value: Event) -> Self {
-        let Event {
+impl From<EventOpen> for fact_api::FileActivity {
+    fn from(value: EventOpen) -> Self {
+        let EventOpen {
             timestamp,
             hostname: _,
             process,
@@ -316,6 +405,101 @@ impl From<Event> for fact_api::FileActivity {
         };
 
         let f_act = fact_api::file_activity::File::Open(f_act);
+
+        let seconds = (timestamp / 1_000_000_000) as i64;
+        let nanos = (timestamp % 1_000_000_000) as i32;
+        let timestamp = prost_types::Timestamp { seconds, nanos };
+
+        Self {
+            timestamp: Some(timestamp),
+            process: Some(process.into()),
+            file: Some(f_act),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EventCreation {
+    timestamp: u64,
+    hostname: &'static str,
+    process: Process,
+    pub filename: PathBuf,
+    host_file: PathBuf,
+}
+
+impl EventCreation {
+    #[cfg(test)]
+    pub fn new(
+        hostname: &'static str,
+        filename: PathBuf,
+        host_file: PathBuf,
+        process: Process,
+    ) -> Self {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as _;
+        EventCreation {
+            timestamp,
+            hostname,
+            process,
+            filename,
+            host_file,
+        }
+    }
+
+    fn is_monitored(&self, paths: &[PathBuf]) -> bool {
+        paths.is_empty() || paths.iter().any(|p| self.filename.starts_with(p))
+    }
+}
+
+#[cfg(test)]
+impl PartialEq for EventCreation {
+    fn eq(&self, other: &Self) -> bool {
+        self.hostname == other.hostname
+            && self.filename == other.filename
+            && self.host_file == other.host_file
+            && self.process == other.process
+    }
+}
+
+impl TryFrom<&event_t> for EventCreation {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
+        let timestamp = host_info::get_boot_time() + value.timestamp;
+        let filename = slice_to_string(value.filename.as_slice())?.into();
+        let host_file = slice_to_string(value.host_file.as_slice())?.into();
+        let process = value.process.try_into()?;
+
+        Ok(EventCreation {
+            timestamp,
+            hostname: host_info::get_hostname(),
+            process,
+            filename,
+            host_file,
+        })
+    }
+}
+
+impl From<EventCreation> for fact_api::FileActivity {
+    fn from(value: EventCreation) -> Self {
+        let EventCreation {
+            timestamp,
+            hostname: _,
+            process,
+            filename,
+            host_file,
+        } = value;
+        let activity = fact_api::FileActivityBase {
+            path: filename.into_os_string().into_string().unwrap(),
+            host_path: host_file.into_os_string().into_string().unwrap(),
+        };
+        let f_act = fact_api::FileCreation {
+            activity: Some(activity),
+        };
+
+        let f_act = fact_api::file_activity::File::Creation(f_act);
 
         let seconds = (timestamp / 1_000_000_000) as i64;
         let nanos = (timestamp % 1_000_000_000) as i32;

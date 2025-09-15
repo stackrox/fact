@@ -13,8 +13,9 @@
 
 char _license[] SEC("license") = "Dual MIT/GPL";
 
-#define FMODE_WRITE (0x2)
-#define FMODE_PWRITE (0x10)
+#define FMODE_WRITE ((fmode_t)(1 << 1))
+#define FMODE_PWRITE ((fmode_t)(1 << 4))
+#define FMODE_CREATED ((fmode_t)(1 << 20))
 
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
@@ -27,7 +28,12 @@ int BPF_PROG(trace_file_open, struct file* file) {
 
   m->file_open.total++;
 
-  if ((file->f_mode & (FMODE_WRITE | FMODE_PWRITE)) == 0) {
+  file_activity_type_t event_type = FILE_ACTIVITY_INIT;
+  if ((file->f_mode & FMODE_CREATED) != 0) {
+    event_type = FILE_ACTIVITY_CREATION;
+  } else if ((file->f_mode & (FMODE_WRITE | FMODE_PWRITE)) != 0) {
+    event_type = FILE_ACTIVITY_OPEN;
+  } else {
     m->file_open.ignored++;
     return 0;
   }
@@ -44,6 +50,8 @@ int BPF_PROG(trace_file_open, struct file* file) {
     bpf_printk("Failed to get event entry");
     return 0;
   }
+
+  event->type = event_type;
 
   if (bpf_d_path(&file->f_path, event->filename, PATH_MAX) < 0) {
     bpf_printk("Failed to read path");

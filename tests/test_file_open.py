@@ -2,7 +2,7 @@ import multiprocessing as mp
 import os
 import subprocess
 
-from event import Event, Process
+from event import Event, EventType, Process
 
 
 def test_open(fact, monitored_dir, server):
@@ -20,7 +20,7 @@ def test_open(fact, monitored_dir, server):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=Process(), file=fut)
+    e = Event(process=Process(), event_type=EventType.CREATION, file=fut)
     print(f'Waiting for event: {e}')
 
     server.wait_events([e])
@@ -43,7 +43,7 @@ def test_multiple(fact, monitored_dir, server):
         with open(fut, 'w') as f:
             f.write('This is a test')
 
-        e = Event(process=Process(), file=fut)
+        e = Event(process=Process(), event_type=EventType.CREATION, file=fut)
         print(f'Waiting for event: {e}')
         events.append(e)
 
@@ -63,12 +63,13 @@ def test_multiple_access(fact, monitored_dir, server):
     events = []
     # File Under Test
     fut = os.path.join(monitored_dir, 'test.txt')
-    e = Event(process=Process(), file=fut)
 
     for i in range(3):
         with open(fut, 'a+') as f:
             f.write('This is a test')
 
+        e = Event(process=Process(), file=fut,
+                  event_type=EventType.CREATION if i == 0 else EventType.OPEN)
         print(f'Waiting for event: {e}')
         events.append(e)
 
@@ -93,7 +94,8 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
 
-    ignored_event = Event(process=p, file=ignored_file)
+    ignored_event = Event(
+        process=p, event_type=EventType.CREATION, file=ignored_file)
     print(f'Ignoring: {ignored_event}')
 
     # File Under Test
@@ -101,7 +103,7 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, file=fut)
+    e = Event(process=p, event_type=EventType.CREATION, file=fut)
     print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
@@ -120,6 +122,8 @@ def test_external_process(fact, monitored_dir, server):
     def do_test(fut: str, stop_event: mp.Event):
         with open(fut, 'w') as f:
             f.write('This is a test')
+        with open(fut, 'a') as f:
+            f.write('This is also a test')
 
         # Wait for test to be done
         stop_event.wait()
@@ -129,12 +133,15 @@ def test_external_process(fact, monitored_dir, server):
     stop_event = mp.Event()
     proc = mp.Process(target=do_test, args=(fut, stop_event))
     proc.start()
+    p = Process(proc.pid)
 
-    e = Event(process=Process(proc.pid), file=fut)
-    print(f'Waiting for event: {e}')
+    creation = Event(process=p, event_type=EventType.CREATION, file=fut)
+    print(f'Waiting for event: {creation}')
+    write_access = Event(process=p, event_type=EventType.OPEN, file=fut)
+    print(f'Waiting for event: {write_access}')
 
     try:
-        server.wait_events([e])
+        server.wait_events([creation, write_access])
     finally:
         stop_event.set()
         proc.join(1)

@@ -30,11 +30,18 @@ typedef struct process_t {
   char in_root_mount_ns;
 } process_t;
 
+typedef enum file_activity_type_t {
+  FILE_ACTIVITY_INIT = -1,
+  FILE_ACTIVITY_OPEN = 0,
+  FILE_ACTIVITY_CREATION,
+} file_activity_type_t;
+
 struct event_t {
   unsigned long timestamp;
   process_t process;
   char filename[PATH_MAX];
   char host_file[PATH_MAX];
+  file_activity_type_t type;
 };
 
 struct path_cfg_t {
