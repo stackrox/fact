@@ -1,6 +1,6 @@
+import multiprocessing as mp
 import os
 import subprocess
-from time import sleep
 
 from event import Event, Process
 
@@ -117,12 +117,24 @@ def test_external_process(fact, monitored_dir, server):
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
     """
+    def do_test(fut: str, stop_event: mp.Event):
+        with open(fut, 'w') as f:
+            f.write('This is a test')
+
+        # Wait for test to be done
+        stop_event.wait()
+
     # File Under Test
     fut = os.path.join(monitored_dir, 'test.txt')
-    proc = subprocess.Popen(
-        f'echo "This is a test" > {fut}; sleep 5', shell=True)
+    stop_event = mp.Event()
+    proc = mp.Process(target=do_test, args=(fut, stop_event))
+    proc.start()
 
     e = Event(process=Process(proc.pid), file=fut)
     print(f'Waiting for event: {e}')
 
-    server.wait_events([e])
+    try:
+        server.wait_events([e])
+    finally:
+        stop_event.set()
+        proc.join(1)
