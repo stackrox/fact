@@ -241,6 +241,20 @@ impl From<Process> for fact_api::ProcessSignal {
     }
 }
 
+trait FileEvent {
+    fn get_filename(&self) -> &PathBuf;
+}
+
+trait IsMonitored {
+    fn is_monitored(&self, paths: &[PathBuf]) -> bool;
+}
+
+impl<T: FileEvent> IsMonitored for T {
+    fn is_monitored(&self, paths: &[PathBuf]) -> bool {
+        paths.is_empty() || paths.iter().any(|p| self.get_filename().starts_with(p))
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub enum Event {
     Open(EventOpen),
@@ -352,9 +366,11 @@ impl EventOpen {
             host_file,
         }
     }
+}
 
-    fn is_monitored(&self, paths: &[PathBuf]) -> bool {
-        paths.is_empty() || paths.iter().any(|p| self.filename.starts_with(p))
+impl FileEvent for EventOpen {
+    fn get_filename(&self) -> &PathBuf {
+        &self.filename
     }
 }
 
@@ -447,9 +463,11 @@ impl EventCreation {
             host_file,
         }
     }
+}
 
-    fn is_monitored(&self, paths: &[PathBuf]) -> bool {
-        paths.is_empty() || paths.iter().any(|p| self.filename.starts_with(p))
+impl FileEvent for EventCreation {
+    fn get_filename(&self) -> &PathBuf {
+        &self.filename
     }
 }
 
