@@ -13,7 +13,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{event::Event, host_info, metrics::EventCounter};
+use crate::{config::FactConfig, event::Event, host_info, metrics::EventCounter};
 
 pub mod bindings;
 
@@ -28,20 +28,23 @@ pub struct Bpf {
 }
 
 impl Bpf {
-    pub fn new(paths: &[PathBuf]) -> anyhow::Result<Self> {
+    pub fn new(config: &FactConfig) -> anyhow::Result<Self> {
+        const RINGBUFFER_NAME: &str = "rb";
+
         Bpf::bump_memlock_rlimit()?;
 
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
         let mut obj = aya::EbpfLoader::new()
-            .set_global("paths_len", &(paths.len() as u32), true)
+            .set_global("paths_len", &(config.paths().len() as u32), true)
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
+            .set_max_entries(RINGBUFFER_NAME, config.ringbuf_size() * 1024)
             .load(aya::include_bytes_aligned!(concat!(
                 env!("OUT_DIR"),
                 "/main.o"
             )))?;
 
-        let ringbuf = match obj.take_map("rb") {
+        let ringbuf = match obj.take_map(RINGBUFFER_NAME) {
             Some(r) => r,
             None => bail!("Ring buffer not found"),
         };
@@ -170,9 +173,9 @@ mod bpf_tests {
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
         let paths = vec![monitored_path.clone()];
-
+        let config = FactConfig::default();
         executor.block_on(async {
-            let mut bpf = Bpf::new(&paths).expect("Failed to load BPF code");
+            let mut bpf = Bpf::new(&config).expect("Failed to load BPF code");
             let (tx, mut rx) = broadcast::channel(100);
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it
