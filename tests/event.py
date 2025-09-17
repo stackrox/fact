@@ -1,8 +1,29 @@
+import os
+import string
+import sys
 from enum import Enum
 from typing import Any, override
 
 from internalapi.sensor.collector_pb2 import ProcessSignal
 from internalapi.sensor.sfa_pb2 import FileActivity
+
+
+def extract_container_id(cgroup: str) -> str:
+    if (scope_idx := cgroup.rfind('.scope')) != -1:
+        cgroup = cgroup[:scope_idx]
+
+    if not cgroup or len(cgroup) < 65:
+        return ''
+
+    cgroup = cgroup[-65:]
+    if cgroup[0] not in ['/', '-']:
+        return ''
+
+    cgroup = cgroup[1:]
+    if all(c in string.hexdigits for c in cgroup):
+        return cgroup[:12]
+    else:
+        return ''
 
 
 class EventType(Enum):
@@ -15,21 +36,60 @@ class Process:
     Represents a process with its attributes.
     """
 
-    def __init__(self,
-                 uid: int = 0,
-                 name: str = '',
-                 container_id: str = '',
-                 gid: int = 0,
-                 pid: int = 0):
-        self._uid: int = uid
-        self._name: str = name
-        self._container_id: str = container_id
-        self._gid: int = gid
-        self._pid: int = pid
+    def __init__(self, pid: int | None = None):
+        self._pid: int = pid if pid is not None else os.getpid()
+        proc_dir = os.path.join('/proc', str(self._pid))
+
+        with open(os.path.join(proc_dir, 'status'), 'r') as f:
+            def get_id(line: str, wanted_id: str) -> int | None:
+                if line.startswith(f'{wanted_id}:'):
+                    parts = line.split()
+                    if len(parts) > 2:
+                        return int(parts[1])
+                return None
+
+            for line in f.readlines():
+                if (uid := get_id(line, 'Uid')) is not None:
+                    self._uid: int = uid
+                elif (gid := get_id(line, 'Gid')) is not None:
+                    self._gid: int = gid
+
+        self._exe_path: str = os.path.realpath(os.path.join(proc_dir, 'exe'))
+
+        with open(os.path.join(proc_dir, 'cmdline'), 'rb') as f:
+            content = f.read(4096)
+            args = [arg.decode('utf-8')
+                    for arg in content.split(b'\x00') if arg]
+            self._args: str = ' '.join(args)
+
+        with open(os.path.join(proc_dir, 'comm'), 'r') as f:
+            self._name: str = f.read().strip()
+
+        with open(os.path.join(proc_dir, 'cgroup'), 'r') as f:
+            self._container_id: str = extract_container_id(f.read())
+
+        with open(os.path.join(proc_dir, 'loginuid'), 'r') as f:
+            self._loginuid: int = int(f.read())
 
     @property
     def uid(self) -> int:
         return self._uid
+
+    @property
+    def gid(self) -> int:
+        return self._gid
+
+    @property
+    def pid(self) -> int:
+        return self._pid
+
+    @property
+    def exe_path(self) -> str:
+        return self._exe_path
+
+    @property
+    def args(self) -> str:
+        return self._args
 
     @property
     def name(self) -> str:
@@ -40,30 +100,30 @@ class Process:
         return self._container_id
 
     @property
-    def gid(self) -> int:
-        return self._gid
-
-    @property
-    def pid(self) -> int:
-        return self._pid
+    def loginuid(self) -> int:
+        return self._loginuid
 
     @override
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ProcessSignal):
             return (
-                self.container_id == other.container_id and
                 self.uid == other.uid and
                 self.gid == other.gid and
                 self.pid == other.pid and
-                self.name == other.name
+                self.exe_path == other.exec_file_path and
+                self.args == other.args and
+                self.name == other.name and
+                self.container_id == other.container_id and
+                self.loginuid == other.login_uid
             )
         raise NotImplementedError
 
     @override
     def __str__(self) -> str:
-        return (f'Process(uid={self.uid}, name="{self.name}", '
-                f'container_id="{self.container_id}", gid={self.gid}, '
-                f'pid={self.pid})')
+        return (f'Process(uid={self.uid}, gid={self.gid}, pid={self.pid}, '
+                f'exe_path={self.exe_path}, args={self.args}, '
+                f'name={self.name}, container_id={self.container_id}, '
+                f'loginuid={self.loginuid}')
 
 
 class Event:

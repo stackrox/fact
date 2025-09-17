@@ -25,6 +25,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
         self.queue = deque()
         self.running = Event()
+        self.executor = futures.ThreadPoolExecutor(max_workers=2)
 
     def Communicate(self, request_iterator, context):
         """
@@ -80,24 +81,33 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         """
         return self.running.is_set()
 
-    def wait_event(self, event: Event):
-        """
-        Continuously checks the server for incoming events until the
-        specified event is found.
-
-        This method is blocking, the intended use case is that it is
-        called from a context that can timeout, (i.e: by using an async
-        executor with result or wait).
-
-        Args:
-            server: The server instance to retrieve events from.
-            event (Event): The event to search for.
-        """
+    def _wait_events(self, events: list[Event], ignored: list[Event]):
         while self.is_running():
             msg = self.get_next()
             if msg is None:
                 sleep(0.5)
                 continue
 
-            if event == msg:
-                break
+            if msg in ignored:
+                raise ValueError(f'Caught ignored event: {msg}')
+
+            if msg in events:
+                events.remove(msg)
+                if len(events) == 0:
+                    break
+
+    def wait_events(self, events: list[Event], ignored: list[Event] = []):
+        """
+        Continuously checks the server for incoming events until the
+        specified events are found.
+
+        Args:
+            server: The server instance to retrieve events from.
+            event (list[Event]): The events to search for.
+            ignored (list[Event]): List of events that should not happen.
+
+        Raises:
+            TimeoutError: If the required events are not found in 5 seconds.
+        """
+        fs = self.executor.submit(self._wait_events, events, ignored)
+        fs.result(timeout=5)
