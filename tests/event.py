@@ -1,6 +1,5 @@
 import os
 import string
-import sys
 from enum import Enum
 from typing import Any, override
 
@@ -29,6 +28,7 @@ def extract_container_id(cgroup: str) -> str:
 class EventType(Enum):
     """Enumeration for different types of file activity events."""
     OPEN = 1
+    CREATION = 2
 
 
 class Process:
@@ -134,8 +134,8 @@ class Event:
 
     def __init__(self,
                  process: Process,
-                 event_type: EventType = EventType.OPEN,
-                 file: str = ''):
+                 event_type: EventType,
+                 file: str):
         self._type: EventType = event_type
         self._process: Process = process
         self._file: str = file
@@ -155,11 +155,14 @@ class Event:
     @override
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, FileActivity):
-            return (
-                self.process == other.process and
-                self.event_type.name.lower() == other.WhichOneof('file') and
-                self.file == other.open.activity.path
-            )
+            if self.process != other.process or self.event_type.name.lower() != other.WhichOneof('file'):
+                return False
+
+            if self.event_type == EventType.CREATION:
+                return self.file == other.creation.activity.path
+            elif self.event_type == EventType.OPEN:
+                return self.file == other.open.activity.path
+            return False
         raise NotImplementedError
 
     @override

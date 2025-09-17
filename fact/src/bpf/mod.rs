@@ -123,7 +123,7 @@ impl Bpf {
                                 }
                             };
 
-                            if paths.is_empty() || paths.iter().any(|p| event.filename.starts_with(p)) {
+                            if event.is_monitored(&paths) {
                                 event_counter.added();
                                 output
                                     .send(event)
@@ -152,6 +152,7 @@ mod bpf_tests {
     use std::{env, time::Duration};
 
     use anyhow::Context;
+    use bindings::file_activity_type_t_FILE_ACTIVITY_CREATION;
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
@@ -195,6 +196,7 @@ mod bpf_tests {
             println!("Created {file:?}");
 
             let expected = Event::new(
+                file_activity_type_t_FILE_ACTIVITY_CREATION,
                 host_info::get_hostname(),
                 file.path().to_path_buf(),
                 file.path().to_path_buf(),
