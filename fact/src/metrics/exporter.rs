@@ -8,7 +8,7 @@ use log::{info, warn};
 use prometheus_client::{encoding::text::encode, registry::Registry};
 use tokio::{net::TcpListener, pin, sync::watch};
 
-use crate::bpf::bindings::metrics_t;
+use fact_ebpf::metrics_t;
 
 use super::{kernel_metrics::KernelMetrics, Metrics};
 

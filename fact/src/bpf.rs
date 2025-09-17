@@ -15,9 +15,7 @@ use tokio::{
 
 use crate::{config::FactConfig, event::Event, host_info, metrics::EventCounter};
 
-pub mod bindings;
-
-use bindings::{event_t, metrics_t};
+use fact_ebpf::{event_t, metrics_t};
 
 pub struct Bpf {
     // The Ebpf object needs to live for as long as we want to keep the
@@ -39,10 +37,7 @@ impl Bpf {
             .set_global("paths_len", &(config.paths().len() as u32), true)
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
             .set_max_entries(RINGBUFFER_NAME, config.ringbuf_size() * 1024)
-            .load(aya::include_bytes_aligned!(concat!(
-                env!("OUT_DIR"),
-                "/main.o"
-            )))?;
+            .load(fact_ebpf::EBPF_OBJ)?;
 
         let ringbuf = match obj.take_map(RINGBUFFER_NAME) {
             Some(r) => r,
@@ -104,7 +99,6 @@ impl Bpf {
         event_counter: EventCounter,
     ) -> JoinHandle<()> {
         info!("Starting BPF worker...");
-        info!("Monitoring: {paths:?}");
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -152,7 +146,7 @@ mod bpf_tests {
     use std::{env, time::Duration};
 
     use anyhow::Context;
-    use bindings::file_activity_type_t_FILE_ACTIVITY_CREATION;
+    use fact_ebpf::file_activity_type_t_FILE_ACTIVITY_CREATION;
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 

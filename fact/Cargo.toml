@@ -27,13 +27,13 @@ uuid = { workspace = true }
 yaml-rust2 = { workspace = true }
 
 fact-api = { path = "../fact-api" }
+fact-ebpf = { path = "../fact-ebpf" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }
-bindgen = { workspace = true }
 
 [[bin]]
 name = "fact"

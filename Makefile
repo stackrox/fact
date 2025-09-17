@@ -12,6 +12,7 @@ mock-server:
 image:
 	docker build \
 		-f Containerfile \
+		--build-arg FACT_TAG=$(FACT_TAG) \
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
 

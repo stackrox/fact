@@ -7,14 +7,13 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[cfg(test)]
-use crate::bpf::bindings::file_activity_type_t;
-use crate::{
-    bpf::bindings::{
-        event_t, file_activity_type_t_FILE_ACTIVITY_CREATION,
-        file_activity_type_t_FILE_ACTIVITY_OPEN, lineage_t, process_t,
-    },
-    host_info,
+use fact_ebpf::file_activity_type_t;
+use fact_ebpf::{
+    event_t, file_activity_type_t_FILE_ACTIVITY_CREATION, file_activity_type_t_FILE_ACTIVITY_OPEN,
+    lineage_t, process_t,
 };
+
+use crate::host_info;
 
 fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())

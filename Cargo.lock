@@ -423,10 +423,10 @@ version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "aya",
- "bindgen",
  "clap",
  "env_logger",
  "fact-api",
+ "fact-ebpf",
  "http-body-util",
  "hyper",
  "hyper-util",
@@ -455,6 +455,16 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+]
+
+[[package]]
+name = "fact-ebpf"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aya",
+ "bindgen",
+ "libc",
 ]
 
 [[package]]

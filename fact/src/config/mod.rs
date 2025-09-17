@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{bail, Context};
 use clap::Parser;
-use log::debug;
+use log::info;
 use yaml_rust2::{Yaml, YamlLoader};
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -52,7 +52,7 @@ impl FactConfig {
         let args = FactCli::try_parse()?;
         config.update(&args.to_config());
 
-        debug!("{config:#?}");
+        info!("{config:#?}");
         Ok(config)
     }
 
