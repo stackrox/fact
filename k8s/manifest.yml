@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: fact
+  name: fact
+spec:
+  selector:
+    matchLabels:
+      app: fact
+  template:
+    metadata:
+      labels:
+        app: fact
+    spec:
+      containers:
+      - name: fact
+        image: quay.io/stackrox-io/fact:0.1.0
+        imagePullPolicy: IfNotPresent
+        args:
+            - --paths
+            - /etc:/bin:/sbin:/usr/bin:/usr/sbin
+        ports:
+          - containerPort: 9001
+            name: monitoring
+        env:
+        - name: FACT_LOGLEVEL
+          value: 'debug'
+        securityContext:
+          capabilities:
+            drop:
+            - NET_RAW
+          privileged: true
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /sys
+          name: sys-ro
+          readOnly: true
+          mountPropagation: HostToContainer
+      volumes:
+      - hostPath:
+          path: /sys/
+        name: sys-ro
