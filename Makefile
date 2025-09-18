@@ -22,4 +22,12 @@ integration-tests:
 clean:
 	make -C tests clean
 
+format-check:
+	cargo fmt --check
+	make -C fact-ebpf format-check
+
+format:
+	cargo fmt
+	make -C fact-ebpf format
+
 .PHONY: tag mock-server integration-tests image image-name clean

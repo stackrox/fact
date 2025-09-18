@@ -63,6 +63,14 @@ jobs:
         key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ steps.args.outputs.args }}-${{ hashFiles('**/Cargo.lock') }}
     - run: cargo ${{ matrix.args }}
 
+  format-check:
+    runs-on: ubuntu-24.04
+    env:
+      CLANG_FMT: clang-format-18
+    steps:
+    - uses: actions/checkout@v4
+    - run: make format-check
+
   vars:
     runs-on: ubuntu-24.04
     outputs:
