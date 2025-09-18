@@ -116,6 +116,10 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
                 'bind': '/host/proc/sys/kernel',
                 'mode': 'ro',
             },
+            '/usr/lib/os-release': {
+                'bind': '/host/usr/lib/os-release',
+                'mode': 'ro',
+            },
         },
     )
 

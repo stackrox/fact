@@ -13,7 +13,7 @@ pub mod config;
 mod event;
 mod grpc;
 mod health_check;
-mod host_info;
+pub mod host_info;
 mod metrics;
 mod output;
 mod pre_flight;

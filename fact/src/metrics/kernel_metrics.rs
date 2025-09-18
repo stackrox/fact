@@ -1,10 +1,9 @@
 use aya::maps::{MapData, PerCpuArray};
 use prometheus_client::registry::Registry;
 
-use crate::{
-    bpf::bindings::{metrics_by_hook_t, metrics_t},
-    metrics::MetricEvents,
-};
+use fact_ebpf::{metrics_by_hook_t, metrics_t};
+
+use crate::metrics::MetricEvents;
 
 use super::{EventCounter, LabelValues};
 

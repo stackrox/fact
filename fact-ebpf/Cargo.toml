@@ -1,0 +1,16 @@
+[package]
+name = "fact-ebpf"
+version = "0.1.0"
+edition = "2021"
+
+license.workspace = true
+
+[lib]
+
+[dependencies]
+aya = { workspace = true }
+libc = { workspace = true }
+
+[build-dependencies]
+anyhow = { workspace = true }
+bindgen = { workspace = true }

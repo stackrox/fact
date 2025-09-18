@@ -1,61 +1,25 @@
-use anyhow::Context;
-use std::{
-    env,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{path::PathBuf, process::Command};
 
-fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
-    let obj = match out_dir.join("main.o").into_os_string().into_string() {
-        Ok(s) => s,
-        Err(os_string) => anyhow::bail!("Failed to convert path to string {:?}", os_string),
-    };
-
-    let target_arch = format!("-D__TARGET_ARCH_{}", env::var("CARGO_CFG_TARGET_ARCH")?);
-
-    match Command::new("clang")
-        .args([
-            "-target",
-            "bpf",
-            "-O2",
-            "-g",
-            "-c",
-            "-Wall",
-            "-Werror",
-            &target_arch,
-            "../fact-ebpf/main.c",
-            "-o",
-            &obj,
-        ])
-        .status()
-    {
-        Ok(status) => {
-            if !status.success() {
-                anyhow::bail!("Failed to compile eBPF. See stderr for details.");
-            }
-        }
-        Err(e) => anyhow::bail!("Failed to execute clang: {}", e),
-    }
-    Ok(())
-}
-
-fn generate_bindings(out_dir: &Path) -> anyhow::Result<()> {
-    let bindings = bindgen::Builder::default()
-        .header("../fact-ebpf/types.h")
-        .derive_default(true)
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        .generate()
-        .context("Failed to generate bindings")?;
-    bindings
-        .write_to_file(out_dir.join("bindings.rs"))
-        .context("Failed to write bindings")
-}
+use anyhow::{bail, Context};
 
 fn main() -> anyhow::Result<()> {
-    println!("cargo::rerun-if-changed=../fact-ebpf/");
-    let out_dir: PathBuf = env::var("OUT_DIR")
+    println!("cargo::rerun-if-changed=../.git/HEAD");
+    let out_dir: PathBuf = std::env::var("OUT_DIR")
         .context("Failed to interpret OUT_DIR environment variable")?
         .into();
-    compile_bpf(&out_dir).context("Failed to compile eBPF")?;
-    generate_bindings(&out_dir)
+    let cmd = Command::new("make").args(["-sC", "..", "tag"]).output()?;
+
+    if !cmd.status.success() {
+        eprintln!("Captured stdout: {}", String::from_utf8_lossy(&cmd.stdout));
+        eprintln!("Captured stderr: {}", String::from_utf8_lossy(&cmd.stderr));
+        bail!("Failed to run `make tag`: {:?}", cmd.status.code());
+    }
+
+    let version = String::from_utf8(cmd.stdout)?;
+    let out_path = out_dir.join("version.rs");
+    std::fs::write(
+        &out_path,
+        format!(r#"pub const FACT_VERSION: &str = "{}";"#, version.trim()),
+    )?;
+    Ok(())
 }
