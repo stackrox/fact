@@ -172,4 +172,3 @@ __always_inline static bool is_monitored(const char* s) {
   }
   return false;
 }
-
