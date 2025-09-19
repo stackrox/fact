@@ -7,12 +7,14 @@ fn main() -> anyhow::Result<()> {
     let out_dir: PathBuf = std::env::var("OUT_DIR")
         .context("Failed to interpret OUT_DIR environment variable")?
         .into();
-    let cmd = Command::new("make").args(["-sC", "..", "tag"]).output()?;
+    let cmd = Command::new("make")
+        .args(["-sC", "..", "version"])
+        .output()?;
 
     if !cmd.status.success() {
         eprintln!("Captured stdout: {}", String::from_utf8_lossy(&cmd.stdout));
         eprintln!("Captured stderr: {}", String::from_utf8_lossy(&cmd.stderr));
-        bail!("Failed to run `make tag`: {:?}", cmd.status.code());
+        bail!("Failed to run `make version`: {:?}", cmd.status.code());
     }
 
     let version = String::from_utf8(cmd.stdout)?;

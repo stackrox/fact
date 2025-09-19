@@ -80,6 +80,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: true
+        fetch-depth: 0
 
     - id: vars
       run: |
@@ -100,6 +101,7 @@ jobs:
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
     env:
       FACT_TAG: ${{ needs.vars.outputs.tag }}-${{ matrix.arch }}
+      FACT_VERSION: ${{ needs.vars.outputs.tag }}
     steps:
     - uses: actions/checkout@v4
       with:
