@@ -1,5 +1,8 @@
 FROM registry.access.redhat.com/ubi9/ubi@sha256:7ff0b510498fa9f368a58e735e0c57f3497fd3205dbc2ea5e6e8ddf84f48752f AS builder
 
+ARG FACT_TAG
+RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
+
 RUN dnf install -y \
         clang \
         libbpf-devel \
@@ -17,7 +20,6 @@ RUN cargo build --release
 FROM registry.access.redhat.com/ubi9/ubi-micro@sha256:f5c5213d2969b7b11a6666fc4b849d56b48d9d7979b60a37bb853dff0255c14b
 
 ARG FACT_TAG
-RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 
 LABEL \
     com.redhat.license_terms="https://www.redhat.com/agreements" \

@@ -12,7 +12,7 @@ WORKDIR /app
 
 COPY . .
 
-ARG FACT_TAG
+ARG FACT_VERSION
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target \
     cargo build --release && \
