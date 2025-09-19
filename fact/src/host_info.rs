@@ -1,3 +1,4 @@
+use anyhow::bail;
 use log::{debug, warn};
 use std::{
     collections::HashMap,
@@ -147,50 +148,32 @@ pub fn get_distro() -> String {
     String::from("Linux")
 }
 
-const RELEASE: &str = "release";
-const MACHINE: &str = "machine";
+pub struct SystemInfo {
+    pub kernel: String,
+    pub arch: String,
+}
 
-/// Retrieve information about the kernel
-///
-/// The kernel information is retrieved by lazily calling `uname` and
-/// storing the information we care about in a hash map. This is not
-/// ideal, since the LazyLock<HashMap> will live for the entirety of
-/// the program's life, but the stored data is hopefully small enough
-/// that not calling `uname` repeatedly makes up for it.
-fn get_kernel_value(key: &str) -> Option<&String> {
-    static KERNEL_DATA: LazyLock<HashMap<&str, String>> = LazyLock::new(|| {
-        let mut map = HashMap::new();
-        let kernel_data = unsafe {
+impl SystemInfo {
+    pub fn new() -> anyhow::Result<Self> {
+        let system_info = unsafe {
             let mut info = mem::zeroed();
             let res = uname(&mut info);
             if res != 0 {
-                warn!("Failed to execute uname: {res}");
-                return map;
+                bail!(
+                    "Failed to execute uname: {}",
+                    std::io::Error::last_os_error()
+                );
             }
             info
         };
 
-        let release = unsafe { CStr::from_ptr(kernel_data.release.as_ptr()).to_str() };
-        if let Ok(release) = release {
-            map.insert(RELEASE, release.to_owned());
-        }
-        let machine = unsafe { CStr::from_ptr(kernel_data.machine.as_ptr()).to_str() };
-        if let Ok(machine) = machine {
-            map.insert(MACHINE, machine.to_owned());
-        }
+        let kernel = unsafe { CStr::from_ptr(system_info.release.as_ptr()) }
+            .to_string_lossy()
+            .to_string();
+        let arch = unsafe { CStr::from_ptr(system_info.machine.as_ptr()) }
+            .to_string_lossy()
+            .to_string();
 
-        map
-    });
-
-    KERNEL_DATA.get(key)
-}
-
-/// Same as `uname -r`
-pub fn get_kernel_version() -> &'static str {
-    get_kernel_value(RELEASE).map_or("", |s| s.as_str())
-}
-
-/// Same as `uname -m`
-pub fn get_architecture() -> &'static str {
-    get_kernel_value(MACHINE).map_or("", |s| s.as_str())
+        Ok(SystemInfo { kernel, arch })
+    }
 }
