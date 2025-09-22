@@ -11,37 +11,6 @@
 #include <bpf/bpf_core_read.h>
 // clang-format on
 
-__always_inline static bool has_prefix(const char* s, const char* prefix, uint64_t prefix_len) {
-  if (prefix_len == 0) {
-    return true;
-  }
-
-  if (prefix_len > PATH_MAX) {
-    return false;
-  }
-
-  uint64_t offset = 0;
-  while (prefix_len > 8) {
-    uint64_t pref = *(uint64_t*)&prefix[offset];
-    uint64_t s_pref = *(uint64_t*)&s[offset];
-
-    if (s_pref != pref) {
-      return false;
-    }
-
-    prefix_len -= 8;
-    offset += 8;
-  }
-
-  for (int i = 0; i < prefix_len; i++) {
-    if (s[i + offset] != prefix[i + offset]) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 /**
  * Reimplementation of the kernel d_path function.
  *
@@ -154,21 +123,11 @@ __always_inline static char* get_host_path(struct helper_t* helper, struct file*
   return &helper->buf[offset];
 }
 
-__always_inline static bool is_monitored(const char* s) {
-  if (paths_len == 0) {
+__always_inline static bool is_monitored(struct path_cfg_helper_t* path) {
+  if (!filter_by_prefix) {
+    // no path configured, allow all
     return true;
   }
 
-  for (int key = 0; key < (paths_len & 0xF); key++) {
-    struct path_cfg_t* path = bpf_map_lookup_elem(&paths_map, &key);
-    if (path == NULL) {
-      bpf_printk("Failed to get element %d in paths_map", key);
-      break;
-    }
-
-    if (has_prefix(s, path->path, path->len)) {
-      return true;
-    }
-  }
-  return false;
+  return bpf_map_lookup_elem(&path_prefix, path) != NULL;
 }
