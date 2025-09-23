@@ -39,6 +39,9 @@ jobs:
         sudo apt-get install -y \
           libbpf-dev \
           protobuf-compiler
+
+        rustup component add clippy
+
     - shell: python
       id: args
       run: |
@@ -69,7 +72,10 @@ jobs:
       CLANG_FMT: clang-format-18
     steps:
     - uses: actions/checkout@v4
-    - run: make format-check
+    - name: Check code format
+      run: |
+        rustup component add rustfmt
+        make format-check
 
   vars:
     runs-on: ubuntu-24.04
