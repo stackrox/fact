@@ -4,9 +4,11 @@ RUN dnf install --enablerepo=crb -y \
         clang-19.1.7 \
         libbpf-devel \
         protobuf-compiler \
-        protobuf-devel \
-        cargo-1.84.1 \
-        rust-1.84.1
+        protobuf-devel && \
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+            sh -s -- -y --default-toolchain 1.84 --profile minimal
+
+ENV PATH=/root/.cargo/bin:${PATH}
 
 WORKDIR /app
 
