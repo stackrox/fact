@@ -13,7 +13,9 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{config::FactConfig, event::Event, host_info, metrics::EventCounter};
+use crate::{
+    cgroup::ContainerIdCache, config::FactConfig, event::Event, host_info, metrics::EventCounter,
+};
 
 use fact_ebpf::{event_t, metrics_t};
 
@@ -97,6 +99,7 @@ impl Bpf {
         paths: Vec<PathBuf>,
         mut running: Receiver<bool>,
         event_counter: EventCounter,
+        cid_cache: ContainerIdCache,
     ) -> JoinHandle<()> {
         info!("Starting BPF worker...");
         tokio::spawn(async move {
@@ -107,7 +110,7 @@ impl Bpf {
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                            let event = match Event::try_from(event) {
+                            let event = match Event::new(event, &cid_cache).await {
                                 Ok(event) => Arc::new(event),
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
@@ -175,6 +178,7 @@ mod bpf_tests {
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it
             let exporter = Exporter::new(bpf.get_metrics().unwrap());
+            let cid_cache = ContainerIdCache::new();
 
             Bpf::start_worker(
                 tx,
@@ -182,6 +186,7 @@ mod bpf_tests {
                 paths,
                 run_rx,
                 exporter.metrics.bpf_worker.clone(),
+                cid_cache,
             );
 
             // Create a file
@@ -189,7 +194,7 @@ mod bpf_tests {
                 NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
             println!("Created {file:?}");
 
-            let expected = Event::new(
+            let expected = Event::from_raw_parts(
                 file_activity_type_t_FILE_ACTIVITY_CREATION,
                 host_info::get_hostname(),
                 file.path().to_path_buf(),
