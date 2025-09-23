@@ -12,7 +12,6 @@
  */
 struct helper_t {
   char buf[PATH_MAX * 2];
-  const unsigned char* array[16];
 };
 
 struct {

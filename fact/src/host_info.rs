@@ -177,3 +177,30 @@ impl SystemInfo {
         Ok(SystemInfo { kernel, arch })
     }
 }
+
+pub fn get_cgroup_paths() -> Vec<PathBuf> {
+    let Ok(file) = File::open("/proc/mounts") else {
+        warn!("Failed to open /proc/mounts");
+        return Vec::new();
+    };
+
+    BufReader::new(file)
+        .lines()
+        .filter_map(|line| match line {
+            Ok(line) => Some(line),
+            Err(e) => {
+                warn!("Failed to read line from /proc/mounts: {e}");
+                None
+            }
+        })
+        .filter_map(|line| {
+            let mut parts = line.split(' ');
+            let fs_type = parts.next()?;
+            if fs_type == "cgroup" || fs_type == "cgroup2" {
+                parts.next().map(PathBuf::from)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
