@@ -1,11 +1,12 @@
-use std::{io, path::PathBuf, sync::Arc};
+use std::{io, sync::Arc};
 
 use anyhow::{bail, Context};
 use aya::{
-    maps::{MapData, PerCpuArray, RingBuf},
+    maps::{LpmTrie, MapData, PerCpuArray, RingBuf},
     programs::Lsm,
     Btf, Ebpf,
 };
+use libc::c_char;
 use log::{debug, error, info};
 use tokio::{
     io::unix::AsyncFd,
@@ -15,7 +16,7 @@ use tokio::{
 
 use crate::{config::FactConfig, event::Event, host_info, metrics::EventCounter};
 
-use fact_ebpf::{event_t, metrics_t};
+use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
 pub struct Bpf {
     // The Ebpf object needs to live for as long as we want to keep the
@@ -34,7 +35,11 @@ impl Bpf {
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
         let mut obj = aya::EbpfLoader::new()
-            .set_global("paths_len", &(config.paths().len() as u32), true)
+            .set_global(
+                "filter_by_prefix",
+                &((!config.paths().is_empty()) as u8),
+                true,
+            )
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
             .set_max_entries(RINGBUFFER_NAME, config.ringbuf_size() * 1024)
             .load(fact_ebpf::EBPF_OBJ)?;
@@ -46,16 +51,13 @@ impl Bpf {
         let ringbuf = RingBuf::try_from(ringbuf)?;
         let fd = AsyncFd::new(ringbuf)?;
 
-        /* TODO: ROX-30438, re-implement kernel side filtering
-        let paths_map = obj.take_map("paths_map").unwrap();
-        let mut paths_map: Array<MapData, path_cfg_t> = Array::try_from(paths_map)?;
-        let mut path_cfg = path_cfg_t::new();
-        for (i, p) in paths.iter().enumerate() {
-            info!("Monitoring: {p:?}");
-            path_cfg.set(p.to_str().unwrap());
-            paths_map.set(i as u32, path_cfg, 0)?;
+        let path_prefix = obj.take_map("path_prefix").unwrap();
+        let mut path_prefix: LpmTrie<MapData, [c_char; LPM_SIZE_MAX as usize], c_char> =
+            LpmTrie::try_from(path_prefix)?;
+        for p in config.paths() {
+            let prefix = path_prefix_t::from(p);
+            path_prefix.insert(&prefix.into(), 0, 0)?;
         }
-        */
 
         let btf = Btf::from_sys_fs()?;
         let trace_file_open: &mut Lsm = obj.program_mut("trace_file_open").unwrap().try_into()?;
@@ -94,7 +96,6 @@ impl Bpf {
     pub fn start_worker(
         output: broadcast::Sender<Arc<Event>>,
         mut fd: AsyncFd<RingBuf<MapData>>,
-        paths: Vec<PathBuf>,
         mut running: Receiver<bool>,
         event_counter: EventCounter,
     ) -> JoinHandle<()> {
@@ -117,15 +118,11 @@ impl Bpf {
                                 }
                             };
 
-                            if event.is_monitored(&paths) {
-                                event_counter.added();
-                                output
-                                    .send(event)
-                                    .context("Failed to send event, all receivers exitted")
-                                    .unwrap();
-                            } else {
-                                event_counter.ignored();
-                            }
+                            event_counter.added();
+                            output
+                                .send(event)
+                                .context("Failed to send event, all receivers exitted")
+                                .unwrap();
                         }
                         guard.clear_ready();
                     },
@@ -143,7 +140,7 @@ impl Bpf {
 
 #[cfg(all(test, feature = "bpf-test"))]
 mod bpf_tests {
-    use std::{env, time::Duration};
+    use std::{env, path::PathBuf, time::Duration};
 
     use anyhow::Context;
     use fact_ebpf::file_activity_type_t_FILE_ACTIVITY_CREATION;
@@ -168,7 +165,8 @@ mod bpf_tests {
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
         let paths = vec![monitored_path.clone()];
-        let config = FactConfig::default();
+        let mut config = FactConfig::default();
+        config.set_paths(paths);
         executor.block_on(async {
             let mut bpf = Bpf::new(&config).expect("Failed to load BPF code");
             let (tx, mut rx) = broadcast::channel(100);
@@ -176,13 +174,7 @@ mod bpf_tests {
             // Create a metrics exporter, but don't start it
             let exporter = Exporter::new(bpf.get_metrics().unwrap());
 
-            Bpf::start_worker(
-                tx,
-                bpf.fd,
-                paths,
-                run_rx,
-                exporter.metrics.bpf_worker.clone(),
-            );
+            Bpf::start_worker(tx, bpf.fd, run_rx, exporter.metrics.bpf_worker.clone());
 
             // Create a file
             let file =

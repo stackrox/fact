@@ -20,6 +20,7 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
   uint32_t key = 0;
+  struct event_t* event = NULL;
   struct metrics_t* m = bpf_map_lookup_elem(&metrics, &key);
   if (m == NULL) {
     bpf_printk("Failed to get metrics entry, this should not happen");
@@ -34,8 +35,29 @@ int BPF_PROG(trace_file_open, struct file* file) {
   } else if ((file->f_mode & (FMODE_WRITE | FMODE_PWRITE)) != 0) {
     event_type = FILE_ACTIVITY_OPEN;
   } else {
-    m->file_open.ignored++;
-    return 0;
+    goto ignored;
+  }
+
+  struct path_cfg_helper_t* prefix_helper = bpf_map_lookup_elem(&path_prefix_helper, &key);
+  if (prefix_helper == NULL) {
+    bpf_printk("Failed to get prefix helper");
+    goto error;
+  }
+
+  long len = bpf_d_path(&file->f_path, prefix_helper->path, PATH_MAX);
+  if (len <= 0) {
+    bpf_printk("Failed to read path");
+    goto error;
+  }
+
+  if (len > LPM_SIZE_MAX) {
+    len = LPM_SIZE_MAX;
+  }
+  // for LPM maps, the length is the total number of bits
+  prefix_helper->bit_len = len * 8;
+
+  if (!is_monitored(prefix_helper)) {
+    goto ignored;
   }
 
   struct helper_t* helper = bpf_map_lookup_elem(&helper_map, &key);
@@ -44,7 +66,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     return 0;
   }
 
-  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
     m->file_open.ringbuffer_full++;
     bpf_printk("Failed to get event entry");
@@ -52,19 +74,8 @@ int BPF_PROG(trace_file_open, struct file* file) {
   }
 
   event->type = event_type;
-
-  if (bpf_d_path(&file->f_path, event->filename, PATH_MAX) < 0) {
-    bpf_printk("Failed to read path");
-    goto error;
-  }
-
-  /* TODO: ROX-30438 This causes a verifier issue with long paths
-  if (!is_monitored(event->filename)) {
-    goto error;
-  }
-  */
-
   event->timestamp = bpf_ktime_get_boot_ns();
+  bpf_probe_read_str(event->filename, PATH_MAX, prefix_helper->path);
 
   int64_t err = process_fill(&event->process);
   if (err) {
@@ -84,6 +95,12 @@ int BPF_PROG(trace_file_open, struct file* file) {
 
 error:
   m->file_open.error++;
-  bpf_ringbuf_discard(event, 0);
+  if (event != NULL) {
+    bpf_ringbuf_discard(event, 0);
+  }
+  return 0;
+
+ignored:
+  m->file_open.ignored++;
   return 0;
 }

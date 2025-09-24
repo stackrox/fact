@@ -10,6 +10,8 @@
 #define TASK_COMM_LEN 16
 #define LINEAGE_MAX 2
 
+#define LPM_SIZE_MAX 256
+
 typedef struct lineage_t {
   unsigned int uid;
   char exe_path[PATH_MAX];
@@ -44,9 +46,18 @@ struct event_t {
   file_activity_type_t type;
 };
 
-struct path_cfg_t {
-  const char path[PATH_MAX];
-  unsigned short len;
+/**
+ * Used as the key for the path_prefix map.
+ *
+ * The memory layout is specific and must always have a 4 byte length
+ * field first.
+ *
+ * See https://docs.ebpf.io/linux/map-type/BPF_MAP_TYPE_LPM_TRIE/
+ * for a detailed description of how the LPM map works.
+ */
+struct path_prefix_t {
+  unsigned int bit_len;
+  const char path[LPM_SIZE_MAX];
 };
 
 // Metrics types

@@ -88,13 +88,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     output.start(&config)?;
 
     // Gather events from the ring buffer and print them out.
-    Bpf::start_worker(
-        tx,
-        bpf.fd,
-        config.paths().to_vec(),
-        run_rx,
-        exporter.metrics.bpf_worker.clone(),
-    );
+    Bpf::start_worker(tx, bpf.fd, run_rx, exporter.metrics.bpf_worker.clone());
 
     let mut sigterm = signal(SignalKind::terminate())?;
     tokio::select! {

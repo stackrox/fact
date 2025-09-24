@@ -113,6 +113,11 @@ impl FactConfig {
     pub fn ringbuf_size(&self) -> u32 {
         self.ringbuf_size.unwrap_or(8192)
     }
+
+    #[cfg(test)]
+    pub fn set_paths(&mut self, paths: Vec<PathBuf>) {
+        self.paths = Some(paths);
+    }
 }
 
 impl TryFrom<&str> for FactConfig {
