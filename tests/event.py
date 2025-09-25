@@ -36,7 +36,12 @@ class Process:
     Represents a process with its attributes.
     """
 
-    def __init__(self, pid: int | None = None):
+    def __init__(self,
+                 pid: int | None = None,
+                 comm: str | None = None,
+                 exe_path: str | None = None,
+                 args: list[str] | None = None,
+                 ):
         self._pid: int = pid if pid is not None else os.getpid()
         proc_dir = os.path.join('/proc', str(self._pid))
 
@@ -54,16 +59,23 @@ class Process:
                 elif (gid := get_id(line, 'Gid')) is not None:
                     self._gid: int = gid
 
-        self._exe_path: str = os.path.realpath(os.path.join(proc_dir, 'exe'))
+        self._exe_path: str = os.path.realpath(os.path.join(
+            proc_dir, 'exe')) if exe_path is None else exe_path
 
-        with open(os.path.join(proc_dir, 'cmdline'), 'rb') as f:
-            content = f.read(4096)
-            args = [arg.decode('utf-8')
-                    for arg in content.split(b'\x00') if arg]
-            self._args: str = ' '.join(args)
+        if args is None:
+            with open(os.path.join(proc_dir, 'cmdline'), 'rb') as f:
+                content = f.read(4096)
+                args = [arg.decode('utf-8')
+                        for arg in content.split(b'\x00') if arg]
+                self._args: str = ' '.join(args)
+        else:
+            self._args = ' '.join(args)
 
-        with open(os.path.join(proc_dir, 'comm'), 'r') as f:
-            self._name: str = f.read().strip()
+        if comm is None:
+            with open(os.path.join(proc_dir, 'comm'), 'r') as f:
+                self._name: str = f.read().strip()
+        else:
+            self._name = comm
 
         with open(os.path.join(proc_dir, 'cgroup'), 'r') as f:
             self._container_id: str = extract_container_id(f.read())

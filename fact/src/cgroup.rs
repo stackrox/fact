@@ -17,7 +17,7 @@ use crate::host_info::get_cgroup_paths;
 
 #[derive(Debug)]
 struct ContainerIdEntry {
-    container_id: Option<String>,
+    container_id: Option<Arc<String>>,
     pub last_seen: SystemTime,
 }
 
@@ -51,7 +51,7 @@ impl ContainerIdCache {
         })
     }
 
-    pub async fn get_container_id(&self, cgroup_id: u64) -> Option<String> {
+    pub async fn get_container_id(&self, cgroup_id: u64) -> Option<Arc<String>> {
         let mut map = self.0.lock().await;
         match map.get(&cgroup_id) {
             Some(entry) => entry.container_id.clone(),
@@ -82,7 +82,7 @@ impl ContainerIdCache {
         })
     }
 
-    fn walk_cgroupfs(path: &PathBuf, map: &mut ContainerIdMap, parent_id: Option<&str>) {
+    fn walk_cgroupfs(path: &PathBuf, map: &mut ContainerIdMap, parent_id: Option<Arc<String>>) {
         for entry in std::fs::read_dir(path).unwrap() {
             let entry = match entry {
                 Ok(entry) => entry,
@@ -109,8 +109,8 @@ impl ContainerIdCache {
                         .unwrap_or("");
                     let container_id = match ContainerIdCache::extract_container_id(last_component)
                     {
-                        Some(cid) => Some(cid),
-                        None => parent_id.map(|f| f.to_owned()),
+                        Some(cid) => Some(Arc::new(cid)),
+                        None => parent_id.clone(),
                     };
                     let last_seen = SystemTime::now();
                     map.insert(
@@ -123,7 +123,7 @@ impl ContainerIdCache {
                     container_id
                 }
             };
-            ContainerIdCache::walk_cgroupfs(&p, map, container_id.as_deref());
+            ContainerIdCache::walk_cgroupfs(&p, map, container_id);
         }
     }
 

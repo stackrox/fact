@@ -1,6 +1,6 @@
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
+use std::{ffi::CStr, os::raw::c_char, path::PathBuf, sync::Arc};
 
 use fact_api::FileActivity;
 use serde::Serialize;
@@ -55,7 +55,7 @@ pub struct Process {
     comm: String,
     args: Vec<String>,
     exe_path: String,
-    container_id: Option<String>,
+    container_id: Option<Arc<String>>,
     uid: u32,
     username: &'static str,
     gid: u32,
@@ -121,7 +121,7 @@ impl Process {
             .unwrap();
         let args = std::env::args().collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
-        let container_id = ContainerIdCache::extract_container_id(&cgroup);
+        let container_id = ContainerIdCache::extract_container_id(&cgroup).map(Arc::new);
         let uid = unsafe { libc::getuid() };
         let gid = unsafe { libc::getgid() };
         let pid = std::process::id();
@@ -177,19 +177,16 @@ impl From<Process> for fact_api::ProcessSignal {
             lineage,
         } = value;
 
-        let container_id = container_id.unwrap_or("".to_string());
-
-        let args = args
-            .into_iter()
-            .reduce(|acc, i| acc + " " + &i)
-            .unwrap_or("".to_owned());
+        let container_id = container_id
+            .map(Arc::unwrap_or_clone)
+            .unwrap_or("".to_string());
 
         Self {
             id: Uuid::new_v4().to_string(),
             container_id,
             creation_time: None,
             name: comm,
-            args,
+            args: args.join(" "),
             exec_file_path: exe_path,
             pid,
             uid,
