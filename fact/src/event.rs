@@ -184,17 +184,12 @@ impl From<Process> for fact_api::ProcessSignal {
 
         let container_id = container_id.unwrap_or("".to_string());
 
-        let args = args
-            .into_iter()
-            .reduce(|acc, i| acc + " " + &i)
-            .unwrap_or("".to_owned());
-
         Self {
             id: Uuid::new_v4().to_string(),
             container_id,
             creation_time: None,
             name: comm,
-            args,
+            args: args.join(" "),
             exec_file_path: exe_path,
             pid,
             uid,
