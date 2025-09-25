@@ -2,6 +2,7 @@ use std::{io::Write, str::FromStr};
 
 use anyhow::Context;
 use bpf::Bpf;
+use cgroup::ContainerIdCache;
 use host_info::{get_distro, get_hostname, SystemInfo};
 use log::{debug, info, warn, LevelFilter};
 use metrics::exporter::Exporter;
@@ -12,6 +13,7 @@ use tokio::{
 };
 
 mod bpf;
+mod cgroup;
 pub mod config;
 mod event;
 mod grpc;
@@ -73,6 +75,9 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         debug!("Skipping pre-flight checks");
     }
 
+    let cid_cache = ContainerIdCache::new();
+    cid_cache.clone().start_worker(run_rx.clone());
+
     let mut bpf = Bpf::new(&config)?;
 
     if config.health_check() {
@@ -94,6 +99,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         config.paths().to_vec(),
         run_rx,
         exporter.metrics.bpf_worker.clone(),
+        cid_cache,
     );
 
     let mut sigterm = signal(SignalKind::terminate())?;

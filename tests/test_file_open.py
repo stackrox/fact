@@ -1,8 +1,12 @@
+import json
 import multiprocessing as mp
 import os
 import subprocess
 
+import pytest
+
 from event import Event, EventType, Process
+from logs import dump_logs
 
 
 def test_open(fact, monitored_dir, server):
@@ -145,3 +149,40 @@ def test_external_process(fact, monitored_dir, server):
     finally:
         stop_event.set()
         proc.join(1)
+
+
+CONTAINER_CMD = 'mkdir -p {monitored_dir}; echo "Some content" > {monitored_dir}/test.txt ; sleep 5'
+
+
+@pytest.fixture(scope='function')
+def test_container(fact, docker_client, monitored_dir, logs_dir):
+    image = 'fedora:42'
+    command = f"bash -c '{CONTAINER_CMD.format(monitored_dir=monitored_dir)}'"
+    container_log = os.path.join(logs_dir, 'fedora.log')
+    container = docker_client.containers.run(
+        image,
+        detach=True,
+        command=command,
+    )
+    yield container
+    container.stop(timeout=1)
+    container.wait(timeout=1)
+    dump_logs(container, container_log)
+    container.remove()
+
+
+def test_container_event(fact, monitored_dir, server, test_container, docker_api_client):
+    fut = os.path.join(monitored_dir, 'test.txt')
+
+    inspect = docker_api_client.inspect_container(test_container.id)
+    p = Process(pid=inspect['State']['Pid'],
+                comm='bash',
+                exe_path='/usr/bin/bash',
+                args=['bash', '-c',
+                      CONTAINER_CMD.format(monitored_dir=monitored_dir)]
+                )
+
+    creation = Event(process=p, event_type=EventType.CREATION, file=fut)
+    print(f'Waiting for event: {creation}')
+
+    server.wait_events([creation])
