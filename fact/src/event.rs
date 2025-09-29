@@ -313,18 +313,6 @@ impl From<Event> for FileActivity {
     }
 }
 
-impl From<EventOpen> for Event {
-    fn from(value: EventOpen) -> Self {
-        Event::Open(value)
-    }
-}
-
-impl From<EventCreation> for Event {
-    fn from(value: EventCreation) -> Self {
-        Event::Creation(value)
-    }
-}
-
 #[cfg(test)]
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
@@ -336,196 +324,132 @@ impl PartialEq for Event {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct EventOpen {
-    timestamp: u64,
-    hostname: &'static str,
-    process: Process,
-    pub filename: PathBuf,
-    host_file: PathBuf,
-}
-
-impl EventOpen {
-    #[cfg(test)]
-    pub fn new(
-        hostname: &'static str,
-        filename: PathBuf,
-        host_file: PathBuf,
-        process: Process,
-    ) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as _;
-        EventOpen {
-            timestamp,
-            hostname,
-            process,
-            filename,
-            host_file,
+macro_rules! basic_file_event {
+    ($event_type:tt) => {
+        #[derive(Debug, Clone, Serialize)]
+        pub struct $event_type {
+            timestamp: u64,
+            hostname: &'static str,
+            process: Process,
+            pub filename: PathBuf,
+            host_file: PathBuf,
         }
-    }
-}
 
-impl FileEvent for EventOpen {
-    fn get_filename(&self) -> &PathBuf {
-        &self.filename
-    }
-}
-
-#[cfg(test)]
-impl PartialEq for EventOpen {
-    fn eq(&self, other: &Self) -> bool {
-        self.hostname == other.hostname
-            && self.filename == other.filename
-            && self.host_file == other.host_file
-            && self.process == other.process
-    }
-}
-
-impl TryFrom<&event_t> for EventOpen {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let timestamp = host_info::get_boot_time() + value.timestamp;
-        let filename = slice_to_string(value.filename.as_slice())?.into();
-        let host_file = slice_to_string(value.host_file.as_slice())?.into();
-        let process = value.process.try_into()?;
-
-        Ok(EventOpen {
-            timestamp,
-            hostname: host_info::get_hostname(),
-            process,
-            filename,
-            host_file,
-        })
-    }
-}
-
-impl From<EventOpen> for fact_api::FileActivity {
-    fn from(value: EventOpen) -> Self {
-        let EventOpen {
-            timestamp,
-            hostname: _,
-            process,
-            filename,
-            host_file,
-        } = value;
-        let activity = fact_api::FileActivityBase {
-            path: filename.into_os_string().into_string().unwrap(),
-            host_path: host_file.into_os_string().into_string().unwrap(),
-        };
-        let f_act = fact_api::FileOpen {
-            activity: Some(activity),
-        };
-
-        let f_act = fact_api::file_activity::File::Open(f_act);
-
-        let seconds = (timestamp / 1_000_000_000) as i64;
-        let nanos = (timestamp % 1_000_000_000) as i32;
-        let timestamp = prost_types::Timestamp { seconds, nanos };
-
-        Self {
-            timestamp: Some(timestamp),
-            process: Some(process.into()),
-            file: Some(f_act),
+        impl $event_type {
+            #[cfg(test)]
+            pub fn new(
+                hostname: &'static str,
+                filename: PathBuf,
+                host_file: PathBuf,
+                process: Process,
+            ) -> Self {
+                let timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos() as _;
+                $event_type {
+                    timestamp,
+                    hostname,
+                    process,
+                    filename,
+                    host_file,
+                }
+            }
         }
-    }
-}
 
-#[derive(Debug, Clone, Serialize)]
-pub struct EventCreation {
-    timestamp: u64,
-    hostname: &'static str,
-    process: Process,
-    pub filename: PathBuf,
-    host_file: PathBuf,
-}
-
-impl EventCreation {
-    #[cfg(test)]
-    pub fn new(
-        hostname: &'static str,
-        filename: PathBuf,
-        host_file: PathBuf,
-        process: Process,
-    ) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as _;
-        EventCreation {
-            timestamp,
-            hostname,
-            process,
-            filename,
-            host_file,
+        impl FileEvent for $event_type {
+            fn get_filename(&self) -> &PathBuf {
+                &self.filename
+            }
         }
-    }
-}
 
-impl FileEvent for EventCreation {
-    fn get_filename(&self) -> &PathBuf {
-        &self.filename
-    }
-}
-
-#[cfg(test)]
-impl PartialEq for EventCreation {
-    fn eq(&self, other: &Self) -> bool {
-        self.hostname == other.hostname
-            && self.filename == other.filename
-            && self.host_file == other.host_file
-            && self.process == other.process
-    }
-}
-
-impl TryFrom<&event_t> for EventCreation {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let timestamp = host_info::get_boot_time() + value.timestamp;
-        let filename = slice_to_string(value.filename.as_slice())?.into();
-        let host_file = slice_to_string(value.host_file.as_slice())?.into();
-        let process = value.process.try_into()?;
-
-        Ok(EventCreation {
-            timestamp,
-            hostname: host_info::get_hostname(),
-            process,
-            filename,
-            host_file,
-        })
-    }
-}
-
-impl From<EventCreation> for fact_api::FileActivity {
-    fn from(value: EventCreation) -> Self {
-        let EventCreation {
-            timestamp,
-            hostname: _,
-            process,
-            filename,
-            host_file,
-        } = value;
-        let activity = fact_api::FileActivityBase {
-            path: filename.into_os_string().into_string().unwrap(),
-            host_path: host_file.into_os_string().into_string().unwrap(),
-        };
-        let f_act = fact_api::FileCreation {
-            activity: Some(activity),
-        };
-
-        let f_act = fact_api::file_activity::File::Creation(f_act);
-
-        let seconds = (timestamp / 1_000_000_000) as i64;
-        let nanos = (timestamp % 1_000_000_000) as i32;
-        let timestamp = prost_types::Timestamp { seconds, nanos };
-
-        Self {
-            timestamp: Some(timestamp),
-            process: Some(process.into()),
-            file: Some(f_act),
+        #[cfg(test)]
+        impl PartialEq for $event_type {
+            fn eq(&self, other: &Self) -> bool {
+                self.hostname == other.hostname
+                    && self.filename == other.filename
+                    && self.host_file == other.host_file
+                    && self.process == other.process
+            }
         }
-    }
+
+        impl TryFrom<&event_t> for $event_type {
+            type Error = anyhow::Error;
+
+            fn try_from(value: &event_t) -> Result<Self, Self::Error> {
+                let timestamp = host_info::get_boot_time() + value.timestamp;
+                let filename = slice_to_string(value.filename.as_slice())?.into();
+                let host_file = slice_to_string(value.host_file.as_slice())?.into();
+                let process = value.process.try_into()?;
+
+                Ok($event_type {
+                    timestamp,
+                    hostname: host_info::get_hostname(),
+                    process,
+                    filename,
+                    host_file,
+                })
+            }
+        }
+    };
 }
+
+macro_rules! file_activity_from_basic_event {
+    ($event_type:ty, $api_wrapper:path, $api_variant:path) => {
+        impl From<$event_type> for fact_api::FileActivity {
+            fn from(value: $event_type) -> Self {
+                use $api_wrapper as api_wrapper;
+
+                let activity = fact_api::FileActivityBase {
+                    path: value.filename.into_os_string().into_string().unwrap(),
+                    host_path: value.host_file.into_os_string().into_string().unwrap(),
+                };
+                let f_act = api_wrapper {
+                    activity: Some(activity),
+                };
+                let f_act = $api_variant(f_act);
+
+                let seconds = (value.timestamp / 1_000_000_000) as i64;
+                let nanos = (value.timestamp % 1_000_000_000) as i32;
+                let timestamp = prost_types::Timestamp { seconds, nanos };
+
+                Self {
+                    timestamp: Some(timestamp),
+                    process: Some(value.process.into()),
+                    file: Some(f_act),
+                }
+            }
+        }
+    };
+}
+
+macro_rules! event_from_basic_event {
+    ($event_type:ty, $variant:path) => {
+        impl From<$event_type> for Event {
+            fn from(value: $event_type) -> Self {
+                $variant(value)
+            }
+        }
+    };
+}
+
+macro_rules! file_event {
+    ($name:tt, $wrapper:path, $api_wrapper:path, $api_variant:path) => {
+        basic_file_event!($name);
+        file_activity_from_basic_event!($name, $api_wrapper, $api_variant);
+        event_from_basic_event!($name, $wrapper);
+    };
+}
+
+file_event!(
+    EventOpen,
+    Event::Open,
+    fact_api::FileOpen,
+    fact_api::file_activity::File::Open
+);
+file_event!(
+    EventCreation,
+    Event::Creation,
+    fact_api::FileCreation,
+    fact_api::file_activity::File::Creation
+);
