@@ -77,10 +77,9 @@ __always_inline static char* d_path(const struct path* path, char* buf, int bufl
   return &buf[offset];
 }
 
-__always_inline static char* get_host_path(struct helper_t* helper, struct file* file) {
-  struct dentry* d = BPF_CORE_READ(file, f_path.dentry);
+__always_inline static char* get_host_path(char buf[PATH_MAX * 2], struct dentry* d) {
   int offset = PATH_MAX - 1;
-  helper->buf[PATH_MAX - 1] = '\0';
+  buf[PATH_MAX - 1] = '\0';
 
   for (int i = 0; i < 16 && offset > 0; i++) {
     struct qstr d_name;
@@ -99,18 +98,18 @@ __always_inline static char* get_host_path(struct helper_t* helper, struct file*
       return NULL;
     }
 
-    if (bpf_probe_read_kernel(&helper->buf[offset], len, d_name.name) != 0) {
+    if (bpf_probe_read_kernel(&buf[offset], len, d_name.name) != 0) {
       return NULL;
     }
 
-    if (len == 1 && helper->buf[offset] == '/') {
+    if (len == 1 && buf[offset] == '/') {
       // Reached the root
       offset++;
       break;
     }
 
     offset--;
-    helper->buf[offset] = '/';
+    buf[offset] = '/';
 
     struct dentry* parent = BPF_CORE_READ(d, d_parent);
     // if we reached the root
@@ -120,7 +119,7 @@ __always_inline static char* get_host_path(struct helper_t* helper, struct file*
     d = parent;
   }
 
-  return &helper->buf[offset];
+  return &buf[offset];
 }
 
 __always_inline static bool is_monitored(struct path_cfg_helper_t* path) {

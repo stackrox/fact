@@ -42,7 +42,7 @@ struct {
  */
 struct path_cfg_helper_t {
   unsigned int bit_len;
-  char path[PATH_MAX];
+  char path[PATH_MAX * 2];
 };
 
 struct {

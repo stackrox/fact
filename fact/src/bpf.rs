@@ -64,6 +64,11 @@ impl Bpf {
         trace_file_open.load("file_open", &btf)?;
         trace_file_open.attach()?;
 
+        let trace_path_unlink: &mut Lsm =
+            obj.program_mut("trace_path_unlink").unwrap().try_into()?;
+        trace_path_unlink.load("path_unlink", &btf)?;
+        trace_path_unlink.attach()?;
+
         Ok(Bpf { obj, fd })
     }
 
