@@ -44,6 +44,10 @@ fn generate_bindings(out_dir: &Path) -> anyhow::Result<()> {
         .header("src/bpf/types.h")
         .derive_default(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .default_enum_style(bindgen::EnumVariation::NewType {
+            is_bitfield: false,
+            is_global: false,
+        })
         .generate()
         .context("Failed to generate bindings")?;
     bindings

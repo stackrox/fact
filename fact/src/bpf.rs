@@ -143,7 +143,7 @@ mod bpf_tests {
     use std::{env, path::PathBuf, time::Duration};
 
     use anyhow::Context;
-    use fact_ebpf::file_activity_type_t_FILE_ACTIVITY_CREATION;
+    use fact_ebpf::file_activity_type_t;
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
@@ -182,7 +182,7 @@ mod bpf_tests {
             println!("Created {file:?}");
 
             let expected = Event::new(
-                file_activity_type_t_FILE_ACTIVITY_CREATION,
+                file_activity_type_t::FILE_ACTIVITY_CREATION,
                 host_info::get_hostname(),
                 file.path().to_path_buf(),
                 file.path().to_path_buf(),
