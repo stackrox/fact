@@ -39,6 +39,11 @@ struct {
  *
  * We don't need access from userspace to this type, so we don't need
  * to define it in types.h.
+ *
+ * On some hooks the path might need to be handcrafted from multiple
+ * sources, like a struct path* and a struct dentry*. In those cases the
+ * verifier will think we can copy PATH_MAX bytes for each operation, so
+ * the buffer here is (PATH_MAX * 2) in size to keep the verifier happy.
  */
 struct path_cfg_helper_t {
   unsigned int bit_len;

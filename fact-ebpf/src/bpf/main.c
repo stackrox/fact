@@ -125,25 +125,26 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   }
 
   long path_len = bpf_d_path(dir, prefix_helper->path, PATH_MAX);
-  if (path_len <= 0 || path_len > 4096) {
+  if (path_len <= 0) {
     bpf_printk("Failed to read path");
     goto error;
   }
-  prefix_helper->path[path_len - 1] = '/';
+  *path_safe_access(prefix_helper->path, path_len - 1) = '/';
 
   struct qstr d_name;
   BPF_CORE_READ_INTO(&d_name, dentry, d_name);
   int len = d_name.len;
-  if (len + path_len > 4096) {
+  if (len + path_len > PATH_MAX) {
     bpf_printk("Invalid path length: %u", len + path_len);
     goto error;
   }
 
-  if (bpf_probe_read_kernel(&prefix_helper->path[path_len & 0xFFF], len & 0xFFF, d_name.name)) {
+  char* path_offset = path_safe_access(prefix_helper->path, path_len);
+  if (bpf_probe_read_kernel(path_offset, path_len_clamp(len), d_name.name)) {
     bpf_printk("Failed to read final path component");
     goto error;
   }
-  prefix_helper->path[(path_len + len) & 0xFFF] = '\0';
+  *path_safe_access(prefix_helper->path, path_len + len) = '\0';
 
   len += path_len;
   if (len > LPM_SIZE_MAX) {

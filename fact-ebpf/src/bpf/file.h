@@ -11,6 +11,13 @@
 #include <bpf/bpf_core_read.h>
 // clang-format on
 
+#define PATH_MAX_MASK (PATH_MAX - 1)
+#define path_len_clamp(len) ((len) & PATH_MAX_MASK)
+
+__always_inline static char* path_safe_access(char* p, unsigned int offset) {
+  return &p[path_len_clamp(offset)];
+}
+
 /**
  * Reimplementation of the kernel d_path function.
  *
