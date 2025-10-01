@@ -22,6 +22,11 @@ struct {
   __uint(max_entries, 1);
 } helper_map SEC(".maps");
 
+__always_inline static struct helper_t* get_helper() {
+  unsigned int zero = 0;
+  return bpf_map_lookup_elem(&helper_map, &zero);
+}
+
 bool filter_by_prefix; /// Whether we should filter by path prefix or not.
 struct {
   __uint(type, BPF_MAP_TYPE_LPM_TRIE);
@@ -46,7 +51,7 @@ struct {
  * the buffer here is (PATH_MAX * 2) in size to keep the verifier happy.
  */
 struct path_cfg_helper_t {
-  unsigned int bit_len;
+  unsigned int len;
   char path[PATH_MAX * 2];
 };
 
@@ -56,6 +61,12 @@ struct {
   __type(value, struct path_cfg_helper_t);
   __uint(max_entries, 1);
 } path_prefix_helper SEC(".maps");
+
+__always_inline static struct path_cfg_helper_t* get_prefix_helper() {
+  unsigned int zero = 0;
+  return bpf_map_lookup_elem(&path_prefix_helper, &zero);
+}
+
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -67,6 +78,11 @@ struct {
   __type(value, struct metrics_t);
   __uint(max_entries, 1);
 } metrics SEC(".maps");
+
+__always_inline static struct metrics_t* get_metrics() {
+  unsigned int zero = 0;
+  return bpf_map_lookup_elem(&metrics, &zero);
+}
 
 uint64_t host_mount_ns;
 
