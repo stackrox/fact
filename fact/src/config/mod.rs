@@ -13,6 +13,7 @@ pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     url: Option<String>,
     certs: Option<PathBuf>,
+    expose_metrics: Option<bool>,
     health_check: Option<bool>,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
@@ -69,6 +70,10 @@ impl FactConfig {
             self.certs = Some(certs.to_owned());
         }
 
+        if let Some(expose_metrics) = from.expose_metrics {
+            self.expose_metrics = Some(expose_metrics);
+        }
+
         if let Some(health_check) = from.health_check {
             self.health_check = Some(health_check);
         }
@@ -96,6 +101,10 @@ impl FactConfig {
 
     pub fn certs(&self) -> Option<&Path> {
         self.certs.as_deref()
+    }
+
+    pub fn expose_metrics(&self) -> bool {
+        self.expose_metrics.unwrap_or(false)
     }
 
     pub fn health_check(&self) -> bool {
@@ -186,6 +195,12 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.certs = Some(PathBuf::from(certs));
                 }
+                "expose_metrics" => {
+                    let Some(em) = v.as_bool() else {
+                        bail!("expose_metrics field has incorrect type: {v:?}");
+                    };
+                    config.expose_metrics = Some(em);
+                }
                 "health_check" => {
                     let Some(hc) = v.as_bool() else {
                         bail!("health_check field has incorrect type: {v:?}");
@@ -240,6 +255,12 @@ pub struct FactCli {
     #[arg(short, long, env = "FACT_CERTS")]
     certs: Option<PathBuf>,
 
+    /// Whether prometheus metrics should be collected and exposed
+    #[arg(long, overrides_with("no_expose_metrics"), env = "FACT_EXPOSE_METRICS")]
+    expose_metrics: bool,
+    #[arg(long, overrides_with = "expose_metrics", hide(true))]
+    no_expose_metrics: bool,
+
     /// Whether a small health_check probe should be run
     #[arg(long, overrides_with("no_health_check"), env = "FACT_HEALTH_CHECK")]
     health_check: bool,
@@ -280,6 +301,7 @@ impl FactCli {
             paths: self.paths.clone(),
             url: self.url.clone(),
             certs: self.certs.clone(),
+            expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
             health_check: resolve_bool_arg(self.health_check, self.no_health_check),
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),

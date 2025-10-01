@@ -21,7 +21,7 @@ spec:
             - --paths
             - /etc:/bin:/sbin:/usr/bin:/usr/sbin
         ports:
-          - containerPort: 9001
+          - containerPort: 9000
             name: monitoring
         env:
         - name: FACT_LOGLEVEL
