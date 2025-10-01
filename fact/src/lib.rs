@@ -13,9 +13,9 @@ use tokio::{
 
 mod bpf;
 pub mod config;
+mod endpoints;
 mod event;
 mod grpc;
-mod health_check;
 mod host_info;
 mod metrics;
 mod output;
@@ -75,14 +75,14 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let mut bpf = Bpf::new(&config)?;
 
-    if config.health_check() {
-        // At this point the BPF code is in the kernel, we can start our
-        // healthcheck probe
-        health_check::start();
-    }
-
     let exporter = Exporter::new(bpf.get_metrics()?);
-    exporter.start(run_rx.clone());
+
+    endpoints::Server::new(
+        exporter.clone(),
+        config.expose_metrics(),
+        config.health_check(),
+    )
+    .start(run_rx.clone());
 
     let output = Output::new(run_rx.clone(), rx, exporter.metrics.output.clone());
     output.start(&config)?;

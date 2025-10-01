@@ -88,6 +88,7 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
     command = [
         'http://127.0.0.1:9999',
         '-p', monitored_dir,
+        '--expose-metrics',
         '--health-check',
         '--json',
     ]
@@ -127,7 +128,7 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
     # Wait for container to be ready
     for _ in range(3):
         try:
-            resp = requests.get('http://127.0.0.1:9000')
+            resp = requests.get('http://127.0.0.1:9000/health_check')
             if resp.status_code == 200:
                 break
         except (requests.RequestException, requests.ConnectionError) as e:
@@ -143,7 +144,7 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
 
     # Capture prometheus metrics before stopping the container
     metric_log = os.path.join(logs_dir, 'metrics')
-    resp = requests.get('http://127.0.0.1:9001')
+    resp = requests.get('http://127.0.0.1:9000/metrics')
     if resp.status_code == 200:
         with open(metric_log, 'w') as f:
             f.write(resp.text)
