@@ -6,12 +6,7 @@ use fact_api::FileActivity;
 use serde::Serialize;
 use uuid::Uuid;
 
-#[cfg(test)]
-use fact_ebpf::file_activity_type_t;
-use fact_ebpf::{
-    event_t, file_activity_type_t_FILE_ACTIVITY_CREATION, file_activity_type_t_FILE_ACTIVITY_OPEN,
-    lineage_t, process_t,
-};
+use fact_ebpf::{event_t, file_activity_type_t, lineage_t, process_t};
 
 use crate::host_info;
 
@@ -262,7 +257,6 @@ pub enum Event {
 
 impl Event {
     #[cfg(test)]
-    #[allow(non_upper_case_globals)]
     pub fn new(
         event_type: file_activity_type_t,
         hostname: &'static str,
@@ -271,13 +265,13 @@ impl Event {
         process: Process,
     ) -> Self {
         match event_type {
-            file_activity_type_t_FILE_ACTIVITY_OPEN => {
+            file_activity_type_t::FILE_ACTIVITY_OPEN => {
                 EventOpen::new(hostname, filename, host_file, process).into()
             }
-            file_activity_type_t_FILE_ACTIVITY_CREATION => {
+            file_activity_type_t::FILE_ACTIVITY_CREATION => {
                 EventCreation::new(hostname, filename, host_file, process).into()
             }
-            invalid => unreachable!("Invalid event type: {invalid}"),
+            invalid => unreachable!("Invalid event type: {invalid:?}"),
         }
     }
 
@@ -292,14 +286,13 @@ impl Event {
 impl TryFrom<&event_t> for Event {
     type Error = anyhow::Error;
 
-    #[allow(non_upper_case_globals)]
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         match value.type_ {
-            file_activity_type_t_FILE_ACTIVITY_OPEN => Ok(EventOpen::try_from(value)?.into()),
-            file_activity_type_t_FILE_ACTIVITY_CREATION => {
+            file_activity_type_t::FILE_ACTIVITY_OPEN => Ok(EventOpen::try_from(value)?.into()),
+            file_activity_type_t::FILE_ACTIVITY_CREATION => {
                 Ok(EventCreation::try_from(value)?.into())
             }
-            id => unreachable!("Invalid event type: {id}"),
+            id => unreachable!("Invalid event type: {id:?}"),
         }
     }
 }
