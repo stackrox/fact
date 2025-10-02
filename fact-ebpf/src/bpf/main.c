@@ -4,6 +4,7 @@
 #include "process.h"
 #include "maps.h"
 #include "events.h"
+#include "bound_path.h"
 
 #include "vmlinux.h"
 
@@ -33,7 +34,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
-  struct path_cfg_helper_t* path = path_read(&file->f_path);
+  struct bound_path_t* path = path_read(&file->f_path);
   if (path == NULL) {
     bpf_printk("Failed to read path");
     m->file_open.error++;
@@ -60,23 +61,30 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
   m->path_unlink.total++;
 
-  struct path_cfg_helper_t* prefix_helper = path_read(dir);
-  if (prefix_helper == NULL) {
+  struct bound_path_t* path = path_read(dir);
+  if (path == NULL) {
     bpf_printk("Failed to read path");
     goto error;
   }
-  path_write_char(prefix_helper->path, prefix_helper->len - 1, '/');
+  path_write_char(path->path, path->len - 1, '/');
 
-  if (path_append_dentry(prefix_helper, dentry) != 0) {
-    goto error;
+  switch (path_append_dentry(path, dentry)) {
+    case PATH_APPEND_SUCCESS:
+      break;
+    case PATH_APPEND_INVALID_LENGTH:
+      bpf_printk("Invalid path length: %u", path->len);
+      goto error;
+    case PATH_APPEND_READ_ERROR:
+      bpf_printk("Failed to read final path component");
+      goto error;
   }
 
-  if (!is_monitored(prefix_helper)) {
+  if (!is_monitored(path)) {
     m->path_unlink.ignored++;
     return 0;
   }
 
-  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, prefix_helper->path, dentry);
+  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry);
   return 0;
 
 error:
