@@ -10,7 +10,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "500"
     pipelinesascode.tekton.dev/on-cel-expression: |
       (event == "pull_request" && body.action != "ready_for_review") || (
-        event == "push" && target_branch.matches("^(main|release-.*|refs/tags/.*)$")
+        event == "push" && target_branch.matches("^(main|release-.*|refs/tags/.*|konflux/.*)$")
       )
   labels:
     appstudio.openshift.io/application: acs
