@@ -29,6 +29,7 @@ class EventType(Enum):
     """Enumeration for different types of file activity events."""
     OPEN = 1
     CREATION = 2
+    UNLINK = 3
 
 
 class Process:
@@ -162,6 +163,8 @@ class Event:
                 return self.file == other.creation.activity.path
             elif self.event_type == EventType.OPEN:
                 return self.file == other.open.activity.path
+            elif self.event_type == EventType.UNLINK:
+                return self.file == other.unlink.activity.path
             return False
         raise NotImplementedError
 

@@ -4,81 +4,61 @@ import os
 from event import Event, EventType, Process
 
 
-def test_open(fact, monitored_dir, server):
+def test_remove(fact, monitored_dir, server):
     """
-    Tests the opening of a file and verifies that the corresponding
-    event is captured by the server.
+    Tests the removal of a file and verifies the corresponding event is
+    captured by the server.
 
     Args:
         fact: Fixture for file activity (only required to be running).
-        monitored_dir: Temporary directory path for creating the test file.
+        monitored_dir: Temporary directory path for monitoring the test file.
         server: The server instance to communicate with.
     """
-    # File Under Test
     fut = os.path.join(monitored_dir, 'test.txt')
     with open(fut, 'w') as f:
         f.write('This is a test')
+    os.remove(fut)
 
-    e = Event(process=Process(), event_type=EventType.CREATION, file=fut)
-    print(f'Waiting for event: {e}')
+    process = Process()
+    events = [
+        Event(process=process, event_type=EventType.CREATION, file=fut),
+        Event(process=process, event_type=EventType.UNLINK, file=fut),
+    ]
 
-    server.wait_events([e])
+    server.wait_events(events)
 
 
 def test_multiple(fact, monitored_dir, server):
     """
-    Tests the opening of multiple files and verifies that the
-    corresponding events are captured by the server.
+    Tests the removal of multiple files and verifies the corresponding
+    events are captured by the server.
 
     Args:
         fact: Fixture for file activity (only required to be running).
-        monitored_dir: Temporary directory path for creating the test file.
+        monitored_dir: Temporary directory path for monitoring the test file.
         server: The server instance to communicate with.
     """
     events = []
     process = Process()
+
     # File Under Test
     for i in range(3):
         fut = os.path.join(monitored_dir, f'{i}.txt')
         with open(fut, 'w') as f:
             f.write('This is a test')
+        os.remove(fut)
 
-        e = Event(process=process, event_type=EventType.CREATION, file=fut)
-        print(f'Waiting for event: {e}')
-        events.append(e)
-
-    server.wait_events(events)
-
-
-def test_multiple_access(fact, monitored_dir, server):
-    """
-    Tests multiple opening of a file and verifies that the
-    corresponding events are captured by the server.
-
-    Args:
-        fact: Fixture for file activity (only required to be running).
-        monitored_dir: Temporary directory path for creating the test file.
-        server: The server instance to communicate with.
-    """
-    events = []
-    # File Under Test
-    fut = os.path.join(monitored_dir, 'test.txt')
-
-    for i in range(3):
-        with open(fut, 'a+') as f:
-            f.write('This is a test')
-
-        e = Event(process=Process(), file=fut,
-                  event_type=EventType.CREATION if i == 0 else EventType.OPEN)
-        print(f'Waiting for event: {e}')
-        events.append(e)
+        events.extend([
+            Event(process=process, event_type=EventType.CREATION, file=fut),
+            Event(process=process, event_type=EventType.UNLINK, file=fut),
+        ])
 
     server.wait_events(events)
 
 
 def test_ignored(fact, monitored_dir, ignored_dir, server):
     """
-    Tests that open events on ignored files are not captured by the
+    Tests that unlink events on ignored files are not captured by the
     server.
 
     Args:
@@ -87,23 +67,25 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
         ignored_dir: Temporary directory path that is not monitored by fact.
         server: The server instance to communicate with.
     """
-    p = Process()
+    process = Process()
 
     # Ignored file, must not show up in the server
     ignored_file = os.path.join(ignored_dir, 'test.txt')
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
+    os.remove(ignored_file)
 
     ignored_event = Event(
-        process=p, event_type=EventType.CREATION, file=ignored_file)
+        process=process, event_type=EventType.UNLINK, file=ignored_file)
     print(f'Ignoring: {ignored_event}')
 
     # File Under Test
     fut = os.path.join(monitored_dir, 'test.txt')
     with open(fut, 'w') as f:
         f.write('This is a test')
+    os.remove(fut)
 
-    e = Event(process=p, event_type=EventType.CREATION, file=fut)
+    e = Event(process=process, event_type=EventType.UNLINK, file=fut)
     print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
@@ -111,7 +93,7 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
 
 def test_external_process(fact, monitored_dir, server):
     """
-    Tests the opening of a file by an external process and verifies that
+    Tests the removal of a file by an external process and verifies that
     the corresponding event is captured by the server.
 
     Args:
@@ -122,8 +104,7 @@ def test_external_process(fact, monitored_dir, server):
     def do_test(fut: str, stop_event: mp.Event):
         with open(fut, 'w') as f:
             f.write('This is a test')
-        with open(fut, 'a') as f:
-            f.write('This is also a test')
+        os.remove(fut)
 
         # Wait for test to be done
         stop_event.wait()
@@ -133,15 +114,13 @@ def test_external_process(fact, monitored_dir, server):
     stop_event = mp.Event()
     proc = mp.Process(target=do_test, args=(fut, stop_event))
     proc.start()
-    p = Process(proc.pid)
+    process = Process(proc.pid)
 
-    creation = Event(process=p, event_type=EventType.CREATION, file=fut)
-    print(f'Waiting for event: {creation}')
-    write_access = Event(process=p, event_type=EventType.OPEN, file=fut)
-    print(f'Waiting for event: {write_access}')
+    removal = Event(process=process, event_type=EventType.UNLINK, file=fut)
+    print(f'Waiting for event: {removal}')
 
     try:
-        server.wait_events([creation, write_access])
+        server.wait_events([removal])
     finally:
         stop_event.set()
         proc.join(1)

@@ -235,24 +235,11 @@ impl From<Process> for fact_api::ProcessSignal {
     }
 }
 
-trait FileEvent {
-    fn get_filename(&self) -> &PathBuf;
-}
-
-trait IsMonitored {
-    fn is_monitored(&self, paths: &[PathBuf]) -> bool;
-}
-
-impl<T: FileEvent> IsMonitored for T {
-    fn is_monitored(&self, paths: &[PathBuf]) -> bool {
-        paths.is_empty() || paths.iter().any(|p| self.get_filename().starts_with(p))
-    }
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub enum Event {
     Open(EventOpen),
     Creation(EventCreation),
+    Unlink(EventUnlink),
 }
 
 impl Event {
@@ -271,14 +258,10 @@ impl Event {
             file_activity_type_t::FILE_ACTIVITY_CREATION => {
                 EventCreation::new(hostname, filename, host_file, process).into()
             }
+            file_activity_type_t::FILE_ACTIVITY_UNLINK => {
+                EventUnlink::new(hostname, filename, host_file, process).into()
+            }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
-        }
-    }
-
-    pub fn is_monitored(&self, paths: &[PathBuf]) -> bool {
-        match self {
-            Event::Open(e) => e.is_monitored(paths),
-            Event::Creation(e) => e.is_monitored(paths),
         }
     }
 }
@@ -292,6 +275,7 @@ impl TryFrom<&event_t> for Event {
             file_activity_type_t::FILE_ACTIVITY_CREATION => {
                 Ok(EventCreation::try_from(value)?.into())
             }
+            file_activity_type_t::FILE_ACTIVITY_UNLINK => Ok(EventUnlink::try_from(value)?.into()),
             id => unreachable!("Invalid event type: {id:?}"),
         }
     }
@@ -302,6 +286,7 @@ impl From<Event> for FileActivity {
         match value {
             Event::Open(event) => event.into(),
             Event::Creation(event) => event.into(),
+            Event::Unlink(event) => event.into(),
         }
     }
 }
@@ -312,6 +297,7 @@ impl PartialEq for Event {
         match (self, other) {
             (Event::Open(this), Event::Open(other)) => this == other,
             (Event::Creation(this), Event::Creation(other)) => this == other,
+            (Event::Unlink(this), Event::Unlink(other)) => this == other,
             _ => false,
         }
     }
@@ -347,12 +333,6 @@ macro_rules! basic_file_event {
                     filename,
                     host_file,
                 }
-            }
-        }
-
-        impl FileEvent for $event_type {
-            fn get_filename(&self) -> &PathBuf {
-                &self.filename
             }
         }
 
@@ -445,4 +425,10 @@ file_event!(
     Event::Creation,
     fact_api::FileCreation,
     fact_api::file_activity::File::Creation
+);
+file_event!(
+    EventUnlink,
+    Event::Unlink,
+    fact_api::FileUnlink,
+    fact_api::file_activity::File::Unlink
 );
