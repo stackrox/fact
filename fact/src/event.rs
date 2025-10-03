@@ -1,6 +1,6 @@
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
+use std::{ffi::CStr, os::raw::c_char, path::PathBuf, sync::Arc};
 
 use fact_api::FileActivity;
 use serde::Serialize;
@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use fact_ebpf::{event_t, file_activity_type_t, lineage_t, process_t};
 
-use crate::host_info;
+use crate::{cgroup::ContainerIdCache, host_info};
 
 fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
@@ -55,7 +55,7 @@ pub struct Process {
     comm: String,
     args: Vec<String>,
     exe_path: String,
-    container_id: Option<String>,
+    container_id: Option<Arc<String>>,
     uid: u32,
     username: &'static str,
     gid: u32,
@@ -66,6 +66,48 @@ pub struct Process {
 }
 
 impl Process {
+    async fn new(proc: &process_t, cid_cache: &ContainerIdCache) -> anyhow::Result<Self> {
+        let comm = slice_to_string(proc.comm.as_slice())?;
+        let exe_path = slice_to_string(proc.exe_path.as_slice())?;
+        let container_id = cid_cache.get_container_id(proc.cgroup_id).await;
+        let in_root_mount_ns = proc.in_root_mount_ns != 0;
+
+        let lineage = proc.lineage[..proc.lineage_len as usize]
+            .iter()
+            .map(Lineage::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut converted_args = Vec::new();
+        let args_len = proc.args_len as usize;
+        let mut offset = 0;
+        while offset < args_len {
+            let arg = unsafe { CStr::from_ptr(proc.args.as_ptr().add(offset)) }
+                .to_str()?
+                .to_owned();
+            if arg.is_empty() {
+                break;
+            }
+            offset += arg.len() + 1;
+            converted_args.push(arg);
+        }
+
+        let username = host_info::get_username(proc.uid);
+
+        Ok(Process {
+            comm,
+            args: converted_args,
+            exe_path,
+            container_id,
+            uid: proc.uid,
+            username,
+            gid: proc.gid,
+            login_uid: proc.login_uid,
+            pid: proc.pid,
+            in_root_mount_ns,
+            lineage,
+        })
+    }
+
     /// Create a representation of the current process as best as
     /// possible.
     #[cfg(test)]
@@ -79,7 +121,7 @@ impl Process {
             .unwrap();
         let args = std::env::args().collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
-        let container_id = Process::extract_container_id(&cgroup);
+        let container_id = ContainerIdCache::extract_container_id(&cgroup).map(Arc::new);
         let uid = unsafe { libc::getuid() };
         let gid = unsafe { libc::getgid() };
         let pid = std::process::id();
@@ -104,30 +146,6 @@ impl Process {
             lineage: vec![],
         }
     }
-
-    fn extract_container_id(cgroup: &str) -> Option<String> {
-        let cgroup = if let Some(i) = cgroup.rfind(".scope") {
-            cgroup.split_at(i).0
-        } else {
-            cgroup
-        };
-
-        if cgroup.is_empty() || cgroup.len() < 65 {
-            return None;
-        }
-
-        let cgroup = cgroup.split_at(cgroup.len() - 65).1;
-        let (c, cgroup) = cgroup.split_at(1);
-        if c != "/" && c != "-" {
-            return None;
-        }
-
-        if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
-            Some(cgroup.split_at(12).0.to_owned())
-        } else {
-            None
-        }
-    }
 }
 
 #[cfg(test)]
@@ -140,53 +158,6 @@ impl PartialEq for Process {
             && self.args == other.args
             && self.container_id == other.container_id
             && self.in_root_mount_ns == other.in_root_mount_ns
-    }
-}
-
-impl TryFrom<process_t> for Process {
-    type Error = anyhow::Error;
-
-    fn try_from(value: process_t) -> Result<Self, Self::Error> {
-        let comm = slice_to_string(value.comm.as_slice())?;
-        let exe_path = slice_to_string(value.exe_path.as_slice())?;
-        let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
-        let container_id = Process::extract_container_id(memory_cgroup);
-        let in_root_mount_ns = value.in_root_mount_ns != 0;
-
-        let lineage = value.lineage[..value.lineage_len as usize]
-            .iter()
-            .map(Lineage::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut converted_args = Vec::new();
-        let args_len = value.args_len as usize;
-        let mut offset = 0;
-        while offset < args_len {
-            let arg = unsafe { CStr::from_ptr(value.args.as_ptr().add(offset)) }
-                .to_str()?
-                .to_owned();
-            if arg.is_empty() {
-                break;
-            }
-            offset += arg.len() + 1;
-            converted_args.push(arg);
-        }
-
-        let username = host_info::get_username(value.uid);
-
-        Ok(Process {
-            comm,
-            args: converted_args,
-            exe_path,
-            container_id,
-            uid: value.uid,
-            username,
-            gid: value.gid,
-            login_uid: value.login_uid,
-            pid: value.pid,
-            in_root_mount_ns,
-            lineage,
-        })
     }
 }
 
@@ -206,19 +177,16 @@ impl From<Process> for fact_api::ProcessSignal {
             lineage,
         } = value;
 
-        let container_id = container_id.unwrap_or("".to_string());
-
-        let args = args
-            .into_iter()
-            .reduce(|acc, i| acc + " " + &i)
-            .unwrap_or("".to_owned());
+        let container_id = container_id
+            .map(Arc::unwrap_or_clone)
+            .unwrap_or("".to_string());
 
         Self {
             id: Uuid::new_v4().to_string(),
             container_id,
             creation_time: None,
             name: comm,
-            args,
+            args: args.join(" "),
             exec_file_path: exe_path,
             pid,
             uid,
@@ -235,20 +203,6 @@ impl From<Process> for fact_api::ProcessSignal {
     }
 }
 
-trait FileEvent {
-    fn get_filename(&self) -> &PathBuf;
-}
-
-trait IsMonitored {
-    fn is_monitored(&self, paths: &[PathBuf]) -> bool;
-}
-
-impl<T: FileEvent> IsMonitored for T {
-    fn is_monitored(&self, paths: &[PathBuf]) -> bool {
-        paths.is_empty() || paths.iter().any(|p| self.get_filename().starts_with(p))
-    }
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub enum Event {
     Open(EventOpen),
@@ -256,8 +210,21 @@ pub enum Event {
 }
 
 impl Event {
+    pub async fn new(event: &event_t, cid_cache: &ContainerIdCache) -> anyhow::Result<Self> {
+        match event.type_ {
+            file_activity_type_t::FILE_ACTIVITY_OPEN => {
+                Ok(EventOpen::new(event, cid_cache).await?.into())
+            }
+            file_activity_type_t::FILE_ACTIVITY_CREATION => {
+                Ok(EventCreation::new(event, cid_cache).await?.into())
+            }
+            invalid => unreachable!("Invalid event type: {invalid:?}"),
+        }
+    }
+
     #[cfg(test)]
-    pub fn new(
+    #[allow(non_upper_case_globals)]
+    pub fn from_raw_parts(
         event_type: file_activity_type_t,
         hostname: &'static str,
         filename: PathBuf,
@@ -266,33 +233,12 @@ impl Event {
     ) -> Self {
         match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => {
-                EventOpen::new(hostname, filename, host_file, process).into()
+                EventOpen::from_raw_parts(hostname, filename, host_file, process).into()
             }
             file_activity_type_t::FILE_ACTIVITY_CREATION => {
-                EventCreation::new(hostname, filename, host_file, process).into()
+                EventCreation::from_raw_parts(hostname, filename, host_file, process).into()
             }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
-        }
-    }
-
-    pub fn is_monitored(&self, paths: &[PathBuf]) -> bool {
-        match self {
-            Event::Open(e) => e.is_monitored(paths),
-            Event::Creation(e) => e.is_monitored(paths),
-        }
-    }
-}
-
-impl TryFrom<&event_t> for Event {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        match value.type_ {
-            file_activity_type_t::FILE_ACTIVITY_OPEN => Ok(EventOpen::try_from(value)?.into()),
-            file_activity_type_t::FILE_ACTIVITY_CREATION => {
-                Ok(EventCreation::try_from(value)?.into())
-            }
-            id => unreachable!("Invalid event type: {id:?}"),
         }
     }
 }
@@ -329,8 +275,23 @@ macro_rules! basic_file_event {
         }
 
         impl $event_type {
+            async fn new(event: &event_t, cid_cache: &ContainerIdCache) -> anyhow::Result<Self> {
+                let timestamp = host_info::get_boot_time() + event.timestamp;
+                let filename = slice_to_string(event.filename.as_slice())?.into();
+                let host_file = slice_to_string(event.host_file.as_slice())?.into();
+                let process = Process::new(&event.process, cid_cache).await?;
+
+                Ok($event_type {
+                    timestamp,
+                    hostname: host_info::get_hostname(),
+                    process,
+                    filename,
+                    host_file,
+                })
+            }
+
             #[cfg(test)]
-            pub fn new(
+            pub fn from_raw_parts(
                 hostname: &'static str,
                 filename: PathBuf,
                 host_file: PathBuf,
@@ -350,12 +311,6 @@ macro_rules! basic_file_event {
             }
         }
 
-        impl FileEvent for $event_type {
-            fn get_filename(&self) -> &PathBuf {
-                &self.filename
-            }
-        }
-
         #[cfg(test)]
         impl PartialEq for $event_type {
             fn eq(&self, other: &Self) -> bool {
@@ -363,25 +318,6 @@ macro_rules! basic_file_event {
                     && self.filename == other.filename
                     && self.host_file == other.host_file
                     && self.process == other.process
-            }
-        }
-
-        impl TryFrom<&event_t> for $event_type {
-            type Error = anyhow::Error;
-
-            fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-                let timestamp = host_info::get_boot_time() + value.timestamp;
-                let filename = slice_to_string(value.filename.as_slice())?.into();
-                let host_file = slice_to_string(value.host_file.as_slice())?.into();
-                let process = value.process.try_into()?;
-
-                Ok($event_type {
-                    timestamp,
-                    hostname: host_info::get_hostname(),
-                    process,
-                    filename,
-                    host_file,
-                })
             }
         }
     };

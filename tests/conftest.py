@@ -9,6 +9,7 @@ import pytest
 import requests
 
 from server import FileActivityService
+from logs import dump_logs
 
 
 @pytest.fixture
@@ -46,6 +47,18 @@ def docker_client():
     return docker.from_env()
 
 
+@pytest.fixture(scope='session', autouse=True)
+def docker_api_client():
+    """
+    Create a docker API client, which is a lower level object and has
+    access to more methods than the regular client.
+
+    Returns:
+        A docker.APIClient object created with default values.
+    """
+    return docker.APIClient()
+
+
 @pytest.fixture
 def server():
     """
@@ -72,12 +85,6 @@ def get_image(request, docker_client):
         docker_client.images.get(image)
     except docker.errors.ImageNotFound:
         docker_client.images.pull(image)
-
-
-def dump_logs(container, file):
-    logs = container.logs().decode('utf-8')
-    with open(file, 'w') as f:
-        f.write(logs)
 
 
 @pytest.fixture
@@ -120,6 +127,10 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
                 'bind': '/host/usr/lib/os-release',
                 'mode': 'ro',
             },
+            '/sys/fs/cgroup/': {
+                'bind': '/host/sys/fs/cgroup',
+                'mode': 'ro',
+            }
         },
     )
 

@@ -22,7 +22,7 @@ typedef struct process_t {
   char args[4096];
   unsigned int args_len;
   char exe_path[PATH_MAX];
-  char memory_cgroup[PATH_MAX];
+  unsigned long long cgroup_id;
   unsigned int uid;
   unsigned int gid;
   unsigned int login_uid;
