@@ -18,6 +18,10 @@ __always_inline static char* path_safe_access(char* p, unsigned int offset) {
   return &p[path_len_clamp(offset)];
 }
 
+__always_inline static void path_write_char(char* p, unsigned int offset, char c) {
+  *path_safe_access(p, offset) = c;
+}
+
 /**
  * Reimplementation of the kernel d_path function.
  *
@@ -129,11 +133,22 @@ __always_inline static char* get_host_path(char buf[PATH_MAX * 2], struct dentry
   return &buf[offset];
 }
 
-__always_inline static bool is_monitored(struct path_cfg_helper_t* path) {
+__always_inline static bool is_monitored(struct bound_path_t* path) {
   if (!filter_by_prefix) {
     // no path configured, allow all
     return true;
   }
 
-  return bpf_map_lookup_elem(&path_prefix, path) != NULL;
+  // Backup bytes length and restore it before exiting
+  unsigned int len = path->len;
+
+  if (path->len > LPM_SIZE_MAX) {
+    path->len = LPM_SIZE_MAX;
+  }
+  // for LPM maps, the length is the total number of bits
+  path->len = path->len * 8;
+
+  bool res = bpf_map_lookup_elem(&path_prefix, path) != NULL;
+  path->len = len;
+  return res;
 }
