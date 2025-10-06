@@ -3,6 +3,8 @@
 #include "types.h"
 #include "process.h"
 #include "maps.h"
+#include "events.h"
+#include "bound_path.h"
 
 #include "vmlinux.h"
 
@@ -19,13 +21,7 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
-  uint32_t key = 0;
-  struct event_t* event = NULL;
-  struct metrics_t* m = bpf_map_lookup_elem(&metrics, &key);
-  if (m == NULL) {
-    bpf_printk("Failed to get metrics entry, this should not happen");
-    return 0;
-  }
+  struct metrics_t* m = get_metrics();
 
   m->file_open.total++;
 
@@ -38,67 +34,20 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
-  struct path_cfg_helper_t* prefix_helper = bpf_map_lookup_elem(&path_prefix_helper, &key);
-  if (prefix_helper == NULL) {
-    bpf_printk("Failed to get prefix helper");
-    goto error;
-  }
-
-  long len = bpf_d_path(&file->f_path, prefix_helper->path, PATH_MAX);
-  if (len <= 0) {
+  struct bound_path_t* path = path_read(&file->f_path);
+  if (path == NULL) {
     bpf_printk("Failed to read path");
-    goto error;
+    m->file_open.error++;
+    return 0;
   }
 
-  if (len > LPM_SIZE_MAX) {
-    len = LPM_SIZE_MAX;
-  }
-  // for LPM maps, the length is the total number of bits
-  prefix_helper->bit_len = len * 8;
-
-  if (!is_monitored(prefix_helper)) {
+  if (!is_monitored(path)) {
     goto ignored;
   }
 
-  event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (event == NULL) {
-    m->file_open.ringbuffer_full++;
-    bpf_printk("Failed to get event entry");
-    return 0;
-  }
-
-  event->type = event_type;
-  event->timestamp = bpf_ktime_get_boot_ns();
-  bpf_probe_read_str(event->filename, PATH_MAX, prefix_helper->path);
-
-  int64_t err = process_fill(&event->process);
-  if (err) {
-    bpf_printk("Failed to fill process information: %d", err);
-    goto error;
-  }
-
-  struct helper_t* helper = bpf_map_lookup_elem(&helper_map, &key);
-  if (helper == NULL) {
-    bpf_printk("Failed to get helper entry");
-    return 0;
-  }
-
   struct dentry* d = BPF_CORE_READ(file, f_path.dentry);
-  const char* p = get_host_path(helper->buf, d);
-  if (p != NULL) {
-    bpf_probe_read_str(event->host_file, PATH_MAX, p);
-  }
+  submit_event(&m->file_open, event_type, path->path, d);
 
-  m->file_open.added++;
-  bpf_ringbuf_submit(event, 0);
-
-  return 0;
-
-error:
-  m->file_open.error++;
-  if (event != NULL) {
-    bpf_ringbuf_discard(event, 0);
-  }
   return 0;
 
 ignored:
@@ -108,89 +57,37 @@ ignored:
 
 SEC("lsm/path_unlink")
 int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
-  uint32_t key = 0;
-  struct event_t* event = NULL;
-  struct metrics_t* m = bpf_map_lookup_elem(&metrics, &key);
-  if (m == NULL) {
-    bpf_printk("Failed to get metrics entry, this should not happen");
-    return 0;
-  }
+  struct metrics_t* m = get_metrics();
 
   m->path_unlink.total++;
 
-  struct path_cfg_helper_t* prefix_helper = bpf_map_lookup_elem(&path_prefix_helper, &key);
-  if (prefix_helper == NULL) {
-    bpf_printk("Failed to get prefix helper");
-    goto error;
-  }
-
-  long path_len = bpf_d_path(dir, prefix_helper->path, PATH_MAX);
-  if (path_len <= 0) {
+  struct bound_path_t* path = path_read(dir);
+  if (path == NULL) {
     bpf_printk("Failed to read path");
     goto error;
   }
-  *path_safe_access(prefix_helper->path, path_len - 1) = '/';
+  path_write_char(path->path, path->len - 1, '/');
 
-  struct qstr d_name;
-  BPF_CORE_READ_INTO(&d_name, dentry, d_name);
-  int len = d_name.len;
-  if (len + path_len > PATH_MAX) {
-    bpf_printk("Invalid path length: %u", len + path_len);
-    goto error;
+  switch (path_append_dentry(path, dentry)) {
+    case PATH_APPEND_SUCCESS:
+      break;
+    case PATH_APPEND_INVALID_LENGTH:
+      bpf_printk("Invalid path length: %u", path->len);
+      goto error;
+    case PATH_APPEND_READ_ERROR:
+      bpf_printk("Failed to read final path component");
+      goto error;
   }
 
-  char* path_offset = path_safe_access(prefix_helper->path, path_len);
-  if (bpf_probe_read_kernel(path_offset, path_len_clamp(len), d_name.name)) {
-    bpf_printk("Failed to read final path component");
-    goto error;
-  }
-  *path_safe_access(prefix_helper->path, path_len + len) = '\0';
-
-  len += path_len;
-  if (len > LPM_SIZE_MAX) {
-    len = LPM_SIZE_MAX;
-  }
-  // for LPM maps, the length is the total number of bits
-  prefix_helper->bit_len = len * 8;
-
-  if (!is_monitored(prefix_helper)) {
-    goto ignored;
-  }
-
-  event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (event == NULL) {
-    m->path_unlink.ringbuffer_full++;
-    bpf_printk("Failed to get event entry");
+  if (!is_monitored(path)) {
+    m->path_unlink.ignored++;
     return 0;
   }
 
-  bpf_probe_read_str(event->filename, PATH_MAX, prefix_helper->path);
-  event->type = FILE_ACTIVITY_UNLINK;
-  event->timestamp = bpf_ktime_get_boot_ns();
-  int64_t err = process_fill(&event->process);
-  if (err) {
-    bpf_printk("Failed to fill process information: %d", err);
-    goto error;
-  }
-
-  const char* p = get_host_path(prefix_helper->path, dentry);
-  if (p != NULL) {
-    bpf_probe_read_str(event->host_file, PATH_MAX, p);
-  }
-
-  m->path_unlink.added++;
-  bpf_ringbuf_submit(event, 0);
-
+  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry);
   return 0;
 
 error:
   m->path_unlink.error++;
-  if (event != NULL) {
-    bpf_ringbuf_discard(event, 0);
-  }
-  return 0;
-
-ignored:
-  m->path_unlink.ignored++;
   return 0;
 }
