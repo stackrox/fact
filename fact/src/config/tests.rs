@@ -33,6 +33,20 @@ fn parsing() {
             },
         ),
         (
+            "expose_metrics: true",
+            FactConfig {
+                expose_metrics: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "expose_metrics: false",
+            FactConfig {
+                expose_metrics: Some(false),
+                ..Default::default()
+            },
+        ),
+        (
             "health_check: true",
             FactConfig {
                 health_check: Some(true),
@@ -87,6 +101,7 @@ fn parsing() {
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
+            expose_metrics: true
             health_check: true
             skip_pre_flight: false
             json: false
@@ -96,6 +111,7 @@ fn parsing() {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                expose_metrics: Some(true),
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
                 json: Some(false),
@@ -134,6 +150,10 @@ paths:
         (
             "certs: true",
             "certs field has incorrect type: Boolean(true)",
+        ),
+        (
+            "expose_metrics: 4",
+            "expose_metrics field has incorrect type: Integer(4)",
         ),
         (
             "health_check: 4",
@@ -279,6 +299,36 @@ fn update() {
             },
         ),
         (
+            "expose_metrics: true",
+            FactConfig::default(),
+            FactConfig {
+                expose_metrics: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "expose_metrics: true",
+            FactConfig {
+                expose_metrics: Some(false),
+                ..Default::default()
+            },
+            FactConfig {
+                expose_metrics: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "expose_metrics: true",
+            FactConfig {
+                expose_metrics: Some(true),
+                ..Default::default()
+            },
+            FactConfig {
+                expose_metrics: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
             "health_check: true",
             FactConfig::default(),
             FactConfig {
@@ -374,6 +424,7 @@ fn update() {
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
+            expose_metrics: true
             health_check: true
             skip_pre_flight: false
             json: false
@@ -383,6 +434,7 @@ fn update() {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
                 url: Some(String::from("http://localhost")),
                 certs: Some(PathBuf::from("/etc/certs")),
+                expose_metrics: Some(false),
                 health_check: Some(false),
                 skip_pre_flight: Some(true),
                 json: Some(true),
@@ -392,6 +444,7 @@ fn update() {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                expose_metrics: Some(true),
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
                 json: Some(false),
@@ -416,6 +469,7 @@ fn defaults() {
     assert_eq!(config.paths(), default_paths);
     assert_eq!(config.url(), None);
     assert_eq!(config.certs(), None);
+    assert!(!config.expose_metrics());
     assert!(!config.health_check());
     assert!(!config.skip_pre_flight());
     assert!(!config.json());
