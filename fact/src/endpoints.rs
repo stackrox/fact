@@ -1,6 +1,6 @@
 use std::{future::Future, net::SocketAddr, pin::Pin};
 
-use http_body_util::Full;
+use http_body_util::{BodyExt, Full};
 use hyper::{
     body::{Bytes, Incoming},
     server::conn::http1,
@@ -12,25 +12,41 @@ use log::{info, warn};
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
 
 use crate::metrics::exporter::Exporter;
+use crate::profiler::Profiler;
+
+type ServerResponse = anyhow::Result<Response<Full<Bytes>>>;
 
 #[derive(Clone)]
 pub struct Server {
     metrics: Option<Exporter>,
     health_check: bool,
+    profiler: Option<Profiler>,
 }
 
 impl Server {
-    pub fn new(metrics: Exporter, expose_metrics: bool, health_check: bool) -> Self {
+    pub fn new(
+        metrics: Exporter,
+        expose_profiler: bool,
+        expose_metrics: bool,
+        health_check: bool,
+    ) -> Self {
         let metrics = if expose_metrics { Some(metrics) } else { None };
+        let profiler = if expose_profiler {
+            Some(Profiler::new())
+        } else {
+            None
+        };
+
         Server {
             metrics,
             health_check,
+            profiler,
         }
     }
 
     pub fn start(self, mut running: watch::Receiver<bool>) -> Option<JoinHandle<()>> {
         // If there is nothing to expose, we don't run the hyper server
-        if self.metrics.is_none() && !self.health_check {
+        if self.metrics.is_none() && self.profiler.is_none() && !self.health_check {
             return None;
         }
 
@@ -63,39 +79,116 @@ impl Server {
         Some(handle)
     }
 
-    fn make_response(
-        res: StatusCode,
-        body: String,
-    ) -> Result<Response<Full<Bytes>>, anyhow::Error> {
-        Ok(Response::builder()
+    fn response(res: StatusCode, body: impl Into<Bytes>) -> ServerResponse {
+        Response::builder()
             .status(res)
-            .body(Full::new(Bytes::from(body)))
-            .unwrap())
+            .body(Full::new(body.into()))
+            .map_err(anyhow::Error::new)
     }
 
-    fn handle_metrics(&self) -> Result<Response<Full<Bytes>>, anyhow::Error> {
+    fn response_with_content_type(
+        res: StatusCode,
+        content_type: &str,
+        body: impl Into<Bytes>,
+    ) -> ServerResponse {
+        Response::builder()
+            .status(res)
+            .header(hyper::header::CONTENT_TYPE, content_type)
+            .body(Full::new(body.into()))
+            .map_err(anyhow::Error::new)
+    }
+
+    fn handle_metrics(&self) -> ServerResponse {
         match &self.metrics {
             Some(metrics) => metrics.encode().map(|buf| {
-                let body = Full::new(Bytes::from(buf));
-                Response::builder()
-                    .header(
-                        hyper::header::CONTENT_TYPE,
-                        "application/openmetrics-text; version=1.0.0; charset=utf-8",
-                    )
-                    .body(body)
-                    .map_err(anyhow::Error::new)
+                Server::response_with_content_type(
+                    StatusCode::OK,
+                    "application/openmetrics-text; version=1.0.0; charset=utf-8",
+                    buf,
+                )
             })?,
-            None => Server::make_response(StatusCode::SERVICE_UNAVAILABLE, String::new()),
+            None => Server::response(StatusCode::SERVICE_UNAVAILABLE, ""),
         }
     }
 
-    fn handle_health_check(&self) -> Result<Response<Full<Bytes>>, anyhow::Error> {
+    fn handle_health_check(&self) -> ServerResponse {
         let res = if self.health_check {
             StatusCode::OK
         } else {
             StatusCode::SERVICE_UNAVAILABLE
         };
-        Server::make_response(res, String::new())
+        Server::response(res, "")
+    }
+
+    async fn handle_profiler_status(&self) -> ServerResponse {
+        let Some(profiler) = &self.profiler else {
+            return Server::response(StatusCode::INTERNAL_SERVER_ERROR, "Profiler is not enabled");
+        };
+        let body = profiler.get_status().await;
+        Server::response_with_content_type(StatusCode::OK, "application/json", body)
+    }
+
+    async fn handle_cpu_profiler(&self, body: Incoming) -> ServerResponse {
+        let Some(profiler) = &self.profiler else {
+            return Server::response(StatusCode::INTERNAL_SERVER_ERROR, "Profiler is not enabled");
+        };
+
+        let body = match body.collect().await {
+            Ok(b) => b.to_bytes(),
+            Err(e) => {
+                return Server::response(
+                    StatusCode::BAD_REQUEST,
+                    format!("Failed to read request body: {e}"),
+                )
+            }
+        };
+
+        if body == "on" {
+            match profiler.start().await {
+                Ok(_) => Server::response_with_content_type(
+                    StatusCode::OK,
+                    "text/plain",
+                    "CPU profiler starter",
+                ),
+                Err(e) => Server::response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to start CPU profiler: {e}"),
+                ),
+            }
+        } else if body == "off" {
+            match profiler.stop().await {
+                Ok(_) => Server::response_with_content_type(
+                    StatusCode::OK,
+                    "text/plain",
+                    "CPU profiler stopped",
+                ),
+                Err(e) => Server::response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to stop CPU profiler: {e}"),
+                ),
+            }
+        } else {
+            Server::response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid request body: {body:?}"),
+            )
+        }
+    }
+
+    async fn handle_cpu_report(&self) -> ServerResponse {
+        let Some(profiler) = &self.profiler else {
+            return Server::response(StatusCode::INTERNAL_SERVER_ERROR, "Profiler is not enabled");
+        };
+
+        match profiler.get().await {
+            Ok(profile) => {
+                Server::response_with_content_type(StatusCode::OK, "text/plain", profile)
+            }
+            Err(e) => Server::response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to get CPU profile: {e}"),
+            ),
+        }
     }
 }
 
@@ -110,7 +203,10 @@ impl Service<Request<Incoming>> for Server {
             match (req.method(), req.uri().path()) {
                 (&Method::GET, "/metrics") => s.handle_metrics(),
                 (&Method::GET, "/health_check") => s.handle_health_check(),
-                _ => Server::make_response(StatusCode::NOT_FOUND, String::new()),
+                (&Method::POST, "/profile/cpu") => s.handle_cpu_profiler(req.into_body()).await,
+                (&Method::GET, "/profile/cpu") => s.handle_cpu_report().await,
+                (&Method::GET, "/profile") => s.handle_profiler_status().await,
+                _ => Server::response(StatusCode::NOT_FOUND, ""),
             }
         })
     }

@@ -20,6 +20,7 @@ mod host_info;
 mod metrics;
 mod output;
 mod pre_flight;
+mod profiler;
 
 use config::FactConfig;
 use pre_flight::pre_flight;
@@ -79,6 +80,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     endpoints::Server::new(
         exporter.clone(),
+        config.expose_profiler(),
         config.expose_metrics(),
         config.health_check(),
     )

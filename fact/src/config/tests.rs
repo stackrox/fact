@@ -33,6 +33,20 @@ fn parsing() {
             },
         ),
         (
+            "expose_profiler: true",
+            FactConfig {
+                expose_profiler: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "expose_profiler: false",
+            FactConfig {
+                expose_profiler: Some(false),
+                ..Default::default()
+            },
+        ),
+        (
             "expose_metrics: true",
             FactConfig {
                 expose_metrics: Some(true),
@@ -101,6 +115,7 @@ fn parsing() {
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
+            expose_profiler: true
             expose_metrics: true
             health_check: true
             skip_pre_flight: false
@@ -111,6 +126,7 @@ fn parsing() {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                expose_profiler: Some(true),
                 expose_metrics: Some(true),
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
@@ -150,6 +166,10 @@ paths:
         (
             "certs: true",
             "certs field has incorrect type: Boolean(true)",
+        ),
+        (
+            "expose_profiler: 4",
+            "expose_profiler field has incorrect type: Integer(4)",
         ),
         (
             "expose_metrics: 4",
@@ -299,6 +319,36 @@ fn update() {
             },
         ),
         (
+            "expose_profiler: true",
+            FactConfig::default(),
+            FactConfig {
+                expose_profiler: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "expose_profiler: true",
+            FactConfig {
+                expose_profiler: Some(false),
+                ..Default::default()
+            },
+            FactConfig {
+                expose_profiler: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "expose_profiler: true",
+            FactConfig {
+                expose_profiler: Some(true),
+                ..Default::default()
+            },
+            FactConfig {
+                expose_profiler: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
             "expose_metrics: true",
             FactConfig::default(),
             FactConfig {
@@ -424,6 +474,7 @@ fn update() {
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
+            expose_profiler: true
             expose_metrics: true
             health_check: true
             skip_pre_flight: false
@@ -434,6 +485,7 @@ fn update() {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
                 url: Some(String::from("http://localhost")),
                 certs: Some(PathBuf::from("/etc/certs")),
+                expose_profiler: Some(false),
                 expose_metrics: Some(false),
                 health_check: Some(false),
                 skip_pre_flight: Some(true),
@@ -444,6 +496,7 @@ fn update() {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                expose_profiler: Some(true),
                 expose_metrics: Some(true),
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
@@ -469,6 +522,7 @@ fn defaults() {
     assert_eq!(config.paths(), default_paths);
     assert_eq!(config.url(), None);
     assert_eq!(config.certs(), None);
+    assert!(!config.expose_profiler());
     assert!(!config.expose_metrics());
     assert!(!config.health_check());
     assert!(!config.skip_pre_flight());
