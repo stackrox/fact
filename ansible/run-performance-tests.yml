@@ -1,0 +1,53 @@
+---
+- name: Run performance tests
+  hosts: "platform_*:&job_id_{{ job_id }}"
+  environment:
+    FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
+    FACT_VERSION: "{{ fact.version | default(None) }}"
+    FACT_TAG: "{{ fact.tag | default(None) }}"
+    BERSERKER_VERSION: "{{ berserker.version | default(None) }}"
+
+  tasks:
+    - name: Install dependencies
+      become: true
+      community.general.rpm_ostree_pkg:
+        apply_live: true
+        name:
+          - make
+          - python3-packaging
+          - python3-requests
+        state: present
+
+    - name: Login to quay.io
+      community.docker.docker_login:
+        registry_url: quay.io
+        username: "{{ quay.username }}"
+        password: "{{ quay.password }}"
+
+    - name: Clone the repo
+      ansible.builtin.git:
+        repo: https://github.com/stackrox/fact
+        dest: ./fact
+        # TODO: Run with the latest main
+        # version: "{{ fact.version }}"
+        version: "feature/performance-tests"
+        update: false
+
+    - block:
+      - name: Build test image
+        ansible.builtin.shell:
+          cmd: |
+            cd "${HOME}/fact/performance-tests"
+            make image
+
+      - name: Run tests
+        ansible.builtin.shell:
+          cmd: |
+            cd "${HOME}/fact/performance-tests"
+            make performance-tests
+
+      - name: Push to opensearch
+        ansible.builtin.shell:
+          cmd: |
+            cd "${HOME}/fact/performance-tests"
+            make push-data

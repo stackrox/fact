@@ -1,0 +1,20 @@
+ARG FACT_VERSION=
+ARG BERSERKER_VERSION=
+FROM quay.io/stackrox-io/fact:${FACT_VERSION} AS fact
+FROM quay.io/stackrox-io/berserker:${BERSERKER_VERSION} AS berserker
+
+FROM quay.io/fedora/fedora:42
+
+RUN dnf install -y \
+        valgrind \
+        bpftool \
+        perf \
+        python \
+	procps-ng
+
+COPY --from=fact /usr/local/bin/fact /usr/local/bin
+COPY --from=berserker /usr/local/bin/berserker /usr/local/bin
+
+COPY main.py /usr/local/bin
+
+ENTRYPOINT ["python", "/usr/local/bin/main.py"]
