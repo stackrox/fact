@@ -163,6 +163,7 @@ jobs:
     needs:
       - vars
       - manifest
+      - integration-tests
     uses: ./.github/workflows/performance-tests.yml
     with:
       tag: ${{ needs.vars.outputs.tag }}
