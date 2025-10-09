@@ -78,8 +78,8 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let exporter = Exporter::new(bpf.get_metrics()?);
 
     endpoints::Server::new(
+        config.endpoint(),
         exporter.clone(),
-        config.endpoints_port(),
         config.expose_metrics(),
         config.health_check(),
     )

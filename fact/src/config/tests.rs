@@ -33,9 +33,36 @@ fn parsing() {
             },
         ),
         (
-            "endpoints_port: 8080",
+            "endpoint: 0.0.0.0:8080",
             FactConfig {
-                endpoints_port: Some(8080),
+                endpoint: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                ..Default::default()
+            },
+        ),
+        (
+            "endpoint: 127.0.0.1:8080",
+            FactConfig {
+                endpoint: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
+                ..Default::default()
+            },
+        ),
+        (
+            "endpoint: '[::]:8080'",
+            FactConfig {
+                endpoint: Some(SocketAddr::from((
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    8080,
+                ))),
+                ..Default::default()
+            },
+        ),
+        (
+            "endpoint: '[::1]:8080'",
+            FactConfig {
+                endpoint: Some(SocketAddr::from((
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    8080,
+                ))),
                 ..Default::default()
             },
         ),
@@ -108,7 +135,7 @@ fn parsing() {
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
-            endpoints_port: 8080
+            endpoint: 0.0.0.0:8080
             expose_metrics: true
             health_check: true
             skip_pre_flight: false
@@ -119,7 +146,7 @@ fn parsing() {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
-                endpoints_port: Some(8080),
+                endpoint: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
                 expose_metrics: Some(true),
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
@@ -161,13 +188,36 @@ paths:
             "certs field has incorrect type: Boolean(true)",
         ),
         (
-            "endpoints_port: true",
-            "endpoints_port field has incorrect type: Boolean(true)",
+            "endpoint: true",
+            "endpoint field has incorrect type: Boolean(true)",
         ),
-        ("endpoints_port: 0", "endpoints_port out of range: 0"),
         (
-            "endpoints_port: 100000",
-            "endpoints_port out of range: 100000",
+            "endpoint: 127.0.0.1",
+            "Failed to parse endpoint: invalid socket address syntax",
+        ),
+        (
+            "endpoint: :8080",
+            "Failed to parse endpoint: invalid socket address syntax",
+        ),
+        (
+            "endpoint: 127.0.0.:8080",
+            "Failed to parse endpoint: invalid socket address syntax",
+        ),
+        (
+            "endpoint: '[::]'",
+            "Failed to parse endpoint: invalid socket address syntax",
+        ),
+        (
+            "endpoint: '[::1]'",
+            "Failed to parse endpoint: invalid socket address syntax",
+        ),
+        (
+            "endpoint: '[:::1]:8080'",
+            "Failed to parse endpoint: invalid socket address syntax",
+        ),
+        (
+            "endpoint: '[::cafe::1]:8080'",
+            "Failed to parse endpoint: invalid socket address syntax",
         ),
         (
             "expose_metrics: 4",
@@ -442,7 +492,7 @@ fn update() {
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
-            endpoints_port: 8080
+            endpoint: 127.0.0.1:8080
             expose_metrics: true
             health_check: true
             skip_pre_flight: false
@@ -453,7 +503,7 @@ fn update() {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
                 url: Some(String::from("http://localhost")),
                 certs: Some(PathBuf::from("/etc/certs")),
-                endpoints_port: Some(9000),
+                endpoint: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
                 expose_metrics: Some(false),
                 health_check: Some(false),
                 skip_pre_flight: Some(true),
@@ -464,7 +514,7 @@ fn update() {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
-                endpoints_port: Some(8080),
+                endpoint: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
                 expose_metrics: Some(true),
                 health_check: Some(true),
                 skip_pre_flight: Some(false),
