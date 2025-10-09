@@ -39,7 +39,7 @@ jobs:
         with:
           token: ${{ secrets.QUAY_RHACS_ENG_BEARER_TOKEN }}
           image: rhacs-eng/fact:${{ needs.init.outputs.fact-tag }}
-          limit: 1200 # 30m
+          limit: 2400 # 40m
 
   run-konflux-tests:
     uses: ./.github/workflows/integration-tests.yml
