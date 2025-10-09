@@ -85,4 +85,20 @@ __always_inline static struct metrics_t* get_metrics() {
 
 uint64_t host_mount_ns;
 
+struct {
+  __uint(type, BPF_MAP_TYPE_INODE_STORAGE);
+  __type(key, unsigned int);
+  __type(value, char);
+  __uint(max_entries, 0);
+  __uint(map_flags, BPF_F_NO_PREALLOC);
+} ignored SEC(".maps");
+
+__always_inline static void add_ignored(struct inode* inode) {
+  bpf_inode_storage_get(&ignored, inode, NULL, BPF_LOCAL_STORAGE_GET_F_CREATE);
+}
+
+__always_inline static bool is_ignored(struct inode* inode) {
+  return bpf_inode_storage_get(&ignored, inode, NULL, 0) != NULL;
+}
+
 // clang-format on

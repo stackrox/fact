@@ -42,6 +42,7 @@ impl Bpf {
             )
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
             .set_max_entries(RINGBUFFER_NAME, config.ringbuf_size() * 1024)
+            .allow_unsupported_maps()
             .load(fact_ebpf::EBPF_OBJ)?;
 
         let ringbuf = match obj.take_map(RINGBUFFER_NAME) {

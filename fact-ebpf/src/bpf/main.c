@@ -34,6 +34,10 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
+  if (is_ignored(file->f_path.dentry->d_inode)) {
+    goto ignored;
+  }
+
   struct bound_path_t* path = path_read(&file->f_path);
   if (path == NULL) {
     bpf_printk("Failed to read path");
@@ -42,6 +46,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
   }
 
   if (!is_monitored(path)) {
+    add_ignored(file->f_path.dentry->d_inode);
     goto ignored;
   }
 
@@ -60,6 +65,10 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();
 
   m->path_unlink.total++;
+
+  if (is_ignored(dentry->d_inode)) {
+    goto ignored;
+  }
 
   struct bound_path_t* path = path_read(dir);
   if (path == NULL) {
@@ -80,8 +89,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   }
 
   if (!is_monitored(path)) {
-    m->path_unlink.ignored++;
-    return 0;
+    goto ignored;
   }
 
   submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry);
@@ -89,5 +97,9 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
 error:
   m->path_unlink.error++;
+  return 0;
+
+ignored:
+  m->path_unlink.ignored++;
   return 0;
 }
