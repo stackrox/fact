@@ -1,3 +1,5 @@
+#[cfg(feature = "jemalloc")]
+use std::ffi::CString;
 use std::{future::Future, net::SocketAddr, pin::Pin};
 
 use http_body_util::{BodyExt, Full};
@@ -9,6 +11,10 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 use log::{info, warn};
+#[cfg(feature = "jemalloc")]
+use tempfile::NamedTempFile;
+#[cfg(feature = "jemalloc")]
+use tikv_jemalloc_ctl::raw as mallctl;
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
 
 use crate::metrics::exporter::Exporter;
@@ -148,7 +154,7 @@ impl Server {
                 Ok(_) => Server::response_with_content_type(
                     StatusCode::OK,
                     "text/plain",
-                    "CPU profiler starter",
+                    "CPU profiler started",
                 ),
                 Err(e) => Server::response(
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -190,6 +196,79 @@ impl Server {
             ),
         }
     }
+
+    #[cfg(feature = "jemalloc")]
+    async fn handle_heap_profiler(&self, body: Incoming) -> ServerResponse {
+        let body = match body.collect().await {
+            Ok(b) => b.to_bytes(),
+            Err(e) => {
+                return Server::response(
+                    StatusCode::BAD_REQUEST,
+                    format!("Failed to read request body: {e}"),
+                )
+            }
+        };
+
+        let state = if body == "on" {
+            true
+        } else if body == "off" {
+            false
+        } else {
+            return Server::response(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid request body: {body:?}"),
+            );
+        };
+
+        let res = unsafe { mallctl::update(b"prof.active\0", true) };
+
+        match res {
+            Ok(_) => Server::response_with_content_type(
+                StatusCode::OK,
+                "text/plain",
+                format!(
+                    "Heap profiler {}",
+                    if state { "started" } else { "stopped" }
+                ),
+            ),
+            Err(e) => Server::response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!(
+                    "Failed to {} heap profiler: {e}",
+                    if state { "start" } else { "stop" }
+                ),
+            ),
+        }
+    }
+
+    #[cfg(feature = "jemalloc")]
+    async fn handle_heap_report(&self) -> ServerResponse {
+        let f = match NamedTempFile::new() {
+            Ok(f) => f,
+            Err(e) => {
+                return Server::response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to create dump file: {e}"),
+                );
+            }
+        };
+        let path = CString::new(f.path().as_os_str().as_encoded_bytes()).unwrap();
+
+        if let Err(e) = unsafe { mallctl::write(b"prof.dump\0", path.as_ptr()) } {
+            return Server::response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to dump heap profile: {e}"),
+            );
+        }
+
+        match std::fs::read_to_string(f.path()) {
+            Ok(profile) => Server::response(StatusCode::OK, profile),
+            Err(e) => Server::response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to read heap profile dump: {e}"),
+            ),
+        }
+    }
 }
 
 impl Service<Request<Incoming>> for Server {
@@ -205,6 +284,15 @@ impl Service<Request<Incoming>> for Server {
                 (&Method::GET, "/health_check") => s.handle_health_check(),
                 (&Method::POST, "/profile/cpu") => s.handle_cpu_profiler(req.into_body()).await,
                 (&Method::GET, "/profile/cpu") => s.handle_cpu_report().await,
+                #[cfg(feature = "jemalloc")]
+                (&Method::POST, "/profile/heap") => s.handle_heap_profiler(req.into_body()).await,
+                #[cfg(feature = "jemalloc")]
+                (&Method::GET, "/profile/heap") => s.handle_heap_report().await,
+                #[cfg(not(feature = "jemalloc"))]
+                (_, "/profile/heap") => Server::response(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "Heap profiler not supported",
+                ),
                 (&Method::GET, "/profile") => s.handle_profiler_status().await,
                 _ => Server::response(StatusCode::NOT_FOUND, ""),
             }
