@@ -15,14 +15,16 @@ use crate::metrics::exporter::Exporter;
 
 #[derive(Clone)]
 pub struct Server {
+    port: u16,
     metrics: Option<Exporter>,
     health_check: bool,
 }
 
 impl Server {
-    pub fn new(metrics: Exporter, expose_metrics: bool, health_check: bool) -> Self {
+    pub fn new(metrics: Exporter, port: u16, expose_metrics: bool, health_check: bool) -> Self {
         let metrics = if expose_metrics { Some(metrics) } else { None };
         Server {
+            port,
             metrics,
             health_check,
         }
@@ -36,7 +38,7 @@ impl Server {
 
         let handle = tokio::spawn(async move {
             // TODO ROX-30811: Make socket and address configurable
-            let addr = SocketAddr::from(([0, 0, 0, 0], 9000));
+            let addr = SocketAddr::from(([0, 0, 0, 0], self.port));
             let listener = TcpListener::bind(addr).await.unwrap();
 
             loop {

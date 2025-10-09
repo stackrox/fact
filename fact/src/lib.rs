@@ -79,6 +79,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     endpoints::Server::new(
         exporter.clone(),
+        config.endpoints_port(),
         config.expose_metrics(),
         config.health_check(),
     )

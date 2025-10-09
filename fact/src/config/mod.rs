@@ -13,6 +13,7 @@ pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     url: Option<String>,
     certs: Option<PathBuf>,
+    endpoints_port: Option<u16>,
     expose_metrics: Option<bool>,
     health_check: Option<bool>,
     skip_pre_flight: Option<bool>,
@@ -70,6 +71,10 @@ impl FactConfig {
             self.certs = Some(certs.to_owned());
         }
 
+        if let Some(endpoints_port) = from.endpoints_port {
+            self.endpoints_port = Some(endpoints_port);
+        }
+
         if let Some(expose_metrics) = from.expose_metrics {
             self.expose_metrics = Some(expose_metrics);
         }
@@ -101,6 +106,10 @@ impl FactConfig {
 
     pub fn certs(&self) -> Option<&Path> {
         self.certs.as_deref()
+    }
+
+    pub fn endpoints_port(&self) -> u16 {
+        self.endpoints_port.unwrap_or(9000)
     }
 
     pub fn expose_metrics(&self) -> bool {
@@ -195,6 +204,15 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.certs = Some(PathBuf::from(certs));
                 }
+                "endpoints_port" => {
+                    let Some(ep) = v.as_i64() else {
+                        bail!("endpoints_port field has incorrect type: {v:?}");
+                    };
+                    if ep <= 0 || ep > u16::MAX as i64 {
+                        bail!("endpoints_port out of range: {ep}");
+                    }
+                    config.endpoints_port = Some(ep as u16);
+                }
                 "expose_metrics" => {
                     let Some(em) = v.as_bool() else {
                         bail!("expose_metrics field has incorrect type: {v:?}");
@@ -255,6 +273,10 @@ pub struct FactCli {
     #[arg(short, long, env = "FACT_CERTS")]
     certs: Option<PathBuf>,
 
+    /// The port to bind for all exposed endpoints
+    #[arg(long, short, env = "FACT_ENDPOINTS_PORT")]
+    endpoints_port: Option<u16>,
+
     /// Whether prometheus metrics should be collected and exposed
     #[arg(long, overrides_with("no_expose_metrics"), env = "FACT_EXPOSE_METRICS")]
     expose_metrics: bool,
@@ -301,6 +323,7 @@ impl FactCli {
             paths: self.paths.clone(),
             url: self.url.clone(),
             certs: self.certs.clone(),
+            endpoints_port: self.endpoints_port,
             expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
             health_check: resolve_bool_arg(self.health_check, self.no_health_check),
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
