@@ -16,6 +16,7 @@
           - make
           - python3-packaging
           - python3-requests
+          - python3-opensearch-py
         state: present
 
     - name: Login to quay.io
