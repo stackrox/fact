@@ -1,6 +1,8 @@
 use std::{
     fs::read_to_string,
+    net::SocketAddr,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
 use anyhow::{bail, Context};
@@ -13,6 +15,7 @@ pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     url: Option<String>,
     certs: Option<PathBuf>,
+    endpoint: Option<SocketAddr>,
     expose_metrics: Option<bool>,
     health_check: Option<bool>,
     skip_pre_flight: Option<bool>,
@@ -70,6 +73,10 @@ impl FactConfig {
             self.certs = Some(certs.to_owned());
         }
 
+        if let Some(endpoint) = from.endpoint {
+            self.endpoint = Some(endpoint);
+        }
+
         if let Some(expose_metrics) = from.expose_metrics {
             self.expose_metrics = Some(expose_metrics);
         }
@@ -101,6 +108,11 @@ impl FactConfig {
 
     pub fn certs(&self) -> Option<&Path> {
         self.certs.as_deref()
+    }
+
+    pub fn endpoint(&self) -> SocketAddr {
+        self.endpoint
+            .unwrap_or(SocketAddr::from(([0, 0, 0, 0], 9000)))
     }
 
     pub fn expose_metrics(&self) -> bool {
@@ -195,6 +207,16 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.certs = Some(PathBuf::from(certs));
                 }
+                "endpoint" => {
+                    let Some(endpoint) = v.as_str() else {
+                        bail!("endpoint field has incorrect type: {v:?}");
+                    };
+                    let endpoint = match SocketAddr::from_str(endpoint) {
+                        Ok(endpoint) => endpoint,
+                        Err(e) => bail!("Failed to parse endpoint: {e}"),
+                    };
+                    config.endpoint = Some(endpoint);
+                }
                 "expose_metrics" => {
                     let Some(em) = v.as_bool() else {
                         bail!("expose_metrics field has incorrect type: {v:?}");
@@ -255,6 +277,10 @@ pub struct FactCli {
     #[arg(short, long, env = "FACT_CERTS")]
     certs: Option<PathBuf>,
 
+    /// The port to bind for all exposed endpoints
+    #[arg(long, short, env = "FACT_ENDPOINT")]
+    endpoint: Option<SocketAddr>,
+
     /// Whether prometheus metrics should be collected and exposed
     #[arg(long, overrides_with("no_expose_metrics"), env = "FACT_EXPOSE_METRICS")]
     expose_metrics: bool,
@@ -301,6 +327,7 @@ impl FactCli {
             paths: self.paths.clone(),
             url: self.url.clone(),
             certs: self.certs.clone(),
+            endpoint: self.endpoint,
             expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
             health_check: resolve_bool_arg(self.health_check, self.no_health_check),
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
