@@ -1,0 +1,14 @@
+// open lots of random files under
+// a specified directory
+random (workers = 2, duration = 10) {
+  open(random_path("/tmp/data"));
+} : exp {
+  rate = 10.0;
+}
+
+// open the same file over and over
+repeated (workers = 2, duration = 10) {
+  open("/tmp/data/test");
+} : exp {
+  rate = 10.0;
+}
