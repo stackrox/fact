@@ -169,6 +169,10 @@ fn parsing() {
 fn parsing_errors() {
     let tests = [
         (
+            "paths: true",
+            "Invalid field 'paths' with value: Boolean(true)",
+        ),
+        (
             r#"
 ---
 paths:
