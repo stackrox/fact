@@ -27,6 +27,7 @@ user_space_cpu:
         --fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1'
 
 make push-data:
+	python store.py data/perf.json fact
 
 clean:
 	rm -rf logs/
