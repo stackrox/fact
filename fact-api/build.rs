@@ -1,7 +1,7 @@
 use anyhow::Context;
 
 fn main() -> anyhow::Result<()> {
-    tonic_build::configure()
+    tonic_prost_build::configure()
         .build_server(false)
         .compile_protos(
             &["../third_party/stackrox/proto/internalapi/sensor/sfa_iservice.proto"],
