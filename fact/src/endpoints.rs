@@ -35,16 +35,23 @@ impl Server {
         }
     }
 
-    pub fn start(self, mut running: watch::Receiver<bool>) -> Option<JoinHandle<()>> {
+    pub async fn start(
+        self,
+        mut running: watch::Receiver<bool>,
+    ) -> Option<anyhow::Result<JoinHandle<()>>> {
         // If there is nothing to expose, we don't run the hyper server
         if self.metrics.is_none() && !self.health_check {
             return None;
         }
 
-        let handle = tokio::spawn(async move {
-            // TODO ROX-30811: Make socket and address configurable
-            let listener = TcpListener::bind(self.addr).await.unwrap();
+        let listener = match TcpListener::bind(self.addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                return Some(Err(e.into()));
+            }
+        };
 
+        let handle = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Ok((stream, _)) = listener.accept() => {
@@ -66,7 +73,7 @@ impl Server {
                 }
             }
         });
-        Some(handle)
+        Some(Ok(handle))
     }
 
     fn make_response(

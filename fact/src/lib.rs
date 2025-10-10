@@ -77,13 +77,15 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let exporter = Exporter::new(bpf.get_metrics()?);
 
-    endpoints::Server::new(
+    let server = endpoints::Server::new(
         config.endpoint(),
         exporter.clone(),
         config.expose_metrics(),
         config.health_check(),
-    )
-    .start(run_rx.clone());
+    );
+    if let Some(Err(e)) = server.start(run_rx.clone()).await {
+        warn!("Failed to start endpoints server: {e}");
+    };
 
     let output = Output::new(run_rx.clone(), rx, exporter.metrics.output.clone());
     output.start(&config)?;
