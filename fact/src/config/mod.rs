@@ -13,6 +13,7 @@ pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     url: Option<String>,
     certs: Option<PathBuf>,
+    expose_profiler: Option<bool>,
     expose_metrics: Option<bool>,
     health_check: Option<bool>,
     skip_pre_flight: Option<bool>,
@@ -70,6 +71,10 @@ impl FactConfig {
             self.certs = Some(certs.to_owned());
         }
 
+        if let Some(expose_profiler) = from.expose_profiler {
+            self.expose_profiler = Some(expose_profiler);
+        }
+
         if let Some(expose_metrics) = from.expose_metrics {
             self.expose_metrics = Some(expose_metrics);
         }
@@ -101,6 +106,10 @@ impl FactConfig {
 
     pub fn certs(&self) -> Option<&Path> {
         self.certs.as_deref()
+    }
+
+    pub fn expose_profiler(&self) -> bool {
+        self.expose_profiler.unwrap_or(false)
     }
 
     pub fn expose_metrics(&self) -> bool {
@@ -195,6 +204,12 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.certs = Some(PathBuf::from(certs));
                 }
+                "expose_profiler" => {
+                    let Some(em) = v.as_bool() else {
+                        bail!("expose_profiler field has incorrect type: {v:?}");
+                    };
+                    config.expose_profiler = Some(em);
+                }
                 "expose_metrics" => {
                     let Some(em) = v.as_bool() else {
                         bail!("expose_metrics field has incorrect type: {v:?}");
@@ -255,6 +270,16 @@ pub struct FactCli {
     #[arg(short, long, env = "FACT_CERTS")]
     certs: Option<PathBuf>,
 
+    /// Whether pprof profiler should be exposed
+    #[arg(
+        long,
+        overrides_with("no_expose_profiler"),
+        env = "FACT_EXPOSE_PROFILER"
+    )]
+    expose_profiler: bool,
+    #[arg(long, overrides_with = "expose_profiler", hide(true))]
+    no_expose_profiler: bool,
+
     /// Whether prometheus metrics should be collected and exposed
     #[arg(long, overrides_with("no_expose_metrics"), env = "FACT_EXPOSE_METRICS")]
     expose_metrics: bool,
@@ -301,6 +326,7 @@ impl FactCli {
             paths: self.paths.clone(),
             url: self.url.clone(),
             certs: self.certs.clone(),
+            expose_profiler: resolve_bool_arg(self.expose_profiler, self.no_expose_profiler),
             expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
             health_check: resolve_bool_arg(self.health_check, self.no_health_check),
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),

@@ -18,6 +18,7 @@ log = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
+pprof = { workspace = true }
 prometheus-client = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
