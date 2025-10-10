@@ -63,7 +63,10 @@ impl Output {
                             Ok(event) => {
                                 event_counter.added();
                                 let event = Arc::unwrap_or_clone(event);
-                                client.send(event).await.unwrap();
+                                if let Err(e) = client.send(event) {
+                                    event_counter.dropped();
+                                    warn!("Dropped event: {e}")
+                                }
                             }
                             Err(RecvError::Closed) => {
                                 info!("Channel closed, stopping gRPC output...");

@@ -48,7 +48,10 @@ pub fn get_hostname() -> &'static str {
         for p in hostname_paths {
             let p = get_host_mount().join(p);
             if p.exists() {
-                return read_to_string(p).unwrap().trim().to_owned();
+                match read_to_string(&p) {
+                    Ok(hostname) => return hostname.trim().to_owned(),
+                    Err(e) => warn!("Failed to read {}: {e}", p.display()),
+                }
             }
         }
         String::new()
