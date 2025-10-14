@@ -6,6 +6,9 @@
     FACT_VERSION: "{{ fact.version | default(None) }}"
     FACT_TAG: "{{ fact.tag | default(None) }}"
     BERSERKER_VERSION: "{{ berserker.version | default(None) }}"
+    K6_ELASTICSEARCH_URL: "{{ opensearch.url }}"
+    K6_ELASTICSEARCH_USER: "{{ opensearch.user }}"
+    K6_ELASTICSEARCH_PASSWORD: "{{ opensearch.password }}"
 
   tasks:
     - name: Install dependencies
@@ -17,6 +20,7 @@
           - python3-packaging
           - python3-requests
           - python3-opensearch-py
+          - python3-numpy
         state: present
 
     - name: Login to quay.io
@@ -33,6 +37,14 @@
         # version: "{{ fact.version }}"
         version: "feature/performance-tests"
         update: false
+
+    # looks like ansible.posix.sysctl module does not allow to simply apply a
+    # new value via sysctl, it has to write it to the sysctl.conf, which fails
+    # with lack of permissions
+    - name: Enable BPF statistics
+      ansible.builtin.shell:
+        cmd: |
+          sudo sysctl -w kernel.bpf_stats_enabled=1
 
     - block:
       - name: Build test image
