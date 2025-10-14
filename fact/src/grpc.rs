@@ -1,10 +1,10 @@
-use std::{fs::read_to_string, path::Path};
+use std::{fs::read_to_string, path::Path, time::Duration};
 
 use anyhow::bail;
 use fact_api::{file_activity_service_client::FileActivityServiceClient, FileActivity};
-use log::warn;
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use log::{debug, info, warn};
+use tokio::{sync::broadcast, time::sleep};
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use tonic::{
     metadata::MetadataValue,
     service::Interceptor,
@@ -47,39 +47,58 @@ impl Interceptor for UserAgentInterceptor {
 }
 
 pub struct Client {
-    tx: mpsc::Sender<FileActivity>,
+    tx: broadcast::Sender<FileActivity>,
 }
 
 impl Client {
     pub fn start(url: &str, certs: Option<&Path>) -> anyhow::Result<Self> {
-        let (tx, rx) = mpsc::channel(100);
-        let rx = ReceiverStream::new(rx);
+        let (tx, _) = broadcast::channel(100);
         let url = url.to_owned();
         let certs = certs.map(Certs::try_from).transpose()?;
+        let mut channel = Channel::from_shared(url)?;
+        if let Some(certs) = certs {
+            let tls = ClientTlsConfig::new()
+                .domain_name("sensor.stackrox.svc")
+                .ca_certificate(certs.ca.clone())
+                .identity(certs.identity.clone());
+            channel = channel.tls_config(tls)?;
+        }
+        // Create a local clone of the Sender to allow for reconnects
+        let local_tx = tx.clone();
 
         tokio::spawn(async move {
-            let mut channel = Channel::from_shared(url).unwrap();
-            if let Some(certs) = certs {
-                let tls = ClientTlsConfig::new()
-                    .domain_name("sensor.stackrox.svc")
-                    .ca_certificate(certs.ca.clone())
-                    .identity(certs.identity.clone());
-                channel = channel.tls_config(tls).unwrap();
-            }
+            loop {
+                info!("Attempting to connect to gRPC server...");
+                let channel = match channel.connect().await {
+                    Ok(channel) => channel,
+                    Err(e) => {
+                        debug!("Failed to connect to server: {e}");
+                        sleep(Duration::new(1, 0)).await;
+                        continue;
+                    }
+                };
+                info!("Successfully connected to gRPC server");
 
-            let channel = channel.connect().await.unwrap();
-            let mut client =
-                FileActivityServiceClient::with_interceptor(channel, UserAgentInterceptor {});
+                let mut client =
+                    FileActivityServiceClient::with_interceptor(channel, UserAgentInterceptor {});
 
-            if let Err(e) = client.communicate(rx).await {
-                warn!("Communication failed: {e}");
+                let rx = BroadcastStream::new(local_tx.subscribe()).filter_map(|v| {
+                    if let Err(e) = &v {
+                        warn!("Broadcast stream lagged: {e}");
+                    }
+                    v.ok()
+                });
+
+                if let Err(e) = client.communicate(rx).await {
+                    warn!("Communication failed: {e}");
+                }
             }
         });
         Ok(Client { tx })
     }
 
-    pub async fn send(&mut self, event: Event) -> anyhow::Result<()> {
-        if let Err(e) = self.tx.send(event.into()).await {
+    pub fn send(&mut self, event: Event) -> anyhow::Result<()> {
+        if let Err(e) = self.tx.send(event.into()) {
             bail!("Failed to send event: {e}");
         }
         Ok(())

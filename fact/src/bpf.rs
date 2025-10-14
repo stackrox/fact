@@ -51,21 +51,28 @@ impl Bpf {
         let ringbuf = RingBuf::try_from(ringbuf)?;
         let fd = AsyncFd::new(ringbuf)?;
 
-        let path_prefix = obj.take_map("path_prefix").unwrap();
+        let Some(path_prefix) = obj.take_map("path_prefix") else {
+            bail!("path_prefix map not found");
+        };
         let mut path_prefix: LpmTrie<MapData, [c_char; LPM_SIZE_MAX as usize], c_char> =
             LpmTrie::try_from(path_prefix)?;
         for p in config.paths() {
-            let prefix = path_prefix_t::from(p);
+            let prefix = path_prefix_t::try_from(p)?;
             path_prefix.insert(&prefix.into(), 0, 0)?;
         }
 
         let btf = Btf::from_sys_fs()?;
-        let trace_file_open: &mut Lsm = obj.program_mut("trace_file_open").unwrap().try_into()?;
+        let Some(trace_file_open) = obj.program_mut("trace_file_open") else {
+            bail!("trace_file_open program not found");
+        };
+        let trace_file_open: &mut Lsm = trace_file_open.try_into()?;
         trace_file_open.load("file_open", &btf)?;
         trace_file_open.attach()?;
 
-        let trace_path_unlink: &mut Lsm =
-            obj.program_mut("trace_path_unlink").unwrap().try_into()?;
+        let Some(trace_path_unlink) = obj.program_mut("trace_path_unlink") else {
+            bail!("trace_path_unlink program not found");
+        };
+        let trace_path_unlink: &mut Lsm = trace_path_unlink.try_into()?;
         trace_path_unlink.load("path_unlink", &btf)?;
         trace_path_unlink.attach()?;
 
@@ -109,7 +116,9 @@ impl Bpf {
             loop {
                 tokio::select! {
                     guard = fd.readable_mut() => {
-                        let mut guard = guard.unwrap();
+                        let mut guard = guard
+                            .context("ringbuffer guard held while runtime is stopping")
+                            .unwrap();
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
@@ -124,10 +133,10 @@ impl Bpf {
                             };
 
                             event_counter.added();
-                            output
-                                .send(event)
-                                .context("Failed to send event, all receivers exitted")
-                                .unwrap();
+                            if output.send(event).is_err() {
+                                info!("No BPF consumers left, stopping...");
+                                return;
+                            }
                         }
                         guard.clear_ready();
                     },

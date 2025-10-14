@@ -374,8 +374,8 @@ macro_rules! file_activity_from_basic_event {
                 use $api_wrapper as api_wrapper;
 
                 let activity = fact_api::FileActivityBase {
-                    path: value.filename.into_os_string().into_string().unwrap(),
-                    host_path: value.host_file.into_os_string().into_string().unwrap(),
+                    path: value.filename.to_string_lossy().to_string(),
+                    host_path: value.host_file.to_string_lossy().to_string(),
                 };
                 let f_act = api_wrapper {
                     activity: Some(activity),

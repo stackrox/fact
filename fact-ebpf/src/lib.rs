@@ -1,15 +1,34 @@
 #![allow(dead_code, non_camel_case_types)]
 
-use std::{ffi::c_char, path::PathBuf};
+use std::{error::Error, ffi::c_char, fmt::Display, path::PathBuf};
 
 use aya::{maps::lpm_trie, Pod};
 use libc::memcpy;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-impl From<&PathBuf> for path_prefix_t {
-    fn from(value: &PathBuf) -> Self {
-        let filename = value.to_str().unwrap();
+#[derive(Debug)]
+pub struct PathPrefixError {
+    prefix: String,
+}
+
+impl Error for PathPrefixError {}
+
+impl Display for PathPrefixError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid prefix: {}", self.prefix)
+    }
+}
+
+impl TryFrom<&PathBuf> for path_prefix_t {
+    type Error = PathPrefixError;
+
+    fn try_from(value: &PathBuf) -> Result<Self, PathPrefixError> {
+        let Some(filename) = value.to_str() else {
+            return Err(PathPrefixError {
+                prefix: value.display().to_string(),
+            });
+        };
         let len = if filename.len() > LPM_SIZE_MAX as usize {
             LPM_SIZE_MAX as usize
         } else {
@@ -24,7 +43,7 @@ impl From<&PathBuf> for path_prefix_t {
                 len,
             );
             cfg.bit_len = (len * 8) as u32;
-            cfg
+            Ok(cfg)
         }
     }
 }
