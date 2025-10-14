@@ -123,13 +123,13 @@ arches:
     name: glibc-devel
     evr: 2.34-168.el9_6.23
     sourcerpm: glibc-2.34-168.el9_6.23.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-570.51.1.el9_6.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-570.52.1.el9_6.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 3689457
-    checksum: sha256:bc13b2eb304764ac2a5a093bc9f8d0715056281c2e4d545ca482b790441e2f1f
+    size: 3693037
+    checksum: sha256:c403e93994e4a7cbe9269a310c466fdb50e9636692798361e41c33202eb45d1c
     name: kernel-headers
-    evr: 5.14.0-570.51.1.el9_6
-    sourcerpm: kernel-5.14.0-570.51.1.el9_6.src.rpm
+    evr: 5.14.0-570.52.1.el9_6
+    sourcerpm: kernel-5.14.0-570.52.1.el9_6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-5.el9_5.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 413819
@@ -1243,13 +1243,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-21.el9
     sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-22.el9_6.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-22.el9_6.1.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 17723
-    checksum: sha256:744aceed764a5a4f5e4f12a70237ff74cb93c375aabffe4dc245e474628775c2
+    size: 13249
+    checksum: sha256:9298e32061a3bce9b94f8c1bd1ac3ee0bfa67a68863cc3a0cd97c5432b6e89ed
     name: vim-filesystem
-    evr: 2:8.2.2637-22.el9_6
-    sourcerpm: vim-8.2.2637-22.el9_6.src.rpm
+    evr: 2:8.2.2637-22.el9_6.1
+    sourcerpm: vim-8.2.2637-22.el9_6.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 94569
@@ -1415,13 +1415,13 @@ arches:
     name: glibc-headers
     evr: 2.34-168.el9_6.23
     sourcerpm: glibc-2.34-168.el9_6.23.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-570.51.1.el9_6.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-570.52.1.el9_6.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 3727833
-    checksum: sha256:72a5485f6ca94f8b6ce4296a1af9a7eac54819a8242f0d0d72b097461d0e034e
+    size: 3731389
+    checksum: sha256:d409ea6bfbba5c3e1722e5e0290c2698d21ca2a3c384c877e62a34f43f299f27
     name: kernel-headers
-    evr: 5.14.0-570.51.1.el9_6
-    sourcerpm: kernel-5.14.0-570.51.1.el9_6.src.rpm
+    evr: 5.14.0-570.52.1.el9_6
+    sourcerpm: kernel-5.14.0-570.52.1.el9_6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
@@ -2528,13 +2528,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-21.el9
     sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-22.el9_6.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-22.el9_6.1.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 17723
-    checksum: sha256:744aceed764a5a4f5e4f12a70237ff74cb93c375aabffe4dc245e474628775c2
+    size: 13249
+    checksum: sha256:9298e32061a3bce9b94f8c1bd1ac3ee0bfa67a68863cc3a0cd97c5432b6e89ed
     name: vim-filesystem
-    evr: 2:8.2.2637-22.el9_6
-    sourcerpm: vim-8.2.2637-22.el9_6.src.rpm
+    evr: 2:8.2.2637-22.el9_6.1
+    sourcerpm: vim-8.2.2637-22.el9_6.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 96649
