@@ -2,16 +2,21 @@ import argparse
 import json
 import os
 import uuid
+import numpy as np
 
 from opensearchpy import OpenSearch
 
 
 def main(args):
-    host = os.environ.get('OPENSEARCH_HOST')
+    host = os.environ.get('K6_ELASTICSEARCH_URL')
     auth = (
-        os.environ.get('OPENSEARCH_USER'),
-        os.environ.get('OPENSEARCH_PASSWORD')
+        os.environ.get('K6_ELASTICSEARCH_USER'),
+        os.environ.get('K6_ELASTICSEARCH_PASSWORD')
     )
+
+    if not (host and auth[0] and auth[1]):
+        print("No credentials provided")
+        return
 
     client = OpenSearch(
         hosts=[{"host": host, "port": 443}],
@@ -24,14 +29,39 @@ def main(args):
     )
 
     with open(args.result, 'r') as f:
-        document = json.load(f)
+        documents = json.load(f)
 
-        response = client.index(
-            index = args.index,
-            body = document,
-            id = uuid.uuid4(),
-            refresh = True
-        )
+        for document in documents:
+            response = client.index(
+                index = args.index,
+                body = document,
+                id = uuid.uuid4(),
+                refresh = True
+            )
+
+            if type(document['value']) is list:
+                values = document['value']
+                d = document.copy()
+
+                d['value'] = np.percentile(values, 90).item()
+                d['unit'] = "{}, 90p".format(document['unit'])
+
+                response = client.index(
+                    index = args.index,
+                    body = d,
+                    id = uuid.uuid4(),
+                    refresh = True
+                )
+
+                d['value'] = np.percentile(values, 50).item()
+                d['unit'] = "{}, median".format(document['unit'])
+
+                response = client.index(
+                    index = args.index,
+                    body = d,
+                    id = uuid.uuid4(),
+                    refresh = True
+                )
 
 
 if __name__ == '__main__':
