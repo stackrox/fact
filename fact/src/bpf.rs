@@ -201,7 +201,8 @@ mod bpf_tests {
                 file.path().to_path_buf(),
                 file.path().to_path_buf(),
                 Process::current(),
-            );
+            )
+            .unwrap();
 
             println!("Expected: {expected:?}");
             timeout(Duration::from_secs(1), async move {
