@@ -161,7 +161,7 @@ mod bpf_tests {
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
-    use crate::{event::Process, host_info, metrics::exporter::Exporter};
+    use crate::{event::process::Process, host_info, metrics::exporter::Exporter};
 
     use super::*;
 
@@ -201,7 +201,8 @@ mod bpf_tests {
                 file.path().to_path_buf(),
                 file.path().to_path_buf(),
                 Process::current(),
-            );
+            )
+            .unwrap();
 
             println!("Expected: {expected:?}");
             timeout(Duration::from_secs(1), async move {
