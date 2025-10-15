@@ -32,13 +32,6 @@ def main(args):
         documents = json.load(f)
 
         for document in documents:
-            response = client.index(
-                index = args.index,
-                body = document,
-                id = uuid.uuid4(),
-                refresh = True
-            )
-
             if type(document['value']) is list:
                 values = document['value']
                 d = document.copy()
@@ -59,6 +52,14 @@ def main(args):
                 response = client.index(
                     index = args.index,
                     body = d,
+                    id = uuid.uuid4(),
+                    refresh = True
+                )
+
+            else:
+                response = client.index(
+                    index = args.index,
+                    body = document,
                     id = uuid.uuid4(),
                     refresh = True
                 )
