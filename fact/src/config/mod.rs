@@ -8,27 +8,40 @@ use std::{
 use anyhow::{bail, Context};
 use clap::Parser;
 use log::info;
-use yaml_rust2::{Yaml, YamlLoader};
+use yaml_rust2::{yaml, Yaml, YamlLoader};
 
-#[derive(Debug, Default, PartialEq, Eq)]
+pub mod reloader;
+#[cfg(test)]
+mod tests;
+
+const CONFIG_PATHS: [&str; 4] = [
+    "/etc/stackrox/fact.yml",
+    "/etc/stackrox/fact.yaml",
+    "fact.yml",
+    "fact.yaml",
+];
+
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     url: Option<String>,
     certs: Option<PathBuf>,
-    endpoint: Option<SocketAddr>,
-    expose_metrics: Option<bool>,
-    health_check: Option<bool>,
+    pub endpoint: EndpointConfig,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
     ringbuf_size: Option<u32>,
+    hotreload: Option<bool>,
 }
 
-#[cfg(test)]
-mod tests;
-
 impl FactConfig {
-    pub fn new(paths: &[&str]) -> anyhow::Result<Self> {
-        let mut config = paths
+    pub fn new() -> anyhow::Result<Self> {
+        let config = FactConfig::build()?;
+        info!("{config:#?}");
+        Ok(config)
+    }
+
+    fn build() -> anyhow::Result<FactConfig> {
+        let mut config = CONFIG_PATHS
             .iter()
             .filter_map(|p| {
                 let p = Path::new(p);
@@ -56,7 +69,6 @@ impl FactConfig {
         let args = FactCli::parse();
         config.update(&args.to_config());
 
-        info!("{config:#?}");
         Ok(config)
     }
 
@@ -73,17 +85,7 @@ impl FactConfig {
             self.certs = Some(certs.to_owned());
         }
 
-        if let Some(endpoint) = from.endpoint {
-            self.endpoint = Some(endpoint);
-        }
-
-        if let Some(expose_metrics) = from.expose_metrics {
-            self.expose_metrics = Some(expose_metrics);
-        }
-
-        if let Some(health_check) = from.health_check {
-            self.health_check = Some(health_check);
-        }
+        self.endpoint.update(&from.endpoint);
 
         if let Some(skip_pre_flight) = from.skip_pre_flight {
             self.skip_pre_flight = Some(skip_pre_flight);
@@ -95,6 +97,10 @@ impl FactConfig {
 
         if let Some(ringbuf_size) = from.ringbuf_size {
             self.ringbuf_size = Some(ringbuf_size);
+        }
+
+        if let Some(hotreload) = from.hotreload {
+            self.hotreload = Some(hotreload);
         }
     }
 
@@ -110,19 +116,6 @@ impl FactConfig {
         self.certs.as_deref()
     }
 
-    pub fn endpoint(&self) -> SocketAddr {
-        self.endpoint
-            .unwrap_or(SocketAddr::from(([0, 0, 0, 0], 9000)))
-    }
-
-    pub fn expose_metrics(&self) -> bool {
-        self.expose_metrics.unwrap_or(false)
-    }
-
-    pub fn health_check(&self) -> bool {
-        self.health_check.unwrap_or(false)
-    }
-
     pub fn skip_pre_flight(&self) -> bool {
         self.skip_pre_flight.unwrap_or(false)
     }
@@ -133,6 +126,10 @@ impl FactConfig {
 
     pub fn ringbuf_size(&self) -> u32 {
         self.ringbuf_size.unwrap_or(8192)
+    }
+
+    pub fn hotreload(&self) -> bool {
+        self.hotreload.unwrap_or(true)
     }
 
     #[cfg(test)]
@@ -207,27 +204,9 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.certs = Some(PathBuf::from(certs));
                 }
-                "endpoint" => {
-                    let Some(endpoint) = v.as_str() else {
-                        bail!("endpoint field has incorrect type: {v:?}");
-                    };
-                    let endpoint = match SocketAddr::from_str(endpoint) {
-                        Ok(endpoint) => endpoint,
-                        Err(e) => bail!("Failed to parse endpoint: {e}"),
-                    };
-                    config.endpoint = Some(endpoint);
-                }
-                "expose_metrics" => {
-                    let Some(em) = v.as_bool() else {
-                        bail!("expose_metrics field has incorrect type: {v:?}");
-                    };
-                    config.expose_metrics = Some(em);
-                }
-                "health_check" => {
-                    let Some(hc) = v.as_bool() else {
-                        bail!("health_check field has incorrect type: {v:?}");
-                    };
-                    config.health_check = Some(hc);
+                "endpoint" if v.is_hash() => {
+                    let endpoint = v.as_hash().unwrap();
+                    config.endpoint = EndpointConfig::try_from(endpoint)?;
                 }
                 "skip_pre_flight" => {
                     let Some(spf) = v.as_bool() else {
@@ -254,11 +233,94 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     }
                     config.ringbuf_size = Some(rb_size);
                 }
+                "hotreload" => {
+                    let Some(hotreload) = v.as_bool() else {
+                        bail!("hotreload field has incorrect type: {v:?}");
+                    };
+                    config.hotreload = Some(hotreload);
+                }
                 name => bail!("Invalid field '{name}' with value: {v:?}"),
             }
         }
 
         Ok(config)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct EndpointConfig {
+    address: Option<SocketAddr>,
+    expose_metrics: Option<bool>,
+    health_check: Option<bool>,
+}
+
+impl EndpointConfig {
+    fn update(&mut self, from: &EndpointConfig) {
+        if let Some(address) = from.address {
+            self.address = Some(address);
+        }
+
+        if let Some(expose_metrics) = from.expose_metrics {
+            self.expose_metrics = Some(expose_metrics);
+        }
+
+        if let Some(health_check) = from.health_check {
+            self.health_check = Some(health_check);
+        }
+    }
+
+    pub fn address(&self) -> SocketAddr {
+        self.address
+            .unwrap_or(SocketAddr::from(([0, 0, 0, 0], 9000)))
+    }
+
+    pub fn expose_metrics(&self) -> bool {
+        self.expose_metrics.unwrap_or(false)
+    }
+
+    pub fn health_check(&self) -> bool {
+        self.health_check.unwrap_or(false)
+    }
+}
+
+impl TryFrom<&yaml::Hash> for EndpointConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
+        let mut endpoint = EndpointConfig::default();
+        for (k, v) in value.iter() {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}");
+            };
+
+            match k {
+                "address" => {
+                    let Some(addr) = v.as_str() else {
+                        bail!("endpoint.address field has incorrect type: {v:?}");
+                    };
+                    let address = match SocketAddr::from_str(addr) {
+                        Ok(a) => a,
+                        Err(e) => bail!("Failed to parse endpoint.address: {e}"),
+                    };
+                    endpoint.address = Some(address);
+                }
+                "expose_metrics" => {
+                    let Some(em) = v.as_bool() else {
+                        bail!("endpoint.expose_metrics field has incorrect type: {v:?}");
+                    };
+                    endpoint.expose_metrics = Some(em);
+                }
+                "health_check" => {
+                    let Some(hc) = v.as_bool() else {
+                        bail!("endpoint.health_check field has incorrect type: {v:?}");
+                    };
+                    endpoint.health_check = Some(hc);
+                }
+                name => bail!("Invalid field 'endpoint.{name}' with value: {v:?}"),
+            }
+        }
+
+        Ok(endpoint)
     }
 }
 
@@ -278,17 +340,25 @@ pub struct FactCli {
     certs: Option<PathBuf>,
 
     /// The port to bind for all exposed endpoints
-    #[arg(long, short, env = "FACT_ENDPOINT")]
-    endpoint: Option<SocketAddr>,
+    #[arg(long, short, env = "FACT_ENDPOINT_ADDRESS")]
+    address: Option<SocketAddr>,
 
     /// Whether prometheus metrics should be collected and exposed
-    #[arg(long, overrides_with("no_expose_metrics"), env = "FACT_EXPOSE_METRICS")]
+    #[arg(
+        long,
+        overrides_with("no_expose_metrics"),
+        env = "FACT_ENDPOINT_EXPOSE_METRICS"
+    )]
     expose_metrics: bool,
     #[arg(long, overrides_with = "expose_metrics", hide(true))]
     no_expose_metrics: bool,
 
     /// Whether a small health_check probe should be run
-    #[arg(long, overrides_with("no_health_check"), env = "FACT_HEALTH_CHECK")]
+    #[arg(
+        long,
+        overrides_with("no_health_check"),
+        env = "FACT_ENDPOINT_HEALTH_CHECK"
+    )]
     health_check: bool,
     #[arg(long, overrides_with = "health_check", hide(true))]
     no_health_check: bool,
@@ -319,6 +389,12 @@ pub struct FactCli {
     /// Default value is 8MB.
     #[arg(long, short, env = "FACT_RINGBUF_SIZE")]
     ringbuf_size: Option<u32>,
+
+    /// Whether configuration should be hotreloaded
+    #[arg(long, overrides_with = "no_hotreload", env = "FACT_HOTRELOAD")]
+    hotreload: bool,
+    #[arg(long, overrides_with = "hotreload", hide(true))]
+    no_hotreload: bool,
 }
 
 impl FactCli {
@@ -327,12 +403,15 @@ impl FactCli {
             paths: self.paths.clone(),
             url: self.url.clone(),
             certs: self.certs.clone(),
-            endpoint: self.endpoint,
-            expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
-            health_check: resolve_bool_arg(self.health_check, self.no_health_check),
+            endpoint: EndpointConfig {
+                address: self.address,
+                expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
+                health_check: resolve_bool_arg(self.health_check, self.no_health_check),
+            },
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),
             ringbuf_size: self.ringbuf_size,
+            hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),
         }
     }
 }
