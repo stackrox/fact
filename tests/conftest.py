@@ -1,12 +1,12 @@
-from concurrent import futures
 import os
 from shutil import rmtree
-from tempfile import mkdtemp
+from tempfile import NamedTemporaryFile, mkdtemp
 from time import sleep
 
 import docker
 import pytest
 import requests
+import yaml
 
 from server import FileActivityService
 
@@ -81,21 +81,38 @@ def dump_logs(container, file):
 
 
 @pytest.fixture
-def fact(request, docker_client, monitored_dir, server, logs_dir):
+def fact_config(request, monitored_dir, logs_dir):
+    cwd = os.getcwd()
+    config = {
+        'paths': [monitored_dir],
+        'url': 'http://127.0.0.1:9999',
+        'endpoint': {
+            'address': '127.0.0.1:9000',
+            'expose_metrics': True,
+            'health_check': True,
+        },
+        'json': True,
+    }
+    config_file = NamedTemporaryFile(
+        prefix='fact-config-', suffix='.yml', dir=cwd, mode='w')
+    yaml.dump(config, config_file)
+
+    yield config, config_file.name
+    with open(os.path.join(logs_dir, 'fact.yml'), 'w') as f:
+        with open(config_file.name, 'r') as r:
+            f.write(r.read())
+    config_file.close()
+
+
+@pytest.fixture
+def fact(request, docker_client, fact_config, server, logs_dir):
     """
     Run the fact docker container for integration tests.
     """
-    command = [
-        'http://127.0.0.1:9999',
-        '-p', monitored_dir,
-        '--expose-metrics',
-        '--health-check',
-        '--json',
-    ]
+    config, config_file = fact_config
     image = request.config.getoption('--image')
     container = docker_client.containers.run(
         image,
-        command=command,
         detach=True,
         environment={
             'FACT_LOGLEVEL': 'debug',
@@ -121,6 +138,10 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
                 'bind': '/host/usr/lib/os-release',
                 'mode': 'ro',
             },
+            config_file: {
+                'bind': '/etc/stackrox/fact.yml',
+                'mode': 'ro',
+            }
         },
     )
 
@@ -128,7 +149,8 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
     # Wait for container to be ready
     for _ in range(3):
         try:
-            resp = requests.get('http://127.0.0.1:9000/health_check')
+            resp = requests.get(
+                f'http://{config["endpoint"]["address"]}/health_check')
             if resp.status_code == 200:
                 break
         except (requests.RequestException, requests.ConnectionError) as e:
@@ -143,11 +165,13 @@ def fact(request, docker_client, monitored_dir, server, logs_dir):
     yield container
 
     # Capture prometheus metrics before stopping the container
-    metric_log = os.path.join(logs_dir, 'metrics')
-    resp = requests.get('http://127.0.0.1:9000/metrics')
-    if resp.status_code == 200:
-        with open(metric_log, 'w') as f:
-            f.write(resp.text)
+    if config['endpoint']['expose_metrics']:
+        metric_log = os.path.join(logs_dir, 'metrics')
+        resp = requests.get(
+            f'http://{config["endpoint"]["address"]}/metrics')
+        if resp.status_code == 200:
+            with open(metric_log, 'w') as f:
+                f.write(resp.text)
 
     container.stop(timeout=1)
     exit_status = container.wait(timeout=1)

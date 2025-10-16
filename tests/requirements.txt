@@ -3,3 +3,4 @@ grpcio==1.73.1
 grpcio-tools==1.73.1
 pytest==8.4.1
 requests==2.32.4
+pyyaml==6.0.3
