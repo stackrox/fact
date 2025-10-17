@@ -3,6 +3,7 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     str::FromStr,
+    sync::LazyLock,
 };
 
 use anyhow::{bail, Context};
@@ -66,8 +67,8 @@ impl FactConfig {
             )?;
 
         // Once file configuration is handled, apply CLI arguments
-        let args = FactCli::parse();
-        config.update(&args.to_config());
+        static CLI_ARGS: LazyLock<FactConfig> = LazyLock::new(|| FactCli::parse().to_config());
+        config.update(&CLI_ARGS);
 
         Ok(config)
     }
