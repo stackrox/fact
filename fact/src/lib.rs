@@ -63,6 +63,9 @@ pub fn log_system_information() {
 }
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
+    // Log system information as early as possible so we have it
+    // available in case of a crash
+    log_system_information();
     let (run_tx, run_rx) = watch::channel(true);
     let (tx, rx) = broadcast::channel(100);
 
