@@ -53,7 +53,7 @@ impl FactConfig {
             )?;
 
         // Once file configuration is handled, apply CLI arguments
-        let args = FactCli::try_parse()?;
+        let args = FactCli::parse();
         config.update(&args.to_config());
 
         info!("{config:#?}");
