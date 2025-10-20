@@ -1,4 +1,4 @@
-use std::{io::Write, str::FromStr};
+use std::{borrow::BorrowMut, io::Write, str::FromStr};
 
 use anyhow::Context;
 use bpf::Bpf;
@@ -7,7 +7,7 @@ use log::{debug, info, warn, LevelFilter};
 use metrics::exporter::Exporter;
 use tokio::{
     signal::unix::{signal, SignalKind},
-    sync::{broadcast, watch},
+    sync::watch,
 };
 
 mod bpf;
@@ -65,7 +65,6 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     // available in case of a crash
     log_system_information();
     let (running, _) = watch::channel(true);
-    let (tx, rx) = broadcast::channel(100);
 
     if !config.skip_pre_flight() {
         debug!("Performing pre-flight checks");
@@ -74,32 +73,22 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         debug!("Skipping pre-flight checks");
     }
 
-    let mut bpf = Bpf::new(&config)?;
-
-    let exporter = Exporter::new(bpf.get_metrics()?);
-
     let reloader = config::reloader::Reloader::from(config);
     let config_trigger = reloader.get_trigger();
 
+    let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())?;
+    let exporter = Exporter::new(bpf.take_metrics()?);
+
     output::start(
-        rx,
+        bpf.subscribe(),
         running.subscribe(),
         exporter.metrics.output.clone(),
         reloader.grpc(),
         reloader.config().json(),
     )?;
-
     endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
-
+    let mut bpf_handle = bpf.start(running.subscribe(), exporter.metrics.bpf_worker.clone());
     reloader.start(running.subscribe());
-
-    // Gather events from the ring buffer and print them out.
-    Bpf::start_worker(
-        tx,
-        bpf.fd,
-        running.subscribe(),
-        exporter.metrics.bpf_worker.clone(),
-    );
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sighup = signal(SignalKind::hangup())?;
@@ -108,6 +97,12 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
             _ = tokio::signal::ctrl_c() => break,
             _ = sigterm.recv() => break,
             _ = sighup.recv() => config_trigger.notify_one(),
+            res = bpf_handle.borrow_mut() => {
+                if let Err(e) = res {
+                    warn!("BPF worker errored out: {e}");
+                }
+                break;
+            }
         }
     }
 
