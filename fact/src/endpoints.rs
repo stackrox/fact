@@ -48,17 +48,12 @@ impl Server {
                 };
 
                 match res {
-                    Ok(running) => {
-                        if running {
-                            info!("Reloading endpoints...");
-                        } else {
-                            info!("Stopping endpoints...");
-                            break;
-                        }
+                    Ok(true) => info!("Reloading endpoints..."),
+                    Ok(false) => {
+                        info!("Stopping endpoints...");
+                        break;
                     }
-                    Err(e) => {
-                        warn!("endpoints error: {e}");
-                    }
+                    Err(e) => warn!("endpoints error: {e}"),
                 };
             }
         })
