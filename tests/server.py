@@ -35,15 +35,15 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         for req in request_iterator:
             self.queue.append(req)
 
-    def serve(self):
+    def serve(self, addr: str = '0.0.0.0:9999'):
         """
-        Starts the GRPC server, listening on port 0.0.0.0:9999.
+        Starts the GRPC server.
         Sets the running event once the server starts.
         """
         sfa_iservice_pb2_grpc.add_FileActivityServiceServicer_to_server(
             self, self.server
         )
-        self.server.add_insecure_port('0.0.0.0:9999')
+        self.server.add_insecure_port(addr)
         self.server.start()
         self.running.set()
 
