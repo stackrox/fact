@@ -132,39 +132,35 @@ impl Bpf {
         Ok(())
     }
 
+    fn load_lsm_prog(&mut self, name: &str, hook: &str, btf: &Btf) -> anyhow::Result<()> {
+        let Some(prog) = self.obj.program_mut(name) else {
+            bail!("{name} program not found");
+        };
+        let prog: &mut Lsm = prog.try_into()?;
+        prog.load(hook, btf)?;
+        Ok(())
+    }
+
     fn load_progs(&mut self) -> anyhow::Result<()> {
         let btf = Btf::from_sys_fs()?;
-        let Some(trace_file_open) = self.obj.program_mut("trace_file_open") else {
-            bail!("trace_file_open program not found");
-        };
-        let trace_file_open: &mut Lsm = trace_file_open.try_into()?;
-        trace_file_open.load("file_open", &btf)?;
+        self.load_lsm_prog("trace_file_open", "file_open", &btf)?;
+        self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)
+    }
 
-        let Some(trace_path_unlink) = self.obj.program_mut("trace_path_unlink") else {
-            bail!("trace_path_unlink program not found");
+    fn attach_lsm_prog(&mut self, name: &str) -> anyhow::Result<()> {
+        let Some(prog) = self.obj.program_mut(name) else {
+            bail!("{name} program not found");
         };
-        let trace_path_unlink: &mut Lsm = trace_path_unlink.try_into()?;
-        trace_path_unlink.load("path_unlink", &btf)?;
+        let prog: &mut Lsm = prog.try_into()?;
+        let id = prog.attach()?;
+        self.links.push(prog.take_link(id)?);
 
         Ok(())
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        let Some(trace_file_open) = self.obj.program_mut("trace_file_open") else {
-            bail!("trace_file_open program not found");
-        };
-        let trace_file_open: &mut Lsm = trace_file_open.try_into()?;
-        let id = trace_file_open.attach()?;
-        self.links.push(trace_file_open.take_link(id)?);
-
-        let Some(trace_path_unlink) = self.obj.program_mut("trace_path_unlink") else {
-            bail!("trace_path_unlink program not found");
-        };
-        let trace_path_unlink: &mut Lsm = trace_path_unlink.try_into()?;
-        let id = trace_path_unlink.attach()?;
-        self.links.push(trace_path_unlink.take_link(id)?);
-
-        Ok(())
+        self.attach_lsm_prog("trace_file_open")?;
+        self.attach_lsm_prog("trace_path_unlink")
     }
 
     fn detach_progs(&mut self) {
