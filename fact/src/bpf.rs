@@ -10,10 +10,7 @@ use libc::c_char;
 use log::{debug, error, info};
 use tokio::{
     io::unix::AsyncFd,
-    sync::{
-        broadcast,
-        watch::{self, Receiver},
-    },
+    sync::{broadcast, watch},
     task::JoinHandle,
 };
 
@@ -147,20 +144,13 @@ impl Bpf {
         self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)
     }
 
-    fn attach_lsm_prog(&mut self, name: &str) -> anyhow::Result<()> {
-        let Some(prog) = self.obj.program_mut(name) else {
-            bail!("{name} program not found");
-        };
-        let prog: &mut Lsm = prog.try_into()?;
-        let id = prog.attach()?;
-        self.links.push(prog.take_link(id)?);
-
-        Ok(())
-    }
-
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        self.attach_lsm_prog("trace_file_open")?;
-        self.attach_lsm_prog("trace_path_unlink")
+        for (_, prog) in self.obj.programs_mut() {
+            let prog: &mut Lsm = prog.try_into()?;
+            let id = prog.attach()?;
+            self.links.push(prog.take_link(id)?);
+        }
+        Ok(())
     }
 
     fn detach_progs(&mut self) {
@@ -170,7 +160,7 @@ impl Bpf {
     // Gather events from the ring buffer and print them out.
     pub fn start(
         mut self,
-        mut running: Receiver<bool>,
+        mut running: watch::Receiver<bool>,
         event_counter: EventCounter,
     ) -> JoinHandle<anyhow::Result<()>> {
         info!("Starting BPF worker...");
