@@ -228,3 +228,45 @@ impl From<Process> for fact_api::ProcessSignal {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_container_id() {
+        let tests = [
+            ("", None),
+            ("init.scope", None),
+            (
+                "/docker/951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4",
+                Some("951e643e3c24".to_string()),
+            ),
+            (
+                "/kubepods/kubepods/besteffort/pod690705f9-df6e-11e9-8dc5-025000000001/c3bfd81b7da0be97190a74a7d459f4dfa18f57c88765cde2613af112020a1c4b",
+                Some("c3bfd81b7da0".to_string()),
+            ),
+            (
+                "/kubepods/burstable/pod7cd3dba6-e475-11e9-8f99-42010a8a00d2/2bc55a8cae1704a733ba5d785d146bbed9610483380507cbf00c96b32bb637e1",
+                Some("2bc55a8cae17".to_string()),
+            ),
+            (
+              "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podce705797_e47e_11e9_bd71_42010a000002.slice/docker-6525e65814a99d431b6978e8f8c895013176c6c58173b56639d4b020c14e6022.scope",
+              Some("6525e65814a9".to_string()),
+            ),
+            (
+                "/machine.slice/libpod-b6e375cfe46efa5cd90d095603dec2de888c28b203285819233040b5cf1212ac.scope/container",
+                Some("b6e375cfe46e".to_string()),
+            ),
+            (
+              "/machine.slice/libpod-cbdfa0f1f08763b1963c30d98e11e1f052cb67f1e9b7c0ab8a6ca6c70cbcad69.scope/container/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod6eab3b7b_f0a6_4bb8_bff2_d5bc9017c04b.slice/cri-containerd-5ebf11e02dbde102cda4b76bc0e3849a65f9edac7a12bdabfd34db01b9556101.scope",
+              Some("5ebf11e02dbd".to_string()),
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let id = Process::extract_container_id(input);
+            assert_eq!(id, expected);
+        }
+    }
+}
