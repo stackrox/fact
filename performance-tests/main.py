@@ -113,9 +113,11 @@ def start_berserker(args):
     return subprocess.Popen(args)
 
 
-# Spin up fact process, if needed wrapped into the monitoring tool, e.g. perf
-# or valgrind.
 def start_fact(args):
+    """
+    Spin up fact process, if needed wrapped into the monitoring tool, e.g.
+    perf or valgrind.
+    """
     def stop_perf(proc):
         # Somehow SIGINT is not propagated to perf, so just brutally stop fact to
         # trigger output.
