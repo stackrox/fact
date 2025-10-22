@@ -129,9 +129,11 @@ def start_fact(args):
 
     def stop_valgrind(proc):
         proc.terminate()
+        proc.wait()
 
     def stop_fact(proc):
         proc.terminate()
+        proc.wait()
 
     match args.metric:
         case Metric.USER_SPACE_CPU:
@@ -144,7 +146,7 @@ def start_fact(args):
             stop_fn = stop_perf
 
         case Metric.USER_SPACE_MEM:
-            args_str = 'valgrind --tool=massif --massif-out-file={} fact'.format(
+            args_str = 'valgrind --tool=massif --massif-out-file={} fact {}'.format(
                 'output.data',
                 args.fact_cmdline
             )
@@ -162,7 +164,45 @@ def start_fact(args):
     return subprocess.Popen(args, stdout=subprocess.DEVNULL), stop_fn
 
 
+def get_version(args):
+    """
+	Get version of fact binary under the test. The assumption is that the
+	output will be in format and sent to stderr:
+
+	[INFO  2025-10-22T09:15:46Z] fact version: ...
+	[INFO  2025-10-22T09:15:46Z] OS: ...
+	[INFO  2025-10-22T09:15:46Z] Kernel version: ...
+	[INFO  2025-10-22T09:15:46Z] Architecture: ...
+	[INFO  2025-10-22T09:15:46Z] Hostname: ...
+    """
+    fact = subprocess.Popen(['fact'], stderr=subprocess.PIPE)
+    output, errors = fact.communicate()
+
+    logger.debug(f'Output of version command, {output}, {errors}')
+    def version(line):
+        if len(line) <= 3:
+            return False
+
+        return line[2] == b'fact' and line[3] == b'version:'
+
+    def split(line):
+        return line.split()
+
+    output_list = map(split, errors.split(b'\n'))
+
+    # filter will return a nested array, so unwrap it with next
+    version_line = next(filter(version, output_list))
+
+    if len(list(version_line)) <= 4:
+        logger.error(f'No version line found, {output}')
+        return ''
+
+    return version_line[4]
+
+
 def process_results(args):
+    fact_version = get_version(args).decode('utf-8')
+
     match args.metric:
         case Metric.USER_SPACE_CPU:
             output = json.load(open('output.json', 'r'))
@@ -174,6 +214,7 @@ def process_results(args):
                 'timestamp': datetime.now(UTC).isoformat(),
                 'value': output['metric-value'],
                 'unit': output['metric-unit'],
+                'version': fact_version,
             }])
 
         case Metric.USER_SPACE_MEM:
@@ -195,6 +236,7 @@ def process_results(args):
                 'timestamp': timestamp,
                 'value': heap_values,
                 'unit': 'bytes',
+                'version': fact_version,
             }])
 
         case Metric.KERNEL_SPACE_CPU:
@@ -212,6 +254,7 @@ def process_results(args):
                 'timestamp': timestamp,
                 'value': values,
                 'unit': 'CPU utilization',
+                'version': fact_version,
             }])
 
         case Metric.KERNEL_SPACE_MEM:
@@ -229,6 +272,7 @@ def process_results(args):
                 'timestamp': timestamp,
                 'value': values,
                 'unit': 'bytes',
+                'version': fact_version,
             }])
 
 
