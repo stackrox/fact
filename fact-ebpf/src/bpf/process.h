@@ -32,9 +32,10 @@ __always_inline static const char* get_memory_cgroup(struct helper_t* helper) {
     if (bpf_core_field_exists(kn->__parent)) {
       kn = BPF_CORE_READ(kn, __parent);
     } else {
-      struct {
+      struct kernfs_node___pre6_15 {
         struct kernfs_node* parent;
-      }* kn_old = (void*)kn;
+      };
+      struct kernfs_node___pre6_15* kn_old = (void*)kn;
       kn = BPF_CORE_READ(kn_old, parent);
     }
     if (kn == NULL) {
@@ -91,8 +92,7 @@ __always_inline static void process_fill_lineage(process_t* p, struct helper_t* 
     p->lineage[i].uid = BPF_CORE_READ(task, cred, uid.val);
 
     BPF_CORE_READ_INTO(&path, task, mm, exe_file, f_path);
-    char* exe_path = d_path(&path, helper->buf, PATH_MAX);
-    bpf_probe_read_kernel_str(p->lineage[i].exe_path, PATH_MAX, exe_path);
+    d_path(&path, p->lineage[i].exe_path, PATH_MAX);
     p->lineage_len++;
   }
 }
@@ -137,12 +137,7 @@ __always_inline static int64_t process_fill(process_t* p) {
   struct path path;
   BPF_CORE_READ_INTO(&path, task, mm, exe_file, f_path);
 
-  const char* exe_path = d_path(&path, helper->buf, PATH_MAX);
-  if (exe_path == NULL) {
-    bpf_printk("failed to get exe_path");
-    return -1;
-  }
-  bpf_probe_read_str(p->exe_path, PATH_MAX, exe_path);
+  d_path(&path, p->exe_path, PATH_MAX);
 
   const char* cg = get_memory_cgroup(helper);
   if (cg != NULL) {
