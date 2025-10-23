@@ -17,50 +17,57 @@ data_dir:
 	mkdir -p data
 
 user_space_cpu:
-	docker run --rm -it --privileged \
-		-v ./data:/data \
-		-v ./workloads:/workloads \
-		performance-test:latest \
-        user_space_cpu ignored_and_monitored 10 \
-        --output-file=/data/user.cpu.json \
-        --workloads-path=/workloads \
-        --fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1'
+	for workload in ignored_and_monitored monitored ignored ; do \
+		docker run --rm -it --privileged \
+			-v ./data:/data \
+			-v ./workloads:/workloads \
+			performance-test:latest \
+			user_space_cpu $$workload 10 \
+			--output-file=/data/user.cpu.$$workload.json \
+			--workloads-path=/workloads \
+			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
+	done
 
 user_space_mem:
-	docker run --rm -it --privileged \
-		-v ./data:/data \
-		-v ./workloads:/workloads \
-		performance-test:latest \
-        user_space_mem ignored_and_monitored 10 \
-        --output-file=/data/user.mem.json \
-        --workloads-path=/workloads \
-        --fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1'
+	for workload in ignored_and_monitored monitored ignored ; do \
+		docker run --rm -it --privileged \
+			-v ./data:/data \
+			-v ./workloads:/workloads \
+			performance-test:latest \
+			user_space_mem $$workload 10 \
+			--output-file=/data/user.mem.$$workload.json \
+			--workloads-path=/workloads \
+			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
+	done
 
 kernel_space_cpu:
-	docker run --rm -it --privileged \
-		-v ./data:/data \
-		-v ./workloads:/workloads \
-		performance-test:latest \
-        kernel_space_cpu ignored_and_monitored 10 \
-        --output-file=/data/kernel.cpu.json \
-        --workloads-path=/workloads \
-        --fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1'
+	for workload in ignored_and_monitored monitored ignored ; do \
+		docker run --rm -it --privileged \
+			-v ./data:/data \
+			-v ./workloads:/workloads \
+			performance-test:latest \
+			kernel_space_cpu $$workload 10 \
+			--output-file=/data/kernel.cpu.$$workload.json \
+			--workloads-path=/workloads \
+			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
+	done
 
 kernel_space_mem:
-	docker run --rm -it --privileged \
-		-v ./data:/data \
-		-v ./workloads:/workloads \
-		performance-test:latest \
-        kernel_space_mem ignored_and_monitored 10 \
-        --output-file=/data/kernel.mem.json \
-        --workloads-path=/workloads \
-        --fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1'
+	for workload in ignored_and_monitored monitored ignored ; do \
+		docker run --rm -it --privileged \
+			-v ./data:/data \
+			-v ./workloads:/workloads \
+			performance-test:latest \
+			kernel_space_mem $$workload 10 \
+			--output-file=/data/kernel.mem.$$workload.json \
+			--workloads-path=/workloads \
+			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
+	done
 
 make push-data:
-	python store.py data/user.cpu.json fact
-	python store.py data/user.mem.json fact
-	python store.py data/kernel.cpu.json fact
-	python store.py data/kernel.mem.json fact
+	for file in `ls data/*.json` ; do \
+		python store.py $$file fact ; \
+	done
 
 clean:
 	rm -rf logs/

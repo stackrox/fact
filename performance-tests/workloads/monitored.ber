@@ -1,0 +1,6 @@
+// open the same file over and over
+repeated (workers = 10, duration = 100) {
+  open("/tmp/test");
+} : exp {
+  rate = 100.0;
+}
