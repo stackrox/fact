@@ -59,7 +59,7 @@ Konflux build configuration and the application version.
         .tekton/fact-build.yaml
 
     sed -i \
-        -e "/^version = / s/\".*\"/\"${FACT_RELEASE}.${FACT_PATCH}\"/" \
+        -e "/^version = / s/\".*\"/\"${FACT_RELEASE}.0\"/" \
         fact/Cargo.toml
     ```
 
@@ -75,9 +75,30 @@ Konflux build configuration and the application version.
 1. Once the PR is in, you can go ahead and tag the fact release.
 
     ```sh
+    git checkout "release-${FACT_RELEASE}"
+    git pull --ff-only
+    git tag "${FACT_RELEASE}.0"
+    git push origin "${FACT_RELEASE}.0"
+    ```
+
+1. Ensure the Konflux and GitHub Actions builds succeed and the
+corresponding container images are pushed.
+
+## Handling path releases
+
+1. Merge any backport PRs you need into the desired release branch.
+1. Figure out the patch version to be released.
+1. Change to the release branch, pull the latest version, tag it and
+push
+
+    ```sh
+    export FACT_RELEASE=0.2
+    export FACT_PATCH=1
+    git checkout "release-${FACT_RELEASE}"
+    git pull --ff-only
     git tag "${FACT_RELEASE}.${FACT_PATCH}"
     git push origin "${FACT_RELEASE}.${FACT_PATCH}"
     ```
 
-1. Ensure the konflux and GitHub Actions builds succeed and the
+1. Ensure the Konflux and GitHub Actions builds succeed and the
 corresponding container images are pushed.
