@@ -124,7 +124,7 @@ __always_inline static char* get_host_path(char buf[PATH_MAX * 2], struct dentry
 }
 
 __always_inline static bool is_monitored(struct bound_path_t* path) {
-  if (!filter_by_prefix) {
+  if (!filter_by_prefix()) {
     // no path configured, allow all
     return true;
   }

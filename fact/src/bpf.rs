@@ -1,8 +1,8 @@
-use std::{io, sync::Arc};
+use std::{io, path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Context};
 use aya::{
-    maps::{LpmTrie, MapData, PerCpuArray, RingBuf},
+    maps::{Array, LpmTrie, MapData, PerCpuArray, RingBuf},
     programs::Lsm,
     Btf, Ebpf,
 };
@@ -10,81 +10,52 @@ use libc::c_char;
 use log::{debug, error, info};
 use tokio::{
     io::unix::AsyncFd,
-    sync::{broadcast, watch::Receiver},
+    sync::{broadcast, watch},
     task::JoinHandle,
 };
 
-use crate::{config::FactConfig, event::Event, host_info, metrics::EventCounter};
+use crate::{event::Event, host_info, metrics::EventCounter};
 
 use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
+const RINGBUFFER_NAME: &str = "rb";
+
 pub struct Bpf {
-    // The Ebpf object needs to live for as long as we want to keep the
-    // programs loaded
-    #[allow(dead_code)]
     obj: Ebpf,
-    pub fd: AsyncFd<RingBuf<MapData>>,
+
+    tx: broadcast::Sender<Arc<Event>>,
+
+    paths: Vec<path_prefix_t>,
+    paths_config: watch::Receiver<Vec<PathBuf>>,
 }
 
 impl Bpf {
-    pub fn new(config: &FactConfig) -> anyhow::Result<Self> {
-        const RINGBUFFER_NAME: &str = "rb";
-
+    pub fn new(
+        paths_config: watch::Receiver<Vec<PathBuf>>,
+        ringbuf_size: u32,
+    ) -> anyhow::Result<Self> {
         Bpf::bump_memlock_rlimit()?;
 
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
-        let mut obj = aya::EbpfLoader::new()
-            .set_global(
-                "filter_by_prefix",
-                &((!config.paths().is_empty()) as u8),
-                true,
-            )
+        let obj = aya::EbpfLoader::new()
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
-            .set_max_entries(RINGBUFFER_NAME, config.ringbuf_size() * 1024)
+            .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
             .load(fact_ebpf::EBPF_OBJ)?;
 
-        let ringbuf = match obj.take_map(RINGBUFFER_NAME) {
-            Some(r) => r,
-            None => bail!("Ring buffer not found"),
+        let paths = Vec::new();
+        let (tx, _) = broadcast::channel(100);
+        let mut bpf = Bpf {
+            obj,
+            tx,
+            paths,
+            paths_config,
         };
-        let ringbuf = RingBuf::try_from(ringbuf)?;
-        let fd = AsyncFd::new(ringbuf)?;
 
-        let Some(path_prefix) = obj.take_map("path_prefix") else {
-            bail!("path_prefix map not found");
-        };
-        let mut path_prefix: LpmTrie<MapData, [c_char; LPM_SIZE_MAX as usize], c_char> =
-            LpmTrie::try_from(path_prefix)?;
-        for p in config.paths() {
-            let prefix = path_prefix_t::try_from(p)?;
-            path_prefix.insert(&prefix.into(), 0, 0)?;
-        }
+        bpf.load_paths()?;
+        bpf.load_progs()?;
 
-        let btf = Btf::from_sys_fs()?;
-        let Some(trace_file_open) = obj.program_mut("trace_file_open") else {
-            bail!("trace_file_open program not found");
-        };
-        let trace_file_open: &mut Lsm = trace_file_open.try_into()?;
-        trace_file_open.load("file_open", &btf)?;
-        trace_file_open.attach()?;
-
-        let Some(trace_path_unlink) = obj.program_mut("trace_path_unlink") else {
-            bail!("trace_path_unlink program not found");
-        };
-        let trace_path_unlink: &mut Lsm = trace_path_unlink.try_into()?;
-        trace_path_unlink.load("path_unlink", &btf)?;
-        trace_path_unlink.attach()?;
-
-        Ok(Bpf { obj, fd })
-    }
-
-    pub fn get_metrics(&mut self) -> anyhow::Result<PerCpuArray<MapData, metrics_t>> {
-        let metrics = match self.obj.take_map("metrics") {
-            Some(m) => m,
-            None => bail!("metrics map not found"),
-        };
-        Ok(PerCpuArray::try_from(metrics)?)
+        Ok(bpf)
     }
 
     fn bump_memlock_rlimit() -> anyhow::Result<()> {
@@ -104,21 +75,101 @@ impl Bpf {
         Ok(())
     }
 
+    pub fn subscribe(&self) -> broadcast::Receiver<Arc<Event>> {
+        self.tx.subscribe()
+    }
+
+    pub fn take_metrics(&mut self) -> anyhow::Result<PerCpuArray<MapData, metrics_t>> {
+        let metrics = match self.obj.take_map("metrics") {
+            Some(m) => m,
+            None => bail!("metrics map not found"),
+        };
+        Ok(PerCpuArray::try_from(metrics)?)
+    }
+
+    fn take_ringbuffer(&mut self) -> anyhow::Result<RingBuf<MapData>> {
+        let ringbuf = match self.obj.take_map(RINGBUFFER_NAME) {
+            Some(r) => r,
+            None => bail!("Ring buffer not found"),
+        };
+        Ok(RingBuf::try_from(ringbuf)?)
+    }
+
+    fn load_paths(&mut self) -> anyhow::Result<()> {
+        let paths_config = self.paths_config.borrow();
+        let Some(filter_by_prefix) = self.obj.map_mut("filter_by_prefix_map") else {
+            bail!("filter_by_prefix_map map not found");
+        };
+        let mut filter_by_prefix: Array<&mut MapData, c_char> = Array::try_from(filter_by_prefix)?;
+        filter_by_prefix.set(0, !paths_config.is_empty() as c_char, 0)?;
+
+        let Some(path_prefix) = self.obj.map_mut("path_prefix") else {
+            bail!("path_prefix map not found");
+        };
+        let mut path_prefix: LpmTrie<&mut MapData, [c_char; LPM_SIZE_MAX as usize], c_char> =
+            LpmTrie::try_from(path_prefix)?;
+
+        // Add the new prefixes
+        let mut new_paths = Vec::with_capacity(paths_config.len());
+        for p in paths_config.iter() {
+            let prefix = path_prefix_t::try_from(p)?;
+            path_prefix.insert(&prefix.into(), 0, 0)?;
+            new_paths.push(prefix);
+        }
+
+        // Remove old prefixes
+        for p in self.paths.iter().filter(|p| !new_paths.contains(p)) {
+            path_prefix.remove(&(*p).into())?;
+        }
+
+        self.paths = new_paths;
+
+        Ok(())
+    }
+
+    fn load_lsm_prog(&mut self, name: &str, hook: &str, btf: &Btf) -> anyhow::Result<()> {
+        let Some(prog) = self.obj.program_mut(name) else {
+            bail!("{name} program not found");
+        };
+        let prog: &mut Lsm = prog.try_into()?;
+        prog.load(hook, btf)?;
+        Ok(())
+    }
+
+    fn load_progs(&mut self) -> anyhow::Result<()> {
+        let btf = Btf::from_sys_fs()?;
+        self.load_lsm_prog("trace_file_open", "file_open", &btf)?;
+        self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)
+    }
+
+    fn attach_progs(&mut self) -> anyhow::Result<()> {
+        for (_, prog) in self.obj.programs_mut() {
+            let prog: &mut Lsm = prog.try_into()?;
+            prog.attach()?;
+        }
+        Ok(())
+    }
+
     // Gather events from the ring buffer and print them out.
-    pub fn start_worker(
-        output: broadcast::Sender<Arc<Event>>,
-        mut fd: AsyncFd<RingBuf<MapData>>,
-        mut running: Receiver<bool>,
+    pub fn start(
+        mut self,
+        mut running: watch::Receiver<bool>,
         event_counter: EventCounter,
-    ) -> JoinHandle<()> {
+    ) -> JoinHandle<anyhow::Result<()>> {
         info!("Starting BPF worker...");
+
         tokio::spawn(async move {
+            self.attach_progs()
+                .context("Failed to attach ebpf programs")?;
+
+            let rb = self.take_ringbuffer()?;
+            let mut fd = AsyncFd::new(rb)?;
+
             loop {
                 tokio::select! {
                     guard = fd.readable_mut() => {
                         let mut guard = guard
-                            .context("ringbuffer guard held while runtime is stopping")
-                            .unwrap();
+                            .context("ringbuffer guard held while runtime is stopping")?;
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
@@ -133,21 +184,26 @@ impl Bpf {
                             };
 
                             event_counter.added();
-                            if output.send(event).is_err() {
+                            if self.tx.send(event).is_err() {
                                 info!("No BPF consumers left, stopping...");
-                                return;
+                                break;
                             }
                         }
                         guard.clear_ready();
                     },
+                    _ = self.paths_config.changed() => {
+                        self.load_paths().context("Failed to load paths")?;
+                    },
                     _ = running.changed() => {
                         if !*running.borrow() {
                             info!("Stopping BPF worker...");
-                            return;
+                            break;
                         }
                     },
                 }
             }
+
+            Ok(())
         })
     }
 }
@@ -161,7 +217,12 @@ mod bpf_tests {
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
-    use crate::{event::process::Process, host_info, metrics::exporter::Exporter};
+    use crate::{
+        config::{reloader::Reloader, FactConfig},
+        event::process::Process,
+        host_info,
+        metrics::exporter::Exporter,
+    };
 
     use super::*;
 
@@ -175,20 +236,31 @@ mod bpf_tests {
 
     #[test]
     fn test_basic() {
+        if let Ok(value) = std::env::var("FACT_LOGLEVEL") {
+            let value = value.to_lowercase();
+            if value == "debug" || value == "trace" {
+                crate::init_log().unwrap();
+            }
+        }
+
         let executor = get_executor().unwrap();
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
         let paths = vec![monitored_path.clone()];
         let mut config = FactConfig::default();
         config.set_paths(paths);
+        let reloader = Reloader::from(config);
         executor.block_on(async {
-            let mut bpf = Bpf::new(&config).expect("Failed to load BPF code");
-            let (tx, mut rx) = broadcast::channel(100);
+            let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())
+                .expect("Failed to load BPF code");
+            let mut rx = bpf.subscribe();
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it
-            let exporter = Exporter::new(bpf.get_metrics().unwrap());
+            let exporter = Exporter::new(bpf.take_metrics().unwrap());
 
-            Bpf::start_worker(tx, bpf.fd, run_rx, exporter.metrics.bpf_worker.clone());
+            let handle = bpf.start(run_rx, exporter.metrics.bpf_worker.clone());
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
 
             // Create a file
             let file =
@@ -205,16 +277,19 @@ mod bpf_tests {
             .unwrap();
 
             println!("Expected: {expected:?}");
-            timeout(Duration::from_secs(1), async move {
+            let wait = timeout(Duration::from_secs(1), async move {
                 while let Ok(event) = rx.recv().await {
                     println!("{event:?}");
                     if *event == expected {
                         break;
                     }
                 }
-            })
-            .await
-            .unwrap();
+            });
+
+            tokio::select! {
+                res = wait => res.unwrap(),
+                res = handle => res.unwrap().unwrap(),
+            }
 
             run_tx.send(false).unwrap();
         });
