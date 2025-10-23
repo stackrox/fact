@@ -27,7 +27,7 @@ pub fn start(
 
     // JSON client will only start if explicitly enabled or no other
     // output is active at startup
-    if !grpc_client.is_active() || stdout_enabled {
+    if !grpc_client.is_enabled() || stdout_enabled {
         stdout::Client::new(rx.resubscribe(), running.clone(), metrics.stdout.clone()).start();
     }
 

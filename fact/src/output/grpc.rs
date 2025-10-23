@@ -77,7 +77,7 @@ impl Client {
     pub fn start(mut self) {
         tokio::spawn(async move {
             loop {
-                let res = if self.is_active() {
+                let res = if self.is_enabled() {
                     self.run().await
                 } else {
                     self.idle().await
@@ -158,7 +158,7 @@ impl Client {
         }
     }
 
-    pub(super) fn is_active(&self) -> bool {
+    pub(super) fn is_enabled(&self) -> bool {
         self.config.borrow().url().is_some()
     }
 
