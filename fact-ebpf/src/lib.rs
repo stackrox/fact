@@ -54,6 +54,12 @@ impl From<path_prefix_t> for lpm_trie::Key<[c_char; LPM_SIZE_MAX as usize]> {
     }
 }
 
+impl PartialEq for path_prefix_t {
+    fn eq(&self, other: &Self) -> bool {
+        self.bit_len == other.bit_len && self.path == other.path
+    }
+}
+
 unsafe impl Pod for path_prefix_t {}
 
 impl metrics_by_hook_t {

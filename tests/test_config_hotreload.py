@@ -160,3 +160,45 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     print(f'Ignoring: {ignored_event}')
 
     server.wait_events([e], ignored=[ignored_event])
+
+
+def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
+    p = Process()
+
+    # Ignored file, must not show up in the server
+    ignored_file = os.path.join(ignored_dir, 'test.txt')
+    with open(ignored_file, 'w') as f:
+        f.write('This is to be ignored')
+
+    ignored_event = Event(
+        process=p, event_type=EventType.CREATION, file=ignored_file)
+    print(f'Ignoring: {ignored_event}')
+
+    # File Under Test
+    fut = os.path.join(monitored_dir, 'test.txt')
+    with open(fut, 'w') as f:
+        f.write('This is a test')
+
+    e = Event(process=p, event_type=EventType.CREATION, file=fut)
+    print(f'Waiting for event: {e}')
+
+    server.wait_events([e], ignored=[ignored_event])
+
+    config, config_file = fact_config
+    config['paths'] = [monitored_dir, ignored_dir]
+    reload_config(fact, config, config_file, delay=0.5)
+
+    # At this point, the event in the ignored directory should show up
+    # alongside the regular event
+    with open(ignored_file, 'w') as f:
+        f.write('This is another test')
+    with open(fut, 'w') as f:
+        f.write('This is one final event')
+
+    events = [
+        Event(process=p, event_type=EventType.OPEN, file=ignored_file),
+        Event(process=p, event_type=EventType.OPEN, file=fut)
+    ]
+    print(f'Waiting for events: {events}')
+
+    server.wait_events(events)

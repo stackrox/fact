@@ -3,7 +3,7 @@ use std::{io, path::PathBuf, sync::Arc};
 use anyhow::{bail, Context};
 use aya::{
     maps::{Array, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::{lsm::LsmLink, Lsm},
+    programs::Lsm,
     Btf, Ebpf,
 };
 use libc::c_char;
@@ -27,7 +27,6 @@ pub struct Bpf {
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
-    links: Vec<LsmLink>,
 }
 
 impl Bpf {
@@ -44,7 +43,6 @@ impl Bpf {
             .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
             .load(fact_ebpf::EBPF_OBJ)?;
 
-        let links = Vec::new();
         let paths = Vec::new();
         let (tx, _) = broadcast::channel(100);
         let mut bpf = Bpf {
@@ -52,7 +50,6 @@ impl Bpf {
             tx,
             paths,
             paths_config,
-            links,
         };
 
         bpf.load_paths()?;
@@ -113,18 +110,20 @@ impl Bpf {
         let mut path_prefix: LpmTrie<&mut MapData, [c_char; LPM_SIZE_MAX as usize], c_char> =
             LpmTrie::try_from(path_prefix)?;
 
-        // Remove old prefixes
-        for p in &self.paths {
-            path_prefix.remove(&(*p).into())?;
-        }
-        self.paths.clear();
-
-        // Add the new ones
+        // Add the new prefixes
+        let mut new_paths = Vec::with_capacity(paths_config.len());
         for p in paths_config.iter() {
             let prefix = path_prefix_t::try_from(p)?;
             path_prefix.insert(&prefix.into(), 0, 0)?;
-            self.paths.push(prefix);
+            new_paths.push(prefix);
         }
+
+        // Remove old prefixes
+        for p in self.paths.iter().filter(|p| !new_paths.contains(p)) {
+            path_prefix.remove(&(*p).into())?;
+        }
+
+        self.paths = new_paths;
 
         Ok(())
     }
@@ -147,14 +146,9 @@ impl Bpf {
     fn attach_progs(&mut self) -> anyhow::Result<()> {
         for (_, prog) in self.obj.programs_mut() {
             let prog: &mut Lsm = prog.try_into()?;
-            let id = prog.attach()?;
-            self.links.push(prog.take_link(id)?);
+            prog.attach()?;
         }
         Ok(())
-    }
-
-    fn detach_progs(&mut self) {
-        self.links.clear();
     }
 
     // Gather events from the ring buffer and print them out.
@@ -199,11 +193,7 @@ impl Bpf {
                         guard.clear_ready();
                     },
                     _ = self.paths_config.changed() => {
-                        info!("Reloading path configuration...");
-                        self.detach_progs();
                         self.load_paths().context("Failed to load paths")?;
-                        self.attach_progs().context("Failed to re-attach eBPF programs")?;
-                        info!("Done reloading path configuration");
                     },
                     _ = running.changed() => {
                         if !*running.borrow() {
