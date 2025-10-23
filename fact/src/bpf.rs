@@ -88,7 +88,6 @@ impl Bpf {
     }
 
     fn take_ringbuffer(&mut self) -> anyhow::Result<RingBuf<MapData>> {
-        const RINGBUFFER_NAME: &str = "rb";
         let ringbuf = match self.obj.take_map(RINGBUFFER_NAME) {
             Some(r) => r,
             None => bail!("Ring buffer not found"),
