@@ -263,7 +263,7 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
 }
 
 #[derive(Debug, Parser)]
-#[clap(version, about)]
+#[clap(version = crate::version::FACT_VERSION, about)]
 pub struct FactCli {
     /// List of paths to be monitored
     #[clap(short, long, num_args = 0..16, value_delimiter = ':', env = "FACT_PATHS")]
