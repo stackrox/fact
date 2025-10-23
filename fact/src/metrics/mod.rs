@@ -88,6 +88,15 @@ impl EventCounter {
             .unwrap()
             .inc();
     }
+
+    pub fn dropped_n(&self, n: u64) {
+        self.counter
+            .get(&MetricEvents {
+                label: LabelValues::Dropped,
+            })
+            .unwrap()
+            .inc_by(n);
+    }
 }
 
 #[derive(Debug, Clone)]

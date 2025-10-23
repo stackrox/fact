@@ -19,16 +19,28 @@ fn parsing() {
             },
         ),
         (
-            "url: http://localhost:9090",
+            r#"
+            grpc:
+              url: 'http://localhost:9090'
+            "#,
             FactConfig {
-                url: Some(String::from("http://localhost:9090")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("http://localhost:9090")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "certs: /etc/stackrox/certs",
+            r#"
+            grpc:
+              certs: /etc/stackrox/certs
+            "#,
             FactConfig {
-                certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -195,8 +207,9 @@ fn parsing() {
             r#"
             paths:
             - /etc
-            url: https://svc.sensor.stackrox:9090
-            certs: /etc/stackrox/certs
+            grpc:
+              url: 'https://svc.sensor.stackrox:9090'
+              certs: /etc/stackrox/certs
             endpoint:
               address: 0.0.0.0:8080
               expose_metrics: true
@@ -208,8 +221,10 @@ fn parsing() {
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
-                url: Some(String::from("https://svc.sensor.stackrox:9090")),
-                certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("https://svc.sensor.stackrox:9090")),
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
                     expose_metrics: Some(true),
@@ -253,9 +268,22 @@ paths:
         ("true: something", "key is not string: Boolean(true)"),
         ("4: something", "key is not string: Integer(4)"),
         ("paths: [4]", "Path has invalid type: Integer(4)"),
-        ("url: true", "url field has incorrect type: Boolean(true)"),
         (
-            "certs: true",
+            "grpc: true",
+            "Invalid field 'grpc' with value: Boolean(true)",
+        ),
+        (
+            r#"
+            grpc:
+              url: true
+            "#,
+            "url field has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"
+            grpc:
+              certs: true
+            "#,
             "certs field has incorrect type: Boolean(true)",
         ),
         (
@@ -423,62 +451,110 @@ fn update() {
             },
         ),
         (
-            "url: http://localhost",
+            r#"
+            grpc:
+              url: 'http://localhost'
+            "#,
             FactConfig::default(),
             FactConfig {
-                url: Some(String::from("http://localhost")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("http://localhost")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "url: 'https://svc.sensor.stackrox:9090'",
+            r#"
+            grpc:
+              url: 'https://svc.sensor.stackrox:9090'
+            "#,
             FactConfig {
-                url: Some(String::from("http://localhost")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("http://localhost")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                url: Some(String::from("https://svc.sensor.stackrox:9090")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("https://svc.sensor.stackrox:9090")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "url: http://localhost",
+            r#"
+            grpc:
+              url: 'http://localhost'
+            "#,
             FactConfig {
-                url: Some(String::from("http://localhost")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("http://localhost")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                url: Some(String::from("http://localhost")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("http://localhost")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "certs: /etc/stackrox/certs",
+            r#"
+            grpc:
+              certs: /etc/stackrox/certs
+            "#,
             FactConfig::default(),
             FactConfig {
-                certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "certs: /etc/stackrox/certs",
+            r#"
+            grpc:
+              certs: /etc/stackrox/certs
+            "#,
             FactConfig {
-                certs: Some(PathBuf::from("/etc/certs")),
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/certs")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "certs: /etc/stackrox/certs",
+            r#"
+            grpc:
+              certs: /etc/stackrox/certs
+            "#,
             FactConfig {
-                certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -684,8 +760,9 @@ fn update() {
             r#"
             paths:
             - /etc
-            url: https://svc.sensor.stackrox:9090
-            certs: /etc/stackrox/certs
+            grpc:
+              url: 'https://svc.sensor.stackrox:9090'
+              certs: /etc/stackrox/certs
             endpoint:
               address: 127.0.0.1:8080
               expose_metrics: true
@@ -697,8 +774,10 @@ fn update() {
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
-                url: Some(String::from("http://localhost")),
-                certs: Some(PathBuf::from("/etc/certs")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("http://localhost")),
+                    certs: Some(PathBuf::from("/etc/certs")),
+                },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
                     expose_metrics: Some(false),
@@ -711,8 +790,10 @@ fn update() {
             },
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
-                url: Some(String::from("https://svc.sensor.stackrox:9090")),
-                certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                grpc: GrpcConfig {
+                    url: Some(String::from("https://svc.sensor.stackrox:9090")),
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
                     expose_metrics: Some(true),
@@ -740,8 +821,8 @@ fn defaults() {
     let config = FactConfig::default();
     let default_paths: &[PathBuf] = &[];
     assert_eq!(config.paths(), default_paths);
-    assert_eq!(config.url(), None);
-    assert_eq!(config.certs(), None);
+    assert_eq!(config.grpc.url(), None);
+    assert_eq!(config.grpc.certs(), None);
     assert_eq!(
         config.endpoint.address(),
         SocketAddr::from(([0, 0, 0, 0], 9000))

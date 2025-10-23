@@ -85,7 +85,9 @@ def fact_config(request, monitored_dir, logs_dir):
     cwd = os.getcwd()
     config = {
         'paths': [monitored_dir],
-        'url': 'http://127.0.0.1:9999',
+        'grpc': {
+            'url': 'http://127.0.0.1:9999',
+        },
         'endpoint': {
             'address': '127.0.0.1:9000',
             'expose_metrics': True,
