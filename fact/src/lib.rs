@@ -66,7 +66,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     // Log system information as early as possible so we have it
     // available in case of a crash
     log_system_information();
-    let (run_tx, run_rx) = watch::channel(true);
+    let (running, _) = watch::channel(true);
     let (tx, rx) = broadcast::channel(100);
 
     if !config.skip_pre_flight() {
@@ -80,29 +80,35 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let exporter = Exporter::new(bpf.get_metrics()?);
 
-    let server = endpoints::Server::new(
-        config.endpoint(),
-        exporter.clone(),
-        config.expose_metrics(),
-        config.health_check(),
-    );
-    if let Some(Err(e)) = server.start(run_rx.clone()).await {
-        warn!("Failed to start endpoints server: {e}");
-    };
-
-    let output = Output::new(run_rx.clone(), rx, exporter.metrics.output.clone());
+    let output = Output::new(running.subscribe(), rx, exporter.metrics.output.clone());
     output.start(&config)?;
 
+    let reloader = config::reloader::Reloader::from(config);
+    let config_trigger = reloader.get_trigger();
+
+    endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
+
+    reloader.start(running.subscribe());
+
     // Gather events from the ring buffer and print them out.
-    Bpf::start_worker(tx, bpf.fd, run_rx, exporter.metrics.bpf_worker.clone());
+    Bpf::start_worker(
+        tx,
+        bpf.fd,
+        running.subscribe(),
+        exporter.metrics.bpf_worker.clone(),
+    );
 
     let mut sigterm = signal(SignalKind::terminate())?;
-    tokio::select! {
-        _ = tokio::signal::ctrl_c() => {}
-        _ = sigterm.recv() => {}
+    let mut sighup = signal(SignalKind::hangup())?;
+    loop {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => break,
+            _ = sigterm.recv() => break,
+            _ = sighup.recv() => config_trigger.notify_one(),
+        }
     }
 
-    run_tx.send(false)?;
+    running.send(false)?;
     info!("Exiting...");
 
     Ok(())

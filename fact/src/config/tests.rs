@@ -33,64 +33,112 @@ fn parsing() {
             },
         ),
         (
-            "endpoint: 0.0.0.0:8080",
+            r#"
+            endpoint:
+              address: 0.0.0.0:8080
+            "#,
             FactConfig {
-                endpoint: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "endpoint: 127.0.0.1:8080",
+            r#"
+            endpoint:
+              address: 127.0.0.1:8080
+            "#,
             FactConfig {
-                endpoint: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "endpoint: '[::]:8080'",
+            r#"
+            endpoint:
+              address: '[::]:8080'
+            "#,
             FactConfig {
-                endpoint: Some(SocketAddr::from((
-                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    8080,
-                ))),
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from((
+                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        8080,
+                    ))),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "endpoint: '[::1]:8080'",
+            r#"
+            endpoint:
+              address: '[::1]:8080'
+            "#,
             FactConfig {
-                endpoint: Some(SocketAddr::from((
-                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    8080,
-                ))),
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from((
+                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                        8080,
+                    ))),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "expose_metrics: true",
+            r#"
+            endpoint:
+              expose_metrics: true
+            "#,
             FactConfig {
-                expose_metrics: Some(true),
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "expose_metrics: false",
+            r#"
+            endpoint:
+              expose_metrics: false
+            "#,
             FactConfig {
-                expose_metrics: Some(false),
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(false),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "health_check: true",
+            r#"
+            endpoint:
+              health_check: true
+            "#,
             FactConfig {
-                health_check: Some(true),
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "health_check: false",
+            r#"
+            endpoint:
+              health_check: false
+            "#,
             FactConfig {
-                health_check: Some(false),
+                endpoint: EndpointConfig {
+                    health_check: Some(false),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -130,28 +178,47 @@ fn parsing() {
             },
         ),
         (
+            "hotreload: true",
+            FactConfig {
+                hotreload: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "hotreload: false",
+            FactConfig {
+                hotreload: Some(false),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
-            endpoint: 0.0.0.0:8080
-            expose_metrics: true
-            health_check: true
+            endpoint:
+              address: 0.0.0.0:8080
+              expose_metrics: true
+              health_check: true
             skip_pre_flight: false
             json: false
             ringbuf_size: 8192
+            hotreload: false
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
-                endpoint: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
-                expose_metrics: Some(true),
-                health_check: Some(true),
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                    expose_metrics: Some(true),
+                    health_check: Some(true),
+                },
                 skip_pre_flight: Some(false),
                 json: Some(false),
                 ringbuf_size: Some(8192),
+                hotreload: Some(false),
             },
         ),
     ];
@@ -193,43 +260,84 @@ paths:
         ),
         (
             "endpoint: true",
-            "endpoint field has incorrect type: Boolean(true)",
+            "Invalid field 'endpoint' with value: Boolean(true)",
         ),
         (
-            "endpoint: 127.0.0.1",
-            "Failed to parse endpoint: invalid socket address syntax",
+            r#"
+            endpoint:
+              address: true
+            "#,
+            "endpoint.address field has incorrect type: Boolean(true)",
         ),
         (
-            "endpoint: :8080",
-            "Failed to parse endpoint: invalid socket address syntax",
+            r#"
+            endpoint:
+              address: 127.0.0.1
+            "#,
+            "Failed to parse endpoint.address: invalid socket address syntax",
         ),
         (
-            "endpoint: 127.0.0.:8080",
-            "Failed to parse endpoint: invalid socket address syntax",
+            r#"
+            endpoint:
+              address: :8080
+            "#,
+            "Failed to parse endpoint.address: invalid socket address syntax",
         ),
         (
-            "endpoint: '[::]'",
-            "Failed to parse endpoint: invalid socket address syntax",
+            r#"
+            endpoint:
+              address: 127.0.0.:8080
+            "#,
+            "Failed to parse endpoint.address: invalid socket address syntax",
         ),
         (
-            "endpoint: '[::1]'",
-            "Failed to parse endpoint: invalid socket address syntax",
+            r#"
+            endpoint:
+              address: '[::]'
+            "#,
+            "Failed to parse endpoint.address: invalid socket address syntax",
         ),
         (
-            "endpoint: '[:::1]:8080'",
-            "Failed to parse endpoint: invalid socket address syntax",
+            r#"
+            endpoint:
+              address: '[::1]'
+            "#,
+            "Failed to parse endpoint.address: invalid socket address syntax",
         ),
         (
-            "endpoint: '[::cafe::1]:8080'",
-            "Failed to parse endpoint: invalid socket address syntax",
+            r#"
+            endpoint:
+              address: '[:::1]:8080'
+            "#,
+            "Failed to parse endpoint.address: invalid socket address syntax",
         ),
         (
-            "expose_metrics: 4",
-            "expose_metrics field has incorrect type: Integer(4)",
+            r#"
+            endpoint:
+              address: '[::cafe::1]:8080'
+            "#,
+            "Failed to parse endpoint.address: invalid socket address syntax",
         ),
         (
-            "health_check: 4",
-            "health_check field has incorrect type: Integer(4)",
+            r#"
+            endpoint:
+              expose_metrics: 4
+            "#,
+            "endpoint.expose_metrics field has incorrect type: Integer(4)",
+        ),
+        (
+            r#"
+            endpoint:
+              health_check: 4
+            "#,
+            "endpoint.health_check field has incorrect type: Integer(4)",
+        ),
+        (
+            r#"
+            endpoint:
+              unknown: 4
+            "#,
+            "Invalid field 'endpoint.unknown' with value: Integer(4)",
         ),
         (
             "skip_pre_flight: 4",
@@ -247,6 +355,10 @@ paths:
             &format!("ringbuf_size out of range: {}", u32::MAX),
         ),
         ("ringbuf_size: 65", "ringbuf_size is not a power of 2: 65"),
+        (
+            "hotreload: 4",
+            "hotreload field has incorrect type: Integer(4)",
+        ),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
     for (input, expected) in tests {
@@ -371,62 +483,110 @@ fn update() {
             },
         ),
         (
-            "expose_metrics: true",
+            r#"
+            endpoint:
+              expose_metrics: true
+            "#,
             FactConfig::default(),
             FactConfig {
-                expose_metrics: Some(true),
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "expose_metrics: true",
+            r#"
+            endpoint:
+              expose_metrics: true
+            "#,
             FactConfig {
-                expose_metrics: Some(false),
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(false),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                expose_metrics: Some(true),
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "expose_metrics: true",
+            r#"
+            endpoint:
+              expose_metrics: true
+            "#,
             FactConfig {
-                expose_metrics: Some(true),
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                expose_metrics: Some(true),
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "health_check: true",
+            r#"
+            endpoint:
+              health_check: true
+            "#,
             FactConfig::default(),
             FactConfig {
-                health_check: Some(true),
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "health_check: true",
+            r#"
+            endpoint:
+              health_check: true
+            "#,
             FactConfig {
-                health_check: Some(false),
+                endpoint: EndpointConfig {
+                    health_check: Some(false),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                health_check: Some(true),
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "health_check: true",
+            r#"
+            endpoint:
+              health_check: true
+            "#,
             FactConfig {
-                health_check: Some(true),
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                health_check: Some(true),
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -487,6 +647,36 @@ fn update() {
             },
             FactConfig {
                 json: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "hotreload: false",
+            FactConfig::default(),
+            FactConfig {
+                hotreload: Some(false),
+                ..Default::default()
+            },
+        ),
+        (
+            "hotreload: true",
+            FactConfig {
+                hotreload: Some(false),
+                ..Default::default()
+            },
+            FactConfig {
+                hotreload: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            "hotreload: true",
+            FactConfig {
+                hotreload: Some(true),
+                ..Default::default()
+            },
+            FactConfig {
+                hotreload: Some(true),
                 ..Default::default()
             },
         ),
@@ -496,34 +686,42 @@ fn update() {
             - /etc
             url: https://svc.sensor.stackrox:9090
             certs: /etc/stackrox/certs
-            endpoint: 127.0.0.1:8080
-            expose_metrics: true
-            health_check: true
+            endpoint:
+              address: 127.0.0.1:8080
+              expose_metrics: true
+              health_check: true
             skip_pre_flight: false
             json: false
             ringbuf_size: 16384
+            hotreload: false
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
                 url: Some(String::from("http://localhost")),
                 certs: Some(PathBuf::from("/etc/certs")),
-                endpoint: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
-                expose_metrics: Some(false),
-                health_check: Some(false),
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
+                    expose_metrics: Some(false),
+                    health_check: Some(false),
+                },
                 skip_pre_flight: Some(true),
                 json: Some(true),
                 ringbuf_size: Some(64),
+                hotreload: Some(true),
             },
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
                 url: Some(String::from("https://svc.sensor.stackrox:9090")),
                 certs: Some(PathBuf::from("/etc/stackrox/certs")),
-                endpoint: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
-                expose_metrics: Some(true),
-                health_check: Some(true),
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
+                    expose_metrics: Some(true),
+                    health_check: Some(true),
+                },
                 skip_pre_flight: Some(false),
                 json: Some(false),
                 ringbuf_size: Some(16384),
+                hotreload: Some(false),
             },
         ),
     ];
@@ -544,9 +742,14 @@ fn defaults() {
     assert_eq!(config.paths(), default_paths);
     assert_eq!(config.url(), None);
     assert_eq!(config.certs(), None);
-    assert!(!config.expose_metrics());
-    assert!(!config.health_check());
+    assert_eq!(
+        config.endpoint.address(),
+        SocketAddr::from(([0, 0, 0, 0], 9000))
+    );
+    assert!(!config.endpoint.expose_metrics());
+    assert!(!config.endpoint.health_check());
     assert!(!config.skip_pre_flight());
     assert!(!config.json());
     assert_eq!(config.ringbuf_size(), 8192);
+    assert!(config.hotreload());
 }
