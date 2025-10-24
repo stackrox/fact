@@ -1,0 +1,63 @@
+---
+- name: Start test-runner
+  community.docker.docker_container:
+    name: test-runner
+    image: quay.io/centos/centos:stream9
+    interactive: true
+    cgroupns_mode: host
+    pid_mode: host
+    privileged: true
+  register:
+    test_result
+
+- name: Install dependencies
+  community.docker.docker_container_exec:
+    container: test-runner
+    command: >
+      dnf install --enablerepo=crb -y
+          clang-19.1.7
+          libbpf-devel
+          protobuf-compiler
+          protobuf-devel
+          git
+
+- name: Download rustup
+  community.docker.docker_container_exec:
+    container: test-runner
+    command: curl --tlsv1.2 -sSf https://sh.rustup.rs -o rustup.sh
+
+- name: Make rustup executable
+  community.docker.docker_container_exec:
+    container: test-runner
+    command: chmod +x rustup.sh
+
+- name: Install rust toolchain
+  community.docker.docker_container_exec:
+    container: test-runner
+    command: ./rustup.sh -y --default-toolchain 1.84 --profile minimal
+
+- name: Clone fact repo
+  community.docker.docker_container_exec:
+    container: test-runner
+    command: >
+      git clone -b "{{ fact.version }}"
+          --recurse-submodules
+          https://github.com/stackrox/fact
+  register: clone_res
+
+- name: Run unit tests
+  block:
+    - name: Run unit tests
+      community.docker.docker_container_exec:
+        container: test-runner
+        env:
+          PATH: /root/.cargo/bin:${PATH}
+          FACT_LOGLEVEL: debug
+        chdir: /fact
+        command: cargo test --all-features
+      register: test_result
+
+  always:
+    - name: Dump logs
+      ansible.builtin.include_tasks:
+        file: dump-result.yml

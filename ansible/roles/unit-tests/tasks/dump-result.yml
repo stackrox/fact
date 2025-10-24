@@ -1,0 +1,23 @@
+---
+- name: stderr dump
+  ansible.builtin.debug:
+    var: test_result.stderr_lines
+  when: test_result.rc != 0
+
+- name: Test result
+  ansible.builtin.debug:
+    var: test_result.stdout_lines
+  when: test_result.rc != 0
+
+- name: Write stdout to log
+  copy:
+    content: "{{ test_result.stdout }}"
+    dest: "unit-test-{{ vm_config }}-stdout.log"
+  delegate_to: localhost
+
+- name: Write stderr to log
+  copy:
+    content: "{{ test_result.stderr }}"
+    dest: "unit-test-{{ vm_config }}-stderr.log"
+  delegate_to: localhost
+
