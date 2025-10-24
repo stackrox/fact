@@ -150,6 +150,10 @@ jobs:
           base-image: ${{ needs.vars.outputs.image-name }}
           archs: ${{ env.ARCHS }}
 
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yml
+    secrets: inherit
+
   integration-tests:
     needs:
       - vars

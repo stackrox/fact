@@ -1,0 +1,8 @@
+---
+- name: Run unit tests with docker
+  include_tasks: docker.yml
+  when: runtime_command == 'docker'
+
+- name: Run unit tests with podman
+  include_tasks: podman.yml
+  when: runtime_command == 'podman'

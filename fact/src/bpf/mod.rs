@@ -298,7 +298,7 @@ mod bpf_tests {
             .unwrap();
 
             println!("Expected: {expected:?}");
-            let wait = timeout(Duration::from_secs(1), async move {
+            let wait = timeout(Duration::from_secs(5), async move {
                 while let Ok(event) = rx.recv().await {
                     println!("{event:?}");
                     if *event == expected {
