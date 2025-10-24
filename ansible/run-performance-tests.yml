@@ -33,9 +33,7 @@
       ansible.builtin.git:
         repo: https://github.com/stackrox/fact
         dest: ./fact
-        # TODO: Run with the latest main
-        # version: "{{ fact.version }}"
-        version: "feature/performance-tests"
+        version: "{{ fact.version }}"
         update: false
 
     # looks like ansible.posix.sysctl module does not allow to simply apply a
