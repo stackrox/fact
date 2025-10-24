@@ -1,0 +1,8 @@
+---
+- name: Run unit tests
+  hosts: "platform_*:&job_id_{{ job_id }}"
+  vars:
+    c_engine: "{{ container_engine | default('docker') }}"
+
+  roles:
+    - unit-tests
