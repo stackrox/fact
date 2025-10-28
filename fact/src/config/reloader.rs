@@ -87,15 +87,18 @@ impl Reloader {
                 match self.files.get_mut(&path) {
                     Some(old) if *old == mtime => {}
                     Some(old) => {
+                        debug!("Updating '{path}'");
                         res = true;
                         *old = mtime;
                     }
                     None => {
+                        debug!("New configuration file '{path}'");
                         res = true;
                         self.files.insert(path, mtime);
                     }
                 }
             } else if self.files.contains_key(&path) {
+                debug!("'{path}' no longer exists, removing from cache");
                 res = true;
                 self.files.remove(&path);
             }
