@@ -831,6 +831,6 @@ fn defaults() {
     assert!(!config.endpoint.health_check());
     assert!(!config.skip_pre_flight());
     assert!(!config.json());
-    assert_eq!(config.ringbuf_size(), 8192);
+    assert_eq!(config.ringbuf_size(), DEFAULT_RINGBUFFER_SIZE);
     assert!(config.hotreload());
 }
