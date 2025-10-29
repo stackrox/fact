@@ -15,7 +15,7 @@ pub mod reloader;
 #[cfg(test)]
 mod tests;
 
-const CONFIG_PATHS: [&str; 4] = [
+const CONFIG_FILES: [&str; 4] = [
     "/etc/stackrox/fact.yml",
     "/etc/stackrox/fact.yaml",
     "fact.yml",
@@ -42,7 +42,7 @@ impl FactConfig {
     }
 
     fn build() -> anyhow::Result<FactConfig> {
-        let mut config = CONFIG_PATHS
+        let mut config = CONFIG_FILES
             .iter()
             .filter_map(|p| {
                 let p = Path::new(p);

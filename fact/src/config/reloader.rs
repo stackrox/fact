@@ -9,7 +9,7 @@ use tokio::{
     time::interval,
 };
 
-use super::{EndpointConfig, FactConfig, CONFIG_PATHS};
+use super::{EndpointConfig, FactConfig, CONFIG_FILES};
 
 pub struct Reloader {
     config: FactConfig,
@@ -73,34 +73,34 @@ impl Reloader {
     fn update_cache(&mut self) -> bool {
         let mut res = false;
 
-        for path in CONFIG_PATHS {
-            let p = PathBuf::from(path);
-            if p.exists() {
-                let mtime = match p.metadata() {
+        for file in CONFIG_FILES {
+            let path = PathBuf::from(file);
+            if path.exists() {
+                let mtime = match path.metadata() {
                     Ok(m) => m.mtime(),
                     Err(e) => {
-                        warn!("Failed to stat {path}: {e}");
+                        warn!("Failed to stat {file}: {e}");
                         warn!("Configuration reloading may not work");
                         continue;
                     }
                 };
-                match self.files.get_mut(&path) {
+                match self.files.get_mut(&file) {
                     Some(old) if *old == mtime => {}
                     Some(old) => {
-                        debug!("Updating '{path}'");
+                        debug!("Updating '{file}'");
                         res = true;
                         *old = mtime;
                     }
                     None => {
-                        debug!("New configuration file '{path}'");
+                        debug!("New configuration file '{file}'");
                         res = true;
-                        self.files.insert(path, mtime);
+                        self.files.insert(file, mtime);
                     }
                 }
-            } else if self.files.contains_key(&path) {
-                debug!("'{path}' no longer exists, removing from cache");
+            } else if self.files.contains_key(&file) {
+                debug!("'{file}' no longer exists, removing from cache");
                 res = true;
-                self.files.remove(&path);
+                self.files.remove(&file);
             }
         }
         res
@@ -142,7 +142,7 @@ impl Reloader {
 
 impl From<FactConfig> for Reloader {
     fn from(config: FactConfig) -> Self {
-        let files = CONFIG_PATHS
+        let files = CONFIG_FILES
             .iter()
             .filter_map(|path| {
                 let p = PathBuf::from(path);
