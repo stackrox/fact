@@ -123,13 +123,13 @@ arches:
     name: glibc-devel
     evr: 2.34-168.el9_6.23
     sourcerpm: glibc-2.34-168.el9_6.23.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-570.55.1.el9_6.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-570.58.1.el9_6.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 3694637
-    checksum: sha256:945bbbe4007fab91b52130a49280b6f4dc5c70e43ffcc5bebb5cb86395eb6d87
+    size: 3696477
+    checksum: sha256:e09b74513e53c6f8bdfdfe367f585e843d70facba9c47bb33a2ea868aa39eb65
     name: kernel-headers
-    evr: 5.14.0-570.55.1.el9_6
-    sourcerpm: kernel-5.14.0-570.55.1.el9_6.src.rpm
+    evr: 5.14.0-570.58.1.el9_6
+    sourcerpm: kernel-5.14.0-570.58.1.el9_6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-5.el9_5.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 413819
@@ -1415,13 +1415,13 @@ arches:
     name: glibc-headers
     evr: 2.34-168.el9_6.23
     sourcerpm: glibc-2.34-168.el9_6.23.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-570.55.1.el9_6.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-570.58.1.el9_6.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 3733025
-    checksum: sha256:a15a60842f50b17c45fba989d34db6fac5bd5955e9b3930d85733f9a3e84cb21
+    size: 3734825
+    checksum: sha256:a2b7cf8e1819c85d9d8823ac945c171cd9de9bfdacd042c9db98cc51a6494b65
     name: kernel-headers
-    evr: 5.14.0-570.55.1.el9_6
-    sourcerpm: kernel-5.14.0-570.55.1.el9_6.src.rpm
+    evr: 5.14.0-570.58.1.el9_6
+    sourcerpm: kernel-5.14.0-570.58.1.el9_6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
