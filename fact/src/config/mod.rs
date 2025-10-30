@@ -25,8 +25,7 @@ const CONFIG_FILES: [&str; 4] = [
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
-    url: Option<String>,
-    certs: Option<PathBuf>,
+    pub grpc: GrpcConfig,
     pub endpoint: EndpointConfig,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
@@ -78,14 +77,7 @@ impl FactConfig {
             self.paths = Some(paths.to_owned());
         }
 
-        if let Some(url) = from.url.as_deref() {
-            self.url = Some(url.to_owned());
-        }
-
-        if let Some(certs) = from.certs.as_deref() {
-            self.certs = Some(certs.to_owned());
-        }
-
+        self.grpc.update(&from.grpc);
         self.endpoint.update(&from.endpoint);
 
         if let Some(skip_pre_flight) = from.skip_pre_flight {
@@ -107,14 +99,6 @@ impl FactConfig {
 
     pub fn paths(&self) -> &[PathBuf] {
         self.paths.as_ref().map(|v| v.as_ref()).unwrap_or(&[])
-    }
-
-    pub fn url(&self) -> Option<&str> {
-        self.url.as_deref()
-    }
-
-    pub fn certs(&self) -> Option<&Path> {
-        self.certs.as_deref()
     }
 
     pub fn skip_pre_flight(&self) -> bool {
@@ -193,17 +177,9 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                 "paths" if v.is_null() => {
                     config.paths = Some(Vec::new());
                 }
-                "url" => {
-                    let Some(url) = v.as_str() else {
-                        bail!("url field has incorrect type: {v:?}");
-                    };
-                    config.url = Some(url.to_owned());
-                }
-                "certs" => {
-                    let Some(certs) = v.as_str() else {
-                        bail!("certs field has incorrect type: {v:?}");
-                    };
-                    config.certs = Some(PathBuf::from(certs));
+                "grpc" if v.is_hash() => {
+                    let grpc = v.as_hash().unwrap();
+                    config.grpc = GrpcConfig::try_from(grpc)?;
                 }
                 "endpoint" if v.is_hash() => {
                     let endpoint = v.as_hash().unwrap();
@@ -325,6 +301,63 @@ impl TryFrom<&yaml::Hash> for EndpointConfig {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct GrpcConfig {
+    url: Option<String>,
+    certs: Option<PathBuf>,
+}
+
+impl GrpcConfig {
+    fn update(&mut self, from: &GrpcConfig) {
+        if let Some(url) = from.url.as_deref() {
+            self.url = Some(url.to_owned());
+        }
+
+        if let Some(certs) = from.certs.as_deref() {
+            self.certs = Some(certs.to_owned());
+        }
+    }
+
+    pub fn url(&self) -> Option<&str> {
+        self.url.as_deref()
+    }
+
+    pub fn certs(&self) -> Option<&Path> {
+        self.certs.as_deref()
+    }
+}
+
+impl TryFrom<&yaml::Hash> for GrpcConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
+        let mut grpc = GrpcConfig::default();
+        for (k, v) in value.iter() {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}");
+            };
+
+            match k {
+                "url" => {
+                    let Some(url) = v.as_str() else {
+                        bail!("url field has incorrect type: {v:?}");
+                    };
+                    grpc.url = Some(url.to_owned());
+                }
+                "certs" => {
+                    let Some(certs) = v.as_str() else {
+                        bail!("certs field has incorrect type: {v:?}");
+                    };
+                    grpc.certs = Some(PathBuf::from(certs));
+                }
+                name => bail!("Invalid field 'grpc.{name}' with value: {v:?}"),
+            }
+        }
+
+        Ok(grpc)
+    }
+}
+
 #[derive(Debug, Parser)]
 #[clap(version = crate::version::FACT_VERSION, about)]
 pub struct FactCli {
@@ -402,8 +435,10 @@ impl FactCli {
     fn to_config(&self) -> FactConfig {
         FactConfig {
             paths: self.paths.clone(),
-            url: self.url.clone(),
-            certs: self.certs.clone(),
+            grpc: GrpcConfig {
+                url: self.url.clone(),
+                certs: self.certs.clone(),
+            },
             endpoint: EndpointConfig {
                 address: self.address,
                 expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),

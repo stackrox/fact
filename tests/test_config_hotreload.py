@@ -1,7 +1,13 @@
+import os
 from time import sleep
+
+from event import Event, EventType, Process
+
 import pytest
 import requests
 import yaml
+
+from server import FileActivityService
 
 DEFAULT_URL = 'http://127.0.0.1:9000'
 
@@ -64,3 +70,48 @@ def test_endpoint_address_change(fact, fact_config):
 
     resp = requests.get('http://127.0.0.1:9001/metrics')
     assert resp.status_code == 200
+
+
+ALTERNATE_PORT = '9998'
+
+
+@pytest.fixture
+def alternate_server():
+    """
+    Fixture to start and stop a FileActivityService on an alternate
+    address.
+    """
+    s = FileActivityService()
+    s.serve(f'0.0.0.0:{ALTERNATE_PORT}')
+    yield s
+    s.stop()
+
+
+def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, alternate_server):
+    """
+    Tests we can receive events on a new endpoint after a configuration
+    change.
+    """
+    # File Under Test
+    fut = os.path.join(monitored_dir, 'test.txt')
+    with open(fut, 'w') as f:
+        f.write('This is a test')
+
+    process = Process()
+    e = Event(process=process, event_type=EventType.CREATION, file=fut)
+    print(f'Waiting for event: {e}')
+
+    server.wait_events([e])
+
+    # Change to the alternate server and trigger an event there.
+    config, config_file = fact_config
+    config['grpc']['url'] = f'http://127.0.0.1:{ALTERNATE_PORT}'
+    reload_config(fact, config, config_file)
+
+    with open(fut, 'w') as f:
+        f.write('This is another test')
+
+    e = Event(process=process, event_type=EventType.OPEN, file=fut)
+    print(f'Waiting for event on alternate server: {e}')
+
+    alternate_server.wait_events([e])

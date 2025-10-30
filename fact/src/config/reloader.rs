@@ -9,11 +9,12 @@ use tokio::{
     time::interval,
 };
 
-use super::{EndpointConfig, FactConfig, CONFIG_FILES};
+use super::{EndpointConfig, FactConfig, GrpcConfig, CONFIG_FILES};
 
 pub struct Reloader {
     config: FactConfig,
     endpoint: watch::Sender<EndpointConfig>,
+    grpc: watch::Sender<GrpcConfig>,
     files: HashMap<&'static str, i64>,
     trigger: Arc<Notify>,
 }
@@ -51,10 +52,20 @@ impl Reloader {
         Some(handle)
     }
 
+    pub fn config(&self) -> &FactConfig {
+        &self.config
+    }
+
     /// Subscribe to get notifications when endpoint configuration is
     /// changed.
     pub fn endpoint(&self) -> watch::Receiver<EndpointConfig> {
         self.endpoint.subscribe()
+    }
+
+    /// Subscribe to get notifications when grpc configuration is
+    /// changed.
+    pub fn grpc(&self) -> watch::Receiver<GrpcConfig> {
+        self.grpc.subscribe()
     }
 
     /// Get a reference to the internal trigger for manual reloading of
@@ -132,6 +143,16 @@ impl Reloader {
             }
         });
 
+        self.grpc.send_if_modified(|old| {
+            if *old != new.grpc {
+                debug!("Sending new gRPC configuration...");
+                *old = new.grpc.clone();
+                true
+            } else {
+                false
+            }
+        });
+
         if self.config.hotreload() != new.hotreload() {
             warn!("Changes to the hotreload field only take effect on startup");
         }
@@ -162,10 +183,13 @@ impl From<FactConfig> for Reloader {
             })
             .collect();
         let (endpoint, _) = watch::channel(config.endpoint.clone());
+        let (grpc, _) = watch::channel(config.grpc.clone());
         let trigger = Arc::new(Notify::new());
+
         Reloader {
             config,
             endpoint,
+            grpc,
             files,
             trigger,
         }

@@ -5,7 +5,6 @@ use bpf::Bpf;
 use host_info::{get_distro, get_hostname, SystemInfo};
 use log::{debug, info, warn, LevelFilter};
 use metrics::exporter::Exporter;
-use output::Output;
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::{broadcast, watch},
@@ -15,7 +14,6 @@ mod bpf;
 pub mod config;
 mod endpoints;
 mod event;
-mod grpc;
 mod host_info;
 mod metrics;
 mod output;
@@ -80,11 +78,16 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let exporter = Exporter::new(bpf.get_metrics()?);
 
-    let output = Output::new(running.subscribe(), rx, exporter.metrics.output.clone());
-    output.start(&config)?;
-
     let reloader = config::reloader::Reloader::from(config);
     let config_trigger = reloader.get_trigger();
+
+    output::start(
+        rx,
+        running.subscribe(),
+        exporter.metrics.output.clone(),
+        reloader.grpc(),
+        reloader.config().json(),
+    )?;
 
     endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
 
