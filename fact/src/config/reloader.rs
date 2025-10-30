@@ -15,6 +15,7 @@ pub struct Reloader {
     config: FactConfig,
     endpoint: watch::Sender<EndpointConfig>,
     grpc: watch::Sender<GrpcConfig>,
+    paths: watch::Sender<Vec<PathBuf>>,
     files: HashMap<&'static str, i64>,
     trigger: Arc<Notify>,
 }
@@ -66,6 +67,12 @@ impl Reloader {
     /// changed.
     pub fn grpc(&self) -> watch::Receiver<GrpcConfig> {
         self.grpc.subscribe()
+    }
+
+    /// Subscribe to get notifications when paths configuration is
+    /// changed.
+    pub fn paths(&self) -> watch::Receiver<Vec<PathBuf>> {
+        self.paths.subscribe()
     }
 
     /// Get a reference to the internal trigger for manual reloading of
@@ -153,6 +160,17 @@ impl Reloader {
             }
         });
 
+        self.paths.send_if_modified(|old| {
+            let new = new.paths();
+            if *old != new {
+                debug!("Sending new paths configuration...");
+                *old = new.to_vec();
+                true
+            } else {
+                false
+            }
+        });
+
         if self.config.hotreload() != new.hotreload() {
             warn!("Changes to the hotreload field only take effect on startup");
         }
@@ -184,12 +202,14 @@ impl From<FactConfig> for Reloader {
             .collect();
         let (endpoint, _) = watch::channel(config.endpoint.clone());
         let (grpc, _) = watch::channel(config.grpc.clone());
+        let (paths, _) = watch::channel(config.paths().to_vec());
         let trigger = Arc::new(Notify::new());
 
         Reloader {
             config,
             endpoint,
             grpc,
+            paths,
             files,
             trigger,
         }
