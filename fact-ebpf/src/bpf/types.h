@@ -32,6 +32,13 @@ typedef struct process_t {
   char in_root_mount_ns;
 } process_t;
 
+typedef struct metadata_t {
+  short unsigned int mode;
+  unsigned int uid;
+  unsigned int gid;
+  long long int size;
+} metadata_t;
+
 typedef enum file_activity_type_t {
   FILE_ACTIVITY_INIT = -1,
   FILE_ACTIVITY_OPEN = 0,
@@ -44,6 +51,7 @@ struct event_t {
   process_t process;
   char filename[PATH_MAX];
   char host_file[PATH_MAX];
+  metadata_t metadata;
   file_activity_type_t type;
 };
 
