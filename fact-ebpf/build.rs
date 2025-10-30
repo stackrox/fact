@@ -6,7 +6,12 @@ use std::{
 };
 
 fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
-    let target_arch = format!("-D__TARGET_ARCH_{}", env::var("CARGO_CFG_TARGET_ARCH")?);
+    let target_arch = match env::var("CARGO_CFG_TARGET_ARCH")?.as_str() {
+        "x86_64" => "x86",
+        "aarch64" => "arm64",
+        arch => unimplemented!("Unsupported arch {arch}"),
+    };
+    let target_arch = format!("-D__TARGET_ARCH_{target_arch}");
     let base_args = [
         "-target",
         "bpf",

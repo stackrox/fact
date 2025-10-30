@@ -3,7 +3,7 @@ use std::{io, path::PathBuf, sync::Arc};
 use anyhow::{bail, Context};
 use aya::{
     maps::{Array, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::Lsm,
+    programs::Program,
     Btf, Ebpf,
 };
 use checks::Checks;
@@ -30,6 +30,8 @@ pub struct Bpf {
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
+
+    use_lsm_hook: bool,
 }
 
 impl Bpf {
@@ -61,6 +63,7 @@ impl Bpf {
             tx,
             paths,
             paths_config,
+            use_lsm_hook: checks.lsm_support,
         };
 
         bpf.load_paths()?;
@@ -138,24 +141,59 @@ impl Bpf {
         Ok(())
     }
 
-    fn load_lsm_prog(&mut self, name: &str, hook: &str, btf: &Btf) -> anyhow::Result<()> {
+    fn load_prog(&mut self, name: &str, btf: &Btf) -> anyhow::Result<()> {
         let Some(prog) = self.obj.program_mut(name) else {
             bail!("{name} program not found");
         };
-        let prog: &mut Lsm = prog.try_into()?;
-        prog.load(hook, btf)?;
+
+        match prog {
+            Program::Lsm(lsm) => match name {
+                "trace_file_open" => lsm.load("file_open", btf)?,
+                "trace_path_unlink" => lsm.load("path_unlink", btf)?,
+                name => bail!("Unexpected LSM hook '{name}'"),
+            },
+            Program::KProbe(kprobe) => kprobe.load()?,
+            prog => bail!("Unexpected program {prog:?}"),
+        }
+
         Ok(())
     }
 
     fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
-        self.load_lsm_prog("trace_file_open", "file_open", btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)
+        if self.use_lsm_hook {
+            debug!("Loading LSM hooks");
+            self.load_prog("trace_file_open", btf)?;
+            self.load_prog("trace_path_unlink", btf)?;
+        } else {
+            debug!("Loading KProbes");
+            self.load_prog("kprobe_file_open", btf)?;
+            self.load_prog("kprobe_path_unlink", btf)?;
+        }
+        Ok(())
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        for (_, prog) in self.obj.programs_mut() {
-            let prog: &mut Lsm = prog.try_into()?;
-            prog.attach()?;
+        for (name, prog) in self.obj.programs_mut() {
+            match prog {
+                Program::Lsm(prog) => {
+                    if self.use_lsm_hook {
+                        debug!("Attaching '{name}'");
+                        prog.attach()?;
+                    }
+                }
+                Program::KProbe(prog) => {
+                    if !self.use_lsm_hook {
+                        debug!("Attaching '{name}'");
+                        let fn_name = match name {
+                            "kprobe_file_open" => "security_file_open",
+                            "kprobe_path_unlink" => "security_path_unlink",
+                            name => unimplemented!("Invalid '{name}' kprobe"),
+                        };
+                        prog.attach(fn_name, 0)?;
+                    }
+                }
+                ty => unimplemented!("Unsupported type {ty:?}"),
+            }
         }
         Ok(())
     }

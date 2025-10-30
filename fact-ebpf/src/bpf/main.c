@@ -19,8 +19,7 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 #define FMODE_PWRITE ((fmode_t)(1 << 4))
 #define FMODE_CREATED ((fmode_t)(1 << 20))
 
-SEC("lsm/file_open")
-int BPF_PROG(trace_file_open, struct file* file) {
+__always_inline static int do_file_open(struct file* file, bool use_bpf_d_path) {
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
     return 0;
@@ -37,7 +36,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
-  struct bound_path_t* path = path_read(&file->f_path);
+  struct bound_path_t* path = path_read(&file->f_path, use_bpf_d_path);
   if (path == NULL) {
     bpf_printk("Failed to read path");
     m->file_open.error++;
@@ -58,8 +57,20 @@ ignored:
   return 0;
 }
 
-SEC("lsm/path_unlink")
-int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
+SEC("kprobe/security_file_open")
+int BPF_KPROBE(kprobe_file_open, struct file* file) {
+  struct file f;
+  BPF_CORE_READ_INTO(&f.f_mode, file, f_mode);
+  BPF_CORE_READ_INTO(&f.f_path, file, f_path);
+  return do_file_open(&f, false);
+}
+
+SEC("lsm/file_open")
+int BPF_PROG(trace_file_open, struct file* file) {
+  return do_file_open(file, true);
+}
+
+__always_inline int do_path_unlink(struct path* dir, struct dentry* dentry, bool use_bpf_d_path) {
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
     return 0;
@@ -67,12 +78,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
   m->path_unlink.total++;
 
-  struct bound_path_t* path = NULL;
-  if (path_unlink_supports_bpf_d_path) {
-    path = path_read(dir);
-  } else {
-    path = path_read_alternate(dir);
-  }
+  struct bound_path_t* path = path_read(dir, use_bpf_d_path);
 
   if (path == NULL) {
     bpf_printk("Failed to read path");
@@ -102,4 +108,17 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 error:
   m->path_unlink.error++;
   return 0;
+}
+
+SEC("kprobe/security_path_unlink")
+int BPF_KPROBE(kprobe_path_unlink, struct path* dir, struct dentry* dentry) {
+  struct path p;
+  p.mnt = BPF_CORE_READ(dir, mnt);
+  p.dentry = BPF_CORE_READ(dir, dentry);
+  return do_path_unlink(&p, dentry, false);
+}
+
+SEC("lsm/path_unlink")
+int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
+  return do_path_unlink(dir, dentry, path_unlink_supports_bpf_d_path);
 }

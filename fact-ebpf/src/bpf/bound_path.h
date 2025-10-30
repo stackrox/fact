@@ -22,7 +22,7 @@ __always_inline static void path_write_char(char* p, unsigned int offset, char c
   *path_safe_access(p, offset) = c;
 }
 
-__always_inline static struct bound_path_t* _path_read(struct path* path, bool use_bpf_d_path) {
+__always_inline static struct bound_path_t* path_read(struct path* path, bool use_bpf_d_path) {
   struct bound_path_t* bound_path = get_bound_path();
   if (bound_path == NULL) {
     return NULL;
@@ -37,14 +37,6 @@ __always_inline static struct bound_path_t* _path_read(struct path* path, bool u
   bound_path->len = path_len_clamp(bound_path->len);
 
   return bound_path;
-}
-
-__always_inline static struct bound_path_t* path_read(struct path* path) {
-  return _path_read(path, true);
-}
-
-__always_inline static struct bound_path_t* path_read_alternate(struct path* path) {
-  return _path_read(path, false);
 }
 
 enum path_append_status_t {
