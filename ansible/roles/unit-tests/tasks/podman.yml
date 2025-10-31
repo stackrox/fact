@@ -1,55 +1,23 @@
 ---
+- name: Build test-runner image
+  become: true
+  containers.podman.podman_image:
+    build:
+      target: builder
+    path: fact
+    name: test-runner
+
 - name: Start test-runner
   become: true
   containers.podman.podman_container:
     name: test-runner
-    image: quay.io/centos/centos:stream9
+    image: test-runner:latest
     interactive: true
     cgroupns: host
     pid_mode: host
     privileged: true
   register:
     test_result
-
-- name: Install dependencies
-  become: true
-  containers.podman.podman_container_exec:
-    name: test-runner
-    command: >
-      dnf install --enablerepo=crb -y
-          clang-19.1.7
-          libbpf-devel
-          protobuf-compiler
-          protobuf-devel
-          git
-
-- name: Download rustup
-  become: true
-  containers.podman.podman_container_exec:
-    name: test-runner
-    command: curl --tlsv1.2 -sSf https://sh.rustup.rs -o rustup.sh
-
-- name: Make rustup executable
-  become: true
-  containers.podman.podman_container_exec:
-    name: test-runner
-    command: chmod +x rustup.sh
-
-- name: Install rust toolchain
-  become: true
-  containers.podman.podman_container_exec:
-    name: test-runner
-    command: ./rustup.sh -y --default-toolchain 1.84 --profile minimal
-
-- name: Clone fact repo
-  become: true
-  containers.podman.podman_container_exec:
-    name: test-runner
-    command: >
-      git clone -b "{{ fact.version }}"
-          --recurse-submodules
-          https://github.com/stackrox/fact
-  register: clone_res
 
 - name: Run unit tests
   become: true
@@ -58,9 +26,7 @@
       containers.podman.podman_container_exec:
         name: test-runner
         env:
-          PATH: /root/.cargo/bin:${PATH}
           FACT_LOGLEVEL: debug
-        workdir: /fact
         command: cargo test --all-features
       register: test_result
 
