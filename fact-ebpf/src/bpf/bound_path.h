@@ -43,7 +43,7 @@ __always_inline static struct bound_path_t* path_read(struct path* path) {
   return _path_read(path, true);
 }
 
-__always_inline static struct bound_path_t* path_read_alternate(struct path* path) {
+__always_inline static struct bound_path_t* path_read_no_d_path(struct path* path) {
   return _path_read(path, false);
 }
 

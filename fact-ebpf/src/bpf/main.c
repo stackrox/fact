@@ -71,7 +71,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   if (path_unlink_supports_bpf_d_path) {
     path = path_read(dir);
   } else {
-    path = path_read_alternate(dir);
+    path = path_read_no_d_path(dir);
   }
 
   if (path == NULL) {
