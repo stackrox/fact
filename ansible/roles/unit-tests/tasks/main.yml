@@ -1,8 +1,15 @@
 ---
+- name: Clone the repo
+  ansible.builtin.git:
+    repo: https://github.com/stackrox/fact
+    dest: ./fact
+    version: "{{ fact.version }}"
+    update: false
+
 - name: Run unit tests with docker
-  include_tasks: docker.yml
+  ansible.builtin.include_tasks: docker.yml
   when: runtime_command == 'docker'
 
 - name: Run unit tests with podman
-  include_tasks: podman.yml
+  ansible.builtin.include_tasks: podman.yml
   when: runtime_command == 'podman'

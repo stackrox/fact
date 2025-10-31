@@ -14,6 +14,8 @@ WORKDIR /app
 
 COPY . .
 
+FROM builder as build
+
 ARG FACT_VERSION
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target \
@@ -22,6 +24,6 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 
 FROM registry.access.redhat.com/ubi9/ubi-micro:latest
 
-COPY --from=builder /app/fact /usr/local/bin
+COPY --from=build /app/fact /usr/local/bin
 
 ENTRYPOINT ["fact"]
