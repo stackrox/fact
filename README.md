@@ -44,6 +44,21 @@ following command:
 cargo test --config 'target."cfg(all())".runner="sudo -E" --features=bpf-test
 ```
 
+## Create compile_commands.json
+
+`compile_commands.json` is a compilation database that can be used by
+`clangd` to provide better IDE support. This file is particularly useful
+for working with the C BPF code in the repository. In order to generate
+this file, [bear](https://github.com/rizsotto/Bear) is recommended, the
+following command can be used on x86 machines:
+
+```sh
+bear -- clang -target bpf -O2 -g -c -Wall -Werror -D__TARGET_ARCH_x86_64 fact-ebpf/src/bpf/main.c -o /dev/null
+```
+
+For arm64, replace `-D__TARGET_ARCH_x86_64` with
+`-D__TARGET_ARCH_aarch64`.
+
 ## License
 
 With the exception of eBPF code, fact is distributed under the terms
