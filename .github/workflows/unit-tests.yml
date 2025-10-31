@@ -1,0 +1,107 @@
+name: Run unit tests
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version of fact to be tested (commit SHA or tag)
+        default: ${{ github.head_ref || github.ref_name }}
+        type: string
+      job-tag:
+        description: Additional tag to prevent collision on GCP VM naming
+        type: string
+        default: '-ut'
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        vm:
+          - rhel
+          - rhel-arm64
+          - rhcos
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: fact
+    - uses: actions/checkout@v4
+      with:
+        repository: stackrox/collector
+        path: collector
+        ref: master
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Authenticate with GCP
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: '${{ secrets.GOOGLE_CREDENTIALS_COLLECTOR_CI_VM_SVC_ACCT }}'
+
+    - name: Setup GCP
+      uses: 'google-github-actions/setup-gcloud@v2'
+
+    - uses: ./collector/.github/actions/setup-vm-creds
+      with:
+        gcp-ssh-key: ${{ secrets.GCP_SSH_KEY }}
+        gcp-ssh-key-pub: ${{ secrets.GCP_SSH_KEY_PUB }}
+        s390x-ssh-key: ${{ secrets.IBM_CLOUD_S390X_SSH_PRIVATE_KEY }}
+        ppc64le-ssh-key: ${{ secrets.IBM_CLOUD_POWER_SSH_PRIVATE_KEY }}
+        ppc64le-ssh-key-pub: ${{ secrets.IBM_CLOUD_POWER_SSH_PUBLIC_KEY }}
+        s390x-key: ${{ secrets.IBM_CLOUD_S390x_API_KEY }}
+        ppc64le-key: ${{ secrets.IBM_CLOUD_POWER_API_KEY }}
+        redhat-username: ${{ secrets.REDHAT_USERNAME }}
+        redhat-password: ${{ secrets.REDHAT_PASSWORD }}
+        vm-type: ${{ matrix.vm }}
+        job-tag: ${{ inputs.job-tag }}
+        workspace: ${{ github.workspace }}/collector
+
+    - name: Create vars.yml
+      run: |
+        cat << EOF > vars.yml
+        ---
+        job_id: ${JOB_ID}
+        fact:
+          version: ${{ inputs.version }}
+        workdir: ${{ github.workspace }}
+        excluded_vms:
+        # RHEL 8 doesn't handle file creation properly,
+        # need more investigation
+        - rhel-8
+        - rhcos-412-86-202402272018-0-gcp-x86-64
+        # BPF trampolines are only implemented starting with RHEL 10
+        - rhel-9-arm64
+        EOF
+
+    - name: Create Test VMs
+      env:
+        ANSIBLE_CONFIG: "${{ github.workspace }}/collector/ansible/ansible.cfg"
+      run: |
+        ansible-playbook \
+          -i "${GITHUB_WORKSPACE}/collector/ansible/ci" \
+          -e @vars.yml \
+          --tags setup,provision \
+          "${GITHUB_WORKSPACE}/collector/ansible/integration-tests.yml"
+
+    - name: Run the tests
+      run: |
+        ansible-playbook \
+          -i "${GITHUB_WORKSPACE}/collector/ansible/ci" \
+          -e @vars.yml \
+          "${GITHUB_WORKSPACE}/fact/ansible/run-unit-tests.yml"
+
+    - name: Teardown VMs
+      if: always()
+      run: |
+        make -C "./collector/ansible" destroy-vms
+
+    - name: Store artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.vm }}-unit-test-logs
+        path: |
+          ${{ github.workspace }}/unit-test-*.log
+        if-no-files-found: ignore

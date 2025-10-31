@@ -1,0 +1,6 @@
+---
+- name: Run unit tests
+  hosts: "platform_*:&job_id_{{ job_id }}"
+
+  roles:
+    - unit-tests
