@@ -19,7 +19,7 @@ mod metrics;
 mod output;
 mod pre_flight;
 
-use config::FactConfig;
+use config::reloader::Reloader;
 use pre_flight::pre_flight;
 
 pub fn init_log() -> anyhow::Result<()> {
@@ -60,21 +60,21 @@ pub fn log_system_information() {
     info!("Hostname: {}", get_hostname());
 }
 
-pub async fn run(config: FactConfig) -> anyhow::Result<()> {
+pub async fn run() -> anyhow::Result<()> {
+    let reloader = Reloader::new()?;
+    let config_trigger = reloader.get_trigger();
+
     // Log system information as early as possible so we have it
     // available in case of a crash
     log_system_information();
     let (running, _) = watch::channel(true);
 
-    if !config.skip_pre_flight() {
+    if !reloader.config().skip_pre_flight() {
         debug!("Performing pre-flight checks");
         pre_flight().context("Pre-flight checks failed")?;
     } else {
         debug!("Skipping pre-flight checks");
     }
-
-    let reloader = config::reloader::Reloader::from(config);
-    let config_trigger = reloader.get_trigger();
 
     let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())?;
     let exporter = Exporter::new(bpf.take_metrics()?);
