@@ -1,12 +1,12 @@
 // clang-format off
+#include "vmlinux.h"
+
 #include "file.h"
 #include "types.h"
 #include "process.h"
 #include "maps.h"
 #include "events.h"
 #include "bound_path.h"
-
-#include "vmlinux.h"
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -22,6 +22,9 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
   struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
 
   m->file_open.total++;
 
@@ -58,10 +61,19 @@ ignored:
 SEC("lsm/path_unlink")
 int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
 
   m->path_unlink.total++;
 
-  struct bound_path_t* path = path_read(dir);
+  struct bound_path_t* path = NULL;
+  if (path_unlink_supports_bpf_d_path) {
+    path = path_read(dir);
+  } else {
+    path = path_read_no_d_path(dir);
+  }
+
   if (path == NULL) {
     bpf_printk("Failed to read path");
     goto error;

@@ -38,7 +38,10 @@ struct {
 __always_inline static bool filter_by_prefix() {
   unsigned int zero = 0;
   char* res = bpf_map_lookup_elem(&filter_by_prefix_map, &zero);
-  return *res != 0;
+
+  // The NULL check is simply here to satisfy some verifiers, the result
+  // will never actually be NULL.
+  return res == NULL || *res != 0;
 }
 
 struct {
@@ -82,6 +85,7 @@ __always_inline static struct bound_path_t* get_bound_path() {
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
+  __uint(max_entries, 8 * 1024 * 1024);
 } rb SEC(".maps");
 
 struct {
@@ -97,5 +101,6 @@ __always_inline static struct metrics_t* get_metrics() {
 }
 
 uint64_t host_mount_ns;
+volatile const bool path_unlink_supports_bpf_d_path;
 
 // clang-format on
