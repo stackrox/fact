@@ -139,7 +139,8 @@ impl Bpf {
     fn load_progs(&mut self) -> anyhow::Result<()> {
         let btf = Btf::from_sys_fs()?;
         self.load_lsm_prog("trace_file_open", "file_open", &btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)
+        self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)?;
+        self.load_lsm_prog("trace_bprm_check", "bprm_check_security", &btf)
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
@@ -174,7 +175,9 @@ impl Bpf {
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
-                                Ok(event) => Arc::new(event),
+                                Ok(event) if event.is_from_container() => Arc::new(event),
+                                Ok(event) if event.is_file_event() => Arc::new(event),
+                                Ok(_) => continue,
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     debug!("Event: {event:?}");

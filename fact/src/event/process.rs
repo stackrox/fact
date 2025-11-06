@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::host_info;
 
-use super::slice_to_string;
+use super::{slice_to_string, timestamp_to_proto};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Lineage {
@@ -34,7 +34,17 @@ impl TryFrom<&lineage_t> for Lineage {
     }
 }
 
-impl From<Lineage> for fact_api::process_signal::LineageInfo {
+impl From<Lineage> for fact_api::sensor::process_signal::LineageInfo {
+    fn from(value: Lineage) -> Self {
+        let Lineage { uid, exe_path } = value;
+        Self {
+            parent_uid: uid,
+            parent_exec_file_path: exe_path,
+        }
+    }
+}
+
+impl From<Lineage> for fact_api::storage::process_signal::LineageInfo {
     fn from(value: Lineage) -> Self {
         let Lineage { uid, exe_path } = value;
         Self {
@@ -57,9 +67,14 @@ pub struct Process {
     pid: u32,
     in_root_mount_ns: bool,
     lineage: Vec<Lineage>,
+    start_time: Option<u64>,
 }
 
 impl Process {
+    pub fn is_from_container(&self) -> bool {
+        self.container_id.is_some()
+    }
+
     /// Create a representation of the current process as best as
     /// possible.
     #[cfg(test)]
@@ -96,6 +111,7 @@ impl Process {
             pid,
             in_root_mount_ns,
             lineage: vec![],
+            start_time: None,
         }
     }
 
@@ -146,6 +162,11 @@ impl TryFrom<process_t> for Process {
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
         let container_id = Process::extract_container_id(memory_cgroup);
         let in_root_mount_ns = value.in_root_mount_ns != 0;
+        let start_time = if value.start_time != 0 {
+            Some(host_info::get_boot_time() + value.start_time)
+        } else {
+            None
+        };
 
         let lineage = value.lineage[..value.lineage_len as usize]
             .iter()
@@ -180,11 +201,12 @@ impl TryFrom<process_t> for Process {
             pid: value.pid,
             in_root_mount_ns,
             lineage,
+            start_time,
         })
     }
 }
 
-impl From<Process> for fact_api::ProcessSignal {
+impl From<Process> for fact_api::sensor::ProcessSignal {
     fn from(value: Process) -> Self {
         let Process {
             comm,
@@ -198,6 +220,7 @@ impl From<Process> for fact_api::ProcessSignal {
             pid,
             in_root_mount_ns,
             lineage,
+            start_time: _,
         } = value;
 
         let container_id = container_id.unwrap_or("".to_string());
@@ -220,11 +243,56 @@ impl From<Process> for fact_api::ProcessSignal {
             scraped: false,
             lineage_info: lineage
                 .into_iter()
-                .map(fact_api::process_signal::LineageInfo::from)
+                .map(fact_api::sensor::process_signal::LineageInfo::from)
                 .collect(),
             login_uid,
             username: username.to_owned(),
             in_root_mount_ns,
+        }
+    }
+}
+
+impl From<Process> for fact_api::storage::ProcessSignal {
+    fn from(value: Process) -> Self {
+        let Process {
+            comm,
+            args,
+            exe_path,
+            container_id,
+            uid,
+            username: _,
+            gid,
+            login_uid: _,
+            pid,
+            in_root_mount_ns: _,
+            lineage,
+            start_time,
+        } = value;
+
+        let container_id = container_id.unwrap_or("".to_string());
+
+        let args = args
+            .into_iter()
+            .reduce(|acc, i| acc + " " + &i)
+            .unwrap_or("".to_owned());
+
+        #[allow(deprecated)]
+        Self {
+            id: Uuid::new_v4().to_string(),
+            container_id,
+            time: start_time.map(timestamp_to_proto),
+            name: comm,
+            args,
+            exec_file_path: exe_path,
+            pid,
+            uid,
+            gid,
+            scraped: false,
+            lineage: Vec::new(),
+            lineage_info: lineage
+                .into_iter()
+                .map(fact_api::storage::process_signal::LineageInfo::from)
+                .collect(),
         }
     }
 }

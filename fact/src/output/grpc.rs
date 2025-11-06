@@ -1,7 +1,10 @@
 use std::{fs::read_to_string, path::Path, sync::Arc, time::Duration};
 
 use anyhow::bail;
-use fact_api::file_activity_service_client::FileActivityServiceClient;
+use fact_api::sensor::{
+    file_activity_service_client::FileActivityServiceClient,
+    signal_service_client::SignalServiceClient,
+};
 use log::{debug, info, warn};
 use tokio::{
     sync::{broadcast, watch},
@@ -127,16 +130,40 @@ impl Client {
             };
             info!("Successfully connected to gRPC server");
 
-            let mut client =
-                FileActivityServiceClient::with_interceptor(channel, UserAgentInterceptor {});
+            let mut sfa_client = FileActivityServiceClient::with_interceptor(
+                channel.clone(),
+                UserAgentInterceptor {},
+            );
+            let mut proc_client =
+                SignalServiceClient::with_interceptor(channel, UserAgentInterceptor {});
 
             let metrics = self.metrics.clone();
-            let rx =
+            let sfa_rx =
                 BroadcastStream::new(self.rx.resubscribe()).filter_map(move |event| match event {
                     Ok(event) => {
                         metrics.added();
                         let event = Arc::unwrap_or_clone(event);
-                        Some(event.into())
+                        match event.try_into() {
+                            Ok(event) => Some(event),
+                            Err(_) => None,
+                        }
+                    }
+                    Err(BroadcastStreamRecvError::Lagged(n)) => {
+                        warn!("gRPC stream lagged, dropped {n} events");
+                        metrics.dropped_n(n);
+                        None
+                    }
+                });
+            let metrics = self.metrics.clone();
+            let proc_rx =
+                BroadcastStream::new(self.rx.resubscribe()).filter_map(move |event| match event {
+                    Ok(event) => {
+                        metrics.added();
+                        let event = Arc::unwrap_or_clone(event);
+                        match event.try_into() {
+                            Ok(event) => Some(event),
+                            Err(_) => None,
+                        }
                     }
                     Err(BroadcastStreamRecvError::Lagged(n)) => {
                         warn!("gRPC stream lagged, dropped {n} events");
@@ -146,7 +173,13 @@ impl Client {
                 });
 
             tokio::select! {
-                res = client.communicate(rx) => {
+                res = sfa_client.communicate(sfa_rx) => {
+                    match res {
+                        Ok(_) => info!("gRPC stream ended"),
+                        Err(e) => warn!("gRPC stream error: {e}"),
+                    }
+                }
+                res = proc_client.push_signals(proc_rx) => {
                     match res {
                         Ok(_) => info!("gRPC stream ended"),
                         Err(e) => warn!("gRPC stream error: {e}"),

@@ -30,6 +30,7 @@ typedef struct process_t {
   lineage_t lineage[LINEAGE_MAX];
   unsigned int lineage_len;
   char in_root_mount_ns;
+  unsigned long start_time;
 } process_t;
 
 typedef enum file_activity_type_t {
@@ -37,6 +38,7 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_OPEN = 0,
   FILE_ACTIVITY_CREATION,
   FILE_ACTIVITY_UNLINK,
+  PROCESS_EXEC,
 } file_activity_type_t;
 
 struct event_t {
@@ -73,4 +75,5 @@ struct metrics_by_hook_t {
 struct metrics_t {
   struct metrics_by_hook_t file_open;
   struct metrics_by_hook_t path_unlink;
+  struct metrics_by_hook_t bprm_check;
 };
