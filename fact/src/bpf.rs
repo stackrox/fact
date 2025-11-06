@@ -14,7 +14,11 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{event::Event, host_info, metrics::EventCounter};
+use crate::{
+    event::{Activity, Event},
+    host_info,
+    metrics::EventCounter,
+};
 
 use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
@@ -175,7 +179,7 @@ impl Bpf {
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
-                                Ok(event) => Arc::new(event),
+                                Ok(event) => event,
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     debug!("Event: {event:?}");
@@ -184,6 +188,14 @@ impl Bpf {
                                 }
                             };
 
+                            if matches!(event.activity, Activity::Process(_))
+                                && event.process.container_id.is_none()
+                            {
+                                event_counter.dropped();
+                                continue;
+                            }
+
+                            let event = Arc::new(event);
                             event_counter.added();
                             if self.tx.send(event).is_err() {
                                 info!("No BPF consumers left, stopping...");

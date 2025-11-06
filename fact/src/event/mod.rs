@@ -67,7 +67,7 @@ impl Activity {
 pub struct Event {
     timestamp: u64,
     hostname: &'static str,
-    process: Process,
+    pub process: Process,
     pub activity: Activity,
 }
 

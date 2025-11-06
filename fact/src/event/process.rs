@@ -49,7 +49,7 @@ pub struct Process {
     comm: String,
     args: Vec<String>,
     exe_path: String,
-    container_id: Option<String>,
+    pub container_id: Option<String>,
     uid: u32,
     pub username: &'static str,
     gid: u32,
