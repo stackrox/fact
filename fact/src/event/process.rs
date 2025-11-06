@@ -34,7 +34,7 @@ impl TryFrom<&lineage_t> for Lineage {
     }
 }
 
-impl From<Lineage> for fact_api::process_signal::LineageInfo {
+impl From<Lineage> for fact_api::storage::process_signal::LineageInfo {
     fn from(value: Lineage) -> Self {
         let Lineage { uid, exe_path } = value;
         Self {
@@ -51,11 +51,11 @@ pub struct Process {
     exe_path: String,
     container_id: Option<String>,
     uid: u32,
-    username: &'static str,
+    pub username: &'static str,
     gid: u32,
-    login_uid: u32,
+    pub login_uid: u32,
     pid: u32,
-    in_root_mount_ns: bool,
+    pub in_root_mount_ns: bool,
     lineage: Vec<Lineage>,
 }
 
@@ -136,7 +136,6 @@ impl PartialEq for Process {
             && self.in_root_mount_ns == other.in_root_mount_ns
     }
 }
-
 impl TryFrom<process_t> for Process {
     type Error = anyhow::Error;
 
@@ -184,7 +183,7 @@ impl TryFrom<process_t> for Process {
     }
 }
 
-impl From<Process> for fact_api::ProcessSignal {
+impl From<Process> for fact_api::storage::ProcessSignal {
     fn from(value: Process) -> Self {
         let Process {
             comm,
@@ -192,11 +191,11 @@ impl From<Process> for fact_api::ProcessSignal {
             exe_path,
             container_id,
             uid,
-            username,
+            username: _,
             gid,
-            login_uid,
+            login_uid: _,
             pid,
-            in_root_mount_ns,
+            in_root_mount_ns: _,
             lineage,
         } = value;
 
@@ -207,10 +206,11 @@ impl From<Process> for fact_api::ProcessSignal {
             .reduce(|acc, i| acc + " " + &i)
             .unwrap_or("".to_owned());
 
+        #[allow(deprecated)]
         Self {
             id: Uuid::new_v4().to_string(),
             container_id,
-            creation_time: None,
+            time: None,
             name: comm,
             args,
             exec_file_path: exe_path,
@@ -218,13 +218,11 @@ impl From<Process> for fact_api::ProcessSignal {
             uid,
             gid,
             scraped: false,
+            lineage: vec![],
             lineage_info: lineage
                 .into_iter()
-                .map(fact_api::process_signal::LineageInfo::from)
+                .map(fact_api::storage::process_signal::LineageInfo::from)
                 .collect(),
-            login_uid,
-            username: username.to_owned(),
-            in_root_mount_ns,
         }
     }
 }
