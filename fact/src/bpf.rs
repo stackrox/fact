@@ -139,7 +139,8 @@ impl Bpf {
     fn load_progs(&mut self) -> anyhow::Result<()> {
         let btf = Btf::from_sys_fs()?;
         self.load_lsm_prog("trace_file_open", "file_open", &btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)
+        self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)?;
+        self.load_lsm_prog("trace_bprm_check", "bprm_check_security", &btf)
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
