@@ -21,12 +21,54 @@ fn timestamp_to_proto(ts: u64) -> prost_types::Timestamp {
     prost_types::Timestamp { seconds, nanos }
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub enum ProcessActivity {
+    Exec,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum Activity {
+    File(FileData),
+    Process(ProcessActivity),
+}
+
+#[cfg(test)]
+impl PartialEq for Activity {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::File(l), Self::File(r)) => l == r,
+            (Self::Process(l), Self::Process(r)) => l == r,
+            _ => false,
+        }
+    }
+}
+
+impl Activity {
+    pub fn new(
+        event_type: file_activity_type_t,
+        filename: [c_char; PATH_MAX as usize],
+        host_file: [c_char; PATH_MAX as usize],
+    ) -> anyhow::Result<Self> {
+        let activity = match event_type {
+            file_activity_type_t::FILE_ACTIVITY_OPEN
+            | file_activity_type_t::FILE_ACTIVITY_CREATION
+            | file_activity_type_t::FILE_ACTIVITY_UNLINK => {
+                Activity::File(FileData::new(event_type, filename, host_file)?)
+            }
+            file_activity_type_t::PROCESS_ACTIVITY_EXEC => Activity::Process(ProcessActivity::Exec),
+            invalid => unreachable!("Invalid event type: {invalid:?}"),
+        };
+
+        Ok(activity)
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Event {
     timestamp: u64,
     hostname: &'static str,
-    process: Process,
-    file: FileData,
+    pub process: Process,
+    pub activity: Activity,
 }
 
 impl Event {
@@ -46,10 +88,13 @@ impl Event {
             filename,
             host_file,
         };
-        let file = match event_type {
-            file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
-            file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
-            file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
+        let activity = match event_type {
+            file_activity_type_t::FILE_ACTIVITY_OPEN => Activity::File(FileData::Open(inner)),
+            file_activity_type_t::FILE_ACTIVITY_CREATION => {
+                Activity::File(FileData::Creation(inner))
+            }
+            file_activity_type_t::FILE_ACTIVITY_UNLINK => Activity::File(FileData::Unlink(inner)),
+            file_activity_type_t::PROCESS_ACTIVITY_EXEC => Activity::Process(ProcessActivity::Exec),
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
 
@@ -57,7 +102,7 @@ impl Event {
             timestamp,
             hostname,
             process,
-            file,
+            activity,
         })
     }
 }
@@ -68,25 +113,60 @@ impl TryFrom<&event_t> for Event {
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let process = Process::try_from(value.process)?;
         let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(value.type_, value.filename, value.host_file)?;
+        let activity = Activity::new(value.type_, value.filename, value.host_file)?;
 
         Ok(Event {
             timestamp,
             hostname: host_info::get_hostname(),
             process,
-            file,
+            activity,
         })
     }
 }
 
-impl From<Event> for fact_api::FileActivity {
+impl From<Event> for fact_api::v1::Signal {
     fn from(value: Event) -> Self {
-        let file = fact_api::file_activity::File::from(value.file);
+        let process_signal = fact_api::storage::ProcessSignal::from(value.process);
+        fact_api::v1::Signal {
+            signal: Some(fact_api::v1::signal::Signal::ProcessSignal(process_signal)),
+        }
+    }
+}
+
+impl From<Event> for fact_api::sensor::FileActivity {
+    fn from(value: Event) -> Self {
+        let file = match value.activity {
+            Activity::File(file) => Some(fact_api::sensor::file_activity::File::from(file)),
+            Activity::Process(_) => None,
+        };
         let timestamp = timestamp_to_proto(value.timestamp);
-        let process = fact_api::ProcessSignal::from(value.process);
+        let process_signal = fact_api::storage::ProcessSignal::from(value.process.clone());
+        let process = fact_api::sensor::ProcessSignal {
+            id: process_signal.id,
+            container_id: process_signal.container_id,
+            creation_time: process_signal.time,
+            name: process_signal.name,
+            args: process_signal.args,
+            exec_file_path: process_signal.exec_file_path,
+            pid: process_signal.pid,
+            gid: process_signal.gid,
+            uid: process_signal.uid,
+            username: value.process.username.to_string(),
+            login_uid: value.process.login_uid,
+            in_root_mount_ns: value.process.in_root_mount_ns,
+            scraped: process_signal.scraped,
+            lineage_info: process_signal
+                .lineage_info
+                .into_iter()
+                .map(|l| fact_api::sensor::process_signal::LineageInfo {
+                    parent_uid: l.parent_uid,
+                    parent_exec_file_path: l.parent_exec_file_path,
+                })
+                .collect(),
+        };
 
         Self {
-            file: Some(file),
+            file,
             timestamp: Some(timestamp),
             process: Some(process),
         }
@@ -96,7 +176,9 @@ impl From<Event> for fact_api::FileActivity {
 #[cfg(test)]
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
-        self.hostname == other.hostname && self.process == other.process && self.file == other.file
+        self.hostname == other.hostname
+            && self.process == other.process
+            && self.activity == other.activity
     }
 }
 
@@ -118,30 +200,30 @@ impl FileData {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
-            invalid => unreachable!("Invalid event type: {invalid:?}"),
+            invalid => unreachable!("Invalid file event type: {invalid:?}"),
         };
 
         Ok(file)
     }
 }
 
-impl From<FileData> for fact_api::file_activity::File {
+impl From<FileData> for fact_api::sensor::file_activity::File {
     fn from(event: FileData) -> Self {
         match event {
             FileData::Open(event) => {
-                let activity = Some(fact_api::FileActivityBase::from(event));
-                let f_act = fact_api::FileOpen { activity };
-                fact_api::file_activity::File::Open(f_act)
+                let activity = Some(fact_api::sensor::FileActivityBase::from(event));
+                let f_act = fact_api::sensor::FileOpen { activity };
+                fact_api::sensor::file_activity::File::Open(f_act)
             }
             FileData::Creation(event) => {
-                let activity = Some(fact_api::FileActivityBase::from(event));
-                let f_act = fact_api::FileCreation { activity };
-                fact_api::file_activity::File::Creation(f_act)
+                let activity = Some(fact_api::sensor::FileActivityBase::from(event));
+                let f_act = fact_api::sensor::FileCreation { activity };
+                fact_api::sensor::file_activity::File::Creation(f_act)
             }
             FileData::Unlink(event) => {
-                let activity = Some(fact_api::FileActivityBase::from(event));
-                let f_act = fact_api::FileUnlink { activity };
-                fact_api::file_activity::File::Unlink(f_act)
+                let activity = Some(fact_api::sensor::FileActivityBase::from(event));
+                let f_act = fact_api::sensor::FileUnlink { activity };
+                fact_api::sensor::file_activity::File::Unlink(f_act)
             }
         }
     }
@@ -187,9 +269,9 @@ impl PartialEq for BaseFileData {
     }
 }
 
-impl From<BaseFileData> for fact_api::FileActivityBase {
+impl From<BaseFileData> for fact_api::sensor::FileActivityBase {
     fn from(value: BaseFileData) -> Self {
-        fact_api::FileActivityBase {
+        fact_api::sensor::FileActivityBase {
             path: value.filename.to_string_lossy().to_string(),
             host_path: value.host_file.to_string_lossy().to_string(),
         }

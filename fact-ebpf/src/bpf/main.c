@@ -91,3 +91,14 @@ error:
   m->path_unlink.error++;
   return 0;
 }
+
+SEC("lsm/bprm_check_security")
+int BPF_PROG(trace_bprm_check, struct linux_binprm* bprm) {
+  struct metrics_t* m = get_metrics();
+
+  m->bprm_check.total++;
+
+  submit_event(&m->bprm_check, PROCESS_ACTIVITY_EXEC, "", NULL);
+
+  return 0;
+}

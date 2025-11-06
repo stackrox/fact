@@ -1,7 +1,10 @@
 use std::{fs::read_to_string, path::Path, sync::Arc, time::Duration};
 
 use anyhow::bail;
-use fact_api::file_activity_service_client::FileActivityServiceClient;
+use fact_api::sensor::{
+    file_activity_service_client::FileActivityServiceClient,
+    signal_service_client::SignalServiceClient, SignalStreamMessage,
+};
 use log::{debug, info, warn};
 use tokio::{
     sync::{broadcast, watch},
@@ -49,6 +52,15 @@ impl Interceptor for UserAgentInterceptor {
             .metadata_mut()
             .insert("user-agent", MetadataValue::from_static("Rox SFA Agent"));
         Ok(request)
+    }
+}
+
+impl From<Event> for SignalStreamMessage {
+    fn from(value: Event) -> Self {
+        let signal = fact_api::v1::Signal::from(value);
+        SignalStreamMessage {
+            msg: Some(fact_api::sensor::signal_stream_message::Msg::Signal(signal)),
+        }
     }
 }
 
@@ -127,29 +139,59 @@ impl Client {
             };
             info!("Successfully connected to gRPC server");
 
-            let mut client =
-                FileActivityServiceClient::with_interceptor(channel, UserAgentInterceptor {});
+            let mut sfa_client = FileActivityServiceClient::with_interceptor(
+                channel.clone(),
+                UserAgentInterceptor {},
+            );
+            let mut signal_client =
+                SignalServiceClient::with_interceptor(channel, UserAgentInterceptor {});
 
             let metrics = self.metrics.clone();
-            let rx =
+            let sfa_rx =
                 BroadcastStream::new(self.rx.resubscribe()).filter_map(move |event| match event {
                     Ok(event) => {
+                        if !matches!(event.activity, crate::event::Activity::File(_)) {
+                            return None;
+                        }
                         metrics.added();
                         let event = Arc::unwrap_or_clone(event);
                         Some(event.into())
                     }
                     Err(BroadcastStreamRecvError::Lagged(n)) => {
-                        warn!("gRPC stream lagged, dropped {n} events");
+                        warn!("gRPC sfa stream lagged, dropped {n} events");
+                        metrics.dropped_n(n);
+                        None
+                    }
+                });
+            let metrics = self.metrics.clone();
+            let signal_rx =
+                BroadcastStream::new(self.rx.resubscribe()).filter_map(move |event| match event {
+                    Ok(event) => {
+                        if !matches!(event.activity, crate::event::Activity::Process(_)) {
+                            return None;
+                        }
+                        metrics.added();
+                        let event = Arc::unwrap_or_clone(event);
+                        Some(event.into())
+                    }
+                    Err(BroadcastStreamRecvError::Lagged(n)) => {
+                        warn!("gRPC signal stream lagged, dropped {n} events");
                         metrics.dropped_n(n);
                         None
                     }
                 });
 
             tokio::select! {
-                res = client.communicate(rx) => {
+                res = sfa_client.communicate(sfa_rx) => {
                     match res {
-                        Ok(_) => info!("gRPC stream ended"),
-                        Err(e) => warn!("gRPC stream error: {e}"),
+                        Ok(_) => info!("gRPC sfa stream ended"),
+                        Err(e) => warn!("gRPC sfa stream error: {e}"),
+                    }
+                }
+                res = signal_client.push_signals(signal_rx) => {
+                    match res {
+                        Ok(_) => info!("gRPC signal stream ended"),
+                        Err(e) => warn!("gRPC signal stream error: {e}"),
                     }
                 }
                 _ = self.config.changed() => return Ok(true),
