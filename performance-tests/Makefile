@@ -64,7 +64,7 @@ kernel_space_mem:
 			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
 	done
 
-make push-data:
+push-data:
 	for file in `ls data/*.json` ; do \
 		python store.py $$file fact ; \
 	done
