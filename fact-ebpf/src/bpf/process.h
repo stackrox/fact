@@ -112,6 +112,7 @@ __always_inline static int64_t process_fill(process_t* p) {
   p->gid = (uid_gid >> 32) & 0xFFFFFFFF;
   p->login_uid = BPF_CORE_READ(task, loginuid.val);
   p->pid = (bpf_get_current_pid_tgid() >> 32) & 0xFFFFFFFF;
+  p->start_time = BPF_CORE_READ(task, start_boottime);
   u_int64_t err = bpf_get_current_comm(p->comm, TASK_COMM_LEN);
   if (err != 0) {
     bpf_printk("Failed to fill task comm");
