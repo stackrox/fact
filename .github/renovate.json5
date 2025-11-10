@@ -78,18 +78,13 @@
       ],
       "groupName": "All updates",
       "automerge": true,
-      // A known issue is that some non-Konflux CI jobs currently fail, which may prevent successful auto-merging with a "branch" auto-merge setting.
-      // Therefore, we use PR merge type and have automation approve PRs.
-      "automergeType": "pr",
-      "automergeStrategy": "squash",
+      // PRs can't be actually automerged because we require approval from CODEOWNERS which Renovate can't bypass,
+      // therefore, we set automerge type to branch.
+      "automergeType": "branch",
       // Tell Renovate that it can automerge branches at any time of the day.
       "automergeSchedule": [
         "at any time",
       ],
-      "platformAutomerge": true,
     },
-  ],
-  "labels": [
-    "auto-approve",
   ],
 }
