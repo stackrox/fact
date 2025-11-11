@@ -45,6 +45,7 @@ struct event_t {
   char filename[PATH_MAX];
   char host_file[PATH_MAX];
   file_activity_type_t type;
+  unsigned int dev;
 };
 
 /**

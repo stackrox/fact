@@ -16,6 +16,7 @@ __always_inline static void submit_event(struct metrics_by_hook_t* m, file_activ
 
   event->type = event_type;
   event->timestamp = bpf_ktime_get_boot_ns();
+  event->dev = BPF_CORE_READ(dentry, d_sb, s_dev);
   bpf_probe_read_str(event->filename, PATH_MAX, filename);
 
   struct helper_t* helper = get_helper();

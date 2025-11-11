@@ -4,11 +4,12 @@ use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
 
 use serde::Serialize;
 
-use fact_ebpf::{event_t, file_activity_type_t, PATH_MAX};
+use fact_ebpf::{file_activity_type_t, PATH_MAX};
 
-use crate::host_info;
+use crate::mount_info::MountEntry;
 use process::Process;
 
+pub(crate) mod parser;
 pub(crate) mod process;
 
 fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
@@ -62,23 +63,6 @@ impl Event {
     }
 }
 
-impl TryFrom<&event_t> for Event {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let process = Process::try_from(value.process)?;
-        let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(value.type_, value.filename, value.host_file)?;
-
-        Ok(Event {
-            timestamp,
-            hostname: host_info::get_hostname(),
-            process,
-            file,
-        })
-    }
-}
-
 impl From<Event> for fact_api::FileActivity {
     fn from(value: Event) -> Self {
         let file = fact_api::file_activity::File::from(value.file);
@@ -113,8 +97,9 @@ impl FileData {
         event_type: file_activity_type_t,
         filename: [c_char; PATH_MAX as usize],
         host_file: [c_char; PATH_MAX as usize],
+        mounts: &Vec<MountEntry>,
     ) -> anyhow::Result<Self> {
-        let inner = BaseFileData::new(filename, host_file)?;
+        let inner = BaseFileData::new(filename, host_file, mounts)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
@@ -170,13 +155,21 @@ impl BaseFileData {
     pub fn new(
         filename: [c_char; PATH_MAX as usize],
         host_file: [c_char; PATH_MAX as usize],
+        mounts: &Vec<MountEntry>,
     ) -> anyhow::Result<Self> {
         let filename = slice_to_string(&filename)?.into();
-        let host_file = slice_to_string(&host_file)?.into();
+        let mut host_file: PathBuf = slice_to_string(&host_file)?.into();
+
+        for mount in mounts {
+            if let Ok(hf) = host_file.strip_prefix(&mount.root) {
+                host_file = mount.mount_point.join(hf);
+                break;
+            }
+        }
 
         Ok(BaseFileData {
             filename,
-            host_file,
+            host_file: host_file.to_path_buf(),
         })
     }
 }

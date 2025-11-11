@@ -15,7 +15,11 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{event::Event, host_info, metrics::EventCounter};
+use crate::{
+    event::{parser::EventParser, Event},
+    host_info,
+    metrics::EventCounter,
+};
 
 use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
@@ -30,6 +34,8 @@ pub struct Bpf {
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
+
+    parser: EventParser,
 }
 
 impl Bpf {
@@ -56,11 +62,13 @@ impl Bpf {
 
         let paths = Vec::new();
         let (tx, _) = broadcast::channel(100);
+        let parser = EventParser::new()?;
         let mut bpf = Bpf {
             obj,
             tx,
             paths,
             paths_config,
+            parser,
         };
 
         bpf.load_paths()?;
@@ -183,7 +191,7 @@ impl Bpf {
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                            let event = match Event::try_from(event) {
+                            let event = match self.parser.parse(event) {
                                 Ok(event) => Arc::new(event),
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");

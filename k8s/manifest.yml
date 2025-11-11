@@ -26,6 +26,8 @@ spec:
         env:
         - name: FACT_LOGLEVEL
           value: 'debug'
+        - name: FACT_HOST_MOUNT
+          value: '/host'
         securityContext:
           capabilities:
             drop:
@@ -33,11 +35,11 @@ spec:
           privileged: true
           readOnlyRootFilesystem: true
         volumeMounts:
-        - mountPath: /sys
-          name: sys-ro
+        - mountPath: /host
+          name: root-ro
           readOnly: true
           mountPropagation: HostToContainer
       volumes:
       - hostPath:
-          path: /sys/
-        name: sys-ro
+          path: /
+        name: root-ro
