@@ -91,6 +91,15 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
     server.wait_events([e], ignored=[ignored_event])
 
 
+def do_test(fut: str, stop_event: mp.Event):
+    with open(fut, 'w') as f:
+        f.write('This is a test')
+    os.remove(fut)
+
+    # Wait for test to be done
+    stop_event.wait()
+
+
 def test_external_process(fact, monitored_dir, server):
     """
     Tests the removal of a file by an external process and verifies that
@@ -101,14 +110,6 @@ def test_external_process(fact, monitored_dir, server):
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
     """
-    def do_test(fut: str, stop_event: mp.Event):
-        with open(fut, 'w') as f:
-            f.write('This is a test')
-        os.remove(fut)
-
-        # Wait for test to be done
-        stop_event.wait()
-
     # File Under Test
     fut = os.path.join(monitored_dir, 'test.txt')
     stop_event = mp.Event()
