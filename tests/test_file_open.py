@@ -1,6 +1,8 @@
 import multiprocessing as mp
 import os
 
+import docker
+
 from event import Event, EventType, Process
 
 
@@ -19,7 +21,8 @@ def test_open(fact, monitored_dir, server):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=Process(), event_type=EventType.CREATION, file=fut)
+    e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
+              file=fut, host_path=fut)
     print(f'Waiting for event: {e}')
 
     server.wait_events([e])
@@ -36,14 +39,15 @@ def test_multiple(fact, monitored_dir, server):
         server: The server instance to communicate with.
     """
     events = []
-    process = Process()
+    process = Process.from_proc()
     # File Under Test
     for i in range(3):
         fut = os.path.join(monitored_dir, f'{i}.txt')
         with open(fut, 'w') as f:
             f.write('This is a test')
 
-        e = Event(process=process, event_type=EventType.CREATION, file=fut)
+        e = Event(process=process, event_type=EventType.CREATION,
+                  file=fut, host_path=fut)
         print(f'Waiting for event: {e}')
         events.append(e)
 
@@ -68,7 +72,7 @@ def test_multiple_access(fact, monitored_dir, server):
         with open(fut, 'a+') as f:
             f.write('This is a test')
 
-        e = Event(process=Process(), file=fut,
+        e = Event(process=Process.from_proc(), file=fut, host_path=fut,
                   event_type=EventType.CREATION if i == 0 else EventType.OPEN)
         print(f'Waiting for event: {e}')
         events.append(e)
@@ -87,15 +91,15 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
         ignored_dir: Temporary directory path that is not monitored by fact.
         server: The server instance to communicate with.
     """
-    p = Process()
+    p = Process.from_proc()
 
     # Ignored file, must not show up in the server
     ignored_file = os.path.join(ignored_dir, 'test.txt')
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
 
-    ignored_event = Event(
-        process=p, event_type=EventType.CREATION, file=ignored_file)
+    ignored_event = Event(process=p, event_type=EventType.CREATION,
+                          file=ignored_file, host_path=ignored_file)
     print(f'Ignoring: {ignored_event}')
 
     # File Under Test
@@ -103,7 +107,8 @@ def test_ignored(fact, monitored_dir, ignored_dir, server):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, event_type=EventType.CREATION, file=fut)
+    e = Event(process=p, event_type=EventType.CREATION,
+              file=fut, host_path=fut)
     print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
@@ -135,11 +140,13 @@ def test_external_process(fact, monitored_dir, server):
     stop_event = mp.Event()
     proc = mp.Process(target=do_test, args=(fut, stop_event))
     proc.start()
-    p = Process(proc.pid)
+    p = Process.from_proc(proc.pid)
 
-    creation = Event(process=p, event_type=EventType.CREATION, file=fut)
+    creation = Event(process=p, event_type=EventType.CREATION,
+                     file=fut, host_path=fut)
     print(f'Waiting for event: {creation}')
-    write_access = Event(process=p, event_type=EventType.OPEN, file=fut)
+    write_access = Event(
+        process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
     print(f'Waiting for event: {write_access}')
 
     try:
@@ -147,3 +154,55 @@ def test_external_process(fact, monitored_dir, server):
     finally:
         stop_event.set()
         proc.join(1)
+
+
+def test_overlay(fact, test_container, server):
+    # File Under Test
+    fut = '/container-dir/test.txt'
+
+    # Create the exec and an equivalent event that it will trigger
+    test_container.exec_run(f'touch {fut}')
+    inspect = docker.APIClient().inspect_container(test_container.id)
+    upper_dir = inspect['GraphDriver']['Data']['UpperDir']
+
+    process = Process(pid=None,
+                      uid=0,
+                      gid=0,
+                      exe_path='/usr/bin/touch',
+                      args=f'touch {fut}',
+                      name='touch',
+                      container_id=test_container.id[:12],
+                      loginuid=pow(2, 32)-1)
+    events = [
+        Event(process=process, event_type=EventType.CREATION,
+              file=fut, host_path=fut),
+        Event(process=process, event_type=EventType.OPEN,
+              file=fut, host_path=os.path.join(upper_dir, fut[1:]))
+    ]
+
+    for e in events:
+        print(f'Waiting for event: {e}')
+
+    server.wait_events(events)
+
+
+def test_mounted_dir(fact, test_container, ignored_dir, server):
+    # File Under Test
+    fut = '/mounted/test.txt'
+
+    # Create the exec and an equivalent event that it will trigger
+    test_container.exec_run(f'touch {fut}')
+
+    process = Process(pid=None,
+                      uid=0,
+                      gid=0,
+                      exe_path='/usr/bin/touch',
+                      args=f'touch {fut}',
+                      name='touch',
+                      container_id=test_container.id[:12],
+                      loginuid=pow(2, 32)-1)
+    event = Event(process=process, event_type=EventType.CREATION,
+                  file=fut, host_path=os.path.join(ignored_dir, 'test.txt'))
+    print(f'Waiting for event: {event}')
+
+    server.wait_events([event])
