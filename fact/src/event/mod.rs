@@ -89,6 +89,7 @@ impl From<Event> for fact_api::FileActivity {
             file: Some(file),
             timestamp: Some(timestamp),
             process: Some(process),
+            node: value.hostname.to_string(),
         }
     }
 }
