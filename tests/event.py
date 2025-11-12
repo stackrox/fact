@@ -37,10 +37,31 @@ class Process:
     Represents a process with its attributes.
     """
 
-    def __init__(self, pid: int | None = None):
-        self._pid: int = pid if pid is not None else os.getpid()
-        proc_dir = os.path.join('/proc', str(self._pid))
+    def __init__(self,
+                 pid: int | None,
+                 uid: int,
+                 gid: int,
+                 exe_path: str,
+                 args: str,
+                 name: str,
+                 container_id: str,
+                 loginuid: int):
+        self._pid: int | None = pid
+        self._uid: int = uid
+        self._gid: int = gid
+        self._exe_path: str = exe_path
+        self._args: str = args
+        self._name: str = name
+        self._container_id: str = container_id
+        self._loginuid: int = loginuid
 
+    @classmethod
+    def from_proc(cls, pid: int | None = None):
+        pid: int = pid if pid is not None else os.getpid()
+        proc_dir = os.path.join('/proc', str(pid))
+
+        uid = 0
+        gid = 0
         with open(os.path.join(proc_dir, 'status'), 'r') as f:
             def get_id(line: str, wanted_id: str) -> int | None:
                 if line.startswith(f'{wanted_id}:'):
@@ -50,27 +71,36 @@ class Process:
                 return None
 
             for line in f.readlines():
-                if (uid := get_id(line, 'Uid')) is not None:
-                    self._uid: int = uid
-                elif (gid := get_id(line, 'Gid')) is not None:
-                    self._gid: int = gid
+                if (id := get_id(line, 'Uid')) is not None:
+                    uid = id
+                elif (id := get_id(line, 'Gid')) is not None:
+                    gid = id
 
-        self._exe_path: str = os.path.realpath(os.path.join(proc_dir, 'exe'))
+        exe_path = os.path.realpath(os.path.join(proc_dir, 'exe'))
 
         with open(os.path.join(proc_dir, 'cmdline'), 'rb') as f:
             content = f.read(4096)
             args = [arg.decode('utf-8')
                     for arg in content.split(b'\x00') if arg]
-            self._args: str = ' '.join(args)
+        args = ' '.join(args)
 
         with open(os.path.join(proc_dir, 'comm'), 'r') as f:
-            self._name: str = f.read().strip()
+            name = f.read().strip()
 
         with open(os.path.join(proc_dir, 'cgroup'), 'r') as f:
-            self._container_id: str = extract_container_id(f.read())
+            container_id = extract_container_id(f.read())
 
         with open(os.path.join(proc_dir, 'loginuid'), 'r') as f:
-            self._loginuid: int = int(f.read())
+            loginuid = int(f.read())
+
+        return Process(pid=pid,
+                       uid=uid,
+                       gid=gid,
+                       exe_path=exe_path,
+                       args=args,
+                       name=name,
+                       container_id=container_id,
+                       loginuid=loginuid)
 
     @property
     def uid(self) -> int:
@@ -81,7 +111,7 @@ class Process:
         return self._gid
 
     @property
-    def pid(self) -> int:
+    def pid(self) -> int | None:
         return self._pid
 
     @property
@@ -107,10 +137,12 @@ class Process:
     @override
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, ProcessSignal):
+            if self.pid is not None and self.pid != other.pid:
+                return False
+
             return (
                 self.uid == other.uid and
                 self.gid == other.gid and
-                self.pid == other.pid and
                 self.exe_path == other.exec_file_path and
                 self.args == other.args and
                 self.name == other.name and
@@ -124,7 +156,7 @@ class Process:
         return (f'Process(uid={self.uid}, gid={self.gid}, pid={self.pid}, '
                 f'exe_path={self.exe_path}, args={self.args}, '
                 f'name={self.name}, container_id={self.container_id}, '
-                f'loginuid={self.loginuid}')
+                f'loginuid={self.loginuid})')
 
 
 class Event:
@@ -136,10 +168,12 @@ class Event:
     def __init__(self,
                  process: Process,
                  event_type: EventType,
-                 file: str):
+                 file: str,
+                 host_path: str = ''):
         self._type: EventType = event_type
         self._process: Process = process
         self._file: str = file
+        self._host_path: str = host_path
 
     @property
     def event_type(self) -> EventType:
@@ -153,6 +187,10 @@ class Event:
     def file(self) -> str:
         return self._file
 
+    @property
+    def host_path(self) -> str:
+        return self._host_path
+
     @override
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, FileActivity):
@@ -160,15 +198,19 @@ class Event:
                 return False
 
             if self.event_type == EventType.CREATION:
-                return self.file == other.creation.activity.path
+                return self.file == other.creation.activity.path and \
+                    self.host_path == other.creation.activity.host_path
             elif self.event_type == EventType.OPEN:
-                return self.file == other.open.activity.path
+                return self.file == other.open.activity.path and \
+                    self.host_path == other.open.activity.host_path
             elif self.event_type == EventType.UNLINK:
-                return self.file == other.unlink.activity.path
+                return self.file == other.unlink.activity.path and \
+                    self.host_path == other.unlink.activity.host_path
             return False
         raise NotImplementedError
 
     @override
     def __str__(self) -> str:
         return (f'Event(event_type={self.event_type.name}, '
-                f'process={self.process}, file="{self.file}")')
+                f'process={self.process}, file="{self.file}", '
+                f'host_path="{self.host_path}")')
