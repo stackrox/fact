@@ -23,6 +23,20 @@ def monitored_dir():
 
 
 @pytest.fixture
+def test_file(monitored_dir):
+    """
+    Create a temporary file for tests
+
+    This file needs to exist when fact starts up for the inode tracking
+    algorithm to work.
+    """
+    fut = os.path.join(monitored_dir, 'test.txt')
+    with open(fut, 'w') as f:
+        f.write('test')
+    yield fut
+
+
+@pytest.fixture
 def ignored_dir():
     """
     Create a temporary directory for tests that will not be monitored
@@ -84,7 +98,7 @@ def dump_logs(container, file):
 def fact_config(request, monitored_dir, logs_dir):
     cwd = os.getcwd()
     config = {
-        'paths': [monitored_dir],
+        'paths': [monitored_dir, '/container-dir'],
         'grpc': {
             'url': 'http://127.0.0.1:9999',
         },
@@ -107,7 +121,36 @@ def fact_config(request, monitored_dir, logs_dir):
 
 
 @pytest.fixture
-def fact(request, docker_client, fact_config, server, logs_dir):
+def test_container(request, docker_client, monitored_dir, ignored_dir):
+    """
+    Run a container for triggering events in.
+    """
+    container = docker_client.containers.run(
+        'quay.io/fedora/fedora:43',
+        detach=True,
+        tty=True,
+        volumes={
+            monitored_dir: {
+                'bind': '/mounted',
+                'mode': 'z',
+            },
+            ignored_dir: {
+                'bind': '/unmonitored',
+                'mode': 'z',
+            }
+        },
+        name='fedora',
+    )
+    container.exec_run('mkdir /container-dir')
+
+    yield container
+
+    container.stop(timeout=1)
+    container.remove()
+
+
+@pytest.fixture
+def fact(request, docker_client, fact_config, server, logs_dir, test_file):
     """
     Run the fact docker container for integration tests.
     """
@@ -124,20 +167,8 @@ def fact(request, docker_client, fact_config, server, logs_dir):
         network_mode='host',
         privileged=True,
         volumes={
-            '/sys/kernel/security': {
-                'bind': '/host/sys/kernel/security',
-                'mode': 'ro',
-            },
-            '/etc': {
-                'bind': '/host/etc',
-                'mode': 'ro',
-            },
-            '/proc/sys/kernel': {
-                'bind': '/host/proc/sys/kernel',
-                'mode': 'ro',
-            },
-            '/usr/lib/os-release': {
-                'bind': '/host/usr/lib/os-release',
+            '/': {
+                'bind': '/host',
                 'mode': 'ro',
             },
             config_file: {
