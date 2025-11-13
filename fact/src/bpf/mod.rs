@@ -6,6 +6,7 @@ use aya::{
     programs::Lsm,
     Btf, Ebpf,
 };
+use checks::Checks;
 use libc::c_char;
 use log::{debug, error, info};
 use tokio::{
@@ -17,6 +18,8 @@ use tokio::{
 use crate::{event::Event, host_info, metrics::EventCounter};
 
 use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
+
+mod checks;
 
 const RINGBUFFER_NAME: &str = "rb";
 
@@ -36,10 +39,18 @@ impl Bpf {
     ) -> anyhow::Result<Self> {
         Bpf::bump_memlock_rlimit()?;
 
+        let btf = Btf::from_sys_fs()?;
+        let checks = Checks::new(&btf)?;
+
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
         let obj = aya::EbpfLoader::new()
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
+            .set_global(
+                "path_unlink_supports_bpf_d_path",
+                &(checks.path_unlink_supports_bpf_d_path as u8),
+                true,
+            )
             .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
             .load(fact_ebpf::EBPF_OBJ)?;
 
@@ -53,7 +64,7 @@ impl Bpf {
         };
 
         bpf.load_paths()?;
-        bpf.load_progs()?;
+        bpf.load_progs(&btf)?;
 
         Ok(bpf)
     }
@@ -136,10 +147,9 @@ impl Bpf {
         Ok(())
     }
 
-    fn load_progs(&mut self) -> anyhow::Result<()> {
-        let btf = Btf::from_sys_fs()?;
-        self.load_lsm_prog("trace_file_open", "file_open", &btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", &btf)
+    fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
+        self.load_lsm_prog("trace_file_open", "file_open", btf)?;
+        self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {

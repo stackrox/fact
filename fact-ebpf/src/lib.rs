@@ -88,3 +88,4 @@ impl metrics_t {
 unsafe impl Pod for metrics_t {}
 
 pub const EBPF_OBJ: &[u8] = aya::include_bytes_aligned!(concat!(env!("OUT_DIR"), "/main.o"));
+pub const CHECKS_OBJ: &[u8] = aya::include_bytes_aligned!(concat!(env!("OUT_DIR"), "/checks.o"));

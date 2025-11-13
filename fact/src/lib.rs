@@ -98,8 +98,11 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
             _ = sigterm.recv() => break,
             _ = sighup.recv() => config_trigger.notify_one(),
             res = bpf_handle.borrow_mut() => {
-                if let Err(e) = res {
-                    warn!("BPF worker errored out: {e}");
+                match res {
+                    Ok(res) => if let Err(e) = res {
+                        warn!("BPF worker errored out: {e:?}");
+                    }
+                    Err(e) => warn!("BPF task errored out: {e:?}"),
                 }
                 break;
             }
