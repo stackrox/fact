@@ -38,6 +38,9 @@ struct {
 __always_inline static bool filter_by_prefix() {
   unsigned int zero = 0;
   char* res = bpf_map_lookup_elem(&filter_by_prefix_map, &zero);
+  if (res == NULL) {
+    return false;
+  }
   return *res != 0;
 }
 

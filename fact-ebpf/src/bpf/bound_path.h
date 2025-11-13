@@ -23,6 +23,9 @@ __always_inline static void path_write_char(char* p, unsigned int offset, char c
 
 __always_inline static struct bound_path_t* path_read(struct path* path) {
   struct bound_path_t* bound_path = get_bound_path();
+  if (bound_path == NULL) {
+    return NULL;
+  }
 
   bound_path->len = bpf_d_path(path, bound_path->path, PATH_MAX);
   if (bound_path->len <= 0) {

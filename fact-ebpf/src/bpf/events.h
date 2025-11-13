@@ -17,9 +17,11 @@ __always_inline static void submit_event(struct metrics_by_hook_t* m, file_activ
   bpf_probe_read_str(event->filename, PATH_MAX, filename);
 
   struct helper_t* helper = get_helper();
-  const char* p = get_host_path(helper->buf, dentry);
-  if (p != NULL) {
-    bpf_probe_read_str(event->host_file, PATH_MAX, p);
+  if (helper != NULL) {
+    const char* p = get_host_path(helper->buf, dentry);
+    if (p != NULL) {
+      bpf_probe_read_str(event->host_file, PATH_MAX, p);
+    }
   }
 
   int64_t err = process_fill(&event->process);
