@@ -1,4 +1,4 @@
 [submodule "third_party/stackrox"]
 	path = third_party/stackrox
 	url = https://github.com/stackrox/stackrox
-	branch = master
+	branch = jv-ROX-31434-enrich-file-system-events-with-node-details
