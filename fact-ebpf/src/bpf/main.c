@@ -22,6 +22,9 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
   struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
 
   m->file_open.total++;
 
@@ -58,6 +61,9 @@ ignored:
 SEC("lsm/path_unlink")
 int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
 
   m->path_unlink.total++;
 
