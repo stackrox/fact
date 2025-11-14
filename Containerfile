@@ -24,4 +24,6 @@ FROM registry.access.redhat.com/ubi9/ubi-micro:latest
 
 COPY --from=builder /app/fact /usr/local/bin
 
+COPY LICENSE-APACHE LICENSE-MIT LICENSE-GPL2 /licenses/
+
 ENTRYPOINT ["fact"]
