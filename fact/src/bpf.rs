@@ -217,12 +217,7 @@ mod bpf_tests {
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
-    use crate::{
-        config::{reloader::Reloader, FactConfig},
-        event::process::Process,
-        host_info,
-        metrics::exporter::Exporter,
-    };
+    use crate::{config, event::process::Process, host_info, metrics::exporter::Exporter};
 
     use super::*;
 
@@ -247,12 +242,10 @@ mod bpf_tests {
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
         let paths = vec![monitored_path.clone()];
-        let mut config = FactConfig::default();
-        config.set_paths(paths);
-        let reloader = Reloader::from(config);
+        let (_, paths) = watch::channel(paths);
         executor.block_on(async {
-            let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())
-                .expect("Failed to load BPF code");
+            let mut bpf =
+                Bpf::new(paths, config::DEFAULT_RINGBUFFER_SIZE).expect("Failed to load BPF code");
             let mut rx = bpf.subscribe();
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it

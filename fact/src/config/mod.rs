@@ -1,26 +1,19 @@
 use std::{
-    fs::read_to_string,
     net::SocketAddr,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::LazyLock,
 };
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use clap::Parser;
-use log::info;
 use yaml_rust2::{yaml, Yaml, YamlLoader};
 
+mod builder;
 pub mod reloader;
 #[cfg(test)]
 mod tests;
 
-const CONFIG_FILES: [&str; 4] = [
-    "/etc/stackrox/fact.yml",
-    "/etc/stackrox/fact.yaml",
-    "fact.yml",
-    "fact.yaml",
-];
+pub const DEFAULT_RINGBUFFER_SIZE: u32 = 8192;
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct FactConfig {
@@ -34,44 +27,6 @@ pub struct FactConfig {
 }
 
 impl FactConfig {
-    pub fn new() -> anyhow::Result<Self> {
-        let config = FactConfig::build()?;
-        info!("{config:#?}");
-        Ok(config)
-    }
-
-    fn build() -> anyhow::Result<FactConfig> {
-        let mut config = CONFIG_FILES
-            .iter()
-            .filter_map(|p| {
-                let p = Path::new(p);
-                if p.exists() {
-                    Some(p)
-                } else {
-                    None
-                }
-            })
-            .map(|p| {
-                let content =
-                    read_to_string(p).with_context(|| format!("Failed to read {}", p.display()))?;
-                FactConfig::try_from(content.as_str())
-                    .with_context(|| format!("parsing error while processing {}", p.display()))
-            })
-            .try_fold(
-                FactConfig::default(),
-                |mut config: FactConfig, other: anyhow::Result<FactConfig>| {
-                    config.update(&other?);
-                    Ok::<FactConfig, anyhow::Error>(config)
-                },
-            )?;
-
-        // Once file configuration is handled, apply CLI arguments
-        static CLI_ARGS: LazyLock<FactConfig> = LazyLock::new(|| FactCli::parse().to_config());
-        config.update(&CLI_ARGS);
-
-        Ok(config)
-    }
-
     pub fn update(&mut self, from: &FactConfig) {
         if let Some(paths) = from.paths.as_deref() {
             self.paths = Some(paths.to_owned());
@@ -110,7 +65,7 @@ impl FactConfig {
     }
 
     pub fn ringbuf_size(&self) -> u32 {
-        self.ringbuf_size.unwrap_or(8192)
+        self.ringbuf_size.unwrap_or(DEFAULT_RINGBUFFER_SIZE)
     }
 
     pub fn hotreload(&self) -> bool {

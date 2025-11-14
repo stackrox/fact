@@ -9,18 +9,66 @@ use tokio::{
     time::interval,
 };
 
-use super::{EndpointConfig, FactConfig, GrpcConfig, CONFIG_FILES};
+use super::{builder::FactConfigBuilder, EndpointConfig, FactConfig, GrpcConfig};
+
+const CONFIG_FILES: [&str; 4] = [
+    "/etc/stackrox/fact.yml",
+    "/etc/stackrox/fact.yaml",
+    "fact.yml",
+    "fact.yaml",
+];
 
 pub struct Reloader {
     config: FactConfig,
+    builder: FactConfigBuilder,
     endpoint: watch::Sender<EndpointConfig>,
     grpc: watch::Sender<GrpcConfig>,
     paths: watch::Sender<Vec<PathBuf>>,
-    files: HashMap<&'static str, i64>,
+    files: HashMap<PathBuf, i64>,
     trigger: Arc<Notify>,
 }
 
 impl Reloader {
+    pub fn new() -> anyhow::Result<Self> {
+        let builder = FactConfigBuilder::new().add_files(CONFIG_FILES.as_slice());
+        let config = builder.build()?;
+        info!("Startup configuration: {config:#?}");
+
+        let (endpoint, _) = watch::channel(config.endpoint.clone());
+        let (grpc, _) = watch::channel(config.grpc.clone());
+        let (paths, _) = watch::channel(config.paths().to_vec());
+        let trigger = Arc::new(Notify::new());
+        let files = builder
+            .files()
+            .iter()
+            .filter_map(|path| {
+                if path.exists() {
+                    let mtime = match path.metadata() {
+                        Ok(m) => m.mtime(),
+                        Err(e) => {
+                            warn!("Failed to stat {}: {e}", path.display());
+                            warn!("Configuration reloading may not work");
+                            return None;
+                        }
+                    };
+                    Some((path.clone(), mtime))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(Reloader {
+            config,
+            builder,
+            endpoint,
+            grpc,
+            paths,
+            files,
+            trigger,
+        })
+    }
+
     /// Consume the reloader into a task
     ///
     /// The resulting task will handle reloading the configuration and
@@ -91,34 +139,33 @@ impl Reloader {
     fn update_cache(&mut self) -> bool {
         let mut res = false;
 
-        for file in CONFIG_FILES {
-            let path = PathBuf::from(file);
-            if path.exists() {
-                let mtime = match path.metadata() {
+        for file in self.builder.files() {
+            if file.exists() {
+                let mtime = match file.metadata() {
                     Ok(m) => m.mtime(),
                     Err(e) => {
-                        warn!("Failed to stat {file}: {e}");
+                        warn!("Failed to stat {}: {e}", file.display());
                         warn!("Configuration reloading may not work");
                         continue;
                     }
                 };
-                match self.files.get_mut(&file) {
+                match self.files.get_mut(file) {
                     Some(old) if *old == mtime => {}
                     Some(old) => {
-                        debug!("Updating '{file}'");
+                        debug!("Updating '{}'", file.display());
                         res = true;
                         *old = mtime;
                     }
                     None => {
-                        debug!("New configuration file '{file}'");
+                        debug!("New configuration file '{}'", file.display());
                         res = true;
-                        self.files.insert(file, mtime);
+                        self.files.insert(file.clone(), mtime);
                     }
                 }
-            } else if self.files.contains_key(&file) {
-                debug!("'{file}' no longer exists, removing from cache");
+            } else if self.files.contains_key(file) {
+                debug!("'{}' no longer exists, removing from cache", file.display());
                 res = true;
-                self.files.remove(&file);
+                self.files.remove(file);
             }
         }
         res
@@ -131,7 +178,7 @@ impl Reloader {
             return;
         }
 
-        let new = match FactConfig::build() {
+        let new = match self.builder.build() {
             Ok(config) => config,
             Err(e) => {
                 warn!("Configuration reloading failed: {e}");
@@ -176,42 +223,5 @@ impl Reloader {
         }
 
         self.config = new;
-    }
-}
-
-impl From<FactConfig> for Reloader {
-    fn from(config: FactConfig) -> Self {
-        let files = CONFIG_FILES
-            .iter()
-            .filter_map(|path| {
-                let p = PathBuf::from(path);
-                if p.exists() {
-                    let mtime = match p.metadata() {
-                        Ok(m) => m.mtime(),
-                        Err(e) => {
-                            warn!("Failed to stat {path}: {e}");
-                            warn!("Configuration reloading may not work");
-                            return None;
-                        }
-                    };
-                    Some((*path, mtime))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let (endpoint, _) = watch::channel(config.endpoint.clone());
-        let (grpc, _) = watch::channel(config.grpc.clone());
-        let (paths, _) = watch::channel(config.paths().to_vec());
-        let trigger = Arc::new(Notify::new());
-
-        Reloader {
-            config,
-            endpoint,
-            grpc,
-            paths,
-            files,
-            trigger,
-        }
     }
 }
