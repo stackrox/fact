@@ -97,6 +97,19 @@ impl EventCounter {
             .unwrap()
             .inc_by(n);
     }
+
+    /// Increment the counter for the Ignored label.
+    ///
+    /// Panics if the counter did not add the Ignored label as part of
+    /// its creation step.
+    pub fn ignored(&self) {
+        self.counter
+            .get(&MetricEvents {
+                label: LabelValues::Ignored,
+            })
+            .unwrap()
+            .inc();
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -16,7 +16,10 @@ use tokio::{
 };
 
 use crate::{
-    event::{parser::EventParser, Event},
+    event::{
+        parser::{EventParser, EventParserError},
+        Event,
+    },
     host_info,
     metrics::EventCounter,
 };
@@ -62,7 +65,7 @@ impl Bpf {
 
         let paths = Vec::new();
         let (tx, _) = broadcast::channel(100);
-        let parser = EventParser::new()?;
+        let parser = EventParser::new(paths_config.borrow().as_slice())?;
         let mut bpf = Bpf {
             obj,
             tx,
@@ -192,7 +195,23 @@ impl Bpf {
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match self.parser.parse(event) {
-                                Ok(event) => Arc::new(event),
+                                Ok(event) => event,
+                                Err(EventParserError::NotFound) => {
+                                    let paths_config = self.paths_config.borrow();
+                                    self.parser.refresh(paths_config.as_slice())?;
+                                    if self.parser.mountinfo.get(&event.dev).is_none() {
+                                        self.parser.mountinfo.insert_empty(event.dev);
+                                    }
+                                    match self.parser.parse(event) {
+                                        Ok(event) => event,
+                                        Err(e) => {
+                                            error!("Failed to parse event: '{e}'");
+                                            debug!("Event: {event:?}");
+                                            event_counter.dropped();
+                                            continue;
+                                        }
+                                    }
+                                }
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     debug!("Event: {event:?}");
@@ -200,6 +219,12 @@ impl Bpf {
                                     continue;
                                 }
                             };
+
+                            if !event.is_monitored(self.paths_config.borrow().as_slice()) {
+                                event_counter.ignored();
+                                continue;
+                            }
+                            let event = Arc::new(event);
 
                             event_counter.added();
                             if self.tx.send(event).is_err() {

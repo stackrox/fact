@@ -61,6 +61,18 @@ impl Event {
             file,
         })
     }
+
+    pub fn is_monitored(&self, paths: &[PathBuf]) -> bool {
+        let file = match &self.file {
+            FileData::Open(base_file_data) => base_file_data,
+            FileData::Creation(base_file_data) => base_file_data,
+            FileData::Unlink(base_file_data) => base_file_data,
+        };
+
+        paths
+            .iter()
+            .any(|prefix| file.filename.starts_with(prefix) || file.host_file.starts_with(prefix))
+    }
 }
 
 impl From<Event> for fact_api::FileActivity {

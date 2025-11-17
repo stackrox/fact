@@ -18,13 +18,13 @@ pub struct MountEntry {
 pub struct MountInfo(HashMap<u32, Vec<MountEntry>>);
 
 impl MountInfo {
-    pub fn new() -> anyhow::Result<Self> {
-        let cache = MountInfo::build_cache()?;
+    pub fn new(paths: &[PathBuf]) -> anyhow::Result<Self> {
+        let cache = MountInfo::build_cache(paths)?;
         Ok(MountInfo(cache))
     }
 
-    pub fn refresh(&mut self) -> anyhow::Result<()> {
-        let cache = MountInfo::build_cache()?;
+    pub fn refresh(&mut self, paths: &[PathBuf]) -> anyhow::Result<()> {
+        let cache = MountInfo::build_cache(paths)?;
         self.0 = cache;
         Ok(())
     }
@@ -54,7 +54,7 @@ impl MountInfo {
         self.0.entry(k).or_default()
     }
 
-    fn build_cache() -> anyhow::Result<HashMap<u32, Vec<MountEntry>>> {
+    fn build_cache(paths: &[PathBuf]) -> anyhow::Result<HashMap<u32, Vec<MountEntry>>> {
         let host_mount = host_info::get_host_mount();
         let path = PathBuf::from("/proc/self/mountinfo");
         if !path.exists() {
@@ -93,7 +93,14 @@ impl MountInfo {
         for i in mountinfo_it {
             let (dev, mountinfo) = i?;
             let entry: &mut Vec<MountEntry> = cache.entry(dev).or_default();
-            if mountinfo.root != Path::new("/") && mountinfo.root != mountinfo.mount_point {
+
+            if mountinfo.root != Path::new("/")
+                && mountinfo.root != mountinfo.mount_point
+                && paths.iter().any(|monitored_path| {
+                    mountinfo.mount_point.starts_with(monitored_path)
+                        || monitored_path.starts_with(&mountinfo.mount_point)
+                })
+            {
                 entry.push(mountinfo);
             }
         }
