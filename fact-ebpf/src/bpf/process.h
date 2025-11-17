@@ -78,39 +78,36 @@ __always_inline static const char* get_memory_cgroup(struct helper_t* helper) {
 }
 
 __always_inline static void process_fill_lineage(process_t* p, struct helper_t* helper) {
-  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
-  struct path path;
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task_btf();
   p->lineage_len = 0;
 
   for (int i = 0; i < LINEAGE_MAX; i++) {
-    struct task_struct* parent = BPF_CORE_READ(task, real_parent);
-    if (task == parent || BPF_CORE_READ(parent, pid) == 0) {
+    struct task_struct* parent = task->real_parent;
+
+    if (task == parent || parent->pid == 0) {
       return;
     }
     task = parent;
 
-    p->lineage[i].uid = BPF_CORE_READ(task, cred, uid.val);
+    p->lineage[i].uid = task->cred->uid.val;
 
-    BPF_CORE_READ_INTO(&path, task, mm, exe_file, f_path);
-    d_path(&path, p->lineage[i].exe_path, PATH_MAX);
+    bpf_d_path(&task->mm->exe_file->f_path, p->lineage[i].exe_path, PATH_MAX);
     p->lineage_len++;
   }
 }
 
 __always_inline static unsigned long get_mount_ns() {
-  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
-  struct ns_common ns = BPF_CORE_READ(task, nsproxy, mnt_ns, ns);
-
-  return ns.inum;
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task_btf();
+  return task->nsproxy->mnt_ns->ns.inum;
 }
 
 __always_inline static int64_t process_fill(process_t* p) {
-  struct task_struct* task = (struct task_struct*)bpf_get_current_task();
+  struct task_struct* task = (struct task_struct*)bpf_get_current_task_btf();
   uint32_t key = 0;
   uint64_t uid_gid = bpf_get_current_uid_gid();
   p->uid = uid_gid & 0xFFFFFFFF;
   p->gid = (uid_gid >> 32) & 0xFFFFFFFF;
-  p->login_uid = BPF_CORE_READ(task, loginuid.val);
+  p->login_uid = task->loginuid.val;
   p->pid = (bpf_get_current_pid_tgid() >> 32) & 0xFFFFFFFF;
   u_int64_t err = bpf_get_current_comm(p->comm, TASK_COMM_LEN);
   if (err != 0) {
@@ -118,8 +115,8 @@ __always_inline static int64_t process_fill(process_t* p) {
     return err;
   }
 
-  unsigned long arg_start = BPF_CORE_READ(task, mm, arg_start);
-  unsigned long arg_end = BPF_CORE_READ(task, mm, arg_end);
+  unsigned long arg_start = task->mm->arg_start;
+  unsigned long arg_end = task->mm->arg_end;
   p->args_len = (arg_end - arg_start) & 0xFFF;
   p->args[4095] = '\0';  // Ensure string termination at end of buffer
   err = bpf_probe_read_user(p->args, p->args_len, (const char*)arg_start);
@@ -134,10 +131,7 @@ __always_inline static int64_t process_fill(process_t* p) {
     return -1;
   }
 
-  struct path path;
-  BPF_CORE_READ_INTO(&path, task, mm, exe_file, f_path);
-
-  d_path(&path, p->exe_path, PATH_MAX);
+  bpf_d_path(&task->mm->exe_file->f_path, p->exe_path, PATH_MAX);
 
   const char* cg = get_memory_cgroup(helper);
   if (cg != NULL) {
