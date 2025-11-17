@@ -9,6 +9,9 @@ version:
 image-name:
 	@echo "$(FACT_IMAGE_NAME)"
 
+image-name-rhacs-eng:
+	@echo "$(FACT_RHACS_ENG_IMAGE_NAME)"
+
 mock-server:
 	make -C mock-server
 
@@ -18,6 +21,9 @@ image:
 		--build-arg FACT_VERSION=$(FACT_VERSION) \
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
+
+retag-image:
+	docker tag $(FACT_IMAGE_NAME) $(FACT_RHACS_ENG_IMAGE_NAME)
 
 integration-tests:
 	make -C tests

@@ -116,6 +116,8 @@ jobs:
 
     - run: make image
 
+    - run: make retag-image
+
     - name: Login to quay.io/stackrox-io
       uses: docker/login-action@v3
       with:
@@ -124,6 +126,16 @@ jobs:
         password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
 
     - run: docker push "$(make image-name)"
+
+    - name: Login to quay.io/rhacs-eng
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_RHACS_ENG_RW_USERNAME }}
+        password: ${{ secrets.QUAY_RHACS_ENG_RW_PASSWORD }}
+
+    - run: docker push "$(make image-name-rhacs-eng)"
+
 
   manifest:
     runs-on: ubuntu-24.04
