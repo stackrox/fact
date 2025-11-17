@@ -27,6 +27,10 @@ __always_inline static struct helper_t* get_helper() {
   return bpf_map_lookup_elem(&helper_map, &zero);
 }
 
+/**
+ * A map with a single entry, determining whether prefix filtering
+ * should be done based on the `path_prefix` map.
+ */
 struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);
   __type(key, __u32);
