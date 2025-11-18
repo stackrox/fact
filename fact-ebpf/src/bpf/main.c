@@ -7,6 +7,7 @@
 #include "maps.h"
 #include "events.h"
 #include "bound_path.h"
+#include "vmlinux/x86_64.h"
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -101,5 +102,32 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
 error:
   m->path_unlink.error++;
+  return 0;
+}
+
+SEC("lsm/path_chmod")
+int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_chmod.total++;
+
+  struct bound_path_t* bound_path = path_read(path);
+  if (bound_path == NULL) {
+    bpf_printk("Failed to read path");
+    m->path_chmod.error++;
+    return 0;
+  }
+
+  if (!is_monitored(bound_path)) {
+    m->path_chmod.ignored++;
+    return 0;
+  }
+
+  struct dentry* d = path->dentry;
+  submit_mode_event(&m->path_chmod, bound_path->path, d, mode);
+
   return 0;
 }
