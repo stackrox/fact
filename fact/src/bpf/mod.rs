@@ -8,7 +8,7 @@ use aya::{
 };
 use checks::Checks;
 use libc::c_char;
-use log::{debug, error, info};
+use log::{error, info};
 use tokio::{
     io::unix::AsyncFd,
     sync::{mpsc, watch},
@@ -154,7 +154,8 @@ impl Bpf {
 
     fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
         self.load_lsm_prog("trace_file_open", "file_open", btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)
+        self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)?;
+        self.load_lsm_prog("trace_path_chmod", "path_chmod", btf)
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
@@ -192,7 +193,6 @@ impl Bpf {
                                 Ok(event) => event,
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
-                                    debug!("Event: {event:?}");
                                     event_counter.dropped();
                                     continue;
                                 }
