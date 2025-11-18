@@ -49,7 +49,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
   }
 
   struct dentry* d = BPF_CORE_READ(file, f_path.dentry);
-  submit_event(&m->file_open, event_type, path->path, d);
+  submit_event(&m->file_open, event_type, path->path, d, true);
 
   return 0;
 
@@ -96,7 +96,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
     return 0;
   }
 
-  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry);
+  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry, path_unlink_supports_bpf_d_path);
   return 0;
 
 error:

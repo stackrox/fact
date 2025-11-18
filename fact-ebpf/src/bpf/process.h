@@ -77,7 +77,7 @@ __always_inline static const char* get_memory_cgroup(struct helper_t* helper) {
   return helper->buf;
 }
 
-__always_inline static void process_fill_lineage(process_t* p, struct helper_t* helper) {
+__always_inline static void process_fill_lineage(process_t* p, struct helper_t* helper, bool use_bpf_d_path) {
   struct task_struct* task = (struct task_struct*)bpf_get_current_task_btf();
   p->lineage_len = 0;
 
@@ -91,7 +91,7 @@ __always_inline static void process_fill_lineage(process_t* p, struct helper_t* 
 
     p->lineage[i].uid = task->cred->uid.val;
 
-    bpf_d_path(&task->mm->exe_file->f_path, p->lineage[i].exe_path, PATH_MAX);
+    d_path(&task->mm->exe_file->f_path, p->lineage[i].exe_path, PATH_MAX, use_bpf_d_path);
     p->lineage_len++;
   }
 }
@@ -101,7 +101,7 @@ __always_inline static unsigned long get_mount_ns() {
   return task->nsproxy->mnt_ns->ns.inum;
 }
 
-__always_inline static int64_t process_fill(process_t* p) {
+__always_inline static int64_t process_fill(process_t* p, bool use_bpf_d_path) {
   struct task_struct* task = (struct task_struct*)bpf_get_current_task_btf();
   uint32_t key = 0;
   uint64_t uid_gid = bpf_get_current_uid_gid();
@@ -131,7 +131,7 @@ __always_inline static int64_t process_fill(process_t* p) {
     return -1;
   }
 
-  bpf_d_path(&task->mm->exe_file->f_path, p->exe_path, PATH_MAX);
+  d_path(&task->mm->exe_file->f_path, p->exe_path, PATH_MAX, use_bpf_d_path);
 
   const char* cg = get_memory_cgroup(helper);
   if (cg != NULL) {
@@ -140,7 +140,7 @@ __always_inline static int64_t process_fill(process_t* p) {
 
   p->in_root_mount_ns = get_mount_ns() == host_mount_ns;
 
-  process_fill_lineage(p, helper);
+  process_fill_lineage(p, helper, use_bpf_d_path);
 
   return 0;
 }
