@@ -173,3 +173,58 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
 
   return 0;
 }
+
+SEC("lsm/path_chown")
+int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsigned long long gid) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_chown.total++;
+
+  struct bound_path_t* bound_path = NULL;
+  if (path_hooks_support_bpf_d_path) {
+    bound_path = path_read(path);
+  } else {
+    bound_path = path_read_no_d_path(path);
+  }
+
+  if (bound_path == NULL) {
+    bpf_printk("Failed to read path");
+    m->path_chown.error++;
+    return 0;
+  }
+
+  inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
+  const inode_value_t* inode = inode_get(&inode_key);
+
+  switch (inode_is_monitored(inode)) {
+    case NOT_MONITORED:
+      if (!is_monitored(bound_path)) {
+        m->path_chown.ignored++;
+        return 0;
+      }
+      break;
+
+    case MONITORED:
+      break;
+  }
+
+  struct dentry* d = BPF_CORE_READ(path, dentry);
+  kuid_t kuid = BPF_CORE_READ(d, d_inode, i_uid);
+  kgid_t kgid = BPF_CORE_READ(d, d_inode, i_gid);
+  unsigned long long old_uid = BPF_CORE_READ(&kuid, val);
+  unsigned long long old_gid = BPF_CORE_READ(&kgid, val);
+
+  submit_owner_event(&m->path_chown,
+                     bound_path->path,
+                     &inode_key,
+                     uid,
+                     gid,
+                     old_uid,
+                     old_gid,
+                     path_hooks_support_bpf_d_path);
+
+  return 0;
+}

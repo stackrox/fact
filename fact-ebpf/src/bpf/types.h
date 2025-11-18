@@ -53,6 +53,7 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_CREATION,
   FILE_ACTIVITY_UNLINK,
   FILE_ACTIVITY_CHMOD,
+  FILE_ACTIVITY_CHOWN,
 } file_activity_type_t;
 
 struct event_t {
@@ -66,6 +67,12 @@ struct event_t {
       short unsigned int new;
       short unsigned int old;
     } chmod;
+    struct {
+      struct {
+        unsigned int uid;
+        unsigned int gid;
+      } old, new;
+    } chown;
   };
 };
 
@@ -96,4 +103,5 @@ struct metrics_t {
   struct metrics_by_hook_t file_open;
   struct metrics_by_hook_t path_unlink;
   struct metrics_by_hook_t path_chmod;
+  struct metrics_by_hook_t path_chown;
 };
