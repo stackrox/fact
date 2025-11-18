@@ -131,3 +131,30 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
 
   return 0;
 }
+
+SEC("lsm/path_chown")
+int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsigned long long gid) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_chown.total++;
+
+  struct bound_path_t* bound_path = path_read(path);
+  if (bound_path == NULL) {
+    bpf_printk("Failed to read path");
+    m->path_chown.error++;
+    return 0;
+  }
+
+  if (!is_monitored(bound_path)) {
+    m->path_chown.ignored++;
+    return 0;
+  }
+
+  struct dentry* d = BPF_CORE_READ(path, dentry);
+  submit_owner_event(&m->path_chown, bound_path->path, d, uid, gid);
+
+  return 0;
+}

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 
 #include "maps.h"
@@ -58,4 +59,21 @@ __always_inline static void submit_mode_event(struct metrics_by_hook_t* m, const
   event->chmod.old = BPF_CORE_READ(dentry, d_inode, i_mode);
 
   __submit_event(event, m, FILE_ACTIVITY_CHMOD, filename, dentry);
+}
+
+__always_inline static void submit_owner_event(struct metrics_by_hook_t* m, const char filename[PATH_MAX], struct dentry* dentry, unsigned long long uid, unsigned long long gid) {
+  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (event == NULL) {
+    m->ringbuffer_full++;
+    return;
+  }
+
+  event->chown.new.uid = uid;
+  event->chown.new.gid = gid;
+  kuid_t kuid = BPF_CORE_READ(dentry, d_inode, i_uid);
+  kgid_t kgid = BPF_CORE_READ(dentry, d_inode, i_gid);
+  event->chown.old.uid = BPF_CORE_READ(&kuid, val);
+  event->chown.old.gid = BPF_CORE_READ(&kgid, val);
+
+  __submit_event(event, m, FILE_ACTIVITY_CHOWN, filename, dentry);
 }
