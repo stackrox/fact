@@ -3,12 +3,12 @@ use std::{io, path::PathBuf};
 use anyhow::{bail, Context};
 use aya::{
     maps::{Array, HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::Lsm,
+    programs::Program,
     Btf, Ebpf,
 };
 use checks::Checks;
 use libc::c_char;
-use log::{debug, error, info};
+use log::{error, info};
 use tokio::{
     io::unix::AsyncFd,
     sync::{mpsc, watch},
@@ -48,8 +48,8 @@ impl Bpf {
         let obj = aya::EbpfLoader::new()
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
             .set_global(
-                "path_unlink_supports_bpf_d_path",
-                &(checks.path_unlink_supports_bpf_d_path as u8),
+                "path_hooks_support_bpf_d_path",
+                &(checks.path_hooks_support_bpf_d_path as u8),
                 true,
             )
             .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
@@ -143,24 +143,28 @@ impl Bpf {
         Ok(())
     }
 
-    fn load_lsm_prog(&mut self, name: &str, hook: &str, btf: &Btf) -> anyhow::Result<()> {
-        let Some(prog) = self.obj.program_mut(name) else {
-            bail!("{name} program not found");
-        };
-        let prog: &mut Lsm = prog.try_into()?;
-        prog.load(hook, btf)?;
-        Ok(())
-    }
-
     fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
-        self.load_lsm_prog("trace_file_open", "file_open", btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)
+        for (name, prog) in self.obj.programs_mut() {
+            // The format used for our hook names is `trace_<hook>`, so
+            // we can just strip trace_ to get the hook name we need for
+            // loading.
+            let Some(hook) = name.strip_prefix("trace_") else {
+                bail!("Invalid hook name: {name}");
+            };
+            match prog {
+                Program::Lsm(prog) => prog.load(hook, btf)?,
+                u => unimplemented!("{u:?}"),
+            }
+        }
+        Ok(())
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
         for (_, prog) in self.obj.programs_mut() {
-            let prog: &mut Lsm = prog.try_into()?;
-            prog.attach()?;
+            match prog {
+                Program::Lsm(prog) => prog.attach()?,
+                u => unimplemented!("{u:?}"),
+            };
         }
         Ok(())
     }
@@ -192,7 +196,6 @@ impl Bpf {
                                 Ok(event) => event,
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
-                                    debug!("Event: {event:?}");
                                     event_counter.dropped();
                                     continue;
                                 }
