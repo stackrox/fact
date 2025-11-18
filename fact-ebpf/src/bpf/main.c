@@ -75,7 +75,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   m->path_unlink.total++;
 
   struct bound_path_t* path = NULL;
-  if (path_unlink_supports_bpf_d_path) {
+  if (path_hooks_support_bpf_d_path) {
     path = path_read(dir);
   } else {
     path = path_read_no_d_path(dir);
@@ -118,10 +118,58 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
                FILE_ACTIVITY_UNLINK,
                path->path,
                &inode_key,
-               path_unlink_supports_bpf_d_path);
+               path_hooks_support_bpf_d_path);
   return 0;
 
 error:
   m->path_unlink.error++;
+  return 0;
+}
+
+SEC("lsm/path_chmod")
+int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_chmod.total++;
+
+  struct bound_path_t* bound_path = NULL;
+  if (path_hooks_support_bpf_d_path) {
+    bound_path = path_read(path);
+  } else {
+    bound_path = path_read_no_d_path(path);
+  }
+
+  if (bound_path == NULL) {
+    bpf_printk("Failed to read path");
+    m->path_chmod.error++;
+    return 0;
+  }
+
+  inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
+  const inode_value_t* inode = inode_get(&inode_key);
+
+  switch (inode_is_monitored(inode)) {
+    case NOT_MONITORED:
+      if (!is_monitored(bound_path)) {
+        m->path_chmod.ignored++;
+        return 0;
+      }
+      break;
+
+    case MONITORED:
+      break;
+  }
+
+  umode_t old_mode = BPF_CORE_READ(path, dentry, d_inode, i_mode);
+  submit_mode_event(&m->path_chmod,
+                    bound_path->path,
+                    &inode_key,
+                    mode,
+                    old_mode,
+                    path_hooks_support_bpf_d_path);
+
   return 0;
 }

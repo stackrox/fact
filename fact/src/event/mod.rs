@@ -67,6 +67,7 @@ impl Event {
             FileData::Open(data) => &data.inode,
             FileData::Creation(data) => &data.inode,
             FileData::Unlink(data) => &data.inode,
+            FileData::Chmod(data) => &data.inner.inode,
         }
     }
 
@@ -75,6 +76,7 @@ impl Event {
             FileData::Open(data) => data.host_file = host_path,
             FileData::Creation(data) => data.host_file = host_path,
             FileData::Unlink(data) => data.host_file = host_path,
+            FileData::Chmod(data) => data.inner.host_file = host_path,
         }
     }
 }
@@ -85,7 +87,12 @@ impl TryFrom<&event_t> for Event {
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let process = Process::try_from(value.process)?;
         let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(value.type_, value.filename, value.inode)?;
+        let file = FileData::new(
+            value.type_,
+            value.filename,
+            value.inode,
+            value.__bindgen_anon_1,
+        )?;
 
         Ok(Event {
             timestamp,
@@ -123,6 +130,7 @@ pub enum FileData {
     Open(BaseFileData),
     Creation(BaseFileData),
     Unlink(BaseFileData),
+    Chmod(ChmodFileData),
 }
 
 impl FileData {
@@ -130,12 +138,21 @@ impl FileData {
         event_type: file_activity_type_t,
         filename: [c_char; PATH_MAX as usize],
         inode: inode_key_t,
+        extra_data: fact_ebpf::event_t__bindgen_ty_1,
     ) -> anyhow::Result<Self> {
         let inner = BaseFileData::new(filename, inode)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
+            file_activity_type_t::FILE_ACTIVITY_CHMOD => {
+                let data = ChmodFileData {
+                    inner,
+                    new_mode: unsafe { extra_data.chmod.new },
+                    old_mode: unsafe { extra_data.chmod.old },
+                };
+                FileData::Chmod(data)
+            }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
 
@@ -160,6 +177,10 @@ impl From<FileData> for fact_api::file_activity::File {
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileUnlink { activity };
                 fact_api::file_activity::File::Unlink(f_act)
+            }
+            FileData::Chmod(event) => {
+                let f_act = fact_api::FilePermissionChange::from(event);
+                fact_api::file_activity::File::Permission(f_act)
             }
         }
     }
@@ -208,6 +229,45 @@ impl From<BaseFileData> for fact_api::FileActivityBase {
         fact_api::FileActivityBase {
             path: value.filename.to_string_lossy().to_string(),
             host_path: value.host_file.to_string_lossy().to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChmodFileData {
+    inner: BaseFileData,
+    new_mode: u16,
+    old_mode: u16,
+}
+
+impl ChmodFileData {
+    pub fn new(
+        filename: [c_char; PATH_MAX as usize],
+        inode: inode_key_t,
+        new_mode: u16,
+        old_mode: u16,
+    ) -> anyhow::Result<Self> {
+        let inner = BaseFileData::new(filename, inode)?;
+
+        Ok(ChmodFileData {
+            inner,
+            new_mode,
+            old_mode,
+        })
+    }
+}
+
+impl From<ChmodFileData> for fact_api::FilePermissionChange {
+    fn from(value: ChmodFileData) -> Self {
+        let ChmodFileData {
+            inner: file,
+            new_mode,
+            old_mode: _,
+        } = value;
+        let activity = fact_api::FileActivityBase::from(file);
+        fact_api::FilePermissionChange {
+            activity: Some(activity),
+            mode: new_mode as u32,
         }
     }
 }
