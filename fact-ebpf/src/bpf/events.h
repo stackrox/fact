@@ -7,7 +7,7 @@
 #include "types.h"
 #include "vmlinux.h"
 
-__always_inline static void submit_event(struct metrics_by_hook_t* m, file_activity_type_t event_type, const char filename[PATH_MAX], struct dentry* dentry) {
+__always_inline static void submit_event(struct metrics_by_hook_t* m, file_activity_type_t event_type, const char filename[PATH_MAX], struct dentry* dentry, bool use_bpf_d_path) {
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
     m->ringbuffer_full++;
@@ -28,7 +28,7 @@ __always_inline static void submit_event(struct metrics_by_hook_t* m, file_activ
     bpf_probe_read_str(event->host_file, PATH_MAX, p);
   }
 
-  int64_t err = process_fill(&event->process);
+  int64_t err = process_fill(&event->process, use_bpf_d_path);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
     goto error;

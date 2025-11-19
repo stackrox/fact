@@ -1,0 +1,34 @@
+---
+- name: Build test-runner image
+  community.docker.docker_image_build:
+    dockerfile: Containerfile
+    path: fact/
+    name: test-runner
+    target: builder
+
+- name: Start test-runner
+  community.docker.docker_container:
+    name: test-runner
+    image: test-runner:latest
+    interactive: true
+    cgroupns_mode: host
+    pid_mode: host
+    privileged: true
+  register:
+    test_result
+
+- name: Run unit tests
+  block:
+    - name: Run unit tests
+      community.docker.docker_container_exec:
+        container: test-runner
+        env:
+          PATH: /root/.cargo/bin:${PATH}
+          FACT_LOGLEVEL: debug
+        command: cargo test --all-features
+      register: test_result
+
+  always:
+    - name: Dump logs
+      ansible.builtin.include_tasks:
+        file: dump-result.yml

@@ -1,0 +1,36 @@
+---
+- name: Build test-runner image
+  become: true
+  containers.podman.podman_image:
+    build:
+      target: builder
+    path: fact
+    name: test-runner
+
+- name: Start test-runner
+  become: true
+  containers.podman.podman_container:
+    name: test-runner
+    image: test-runner:latest
+    interactive: true
+    cgroupns: host
+    pid_mode: host
+    privileged: true
+  register:
+    test_result
+
+- name: Run unit tests
+  become: true
+  block:
+    - name: Run unit tests
+      containers.podman.podman_container_exec:
+        name: test-runner
+        env:
+          FACT_LOGLEVEL: debug
+        command: cargo test --all-features
+      register: test_result
+
+  always:
+    - name: Dump logs
+      ansible.builtin.include_tasks:
+        file: dump-result.yml

@@ -28,7 +28,7 @@ __always_inline static struct bound_path_t* _path_read(struct path* path, bool u
     return NULL;
   }
 
-  bound_path->len = use_bpf_d_path ? bpf_d_path(path, bound_path->path, PATH_MAX) : d_path(path, bound_path->path, PATH_MAX);
+  bound_path->len = d_path(path, bound_path->path, PATH_MAX, use_bpf_d_path);
   if (bound_path->len <= 0) {
     return NULL;
   }

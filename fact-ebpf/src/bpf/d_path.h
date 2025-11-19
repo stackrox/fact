@@ -14,7 +14,7 @@
  * We should attempt to use bpf_d_path when possible, but you can't on
  * values that have been read using the bpf_probe_* helpers.
  */
-__always_inline static long d_path(const struct path* path, char* buf, int buflen) {
+__always_inline static long __d_path(const struct path* path, char* buf, int buflen) {
   if (buflen <= 0) {
     return -1;
   }
@@ -78,4 +78,11 @@ __always_inline static long d_path(const struct path* path, char* buf, int bufle
 
   bpf_probe_read_str(buf, buflen, &helper->buf[offset]);
   return buflen - offset;
+}
+
+__always_inline static long d_path(struct path* path, char* buf, int buflen, bool use_bpf_helper) {
+  if (use_bpf_helper) {
+    return bpf_d_path(path, buf, buflen);
+  }
+  return __d_path(path, buf, buflen);
 }
