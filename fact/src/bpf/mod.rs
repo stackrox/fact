@@ -2,7 +2,7 @@ use std::{io, path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Context};
 use aya::{
-    maps::{Array, LpmTrie, MapData, PerCpuArray, RingBuf},
+    maps::{Array, LpmTrie, Map, MapData, PerCpuArray, RingBuf},
     programs::Lsm,
     Btf, Ebpf,
 };
@@ -52,6 +52,7 @@ impl Bpf {
                 true,
             )
             .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
+            .allow_unsupported_maps()
             .load(fact_ebpf::EBPF_OBJ)?;
 
         let paths = Vec::new();
@@ -88,6 +89,16 @@ impl Bpf {
 
     pub fn subscribe(&self) -> broadcast::Receiver<Arc<Event>> {
         self.tx.subscribe()
+    }
+
+    pub fn get_inode_store(&mut self) -> anyhow::Result<&mut MapData> {
+        let Some(inode_store) = self.obj.map_mut("inode_store") else {
+            bail!("inode_store not found");
+        };
+        let Map::Unsupported(data) = inode_store else {
+            bail!("inode_store is of incorrect type: {inode_store:?}");
+        };
+        Ok(data)
     }
 
     pub fn take_metrics(&mut self) -> anyhow::Result<PerCpuArray<MapData, metrics_t>> {
@@ -220,7 +231,7 @@ impl Bpf {
 
 #[cfg(all(test, feature = "bpf-test"))]
 mod bpf_tests {
-    use std::{env, path::PathBuf, time::Duration};
+    use std::{env, fs::OpenOptions, path::PathBuf, time::Duration};
 
     use anyhow::Context;
     use fact_ebpf::file_activity_type_t;
@@ -260,9 +271,18 @@ mod bpf_tests {
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let reloader = Reloader::from(config);
+
+        // TODO: The inode tracking algorithm for host paths only works
+        // on files that exist at startup, this needs to be improved.
+        let file = NamedTempFile::new_in(&monitored_path).expect("Failed to create temporary file");
+        println!("Created {file:?}");
+
         executor.block_on(async {
             let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())
                 .expect("Failed to load BPF code");
+            let inode_store = bpf.get_inode_store().expect("inode_store not found");
+            fact_ffi::inode_store::try_add_path(inode_store, file.path(), file.path())
+                .expect("Failed to add inode store object");
             let mut rx = bpf.subscribe();
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it
@@ -272,13 +292,14 @@ mod bpf_tests {
 
             tokio::time::sleep(Duration::from_millis(500)).await;
 
-            // Create a file
-            let file =
-                NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
-            println!("Created {file:?}");
+            // Open the monitored file
+            OpenOptions::new()
+                .write(true)
+                .open(file.path())
+                .expect("Failed to open monitored file");
 
             let expected = Event::new(
-                file_activity_type_t::FILE_ACTIVITY_CREATION,
+                file_activity_type_t::FILE_ACTIVITY_OPEN,
                 host_info::get_hostname(),
                 file.path().to_path_buf(),
                 file.path().to_path_buf(),

@@ -37,6 +37,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
+  const char* host_path = bpf_inode_storage_get(&inode_store, file->f_inode, NULL, 0);
   struct bound_path_t* path = path_read(&file->f_path);
   if (path == NULL) {
     bpf_printk("Failed to read path");
@@ -44,12 +45,11 @@ int BPF_PROG(trace_file_open, struct file* file) {
     return 0;
   }
 
-  if (!is_monitored(path)) {
+  if (host_path == NULL && !is_monitored(path)) {
     goto ignored;
   }
 
-  struct dentry* d = BPF_CORE_READ(file, f_path.dentry);
-  submit_event(&m->file_open, event_type, path->path, d, true);
+  submit_event(&m->file_open, event_type, path->path, host_path, true);
 
   return 0;
 
@@ -67,6 +67,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
   m->path_unlink.total++;
 
+  const char* host_path = bpf_inode_storage_get(&inode_store, dentry->d_inode, NULL, 0);
   struct bound_path_t* path = NULL;
   if (path_unlink_supports_bpf_d_path) {
     path = path_read(dir);
@@ -91,12 +92,12 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
       goto error;
   }
 
-  if (!is_monitored(path)) {
+  if (host_path == NULL && !is_monitored(path)) {
     m->path_unlink.ignored++;
     return 0;
   }
 
-  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry, path_unlink_supports_bpf_d_path);
+  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, host_path, path_unlink_supports_bpf_d_path);
   return 0;
 
 error:

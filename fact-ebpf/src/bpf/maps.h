@@ -107,4 +107,12 @@ __always_inline static struct metrics_t* get_metrics() {
 uint64_t host_mount_ns;
 volatile const bool path_unlink_supports_bpf_d_path;
 
+struct {
+  __uint(type, BPF_MAP_TYPE_INODE_STORAGE);
+  __type(key, __u32);
+  __type(value, char[4096]);
+  __uint(max_entries, 0);
+  __uint(map_flags, BPF_F_NO_PREALLOC);
+} inode_store SEC(".maps");
+
 // clang-format on
