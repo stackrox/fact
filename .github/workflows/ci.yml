@@ -160,3 +160,14 @@ jobs:
     with:
       tag: ${{ needs.vars.outputs.tag }}
     secrets: inherit
+
+  performance-tests:
+    if: github.event_name == 'schedule'
+    needs:
+      - vars
+      - manifest
+      - integration-tests
+    uses: ./.github/workflows/performance-tests.yml
+    with:
+      tag: ${{ needs.vars.outputs.tag }}
+    secrets: inherit
