@@ -11,12 +11,12 @@ image:
 		-t performance-test \
 		$(CURDIR)
 
-performance-tests: data_dir user_space_cpu user_space_mem kernel_space_cpu kernel_space_mem
+performance-tests: user_space_cpu user_space_mem kernel_space_cpu kernel_space_mem
 
-data_dir:
+data:
 	mkdir -p data
 
-user_space_cpu:
+user_space_cpu: data
 	for workload in ignored_and_monitored monitored ignored ; do \
 		docker run --rm -it --privileged \
 			-v ./data:/data \
@@ -28,7 +28,7 @@ user_space_cpu:
 			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
 	done
 
-user_space_mem:
+user_space_mem: data
 	for workload in ignored_and_monitored monitored ignored ; do \
 		docker run --rm -it --privileged \
 			-v ./data:/data \
@@ -40,7 +40,7 @@ user_space_mem:
 			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
 	done
 
-kernel_space_cpu:
+kernel_space_cpu: data
 	for workload in ignored_and_monitored monitored ignored ; do \
 		docker run --rm -it --privileged \
 			-v ./data:/data \
@@ -52,7 +52,7 @@ kernel_space_cpu:
 			--fact-cmdline='--skip-pre-flight --paths /tmp/test /tmp/test1' ; \
 	done
 
-kernel_space_mem:
+kernel_space_mem: data
 	for workload in ignored_and_monitored monitored ignored ; do \
 		docker run --rm -it --privileged \
 			-v ./data:/data \
