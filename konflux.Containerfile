@@ -41,4 +41,6 @@ LABEL \
 
 COPY --from=builder /app/target/release/fact /usr/local/bin
 
+COPY LICENSE-APACHE LICENSE-MIT LICENSE-GPL2 /licenses/
+
 ENTRYPOINT ["fact"]
