@@ -22,7 +22,7 @@ typedef struct process_t {
   char args[4096];
   unsigned int args_len;
   char exe_path[PATH_MAX];
-  char memory_cgroup[PATH_MAX];
+  unsigned long long cgroup_id;
   unsigned int uid;
   unsigned int gid;
   unsigned int login_uid;
@@ -73,4 +73,10 @@ struct metrics_by_hook_t {
 struct metrics_t {
   struct metrics_by_hook_t file_open;
   struct metrics_by_hook_t path_unlink;
+  struct metrics_by_hook_t cgroup_attach_task;
 };
+
+typedef struct cgroup_entry_t {
+  char parsed;
+  char path[PATH_MAX];
+} cgroup_entry_t;

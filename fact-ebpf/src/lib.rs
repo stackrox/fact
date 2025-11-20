@@ -81,11 +81,13 @@ impl metrics_t {
         let mut m = metrics_t { ..*self };
         m.file_open = m.file_open.accumulate(&other.file_open);
         m.path_unlink = m.path_unlink.accumulate(&other.path_unlink);
+        m.cgroup_attach_task = m.cgroup_attach_task.accumulate(&other.cgroup_attach_task);
         m
     }
 }
 
 unsafe impl Pod for metrics_t {}
+unsafe impl Pod for cgroup_entry_t {}
 
 pub const EBPF_OBJ: &[u8] = aya::include_bytes_aligned!(concat!(env!("OUT_DIR"), "/main.o"));
 pub const CHECKS_OBJ: &[u8] = aya::include_bytes_aligned!(concat!(env!("OUT_DIR"), "/checks.o"));

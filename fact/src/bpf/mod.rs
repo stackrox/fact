@@ -3,7 +3,7 @@ use std::{io, path::PathBuf, sync::Arc};
 use anyhow::{bail, Context};
 use aya::{
     maps::{Array, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::Lsm,
+    programs::Program,
     Btf, Ebpf,
 };
 use checks::Checks;
@@ -15,9 +15,13 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{event::Event, host_info, metrics::EventCounter};
+use crate::{
+    event::{self, Event},
+    host_info,
+    metrics::EventCounter,
+};
 
-use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
+use fact_ebpf::{cgroup_entry_t, event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
 mod checks;
 
@@ -30,6 +34,8 @@ pub struct Bpf {
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
+
+    event_parser: event::parser::Parser,
 }
 
 impl Bpf {
@@ -44,7 +50,7 @@ impl Bpf {
 
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
-        let obj = aya::EbpfLoader::new()
+        let mut obj = aya::EbpfLoader::new()
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
             .set_global(
                 "path_unlink_supports_bpf_d_path",
@@ -56,11 +62,17 @@ impl Bpf {
 
         let paths = Vec::new();
         let (tx, _) = broadcast::channel(100);
+        let Some(cgroup_map) = obj.take_map("cgroup_map") else {
+            bail!("Failed to get cgroup_map");
+        };
+        let cgroup_map: aya::maps::HashMap<MapData, u64, cgroup_entry_t> = cgroup_map.try_into()?;
+        let event_parser = event::parser::Parser::new(cgroup_map);
         let mut bpf = Bpf {
             obj,
             tx,
             paths,
             paths_config,
+            event_parser,
         };
 
         bpf.load_paths()?;
@@ -138,24 +150,42 @@ impl Bpf {
         Ok(())
     }
 
-    fn load_lsm_prog(&mut self, name: &str, hook: &str, btf: &Btf) -> anyhow::Result<()> {
+    fn load_prog(&mut self, name: &str, hook: &str, btf: &Btf) -> anyhow::Result<()> {
         let Some(prog) = self.obj.program_mut(name) else {
             bail!("{name} program not found");
         };
-        let prog: &mut Lsm = prog.try_into()?;
-        prog.load(hook, btf)?;
+        match prog {
+            Program::Lsm(prog) => prog.load(hook, btf)?,
+            Program::BtfTracePoint(prog) => prog.load(hook, btf)?,
+            _ => todo!(),
+        }
         Ok(())
     }
 
     fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
-        self.load_lsm_prog("trace_file_open", "file_open", btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)
+        let progs = [
+            ("trace_file_open", "file_open"),
+            ("trace_path_unlink", "path_unlink"),
+            ("trace_cgroup_attach_task", "cgroup_attach_task"),
+        ];
+
+        for (name, hook) in progs {
+            self.load_prog(name, hook, btf)?;
+        }
+        Ok(())
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
         for (_, prog) in self.obj.programs_mut() {
-            let prog: &mut Lsm = prog.try_into()?;
-            prog.attach()?;
+            match prog {
+                Program::Lsm(prog) => {
+                    prog.attach()?;
+                }
+                Program::BtfTracePoint(prog) => {
+                    prog.attach()?;
+                }
+                _ => todo!(),
+            }
         }
         Ok(())
     }
@@ -165,8 +195,10 @@ impl Bpf {
         mut self,
         mut running: watch::Receiver<bool>,
         event_counter: EventCounter,
+        parser_counter: EventCounter,
     ) -> JoinHandle<anyhow::Result<()>> {
         info!("Starting BPF worker...");
+        self.event_parser.set_metrics(parser_counter);
 
         tokio::spawn(async move {
             self.attach_progs()
@@ -183,7 +215,7 @@ impl Bpf {
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                            let event = match Event::try_from(event) {
+                            let event = match self.event_parser.parse(event) {
                                 Ok(event) => Arc::new(event),
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
@@ -268,7 +300,11 @@ mod bpf_tests {
             // Create a metrics exporter, but don't start it
             let exporter = Exporter::new(bpf.take_metrics().unwrap());
 
-            let handle = bpf.start(run_rx, exporter.metrics.bpf_worker.clone());
+            let handle = bpf.start(
+                run_rx,
+                exporter.metrics.bpf_worker.clone(),
+                exporter.metrics.event_parser.clone(),
+            );
 
             tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -277,7 +313,7 @@ mod bpf_tests {
                 NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
             println!("Created {file:?}");
 
-            let expected = Event::new(
+            let expected = Event::from_raw_parts(
                 file_activity_type_t::FILE_ACTIVITY_CREATION,
                 host_info::get_hostname(),
                 file.path().to_path_buf(),
