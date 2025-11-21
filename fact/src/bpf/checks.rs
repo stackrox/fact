@@ -9,6 +9,7 @@ pub(super) struct Checks {
 impl Checks {
     pub(super) fn new(btf: &Btf) -> anyhow::Result<Self> {
         let mut obj = aya::EbpfLoader::new()
+            .allow_unsupported_maps()
             .load(fact_ebpf::CHECKS_OBJ)
             .context("Failed to load checks.o")?;
 

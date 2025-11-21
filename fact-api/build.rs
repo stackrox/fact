@@ -1,6 +1,7 @@
 use anyhow::Context;
 
 fn main() -> anyhow::Result<()> {
+    println!("cargo::rerun-if-changed=../third_party/stackrox/");
     tonic_prost_build::configure()
         .build_server(false)
         .compile_protos(

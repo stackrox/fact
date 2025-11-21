@@ -28,6 +28,7 @@ yaml-rust2 = { workspace = true }
 
 fact-api = { path = "../fact-api" }
 fact-ebpf = { path = "../fact-ebpf" }
+fact-ffi = { path = "../fact-ffi" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
