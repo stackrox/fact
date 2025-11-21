@@ -97,6 +97,15 @@ impl EventCounter {
             .unwrap()
             .inc_by(n);
     }
+
+    pub fn ignored(&self) {
+        self.counter
+            .get(&MetricEvents {
+                label: LabelValues::Ignored,
+            })
+            .unwrap()
+            .inc();
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -135,6 +144,7 @@ impl OutputMetrics {
 pub struct Metrics {
     pub bpf_worker: EventCounter,
     pub output: OutputMetrics,
+    pub event_parser: EventCounter,
 }
 
 impl Metrics {
@@ -150,12 +160,24 @@ impl Metrics {
         );
         bpf_worker.register(registry);
 
+        let event_parser = EventCounter::new(
+            "event_parser_events",
+            "Metrics for the event parsing process",
+            &[
+                LabelValues::Added,
+                LabelValues::Dropped,
+                LabelValues::Ignored,
+            ],
+        );
+        event_parser.register(registry);
+
         let output_metrics = OutputMetrics::new();
         output_metrics.register(registry);
 
         Metrics {
             bpf_worker,
             output: output_metrics,
+            event_parser,
         }
     }
 }
