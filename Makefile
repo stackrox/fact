@@ -22,6 +22,9 @@ image:
 integration-tests:
 	make -C tests
 
+performance-tests:
+	make -C performance-tests
+
 clean:
 	make -C tests clean
 

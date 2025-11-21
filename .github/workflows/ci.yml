@@ -9,6 +9,8 @@ on:
     tags:
     - '*'
   pull_request:
+  schedule:
+    - cron: '0 6 * * *'
 
 concurrency:
   # append event name on the off chance that a push to master
@@ -159,6 +161,17 @@ jobs:
       - vars
       - manifest
     uses: ./.github/workflows/integration-tests.yml
+    with:
+      tag: ${{ needs.vars.outputs.tag }}
+    secrets: inherit
+
+  performance-tests:
+    if: github.event_name == 'schedule'
+    needs:
+      - vars
+      - manifest
+      - integration-tests
+    uses: ./.github/workflows/performance-tests.yml
     with:
       tag: ${{ needs.vars.outputs.tag }}
     secrets: inherit

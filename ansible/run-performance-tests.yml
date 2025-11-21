@@ -1,0 +1,64 @@
+---
+- name: Run performance tests
+  hosts: "platform_*:&job_id_{{ job_id }}"
+  environment:
+    FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
+    FACT_VERSION: "{{ fact.version | default(None) }}"
+    FACT_TAG: "{{ fact.tag | default(None) }}"
+    BERSERKER_VERSION: "{{ berserker.version | default(None) }}"
+    K6_ELASTICSEARCH_URL: "{{ opensearch.url }}"
+    K6_ELASTICSEARCH_USER: "{{ opensearch.user }}"
+    K6_ELASTICSEARCH_PASSWORD: "{{ opensearch.password }}"
+
+  tasks:
+    - name: Install dependencies
+      become: true
+      community.general.rpm_ostree_pkg:
+        apply_live: true
+        name:
+          - make
+          - python3-packaging
+          - python3-requests
+          - python3-opensearch-py
+          - python3-numpy
+        state: present
+
+    - name: Login to quay.io
+      community.docker.docker_login:
+        registry_url: quay.io
+        username: "{{ quay.username }}"
+        password: "{{ quay.password }}"
+
+    - name: Clone the repo
+      ansible.builtin.git:
+        repo: https://github.com/stackrox/fact
+        dest: ./fact
+        version: "{{ fact.version }}"
+        update: false
+
+    # looks like ansible.posix.sysctl module does not allow to simply apply a
+    # new value via sysctl, it has to write it to the sysctl.conf, which fails
+    # with lack of permissions
+    - name: Enable BPF statistics
+      ansible.builtin.shell:
+        cmd: |
+          sudo sysctl -w kernel.bpf_stats_enabled=1
+
+    - block:
+      - name: Build test image
+        ansible.builtin.shell:
+          cmd: |
+            cd "${HOME}/fact/performance-tests"
+            make image
+
+      - name: Run tests
+        ansible.builtin.shell:
+          cmd: |
+            cd "${HOME}/fact/performance-tests"
+            make performance-tests
+
+      - name: Push to opensearch
+        ansible.builtin.shell:
+          cmd: |
+            cd "${HOME}/fact/performance-tests"
+            make push-data
