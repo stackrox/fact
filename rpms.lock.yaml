@@ -340,13 +340,13 @@ arches:
     name: bzip2-libs
     evr: 1.0.8-10.el9_5
     sourcerpm: bzip2-1.0.8-10.el9_5.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/ca-certificates-2024.2.69_v8.0.303-91.4.el9_4.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/ca-certificates-2025.2.80_v9.0.305-91.el9.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 1044629
-    checksum: sha256:fda07ba8aa8afd38800aa1e49ddd4c7916d8f67030739f85f59727f47bdf28dd
+    size: 1072208
+    checksum: sha256:0554bf65d573950e7d550a07bf7d0b3def85ca3b45a7fbde4cce7cadd9a476a7
     name: ca-certificates
-    evr: 2024.2.69_v8.0.303-91.4.el9_4
-    sourcerpm: ca-certificates-2024.2.69_v8.0.303-91.4.el9_4.src.rpm
+    evr: 2025.2.80_v9.0.305-91.el9
+    sourcerpm: ca-certificates-2025.2.80_v9.0.305-91.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-8.32-39.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 1200393
@@ -473,6 +473,13 @@ arches:
     name: filesystem
     evr: 3.16-5.el9
     sourcerpm: filesystem-3.16-5.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/f/findutils-4.8.0-7.el9.aarch64.rpm
+    repoid: rhel-9-for-aarch64-baseos-rpms
+    size: 564807
+    checksum: sha256:158af4d5ecbd8b87f0da762ea1655bd4c86512071a95d8307eda3e0b3991105d
+    name: findutils
+    evr: 1:4.8.0-7.el9
+    sourcerpm: findutils-4.8.0-7.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/gawk-5.1.0-6.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 1024204
@@ -1632,13 +1639,13 @@ arches:
     name: bzip2-libs
     evr: 1.0.8-10.el9_5
     sourcerpm: bzip2-1.0.8-10.el9_5.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/ca-certificates-2024.2.69_v8.0.303-91.4.el9_4.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/ca-certificates-2025.2.80_v9.0.305-91.el9.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 1044629
-    checksum: sha256:fda07ba8aa8afd38800aa1e49ddd4c7916d8f67030739f85f59727f47bdf28dd
+    size: 1072208
+    checksum: sha256:0554bf65d573950e7d550a07bf7d0b3def85ca3b45a7fbde4cce7cadd9a476a7
     name: ca-certificates
-    evr: 2024.2.69_v8.0.303-91.4.el9_4
-    sourcerpm: ca-certificates-2024.2.69_v8.0.303-91.4.el9_4.src.rpm
+    evr: 2025.2.80_v9.0.305-91.el9
+    sourcerpm: ca-certificates-2025.2.80_v9.0.305-91.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-8.32-39.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 1245548
@@ -1765,6 +1772,13 @@ arches:
     name: filesystem
     evr: 3.16-5.el9
     sourcerpm: filesystem-3.16-5.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/f/findutils-4.8.0-7.el9.x86_64.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 563531
+    checksum: sha256:a6328afea0a11647b7fb5c48436f0af6c795407bac0650676d3196dd47070de6
+    name: findutils
+    evr: 1:4.8.0-7.el9
+    sourcerpm: findutils-4.8.0-7.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/gawk-5.1.0-6.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 1045534
