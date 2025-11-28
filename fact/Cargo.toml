@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 aya = { workspace = true }
+aya-obj = { workspace = true }
 clap = { workspace = true }
 env_logger = { workspace = true }
 http-body-util = { workspace = true }

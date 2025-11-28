@@ -1,10 +1,14 @@
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
+use std::{
+    ffi::CStr,
+    os::raw::c_char,
+    path::{Path, PathBuf},
+};
 
 use serde::Serialize;
 
-use fact_ebpf::{event_t, file_activity_type_t, PATH_MAX};
+use fact_ebpf::{event_t, file_activity_type_t, inode_key_t, PATH_MAX};
 
 use crate::host_info;
 use process::Process;
@@ -45,6 +49,8 @@ impl Event {
         let inner = BaseFileData {
             filename,
             host_file,
+            inode: inode_key_t::default(),
+            parent_inode: inode_key_t::default(),
         };
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
@@ -60,6 +66,50 @@ impl Event {
             file,
         })
     }
+
+    pub fn is_creation(&self) -> bool {
+        matches!(self.file, FileData::Creation(_))
+    }
+
+    pub fn get_inode(&self) -> &inode_key_t {
+        match &self.file {
+            FileData::Open(data) => &data.inode,
+            FileData::Creation(data) => &data.inode,
+            FileData::Unlink(data) => &data.inode,
+        }
+    }
+
+    pub fn get_filename(&self) -> &Path {
+        match &self.file {
+            FileData::Open(data) => &data.filename,
+            FileData::Creation(data) => &data.filename,
+            FileData::Unlink(data) => &data.filename,
+        }
+    }
+
+    pub fn get_parent_inode(&self) -> &inode_key_t {
+        match &self.file {
+            FileData::Open(data) => &data.parent_inode,
+            FileData::Creation(data) => &data.parent_inode,
+            FileData::Unlink(data) => &data.parent_inode,
+        }
+    }
+
+    pub fn get_host_path(&self) -> &Path {
+        match &self.file {
+            FileData::Open(data) => &data.host_file,
+            FileData::Creation(data) => &data.host_file,
+            FileData::Unlink(data) => &data.host_file,
+        }
+    }
+
+    pub fn set_host_path(&mut self, host_path: PathBuf) {
+        match &mut self.file {
+            FileData::Open(data) => data.host_file = host_path,
+            FileData::Creation(data) => data.host_file = host_path,
+            FileData::Unlink(data) => data.host_file = host_path,
+        }
+    }
 }
 
 impl TryFrom<&event_t> for Event {
@@ -68,7 +118,7 @@ impl TryFrom<&event_t> for Event {
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let process = Process::try_from(value.process)?;
         let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(value.type_, value.filename, value.host_file)?;
+        let file = FileData::new(value.type_, value.filename, value.inode, value.parent_inode)?;
 
         Ok(Event {
             timestamp,
@@ -112,9 +162,10 @@ impl FileData {
     pub fn new(
         event_type: file_activity_type_t,
         filename: [c_char; PATH_MAX as usize],
-        host_file: [c_char; PATH_MAX as usize],
+        inode: inode_key_t,
+        parent_inode: inode_key_t,
     ) -> anyhow::Result<Self> {
-        let inner = BaseFileData::new(filename, host_file)?;
+        let inner = BaseFileData::new(filename, inode, parent_inode)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
@@ -164,19 +215,24 @@ impl PartialEq for FileData {
 pub struct BaseFileData {
     pub filename: PathBuf,
     host_file: PathBuf,
+    inode: inode_key_t,
+    parent_inode: inode_key_t,
 }
 
 impl BaseFileData {
     pub fn new(
         filename: [c_char; PATH_MAX as usize],
-        host_file: [c_char; PATH_MAX as usize],
+        inode: inode_key_t,
+        parent_inode: inode_key_t,
     ) -> anyhow::Result<Self> {
         let filename = slice_to_string(&filename)?.into();
-        let host_file = slice_to_string(&host_file)?.into();
+        let host_file = PathBuf::new();
 
         Ok(BaseFileData {
             filename,
             host_file,
+            inode,
+            parent_inode,
         })
     }
 }

@@ -1,9 +1,10 @@
 #![allow(dead_code, non_camel_case_types)]
 
-use std::{error::Error, ffi::c_char, fmt::Display, path::PathBuf};
+use std::{error::Error, ffi::c_char, fmt::Display, hash::Hash, path::PathBuf};
 
 use aya::{maps::lpm_trie, Pod};
 use libc::memcpy;
+use serde::{ser::SerializeStruct, Serialize};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -62,6 +63,40 @@ impl PartialEq for path_prefix_t {
 
 unsafe impl Pod for path_prefix_t {}
 
+impl inode_key_t {
+    pub fn is_empty(&self) -> bool {
+        self.inode == 0 && self.dev == 0
+    }
+}
+
+impl PartialEq for inode_key_t {
+    fn eq(&self, other: &Self) -> bool {
+        self.inode == other.inode && self.dev == other.dev
+    }
+}
+impl Eq for inode_key_t {}
+
+impl Hash for inode_key_t {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inode.hash(state);
+        self.dev.hash(state);
+    }
+}
+
+impl Serialize for inode_key_t {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("inode_key_t", 2)?;
+        state.serialize_field("inode", &self.inode)?;
+        state.serialize_field("dev", &self.dev)?;
+        state.end()
+    }
+}
+
+unsafe impl Pod for inode_key_t {}
+
 impl metrics_by_hook_t {
     fn accumulate(&self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
         let mut m = metrics_by_hook_t { ..*self };
@@ -80,7 +115,8 @@ impl metrics_t {
     pub fn accumulate(&self, other: &metrics_t) -> metrics_t {
         let mut m = metrics_t { ..*self };
         m.file_open = m.file_open.accumulate(&other.file_open);
-        m.path_unlink = m.path_unlink.accumulate(&other.path_unlink);
+        m.path_unlink.g = m.path_unlink.g.accumulate(&other.path_unlink.g);
+        m.path_unlink.scan_miss += other.path_unlink.scan_miss;
         m
     }
 }

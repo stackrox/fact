@@ -1,9 +1,9 @@
 // clang-format off
 #include "vmlinux.h"
 
+#include "inode.h"
 #include "file.h"
 #include "types.h"
-#include "process.h"
 #include "maps.h"
 #include "events.h"
 #include "bound_path.h"
@@ -40,21 +40,52 @@ int BPF_PROG(trace_file_open, struct file* file) {
   struct bound_path_t* path = path_read(&file->f_path);
   if (path == NULL) {
     bpf_printk("Failed to read path");
-    m->file_open.error++;
-    return 0;
+    goto error;
   }
 
-  if (!is_monitored(path)) {
-    goto ignored;
+  inode_key_t inode_key = inode_to_key(file->f_inode);
+  const inode_value_t* inode = inode_get(&inode_key);
+
+  struct dentry* parent = file->f_path.dentry->d_parent;
+  inode_key_t parent_key = inode_to_key(parent->d_inode);
+  inode_value_t* parent_inode = inode_get(&parent_key);
+
+  switch (inode_is_monitored(inode, parent_inode)) {
+    case NOT_MONITORED:
+      // Check if the path is monitored by prefix
+      if (!is_monitored(path)) {
+        goto ignored;
+      }
+      bpf_printk("Not monitored: %s", path->path);
+      break;
+
+    case MONITORED:
+      bpf_printk("Monitored: %s", path->path);
+      break;
+    case PARENT_MONITORED:
+      if (event_type == FILE_ACTIVITY_CREATION) {
+        inode = inode_new(file->f_inode);
+        if (inode == NULL) {
+          bpf_printk("Failed to insert inode object");
+          goto error;
+        }
+      } else {
+        goto ignored;
+      }
+      bpf_printk("Parent monitored: %s", path->path);
+      break;
   }
 
-  struct dentry* d = BPF_CORE_READ(file, f_path.dentry);
-  submit_event(&m->file_open, event_type, path->path, d, true);
+  submit_event(&m->file_open, event_type, path->path, &inode_key, &parent_key, true);
 
   return 0;
 
 ignored:
   m->file_open.ignored++;
+  return 0;
+
+error:
+  m->file_open.error++;
   return 0;
 }
 
@@ -65,7 +96,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
     return 0;
   }
 
-  m->path_unlink.total++;
+  m->path_unlink.g.total++;
 
   struct bound_path_t* path = NULL;
   if (path_unlink_supports_bpf_d_path) {
@@ -91,15 +122,37 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
       goto error;
   }
 
-  if (!is_monitored(path)) {
-    m->path_unlink.ignored++;
-    return 0;
+  inode_key_t inode_key = inode_to_key(dentry->d_inode);
+  const inode_value_t* inode = inode_get(&inode_key);
+  struct inode_key_t parent_key = inode_to_key(dir->dentry->d_inode);
+  inode_value_t* parent_inode = inode_get(&parent_key);
+
+  switch (inode_is_monitored(inode, parent_inode)) {
+    case NOT_MONITORED:
+      // Check if the path is monitored by prefix
+      if (!is_monitored(path)) {
+        m->path_unlink.g.ignored++;
+        return 0;
+      }
+      break;
+
+    case MONITORED:
+      inode_remove(&inode_key);
+      break;
+    case PARENT_MONITORED:
+      m->path_unlink.scan_miss++;
+      return 0;
   }
 
-  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry, path_unlink_supports_bpf_d_path);
+  submit_event(&m->path_unlink.g,
+               FILE_ACTIVITY_UNLINK,
+               path->path,
+               &inode_key,
+               &parent_key,
+               path_unlink_supports_bpf_d_path);
   return 0;
 
 error:
-  m->path_unlink.error++;
+  m->path_unlink.g.error++;
   return 0;
 }

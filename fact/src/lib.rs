@@ -3,11 +3,12 @@ use std::{borrow::BorrowMut, io::Write, str::FromStr};
 use anyhow::Context;
 use bpf::Bpf;
 use host_info::{get_distro, get_hostname, SystemInfo};
+use host_scanner::HostScanner;
 use log::{debug, info, warn, LevelFilter};
 use metrics::exporter::Exporter;
 use tokio::{
     signal::unix::{signal, SignalKind},
-    sync::watch,
+    sync::{mpsc, watch},
 };
 
 mod bpf;
@@ -15,6 +16,7 @@ pub mod config;
 mod endpoints;
 mod event;
 mod host_info;
+mod host_scanner;
 mod metrics;
 mod output;
 mod pre_flight;
@@ -76,16 +78,21 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let reloader = config::reloader::Reloader::from(config);
     let config_trigger = reloader.get_trigger();
 
-    let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())?;
+    let (tx, rx) = mpsc::channel(100);
+
+    let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)?;
     let exporter = Exporter::new(bpf.take_metrics()?);
 
+    let host_scanner = HostScanner::new(&mut bpf, rx, reloader.paths(), running.subscribe())?;
+
     output::start(
-        bpf.subscribe(),
+        host_scanner.subscribe(),
         running.subscribe(),
         exporter.metrics.output.clone(),
         reloader.grpc(),
         reloader.config().json(),
     )?;
+    let mut host_scanner_handle = host_scanner.start();
     endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
     let mut bpf_handle = bpf.start(running.subscribe(), exporter.metrics.bpf_worker.clone());
     reloader.start(running.subscribe());
@@ -103,6 +110,15 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
                         warn!("BPF worker errored out: {e:?}");
                     }
                     Err(e) => warn!("BPF task errored out: {e:?}"),
+                }
+                break;
+            }
+            res = host_scanner_handle.borrow_mut() => {
+                match res {
+                    Ok(res) => if let Err(e) = res {
+                        warn!("Host scanner errored out: {e:?}");
+                    }
+                    Err(e) => warn!("Host scanner task errored out: {e:?}"),
                 }
                 break;
             }

@@ -32,6 +32,13 @@ typedef struct process_t {
   char in_root_mount_ns;
 } process_t;
 
+typedef struct inode_key_t {
+  unsigned long long inode;
+  unsigned long long dev;
+} inode_key_t;
+
+typedef char inode_value_t;
+
 typedef enum file_activity_type_t {
   FILE_ACTIVITY_INIT = -1,
   FILE_ACTIVITY_OPEN = 0,
@@ -43,7 +50,8 @@ struct event_t {
   unsigned long timestamp;
   process_t process;
   char filename[PATH_MAX];
-  char host_file[PATH_MAX];
+  inode_key_t inode;
+  inode_key_t parent_inode;
   file_activity_type_t type;
 };
 
@@ -70,7 +78,12 @@ struct metrics_by_hook_t {
   unsigned long long ringbuffer_full;
 };
 
+struct path_unlink_metrics_t {
+  struct metrics_by_hook_t g;
+  unsigned long long scan_miss;
+};
+
 struct metrics_t {
   struct metrics_by_hook_t file_open;
-  struct metrics_by_hook_t path_unlink;
+  struct path_unlink_metrics_t path_unlink;
 };

@@ -15,6 +15,7 @@ enum LabelValues {
     Ignored,
     Error,
     RingbufferFull,
+    ScanMissed,
 }
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelSet)]

@@ -1,8 +1,8 @@
-use std::{io, path::PathBuf, sync::Arc};
+use std::{io, path::PathBuf};
 
 use anyhow::{bail, Context};
 use aya::{
-    maps::{Array, LpmTrie, MapData, PerCpuArray, RingBuf},
+    maps::{Array, HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
     programs::Lsm,
     Btf, Ebpf,
 };
@@ -11,13 +11,13 @@ use libc::c_char;
 use log::{debug, error, info};
 use tokio::{
     io::unix::AsyncFd,
-    sync::{broadcast, watch},
+    sync::{mpsc, watch},
     task::JoinHandle,
 };
 
 use crate::{event::Event, host_info, metrics::EventCounter};
 
-use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
+use fact_ebpf::{event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
 mod checks;
 
@@ -26,7 +26,7 @@ const RINGBUFFER_NAME: &str = "rb";
 pub struct Bpf {
     obj: Ebpf,
 
-    tx: broadcast::Sender<Arc<Event>>,
+    tx: mpsc::Sender<Event>,
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
@@ -36,6 +36,7 @@ impl Bpf {
     pub fn new(
         paths_config: watch::Receiver<Vec<PathBuf>>,
         ringbuf_size: u32,
+        tx: mpsc::Sender<Event>,
     ) -> anyhow::Result<Self> {
         Bpf::bump_memlock_rlimit()?;
 
@@ -52,10 +53,10 @@ impl Bpf {
                 true,
             )
             .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
+            .allow_unsupported_maps()
             .load(fact_ebpf::EBPF_OBJ)?;
 
         let paths = Vec::new();
-        let (tx, _) = broadcast::channel(100);
         let mut bpf = Bpf {
             obj,
             tx,
@@ -86,8 +87,13 @@ impl Bpf {
         Ok(())
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<Event>> {
-        self.tx.subscribe()
+    pub fn take_inode_map(
+        &mut self,
+    ) -> anyhow::Result<HashMap<MapData, inode_key_t, inode_value_t>> {
+        let Some(inode_map) = self.obj.take_map("inode_map") else {
+            bail!("inode_map not found");
+        };
+        Ok(HashMap::try_from(inode_map)?)
     }
 
     pub fn take_metrics(&mut self) -> anyhow::Result<PerCpuArray<MapData, metrics_t>> {
@@ -184,7 +190,7 @@ impl Bpf {
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
-                                Ok(event) => Arc::new(event),
+                                Ok(event) => event,
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     debug!("Event: {event:?}");
@@ -194,7 +200,7 @@ impl Bpf {
                             };
 
                             event_counter.added();
-                            if self.tx.send(event).is_err() {
+                            if self.tx.send(event).await.is_err() {
                                 info!("No BPF consumers left, stopping...");
                                 break;
                             }
@@ -261,9 +267,9 @@ mod bpf_tests {
         config.set_paths(paths);
         let reloader = Reloader::from(config);
         executor.block_on(async {
-            let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())
+            let (tx, mut rx) = mpsc::channel(100);
+            let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)
                 .expect("Failed to load BPF code");
-            let mut rx = bpf.subscribe();
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it
             let exporter = Exporter::new(bpf.take_metrics().unwrap());
@@ -281,16 +287,16 @@ mod bpf_tests {
                 file_activity_type_t::FILE_ACTIVITY_CREATION,
                 host_info::get_hostname(),
                 file.path().to_path_buf(),
-                file.path().to_path_buf(),
+                PathBuf::new(), // host path resolution is done in a separate module
                 Process::current(),
             )
             .unwrap();
 
             println!("Expected: {expected:?}");
             let wait = timeout(Duration::from_secs(1), async move {
-                while let Ok(event) = rx.recv().await {
+                while let Some(event) = rx.recv().await {
                     println!("{event:?}");
-                    if *event == expected {
+                    if event == expected {
                         break;
                     }
                 }

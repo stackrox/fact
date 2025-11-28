@@ -77,7 +77,13 @@ impl KernelMetrics {
             .fold(metrics_t::default(), |acc, x| acc.accumulate(x));
 
         KernelMetrics::refresh_labels(&self.file_open, &metrics.file_open);
-        KernelMetrics::refresh_labels(&self.path_unlink, &metrics.path_unlink);
+        KernelMetrics::refresh_labels(&self.path_unlink, &metrics.path_unlink.g);
+        self.path_unlink
+            .counter
+            .get_or_create(&MetricEvents {
+                label: LabelValues::ScanMissed,
+            })
+            .inc_by(metrics.path_unlink.scan_miss);
 
         Ok(())
     }

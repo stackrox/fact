@@ -12,6 +12,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 aya = { version = "0.13.1", default-features = false }
+aya-obj = { version = "0.2.1", default-features = false }
 
 anyhow = { version = "1", default-features = false, features = ["std", "backtrace"] }
 clap = { version = "4.5.41", features = ["derive", "env"] }
@@ -41,6 +42,3 @@ uuid = { version = "1.17.0", features = ["v4"] }
 bindgen = "0.72.0"
 tempfile = { version = "3.20.0", default-features = false }
 yaml-rust2 = "0.10.3"
-
-[profile.release]
-debug = "line-tables-only"
