@@ -4,7 +4,7 @@ use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
 
 use serde::Serialize;
 
-use fact_ebpf::{event_t, file_activity_type_t, PATH_MAX};
+use fact_ebpf::{event_t, file_activity_type_t, metadata_t, PATH_MAX};
 
 use crate::host_info;
 use process::Process;
@@ -27,6 +27,7 @@ pub struct Event {
     hostname: &'static str,
     process: Process,
     file: FileData,
+    metadata: Metadata,
 }
 
 impl Event {
@@ -52,12 +53,14 @@ impl Event {
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
+        let metadata = Metadata::default();
 
         Ok(Event {
             timestamp,
             hostname,
             process,
             file,
+            metadata,
         })
     }
 }
@@ -69,12 +72,14 @@ impl TryFrom<&event_t> for Event {
         let process = Process::try_from(value.process)?;
         let timestamp = host_info::get_boot_time() + value.timestamp;
         let file = FileData::new(value.type_, value.filename, value.host_file)?;
+        let metadata = Metadata::from(value.metadata);
 
         Ok(Event {
             timestamp,
             hostname: host_info::get_hostname(),
             process,
             file,
+            metadata,
         })
     }
 }
@@ -193,6 +198,31 @@ impl From<BaseFileData> for fact_api::FileActivityBase {
         fact_api::FileActivityBase {
             path: value.filename.to_string_lossy().to_string(),
             host_path: value.host_file.to_string_lossy().to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+struct Metadata {
+    mode: u16,
+    uid: u32,
+    gid: u32,
+    size: i64,
+}
+
+impl From<metadata_t> for Metadata {
+    fn from(value: metadata_t) -> Self {
+        let metadata_t {
+            mode,
+            uid,
+            gid,
+            size,
+        } = value;
+        Metadata {
+            mode,
+            uid,
+            gid,
+            size,
         }
     }
 }

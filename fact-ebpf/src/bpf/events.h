@@ -3,6 +3,7 @@
 #include <bpf/bpf_helpers.h>
 
 #include "maps.h"
+#include "metadata.h"
 #include "process.h"
 #include "types.h"
 #include "vmlinux.h"
@@ -32,6 +33,11 @@ __always_inline static void submit_event(struct metrics_by_hook_t* m, file_activ
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
     goto error;
+  }
+
+  err = metadata_fill(&event->metadata, dentry);
+  if (err) {
+    bpf_printk("Failed to fill file metadata: %d", err);
   }
 
   m->added++;
