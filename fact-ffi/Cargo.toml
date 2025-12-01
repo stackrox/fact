@@ -1,0 +1,15 @@
+[package]
+name = "fact-ffi"
+version = "0.1.0"
+edition = "2021"
+
+license.workspace = true
+
+[lib]
+
+[dependencies]
+anyhow = { workspace = true }
+aya = { workspace = true }
+
+[build-dependencies]
+cc = { workspace = true }

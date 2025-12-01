@@ -2,6 +2,7 @@ use std::{borrow::BorrowMut, io::Write, str::FromStr};
 
 use anyhow::Context;
 use bpf::Bpf;
+use fs_walker::walk_path;
 use host_info::{get_distro, get_hostname, SystemInfo};
 use log::{debug, info, warn, LevelFilter};
 use metrics::exporter::Exporter;
@@ -14,6 +15,7 @@ mod bpf;
 pub mod config;
 mod endpoints;
 mod event;
+mod fs_walker;
 mod host_info;
 mod metrics;
 mod output;
@@ -78,6 +80,14 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())?;
     let exporter = Exporter::new(bpf.take_metrics()?);
+
+    // TODO: The inode tracking algorithm for host paths only works on
+    // files that exist at startup, this needs to be improved.
+    let inode_store = bpf.get_inode_store()?;
+    for p in reloader.paths().borrow().iter() {
+        let mounted_path = host_info::get_host_mount().join(p.strip_prefix("/")?);
+        walk_path(inode_store, &mounted_path)?;
+    }
 
     output::start(
         bpf.subscribe(),

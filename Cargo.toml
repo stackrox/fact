@@ -4,6 +4,7 @@ members = [
     "fact",
     "fact-api",
     "fact-ebpf",
+    "fact-ffi",
 ]
 default-members = ["fact"]
 
@@ -14,6 +15,7 @@ license = "MIT OR Apache-2.0"
 aya = { version = "0.13.1", default-features = false }
 
 anyhow = { version = "1", default-features = false, features = ["std", "backtrace"] }
+cc = "1.2.46"
 clap = { version = "4.5.41", features = ["derive", "env"] }
 env_logger = { version = "0.11.5", default-features = false, features = ["humantime"] }
 http-body-util = "0.1.3"
