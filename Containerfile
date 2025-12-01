@@ -1,7 +1,7 @@
 FROM quay.io/centos/centos:stream9 AS builder
 
 RUN dnf install --enablerepo=crb -y \
-        clang-19.1.7 \
+        clang \
         libbpf-devel \
         protobuf-compiler \
         protobuf-devel && \
