@@ -31,7 +31,8 @@ __always_inline static long __d_path(const struct path* path, char* buf, int buf
   struct path root;
   BPF_CORE_READ_INTO(&root, task, fs, root);
   struct mount* mnt = container_of(path->mnt, struct mount, mnt);
-  struct dentry* dentry = BPF_CORE_READ(path, dentry);
+  struct dentry* dentry;
+  BPF_CORE_READ_INTO(&dentry, path, dentry);
 
   for (int i = 0; i < 16 && (dentry != root.dentry || &mnt->mnt != root.mnt); i++) {
     struct dentry* parent = BPF_CORE_READ(dentry, d_parent);
