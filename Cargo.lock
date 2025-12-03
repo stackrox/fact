@@ -466,6 +466,7 @@ dependencies = [
  "aya",
  "bindgen",
  "libc",
+ "serde",
 ]
 
 [[package]]
