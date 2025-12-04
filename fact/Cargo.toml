@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+aws-lc-rs = { workspace = true }
 aya = { workspace = true }
 clap = { workspace = true }
 env_logger = { workspace = true }

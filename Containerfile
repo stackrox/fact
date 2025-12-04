@@ -4,7 +4,11 @@ RUN dnf install --enablerepo=crb -y \
         clang \
         libbpf-devel \
         protobuf-compiler \
-        protobuf-devel && \
+        protobuf-devel \
+        # aws-lc FIPS requirements
+        golang \
+        perl \
+        cmake && \
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
             sh -s -- -y --default-toolchain 1.84 --profile minimal
 

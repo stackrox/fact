@@ -1,6 +1,7 @@
 use std::fs::read_to_string;
 
 use anyhow::{bail, Context};
+use log::debug;
 
 use crate::host_info::get_host_mount;
 
@@ -17,8 +18,17 @@ fn have_bpf_lsm() -> anyhow::Result<()> {
     have_bpf_lsm_inner(&lsm_config)
 }
 
+fn using_fips() -> anyhow::Result<()> {
+    if let Err(e) = aws_lc_rs::try_fips_mode() {
+        bail!("FIPS mode is not enabled: {e}");
+    }
+    debug!("FIPS mode enabled");
+    Ok(())
+}
+
 pub fn pre_flight() -> anyhow::Result<()> {
-    have_bpf_lsm()
+    have_bpf_lsm()?;
+    using_fips()
 }
 
 #[cfg(test)]
