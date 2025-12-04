@@ -1,8 +1,13 @@
-use std::{fs::read_to_string, path::Path, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::bail;
 use fact_api::file_activity_service_client::FileActivityServiceClient;
+use hyper_rustls::HttpsConnectorBuilder;
 use log::{debug, info, warn};
+use rustls::{
+    pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer},
+    ClientConfig, RootCertStore,
+};
 use tokio::{
     sync::{broadcast, watch},
     time::sleep,
@@ -11,32 +16,9 @@ use tokio_stream::{
     wrappers::{errors::BroadcastStreamRecvError, BroadcastStream},
     StreamExt,
 };
-use tonic::{
-    metadata::MetadataValue,
-    service::Interceptor,
-    transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
-};
+use tonic::{metadata::MetadataValue, service::Interceptor, transport::Channel};
 
 use crate::{config::GrpcConfig, event::Event, metrics::EventCounter};
-
-struct Certs {
-    pub ca: Certificate,
-    pub identity: Identity,
-}
-
-impl TryFrom<&Path> for Certs {
-    type Error = anyhow::Error;
-
-    fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let ca = read_to_string(path.join("ca.pem"))?;
-        let ca = Certificate::from_pem(ca);
-        let cert = read_to_string(path.join("cert.pem"))?;
-        let key = read_to_string(path.join("key.pem"))?;
-        let identity = Identity::from_pem(cert, key);
-
-        Ok(Self { ca, identity })
-    }
-}
 
 struct UserAgentInterceptor {}
 
@@ -95,29 +77,56 @@ impl Client {
         });
     }
 
-    fn create_channel(&self) -> anyhow::Result<Endpoint> {
-        let config = self.config.borrow();
-        let Some(url) = config.url() else {
-            bail!("Attempting to run gRPC client with no URL");
-        };
-        let url = url.to_string();
-        let certs = config.certs().map(Certs::try_from).transpose()?;
-        let mut channel = Channel::from_shared(url)?;
-        if let Some(certs) = certs {
-            let tls = ClientTlsConfig::new()
-                .domain_name("sensor.stackrox.svc")
-                .ca_certificate(certs.ca.clone())
-                .identity(certs.identity.clone());
-            channel = channel.tls_config(tls)?;
+    fn get_tls_config(&self) -> anyhow::Result<Option<ClientConfig>> {
+        match self.config.borrow().certs() {
+            Some(certs) => {
+                let mut cert_store = RootCertStore::empty();
+                for cert in CertificateDer::pem_file_iter(certs.join("ca.pem"))? {
+                    cert_store.add(cert?)?;
+                }
+                let client_cert = CertificateDer::pem_file_iter(certs.join("cert.pem"))?
+                    .collect::<Result<Vec<_>, _>>()?;
+                let client_key = PrivateKeyDer::from_pem_file(certs.join("key.pem"))?;
+                let client = ClientConfig::builder()
+                    .with_root_certificates(cert_store)
+                    .with_client_auth_cert(client_cert, client_key)?;
+                Ok(Some(client))
+            }
+            None => Ok(None),
         }
-        Ok(channel)
+    }
+
+    async fn create_channel(&self) -> anyhow::Result<Channel> {
+        let url = match self.config.borrow().url() {
+            Some(url) => url.to_string(),
+            None => bail!("Attempting to run gRPC client with no URL"),
+        };
+        let channel = Channel::from_shared(url)?;
+        match self.get_tls_config()? {
+            Some(config) => {
+                if !config.fips() {
+                    // FIPS is enabled at compile time, we should not
+                    // hit this condition.
+                    panic!("FIPS mode is not enabled");
+                }
+
+                let connector = HttpsConnectorBuilder::new()
+                    .with_tls_config(config)
+                    .https_only()
+                    .enable_http2()
+                    .build();
+
+                let channel = channel.connect_with_connector(connector).await?;
+                Ok(channel)
+            }
+            None => Ok(channel.connect().await?),
+        }
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
-        let channel = self.create_channel()?;
         loop {
             info!("Attempting to connect to gRPC server...");
-            let channel = match channel.connect().await {
+            let channel = match self.create_channel().await {
                 Ok(channel) => channel,
                 Err(e) => {
                     debug!("Failed to connect to server: {e}");
