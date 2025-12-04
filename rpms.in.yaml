@@ -4,7 +4,10 @@
 packages:
 - cargo
 - clang
+- cmake
+- golang
 - libbpf-devel
+- perl
 - protobuf-compiler
 - protobuf-devel
 - rust
