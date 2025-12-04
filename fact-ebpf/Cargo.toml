@@ -10,6 +10,7 @@ license.workspace = true
 [dependencies]
 aya = { workspace = true }
 libc = { workspace = true }
+serde = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }
