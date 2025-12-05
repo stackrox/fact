@@ -10,6 +10,7 @@ use super::{EventCounter, LabelValues};
 pub struct KernelMetrics {
     file_open: EventCounter,
     path_unlink: EventCounter,
+    cgroup_attach_task: EventCounter,
     map: PerCpuArray<MapData, metrics_t>,
 }
 
@@ -25,13 +26,20 @@ impl KernelMetrics {
             "Events processed by the path_unlink LSM hook",
             &[], // Labels are not needed since `collect` will add them all
         );
+        let cgroup_attach_task = EventCounter::new(
+            "kernel_cgroup_attach_task_events",
+            "Events processed by the cgroup_attach_task LSM hook",
+            &[], // Labels are not needed since `collect` will add them all
+        );
 
         file_open.register(reg);
         path_unlink.register(reg);
+        cgroup_attach_task.register(reg);
 
         KernelMetrics {
             file_open,
             path_unlink,
+            cgroup_attach_task,
             map: kernel_metrics,
         }
     }
@@ -78,6 +86,7 @@ impl KernelMetrics {
 
         KernelMetrics::refresh_labels(&self.file_open, &metrics.file_open);
         KernelMetrics::refresh_labels(&self.path_unlink, &metrics.path_unlink);
+        KernelMetrics::refresh_labels(&self.cgroup_attach_task, &metrics.cgroup_attach_task);
 
         Ok(())
     }
