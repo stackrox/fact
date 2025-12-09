@@ -36,10 +36,10 @@ impl Bpf {
     pub fn new(
         paths_config: watch::Receiver<Vec<PathBuf>>,
         ringbuf_size: u32,
-        tx: mpsc::Sender<Event>,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         Bpf::bump_memlock_rlimit()?;
 
+        let (tx, rx) = mpsc::channel(100);
         let btf = Btf::from_sys_fs()?;
         let checks = Checks::new(&btf)?;
 
@@ -66,7 +66,7 @@ impl Bpf {
         bpf.load_paths()?;
         bpf.load_progs(&btf)?;
 
-        Ok(bpf)
+        Ok((bpf, rx))
     }
 
     fn bump_memlock_rlimit() -> anyhow::Result<()> {
@@ -266,8 +266,7 @@ mod bpf_tests {
         config.set_paths(paths);
         let reloader = Reloader::from(config);
         executor.block_on(async {
-            let (tx, mut rx) = mpsc::channel(100);
-            let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)
+            let (mut bpf, mut rx) = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())
                 .expect("Failed to load BPF code");
             let (run_tx, run_rx) = watch::channel(true);
             // Create a metrics exporter, but don't start it

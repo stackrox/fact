@@ -8,7 +8,7 @@ use log::{debug, info, warn, LevelFilter};
 use metrics::exporter::Exporter;
 use tokio::{
     signal::unix::{signal, SignalKind},
-    sync::{mpsc, watch},
+    sync::watch,
 };
 
 mod bpf;
@@ -78,15 +78,13 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let reloader = config::reloader::Reloader::from(config);
     let config_trigger = reloader.get_trigger();
 
-    let (tx, rx) = mpsc::channel(100);
-
-    let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)?;
+    let (mut bpf, rx) = Bpf::new(reloader.paths(), reloader.config().ringbuf_size())?;
     let exporter = Exporter::new(bpf.take_metrics()?);
 
-    let host_scanner = HostScanner::new(&mut bpf, rx, reloader.paths(), running.subscribe())?;
+    let (host_scanner, rx) = HostScanner::new(&mut bpf, rx, reloader.paths(), running.subscribe())?;
 
     output::start(
-        host_scanner.subscribe(),
+        rx,
         running.subscribe(),
         exporter.metrics.output.clone(),
         reloader.grpc(),

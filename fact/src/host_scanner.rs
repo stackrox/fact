@@ -2,7 +2,6 @@ use std::{
     cell::RefCell,
     os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 use anyhow::Context;
@@ -10,7 +9,7 @@ use aya::maps::MapData;
 use fact_ebpf::{inode_key_t, inode_value_t};
 use log::{debug, info, warn};
 use tokio::{
-    sync::{broadcast, mpsc, watch},
+    sync::{mpsc, watch},
     task::JoinHandle,
 };
 
@@ -24,7 +23,7 @@ pub struct HostScanner {
     running: watch::Receiver<bool>,
 
     rx: mpsc::Receiver<Event>,
-    tx: broadcast::Sender<Arc<Event>>,
+    tx: mpsc::Sender<Event>,
 }
 
 impl HostScanner {
@@ -33,10 +32,10 @@ impl HostScanner {
         rx: mpsc::Receiver<Event>,
         config: watch::Receiver<Vec<PathBuf>>,
         running: watch::Receiver<bool>,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(std::collections::HashMap::new());
-        let (tx, _) = broadcast::channel(100);
+        let (tx, hs_rx) = mpsc::channel(100);
 
         let host_scanner = HostScanner {
             kernel_inode_map,
@@ -50,7 +49,7 @@ impl HostScanner {
         // Run an initial scan to fill in the inode map
         host_scanner.scan()?;
 
-        Ok(host_scanner)
+        Ok((host_scanner, hs_rx))
     }
 
     fn scan(&self) -> anyhow::Result<()> {
@@ -97,10 +96,6 @@ impl HostScanner {
         Ok(())
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<Event>> {
-        self.tx.subscribe()
-    }
-
     fn get_host_path(&self, inode: &inode_key_t) -> Option<PathBuf> {
         // The path here needs to be cloned because we won't keep the
         // inode_map borrow long enough.
@@ -123,8 +118,7 @@ impl HostScanner {
                             event.set_host_path(host_path);
                         }
 
-                        let event = Arc::new(event);
-                        if let Err(e) = self.tx.send(event) {
+                        if let Err(e) = self.tx.send(event).await {
                             warn!("Failed to send event: {e}");
                         }
                     },
