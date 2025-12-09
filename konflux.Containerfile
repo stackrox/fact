@@ -9,7 +9,11 @@ RUN dnf install -y \
         protobuf-compiler \
         protobuf-devel \
         cargo \
-        rust
+        rust \
+        # aws-lc FIPS requirements
+        golang \
+        perl \
+        cmake
 
 WORKDIR /app
 
