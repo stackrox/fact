@@ -87,7 +87,11 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         reloader.config().json(),
     )?;
     endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
-    let mut bpf_handle = bpf.start(running.subscribe(), exporter.metrics.bpf_worker.clone());
+    let mut bpf_handle = bpf.start(
+        running.subscribe(),
+        exporter.metrics.bpf_worker.clone(),
+        exporter.metrics.event_parser.clone(),
+    );
     reloader.start(running.subscribe());
 
     let mut sigterm = signal(SignalKind::terminate())?;

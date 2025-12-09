@@ -9,6 +9,7 @@ use fact_ebpf::{event_t, file_activity_type_t, PATH_MAX};
 use crate::host_info;
 use process::Process;
 
+pub(crate) mod parser;
 pub(crate) mod process;
 
 fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
@@ -30,8 +31,21 @@ pub struct Event {
 }
 
 impl Event {
+    pub fn new(event: &event_t, container_id: Option<String>) -> anyhow::Result<Self> {
+        let process = Process::new(event.process, container_id)?;
+        let timestamp = host_info::get_boot_time() + event.timestamp;
+        let file = FileData::new(event.type_, event.filename, event.host_file)?;
+
+        Ok(Event {
+            timestamp,
+            hostname: host_info::get_hostname(),
+            process,
+            file,
+        })
+    }
+
     #[cfg(test)]
-    pub fn new(
+    pub fn from_raw_parts(
         event_type: file_activity_type_t,
         hostname: &'static str,
         filename: PathBuf,
@@ -56,23 +70,6 @@ impl Event {
         Ok(Event {
             timestamp,
             hostname,
-            process,
-            file,
-        })
-    }
-}
-
-impl TryFrom<&event_t> for Event {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let process = Process::try_from(value.process)?;
-        let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(value.type_, value.filename, value.host_file)?;
-
-        Ok(Event {
-            timestamp,
-            hostname: host_info::get_hostname(),
             process,
             file,
         })

@@ -3,7 +3,6 @@
 
 #include "file.h"
 #include "types.h"
-#include "process.h"
 #include "maps.h"
 #include "events.h"
 #include "bound_path.h"
@@ -101,5 +100,40 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
 error:
   m->path_unlink.error++;
+  return 0;
+}
+
+SEC("tp_btf/cgroup_attach_task")
+int BPF_PROG(trace_cgroup_attach_task, struct cgroup* dst_cgrp, const char* path, struct task_struct* _task, bool _threadgroup) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    bpf_printk("Failed to get metrics entry");
+    return 0;
+  }
+
+  m->cgroup_attach_task.total++;
+
+  u64 id = dst_cgrp->kn->id;
+  if (bpf_map_lookup_elem(&cgroup_map, &id) != NULL) {
+    // Already have the entry
+    m->cgroup_attach_task.ignored++;
+    return 0;
+  }
+
+  struct helper_t* helper = get_helper();
+  if (helper == NULL) {
+    bpf_printk("Failed to get helper entry");
+    m->cgroup_attach_task.error++;
+    return 0;
+  }
+
+  bpf_core_read_str(helper->cgroup_entry.path, PATH_MAX, path);
+  helper->cgroup_entry.parsed = false;
+  int res = bpf_map_update_elem(&cgroup_map, &id, &helper->cgroup_entry, BPF_NOEXIST);
+  if (res != 0) {
+    bpf_printk("Failed to update path for %d", id);
+    m->cgroup_attach_task.error++;
+  }
+
   return 0;
 }

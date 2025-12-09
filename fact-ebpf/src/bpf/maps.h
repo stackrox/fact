@@ -11,8 +11,10 @@
  * Helper struct with buffers for various operations
  */
 struct helper_t {
-  char buf[PATH_MAX * 2];
-  const unsigned char* array[16];
+  union {
+    cgroup_entry_t cgroup_entry;
+    char buf[PATH_MAX * 2];
+  };
 };
 
 struct {
@@ -103,6 +105,13 @@ __always_inline static struct metrics_t* get_metrics() {
   unsigned int zero = 0;
   return bpf_map_lookup_elem(&metrics, &zero);
 }
+
+struct {
+  __uint(type, BPF_MAP_TYPE_LRU_HASH);
+  __type(key, __u64);
+  __type(value, cgroup_entry_t);
+  __uint(max_entries, (2^16)-1);
+} cgroup_map SEC(".maps");
 
 uint64_t host_mount_ns;
 volatile const bool path_unlink_supports_bpf_d_path;
