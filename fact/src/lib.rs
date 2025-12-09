@@ -16,6 +16,7 @@ mod endpoints;
 mod event;
 mod host_info;
 mod metrics;
+mod mount_info;
 mod output;
 mod pre_flight;
 

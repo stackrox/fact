@@ -15,7 +15,14 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{event::Event, host_info, metrics::EventCounter};
+use crate::{
+    event::{
+        parser::{EventParser, EventParserError},
+        Event,
+    },
+    host_info,
+    metrics::EventCounter,
+};
 
 use fact_ebpf::{event_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
@@ -30,6 +37,8 @@ pub struct Bpf {
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
+
+    parser: EventParser,
 }
 
 impl Bpf {
@@ -56,11 +65,13 @@ impl Bpf {
 
         let paths = Vec::new();
         let (tx, _) = broadcast::channel(100);
+        let parser = EventParser::new(paths_config.borrow().as_slice())?;
         let mut bpf = Bpf {
             obj,
             tx,
             paths,
             paths_config,
+            parser,
         };
 
         bpf.load_paths()?;
@@ -183,8 +194,24 @@ impl Bpf {
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                            let event = match Event::try_from(event) {
-                                Ok(event) => Arc::new(event),
+                            let event = match self.parser.parse(event) {
+                                Ok(event) => event,
+                                Err(EventParserError::NotFound) => {
+                                    let paths_config = self.paths_config.borrow();
+                                    self.parser.refresh(paths_config.as_slice())?;
+                                    if self.parser.mountinfo.get(&event.dev).is_none() {
+                                        self.parser.mountinfo.insert_empty(event.dev);
+                                    }
+                                    match self.parser.parse(event) {
+                                        Ok(event) => event,
+                                        Err(e) => {
+                                            error!("Failed to parse event: '{e}'");
+                                            debug!("Event: {event:?}");
+                                            event_counter.dropped();
+                                            continue;
+                                        }
+                                    }
+                                }
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     debug!("Event: {event:?}");
@@ -192,6 +219,12 @@ impl Bpf {
                                     continue;
                                 }
                             };
+
+                            if !event.is_monitored(self.paths_config.borrow().as_slice()) {
+                                event_counter.ignored();
+                                continue;
+                            }
+                            let event = Arc::new(event);
 
                             event_counter.added();
                             if self.tx.send(event).is_err() {

@@ -84,7 +84,7 @@ def dump_logs(container, file):
 def fact_config(request, monitored_dir, logs_dir):
     cwd = os.getcwd()
     config = {
-        'paths': [monitored_dir],
+        'paths': [monitored_dir, '/mounted', '/container-dir'],
         'grpc': {
             'url': 'http://127.0.0.1:9999',
         },
@@ -107,6 +107,31 @@ def fact_config(request, monitored_dir, logs_dir):
 
 
 @pytest.fixture
+def test_container(request, docker_client, ignored_dir):
+    """
+    Run a container for triggering events in.
+    """
+    container = docker_client.containers.run(
+        'quay.io/fedora/fedora:43',
+        detach=True,
+        tty=True,
+        volumes={
+            ignored_dir: {
+                'bind': '/mounted',
+                'mode': 'z',
+            },
+        },
+        name='fedora',
+    )
+    container.exec_run('mkdir /mounted /container-dir')
+
+    yield container
+
+    container.stop(timeout=1)
+    container.remove()
+
+
+@pytest.fixture
 def fact(request, docker_client, fact_config, server, logs_dir):
     """
     Run the fact docker container for integration tests.
@@ -124,20 +149,8 @@ def fact(request, docker_client, fact_config, server, logs_dir):
         network_mode='host',
         privileged=True,
         volumes={
-            '/sys/kernel/security': {
-                'bind': '/host/sys/kernel/security',
-                'mode': 'ro',
-            },
-            '/etc': {
-                'bind': '/host/etc',
-                'mode': 'ro',
-            },
-            '/proc/sys/kernel': {
-                'bind': '/host/proc/sys/kernel',
-                'mode': 'ro',
-            },
-            '/usr/lib/os-release': {
-                'bind': '/host/usr/lib/os-release',
+            '/': {
+                'bind': '/host',
                 'mode': 'ro',
             },
             config_file: {
