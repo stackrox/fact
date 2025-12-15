@@ -37,6 +37,9 @@ typedef struct inode_key_t {
   unsigned long dev;
 } inode_key_t;
 
+// We can't use bool here because it is not a standard C type, we would
+// need to include vmlinux.h but that would explode our Rust bindings.
+// For the time being we just keep a char.
 typedef char inode_value_t;
 
 typedef enum file_activity_type_t {
