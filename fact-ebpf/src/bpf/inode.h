@@ -66,6 +66,9 @@ __always_inline static inode_value_t* inode_get(struct inode_key_t* inode) {
 }
 
 __always_inline static long inode_remove(struct inode_key_t* inode) {
+  if (inode == NULL) {
+    return 0;
+  }
   return bpf_map_delete_elem(&inode_map, inode);
 }
 
@@ -74,6 +77,14 @@ typedef enum inode_monitored_t {
   MONITORED,
 } inode_monitored_t;
 
+/**
+ * Check if the provided inode is being monitored.
+ *
+ * The current implementation is very basic and might seem like
+ * overkill, but in the near future this function will be extended to
+ * check if the parent of the provided inode is monitored and provide
+ * different results for handling more complicated scenarios.
+ */
 __always_inline static inode_monitored_t inode_is_monitored(const inode_value_t* inode) {
   if (inode != NULL) {
     return MONITORED;

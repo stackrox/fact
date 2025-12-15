@@ -1,3 +1,23 @@
+//! # Host Scanner module
+//!
+//! This module is in charge of scanning the host file system and
+//! maintaining a mapping of inode and device number to host path.
+//!
+//! An initial scan of the filesystem is triggered when a `HostScanner`
+//! object is first created. The scan will populate two maps:
+//! * A HashMap that holds an inode to path translation.
+//! * An eBPF HashMap that will let the eBPF programs know if a given
+//!   file is being monitored, regardless of the path being used to
+//!   access it.
+//!
+//! Calling the `start` method on the `HostScanner` object will consume
+//! it and spawn a new tokio task that will receive events from the
+//! provided `mpsc::Receiver<Event>`, update their host paths and send
+//! them out its `broadcast::Sender<Arc<Event>>` for further processing.
+//!
+//! TODO: Implement updating maps based on received events, periodic
+//! scans to remediate inconsistencies due to missed events, etc..
+
 use std::{
     cell::RefCell,
     os::linux::fs::MetadataExt,
@@ -90,10 +110,15 @@ impl HostScanner {
             dev: metadata.st_dev(),
         };
 
-        self.kernel_inode_map.borrow_mut().insert(inode, 0, 0)?;
+        self.kernel_inode_map
+            .borrow_mut()
+            .insert(inode, 0, 0)
+            .with_context(|| format!("Failed to insert kernel entry for {}", path.display()))?;
         let mut inode_map = self.inode_map.borrow_mut();
         let entry = inode_map.entry(inode).or_default();
         *entry = host_info::remove_host_mount(path);
+
+        debug!("Added entry for {}: {inode:?}", path.display());
         Ok(())
     }
 

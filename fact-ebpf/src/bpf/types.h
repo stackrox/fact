@@ -33,8 +33,8 @@ typedef struct process_t {
 } process_t;
 
 typedef struct inode_key_t {
-  unsigned long long inode;
-  unsigned long long dev;
+  unsigned long inode;
+  unsigned long dev;
 } inode_key_t;
 
 typedef char inode_value_t;
