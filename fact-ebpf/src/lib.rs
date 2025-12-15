@@ -1,9 +1,10 @@
 #![allow(dead_code, non_camel_case_types)]
 
-use std::{error::Error, ffi::c_char, fmt::Display, path::PathBuf};
+use std::{error::Error, ffi::c_char, fmt::Display, hash::Hash, path::PathBuf};
 
 use aya::{maps::lpm_trie, Pod};
 use libc::memcpy;
+use serde::{ser::SerializeStruct, Serialize};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -61,6 +62,35 @@ impl PartialEq for path_prefix_t {
 }
 
 unsafe impl Pod for path_prefix_t {}
+
+impl PartialEq for inode_key_t {
+    fn eq(&self, other: &Self) -> bool {
+        self.inode == other.inode && self.dev == other.dev
+    }
+}
+
+impl Eq for inode_key_t {}
+
+impl Hash for inode_key_t {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inode.hash(state);
+        self.dev.hash(state);
+    }
+}
+
+impl Serialize for inode_key_t {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("inode_key_t", 2)?;
+        state.serialize_field("inode", &self.inode)?;
+        state.serialize_field("dev", &self.dev)?;
+        state.end()
+    }
+}
+
+unsafe impl Pod for inode_key_t {}
 
 impl metrics_by_hook_t {
     fn accumulate(&self, other: &metrics_by_hook_t) -> metrics_by_hook_t {

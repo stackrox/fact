@@ -93,12 +93,13 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
     change.
     """
     # File Under Test
-    fut = os.path.join(monitored_dir, 'test.txt')
+    fut = os.path.join(monitored_dir, 'test2.txt')
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    process = Process()
-    e = Event(process=process, event_type=EventType.CREATION, file=fut)
+    process = Process.from_proc()
+    e = Event(process=process, event_type=EventType.CREATION,
+              file=fut, host_path='')
     print(f'Waiting for event: {e}')
 
     server.wait_events([e])
@@ -111,30 +112,32 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
     with open(fut, 'w') as f:
         f.write('This is another test')
 
-    e = Event(process=process, event_type=EventType.OPEN, file=fut)
+    e = Event(process=process, event_type=EventType.OPEN,
+              file=fut, host_path='')
     print(f'Waiting for event on alternate server: {e}')
 
     alternate_server.wait_events([e])
 
 
 def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
-    p = Process()
+    p = Process.from_proc()
 
     # Ignored file, must not show up in the server
     ignored_file = os.path.join(ignored_dir, 'test.txt')
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
 
-    ignored_event = Event(
-        process=p, event_type=EventType.CREATION, file=ignored_file)
+    ignored_event = Event(process=p, event_type=EventType.CREATION,
+                          file=ignored_file, host_path='')
     print(f'Ignoring: {ignored_event}')
 
     # File Under Test
-    fut = os.path.join(monitored_dir, 'test.txt')
+    fut = os.path.join(monitored_dir, 'test2.txt')
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, event_type=EventType.CREATION, file=fut)
+    e = Event(process=p, event_type=EventType.CREATION,
+              file=fut, host_path='')
     print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
@@ -148,38 +151,40 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     with open(ignored_file, 'w') as f:
         f.write('This is another test')
 
-    e = Event(
-        process=p, event_type=EventType.OPEN, file=ignored_file)
+    e = Event(process=p, event_type=EventType.OPEN,
+              file=ignored_file, host_path='')
     print(f'Waiting for event: {e}')
 
     # File Under Test
     with open(fut, 'w') as f:
         f.write('This is another ignored event')
 
-    ignored_event = Event(process=p, event_type=EventType.OPEN, file=fut)
+    ignored_event = Event(
+        process=p, event_type=EventType.OPEN, file=fut, host_path='')
     print(f'Ignoring: {ignored_event}')
 
     server.wait_events([e], ignored=[ignored_event])
 
 
 def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
-    p = Process()
+    p = Process.from_proc()
 
     # Ignored file, must not show up in the server
     ignored_file = os.path.join(ignored_dir, 'test.txt')
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
 
-    ignored_event = Event(
-        process=p, event_type=EventType.CREATION, file=ignored_file)
+    ignored_event = Event(process=p, event_type=EventType.CREATION,
+                          file=ignored_file, host_path='')
     print(f'Ignoring: {ignored_event}')
 
     # File Under Test
-    fut = os.path.join(monitored_dir, 'test.txt')
+    fut = os.path.join(monitored_dir, 'test2.txt')
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, event_type=EventType.CREATION, file=fut)
+    e = Event(process=p, event_type=EventType.CREATION,
+              file=fut, host_path='')
     print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
@@ -196,8 +201,9 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
         f.write('This is one final event')
 
     events = [
-        Event(process=p, event_type=EventType.OPEN, file=ignored_file),
-        Event(process=p, event_type=EventType.OPEN, file=fut)
+        Event(process=p, event_type=EventType.OPEN,
+              file=ignored_file, host_path=''),
+        Event(process=p, event_type=EventType.OPEN, file=fut, host_path='')
     ]
     print(f'Waiting for events: {events}')
 

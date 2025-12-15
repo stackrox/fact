@@ -7,7 +7,7 @@ use std::{
     fs::{read_to_string, File},
     io::{BufRead, BufReader},
     mem,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::LazyLock,
 };
 
@@ -20,6 +20,25 @@ pub fn get_host_mount() -> &'static PathBuf {
     static HOST_MOUNT: LazyLock<PathBuf> =
         LazyLock::new(|| env::var("FACT_HOST_MOUNT").unwrap_or("/".into()).into());
     &HOST_MOUNT
+}
+
+pub fn prepend_host_mount(path: &Path) -> PathBuf {
+    let path = if path.has_root() {
+        path.strip_prefix(Path::new("/")).unwrap()
+    } else {
+        path
+    };
+    get_host_mount().join(path)
+}
+
+pub fn remove_host_mount(path: &Path) -> PathBuf {
+    let host_mount = get_host_mount();
+    if path.starts_with(host_mount) {
+        let path = path.strip_prefix(host_mount).unwrap();
+        Path::new("/").join(path)
+    } else {
+        path.to_path_buf()
+    }
 }
 
 fn get_clock(clockid: clockid_t) -> u64 {

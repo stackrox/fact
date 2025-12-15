@@ -3,7 +3,7 @@
 
 #include "file.h"
 #include "types.h"
-#include "process.h"
+#include "inode.h"
 #include "maps.h"
 #include "events.h"
 #include "bound_path.h"
@@ -44,12 +44,19 @@ int BPF_PROG(trace_file_open, struct file* file) {
     return 0;
   }
 
-  if (!is_monitored(path)) {
-    goto ignored;
+  inode_key_t inode_key = inode_to_key(file->f_inode);
+  const inode_value_t* inode = inode_get(&inode_key);
+  switch (inode_is_monitored(inode)) {
+    case NOT_MONITORED:
+      if (!is_monitored(path)) {
+        goto ignored;
+      }
+      break;
+    case MONITORED:
+      break;
   }
 
-  struct dentry* d = BPF_CORE_READ(file, f_path.dentry);
-  submit_event(&m->file_open, event_type, path->path, d, true);
+  submit_event(&m->file_open, event_type, path->path, &inode_key, true);
 
   return 0;
 
@@ -91,12 +98,27 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
       goto error;
   }
 
-  if (!is_monitored(path)) {
-    m->path_unlink.ignored++;
-    return 0;
+  inode_key_t inode_key = inode_to_key(dentry->d_inode);
+  const inode_value_t* inode = inode_get(&inode_key);
+
+  switch (inode_is_monitored(inode)) {
+    case NOT_MONITORED:
+      if (!is_monitored(path)) {
+        m->path_unlink.ignored++;
+        return 0;
+      }
+      break;
+
+    case MONITORED:
+      inode_remove(&inode_key);
+      break;
   }
 
-  submit_event(&m->path_unlink, FILE_ACTIVITY_UNLINK, path->path, dentry, path_unlink_supports_bpf_d_path);
+  submit_event(&m->path_unlink,
+               FILE_ACTIVITY_UNLINK,
+               path->path,
+               &inode_key,
+               path_unlink_supports_bpf_d_path);
   return 0;
 
 error:

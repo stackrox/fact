@@ -32,6 +32,16 @@ typedef struct process_t {
   char in_root_mount_ns;
 } process_t;
 
+typedef struct inode_key_t {
+  unsigned long inode;
+  unsigned long dev;
+} inode_key_t;
+
+// We can't use bool here because it is not a standard C type, we would
+// need to include vmlinux.h but that would explode our Rust bindings.
+// For the time being we just keep a char.
+typedef char inode_value_t;
+
 typedef enum file_activity_type_t {
   FILE_ACTIVITY_INIT = -1,
   FILE_ACTIVITY_OPEN = 0,
@@ -43,7 +53,7 @@ struct event_t {
   unsigned long timestamp;
   process_t process;
   char filename[PATH_MAX];
-  char host_file[PATH_MAX];
+  inode_key_t inode;
   file_activity_type_t type;
 };
 

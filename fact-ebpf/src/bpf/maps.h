@@ -93,6 +93,13 @@ struct {
 } rb SEC(".maps");
 
 struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, inode_key_t);
+  __type(value, inode_value_t);
+  __uint(max_entries, 1024);
+} inode_map SEC(".maps");
+
+struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __type(key, __u32);
   __type(value, struct metrics_t);
