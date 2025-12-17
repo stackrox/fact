@@ -101,9 +101,20 @@ pub fn get_username(uid: u32) -> &'static str {
     }
 }
 
-pub fn get_mount_ns(pid: &str) -> u64 {
+/// get_mount_ns
+///
+/// Returns the mount namesace identifier for a specified PID. If the host flag
+/// is set, the PID will be interpreted as a process inside the host pid
+/// namespace, otherwise as a process inside the current container pid namespace.
+pub fn get_mount_ns(pid: &str, host: bool) -> u64 {
     let mut file_stats = unsafe { mem::zeroed() };
-    let path = PathBuf::from("/proc").join(pid).join("ns/mnt");
+    let path = if host {
+        get_host_mount().join("proc")
+    } else {
+        PathBuf::from("/proc")
+    };
+
+    let path = path.join(pid).join("ns/mnt");
     let path = CString::new(path.to_str().unwrap()).unwrap();
     let path: *const c_char = path.as_ptr().cast();
     let ret = unsafe {
@@ -125,14 +136,16 @@ pub fn get_mount_ns(pid: &str) -> u64 {
     file_stats.stx_ino
 }
 
-// get_host_mount_ns
-//
-// Returns a mount namespace of the host. Since we're running as a privileged
-// process, it's equivalent to our mount namespace, thus extract it as an inode
-// of /proc/self/ns/mnt. We should get the same result if we try to use
-// /proc/1/ns/mnt .
+/// get_host_mount_ns
+///
+/// Returns the mount namespace of the host. Unfortunately, even being a
+/// privileged process does not mean we run in the same namespace as the host,
+/// as soon as the process is inside a container. That means we can't take
+/// /proc/self/ns/mnt, nor /proc/1/self/ns/mnt (the latter one is no the PID 1
+/// of the host, but the container). Thus extract it as an inode of
+/// /host/proc/self/ns/mnt.
 pub fn get_host_mount_ns() -> u64 {
-    get_mount_ns("self")
+    get_mount_ns("1", true)
 }
 
 /// Get the pretty printed OS distribution name

@@ -82,7 +82,7 @@ impl Process {
             .parse()
             .expect("Failed to parse login_uid");
 
-        let in_root_mount_ns = get_host_mount_ns() == get_mount_ns(&pid.to_string());
+        let in_root_mount_ns = get_host_mount_ns() == get_mount_ns(&pid.to_string(), false);
 
         Self {
             comm: "".to_string(),
