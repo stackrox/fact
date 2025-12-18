@@ -155,7 +155,8 @@ impl Bpf {
     fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
         self.load_lsm_prog("trace_file_open", "file_open", btf)?;
         self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)?;
-        self.load_lsm_prog("trace_path_chmod", "path_chmod", btf)
+        self.load_lsm_prog("trace_path_chmod", "path_chmod", btf)?;
+        self.load_lsm_prog("trace_path_chown", "path_chown", btf)
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {

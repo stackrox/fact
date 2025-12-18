@@ -73,3 +73,25 @@ __always_inline static void submit_mode_event(struct metrics_by_hook_t* m,
 
   __submit_event(event, m, FILE_ACTIVITY_CHMOD, filename, inode, use_bpf_d_path);
 }
+
+__always_inline static void submit_owner_event(struct metrics_by_hook_t* m,
+                                               const char filename[PATH_MAX],
+                                               inode_key_t* inode,
+                                               unsigned long long uid,
+                                               unsigned long long gid,
+                                               unsigned long long old_uid,
+                                               unsigned long long old_gid,
+                                               bool use_bpf_d_path) {
+  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (event == NULL) {
+    m->ringbuffer_full++;
+    return;
+  }
+
+  event->chown.new.uid = uid;
+  event->chown.new.gid = gid;
+  event->chown.old.uid = old_uid;
+  event->chown.old.gid = old_gid;
+
+  __submit_event(event, m, FILE_ACTIVITY_CHOWN, filename, inode, use_bpf_d_path);
+}
