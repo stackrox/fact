@@ -5,6 +5,8 @@ packages:
 - cargo
 - clang
 - libbpf-devel
+- openssl-libs
+- openssl-devel
 - protobuf-compiler
 - protobuf-devel
 - rust

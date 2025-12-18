@@ -200,6 +200,13 @@ arches:
     name: llvm-libs
     evr: 20.1.8-3.el9
     sourcerpm: llvm-20.1.8-3.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/o/openssl-devel-3.5.1-4.el9_7.aarch64.rpm
+    repoid: rhel-9-for-aarch64-appstream-rpms
+    size: 4996902
+    checksum: sha256:a250fae31cced54a51c0c4aacdd44855044652eb39f4141e23fe197d2528ff0b
+    name: openssl-devel
+    evr: 1:3.5.1-4.el9_7
+    sourcerpm: openssl-3.5.1-4.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/p/policycoreutils-python-utils-3.6-3.el9.noarch.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 77697
@@ -1499,6 +1506,13 @@ arches:
     name: llvm-libs
     evr: 20.1.8-3.el9
     sourcerpm: llvm-20.1.8-3.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/o/openssl-devel-3.5.1-4.el9_7.x86_64.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 4997984
+    checksum: sha256:3aeba34c9a9c3313b16166111a1dfe61a29ffaff671bb8f0be95eb0e2dede860
+    name: openssl-devel
+    evr: 1:3.5.1-4.el9_7
+    sourcerpm: openssl-3.5.1-4.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/p/policycoreutils-python-utils-3.6-3.el9.noarch.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 77697

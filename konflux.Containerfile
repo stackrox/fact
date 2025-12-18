@@ -6,6 +6,7 @@ RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 RUN dnf install -y \
         clang \
         libbpf-devel \
+        openssl-devel \
         protobuf-compiler \
         protobuf-devel \
         cargo \
@@ -17,7 +18,7 @@ COPY . .
 
 RUN cargo build --release
 
-FROM registry.access.redhat.com/ubi9/ubi-micro@sha256:f45ee3d1f8ea8cd490298769daac2ac61da902e83715186145ac2e65322ddfc8
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:6fc28bcb6776e387d7a35a2056d9d2b985dc4e26031e98a2bd35a7137cd6fd71
 
 ARG FACT_TAG
 
@@ -38,6 +39,13 @@ LABEL \
     # Release label is required by EC although has no practical semantics.
     # We also set it to not inherit one from a base stage in case it's RHEL or UBI.
     release="1"
+
+RUN microdnf install -y openssl-libs && \
+    microdnf clean all && \
+    rpm --verbose -e --nodeps $( \
+        rpm -qa 'curl' '*rpm*' '*dnf*' '*libsolv*' '*hawkey*' 'yum*' 'libyaml*' 'libarchive*' \
+    ) && \
+    rm -rf /var/cache/yum
 
 COPY --from=builder /app/target/release/fact /usr/local/bin
 
