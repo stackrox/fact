@@ -159,7 +159,7 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   }
 
   umode_t old_mode = BPF_CORE_READ(path, dentry, d_inode, i_mode);
-  submit_mode_event(&m->path_chmod, bound_path->path, &inode_key, mode, old_mode, true);
+  submit_mode_event(&m->path_chmod, bound_path->path, &inode_key, mode, old_mode, false);
 
   return 0;
 }
