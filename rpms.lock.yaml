@@ -837,20 +837,20 @@ arches:
     name: libsmartcols
     evr: 2.37.4-21.el9
     sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libssh-0.10.4-15.el9_7.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libssh-0.10.4-17.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 214827
-    checksum: sha256:32188ce7d07a64e867ec9d0739941eff8e76818de50c46b6afe11f1758ed4d6f
+    size: 215091
+    checksum: sha256:900b684846c180a7303ac561030ce4cb0c6be2ad51b3ea9ef0810e3ae103ec32
     name: libssh
-    evr: 0.10.4-15.el9_7
-    sourcerpm: libssh-0.10.4-15.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libssh-config-0.10.4-15.el9_7.noarch.rpm
+    evr: 0.10.4-17.el9_7
+    sourcerpm: libssh-0.10.4-17.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libssh-config-0.10.4-17.el9_7.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 8003
-    checksum: sha256:80c4f2788a81f2db11cb09c24598b480a730252dab92d1748a62095483625b03
+    size: 8268
+    checksum: sha256:9815db066478c3b1bdd5367de09e0aedf465127716358a8877990736589c6078
     name: libssh-config
-    evr: 0.10.4-15.el9_7
-    sourcerpm: libssh-0.10.4-15.el9_7.src.rpm
+    evr: 0.10.4-17.el9_7
+    sourcerpm: libssh-0.10.4-17.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libstdc++-11.5.0-11.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 722211
@@ -2136,20 +2136,20 @@ arches:
     name: libsmartcols
     evr: 2.37.4-21.el9
     sourcerpm: util-linux-2.37.4-21.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libssh-0.10.4-15.el9_7.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libssh-0.10.4-17.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 218658
-    checksum: sha256:b5f471477429d87182dd00e71180f4cd57b0b215e9a540db9af0a7cb7b40ad30
+    size: 218882
+    checksum: sha256:470f7067968489f9ec3df43266032241563d3cfa577ce2a5b7375a0660833005
     name: libssh
-    evr: 0.10.4-15.el9_7
-    sourcerpm: libssh-0.10.4-15.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libssh-config-0.10.4-15.el9_7.noarch.rpm
+    evr: 0.10.4-17.el9_7
+    sourcerpm: libssh-0.10.4-17.el9_7.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libssh-config-0.10.4-17.el9_7.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 8003
-    checksum: sha256:80c4f2788a81f2db11cb09c24598b480a730252dab92d1748a62095483625b03
+    size: 8268
+    checksum: sha256:9815db066478c3b1bdd5367de09e0aedf465127716358a8877990736589c6078
     name: libssh-config
-    evr: 0.10.4-15.el9_7
-    sourcerpm: libssh-0.10.4-15.el9_7.src.rpm
+    evr: 0.10.4-17.el9_7
+    sourcerpm: libssh-0.10.4-17.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libstdc++-11.5.0-11.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 760086
