@@ -88,6 +88,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
                 sleep(0.5)
                 continue
 
+            print(f'Got event: {msg}')
             if msg in ignored:
                 raise ValueError(f'Caught ignored event: {msg}')
 
