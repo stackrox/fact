@@ -23,14 +23,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     cargo build --release && \
     cp target/release/fact fact
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
-
-RUN microdnf install -y openssl-libs && \
-    microdnf clean all && \
-    rpm --verbose -e --nodeps $( \
-        rpm -qa 'curl' '*rpm*' '*dnf*' '*libsolv*' '*hawkey*' 'yum*' 'libyaml*' 'libarchive*' \
-    ) && \
-    rm -rf /var/cache/yum
+FROM registry.access.redhat.com/ubi9/ubi-micro:latest
 
 COPY --from=build /app/fact /usr/local/bin
 
