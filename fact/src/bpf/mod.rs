@@ -227,7 +227,6 @@ impl Bpf {
 mod bpf_tests {
     use std::{env, path::PathBuf, time::Duration};
 
-    use anyhow::Context;
     use fact_ebpf::file_activity_type_t;
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
@@ -241,16 +240,8 @@ mod bpf_tests {
 
     use super::*;
 
-    fn get_executor() -> anyhow::Result<tokio::runtime::Runtime> {
-        let executor = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .context("Failed building tokio runtime")?;
-        Ok(executor)
-    }
-
-    #[test]
-    fn test_basic() {
+    #[tokio::test]
+    async fn test_basic() {
         if let Ok(value) = std::env::var("FACT_LOGLEVEL") {
             let value = value.to_lowercase();
             if value == "debug" || value == "trace" {
@@ -258,55 +249,69 @@ mod bpf_tests {
             }
         }
 
-        let executor = get_executor().unwrap();
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
         let paths = vec![monitored_path.clone()];
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let reloader = Reloader::from(config);
-        executor.block_on(async {
-            let (tx, mut rx) = mpsc::channel(100);
-            let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)
-                .expect("Failed to load BPF code");
-            let (run_tx, run_rx) = watch::channel(true);
-            // Create a metrics exporter, but don't start it
-            let exporter = Exporter::new(bpf.take_metrics().unwrap());
+        let (tx, mut rx) = mpsc::channel(100);
+        let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)
+            .expect("Failed to load BPF code");
+        let (run_tx, run_rx) = watch::channel(true);
+        // Create a metrics exporter, but don't start it
+        let exporter = Exporter::new(bpf.take_metrics().unwrap());
 
-            let handle = bpf.start(run_rx, exporter.metrics.bpf_worker.clone());
+        let handle = bpf.start(run_rx, exporter.metrics.bpf_worker.clone());
 
-            tokio::time::sleep(Duration::from_millis(500)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
-            // Create a file
-            let file =
-                NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
-            println!("Created {file:?}");
+        // Create a file
+        let file = NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
+        println!("Created {file:?}");
 
-            let expected = Event::new(
+        let current = Process::current();
+        let file_path = file.path().to_path_buf();
+
+        let expected_events = [
+            Event::new(
                 file_activity_type_t::FILE_ACTIVITY_CREATION,
                 host_info::get_hostname(),
-                file.path().to_path_buf(),
+                file_path.clone(),
                 PathBuf::new(), // host path is resolved by HostScanner
-                Process::current(),
+                current.clone(),
             )
-            .unwrap();
+            .unwrap(),
+            Event::new(
+                file_activity_type_t::FILE_ACTIVITY_UNLINK,
+                host_info::get_hostname(),
+                file_path,
+                PathBuf::new(), // host path is resolved by HostScanner
+                current,
+            )
+            .unwrap(),
+        ];
 
-            println!("Expected: {expected:?}");
-            let wait = timeout(Duration::from_secs(1), async move {
+        // Close the file, removing it
+        file.close().expect("Failed to close temp file");
+
+        println!("Expected: {expected_events:?}");
+        let wait = timeout(Duration::from_secs(1), async move {
+            for expected in expected_events {
                 while let Some(event) = rx.recv().await {
                     println!("{event:?}");
                     if event == expected {
                         break;
                     }
                 }
-            });
-
-            tokio::select! {
-                res = wait => res.unwrap(),
-                res = handle => res.unwrap().unwrap(),
             }
-
-            run_tx.send(false).unwrap();
         });
+
+        tokio::select! {
+            res = wait => res.unwrap(),
+            res = handle => res.unwrap().unwrap(),
+        }
+
+        run_tx.send(false).unwrap();
     }
 }
