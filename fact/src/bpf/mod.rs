@@ -228,15 +228,14 @@ impl Bpf {
 
 #[cfg(all(test, feature = "bpf-test"))]
 mod bpf_tests {
-    use std::{env, path::PathBuf, time::Duration};
+    use std::{env, os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};
 
-    use fact_ebpf::file_activity_type_t;
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
     use crate::{
         config::{reloader::Reloader, FactConfig},
-        event::process::Process,
+        event::{process::Process, EventTestData},
         host_info,
         metrics::exporter::Exporter,
     };
@@ -273,12 +272,23 @@ mod bpf_tests {
         let file = NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
         println!("Created {file:?}");
 
+        // Trigger permission changes
+        let mut perms = file
+            .path()
+            .metadata()
+            .expect("Failed to read file permissions")
+            .permissions();
+        let old_perm = perms.mode() as u16;
+        let new_perm: u16 = 0o666;
+        perms.set_mode(new_perm as u32);
+        std::fs::set_permissions(file.path(), perms).expect("Failed to set file permissions");
+
         let current = Process::current();
         let file_path = file.path().to_path_buf();
 
         let expected_events = [
             Event::new(
-                file_activity_type_t::FILE_ACTIVITY_CREATION,
+                EventTestData::Creation,
                 host_info::get_hostname(),
                 file_path.clone(),
                 PathBuf::new(), // host path is resolved by HostScanner
@@ -286,7 +296,15 @@ mod bpf_tests {
             )
             .unwrap(),
             Event::new(
-                file_activity_type_t::FILE_ACTIVITY_UNLINK,
+                EventTestData::Chmod(new_perm, old_perm),
+                host_info::get_hostname(),
+                file_path.clone(),
+                PathBuf::new(), // host path is resolved by HostScanner
+                current.clone(),
+            )
+            .unwrap(),
+            Event::new(
+                EventTestData::Unlink,
                 host_info::get_hostname(),
                 file_path,
                 PathBuf::new(), // host path is resolved by HostScanner
@@ -298,12 +316,13 @@ mod bpf_tests {
         // Close the file, removing it
         file.close().expect("Failed to close temp file");
 
-        println!("Expected: {expected_events:?}");
         let wait = timeout(Duration::from_secs(1), async move {
             for expected in expected_events {
+                println!("expected: {expected:#?}");
                 while let Some(event) = rx.recv().await {
-                    println!("{event:?}");
+                    println!("{event:#?}");
                     if event == expected {
+                        println!("Found!");
                         break;
                     }
                 }

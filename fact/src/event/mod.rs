@@ -21,6 +21,14 @@ fn timestamp_to_proto(ts: u64) -> prost_types::Timestamp {
     prost_types::Timestamp { seconds, nanos }
 }
 
+#[cfg(test)]
+#[derive(Debug)]
+pub(crate) enum EventTestData {
+    Creation,
+    Unlink,
+    Chmod(u16, u16),
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Event {
     timestamp: u64,
@@ -31,8 +39,8 @@ pub struct Event {
 
 impl Event {
     #[cfg(test)]
-    pub fn new(
-        event_type: file_activity_type_t,
+    pub(crate) fn new(
+        data: EventTestData,
         hostname: &'static str,
         filename: PathBuf,
         host_file: PathBuf,
@@ -47,11 +55,17 @@ impl Event {
             host_file,
             inode: Default::default(),
         };
-        let file = match event_type {
-            file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
-            file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
-            file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
-            invalid => unreachable!("Invalid event type: {invalid:?}"),
+        let file = match data {
+            EventTestData::Creation => FileData::Creation(inner),
+            EventTestData::Unlink => FileData::Unlink(inner),
+            EventTestData::Chmod(new_mode, old_mode) => {
+                let data = ChmodFileData {
+                    inner,
+                    new_mode,
+                    old_mode,
+                };
+                FileData::Chmod(data)
+            }
         };
 
         Ok(Event {
@@ -193,6 +207,7 @@ impl PartialEq for FileData {
             (FileData::Open(this), FileData::Open(other)) => this == other,
             (FileData::Creation(this), FileData::Creation(other)) => this == other,
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
+            (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
             _ => false,
         }
     }
@@ -269,5 +284,14 @@ impl From<ChmodFileData> for fact_api::FilePermissionChange {
             activity: Some(activity),
             mode: new_mode as u32,
         }
+    }
+}
+
+#[cfg(test)]
+impl PartialEq for ChmodFileData {
+    fn eq(&self, other: &Self) -> bool {
+        self.new_mode == other.new_mode
+            && self.old_mode == other.old_mode
+            && self.inner == other.inner
     }
 }
