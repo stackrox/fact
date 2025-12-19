@@ -1,14 +1,14 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use fact_api::file_activity_service_client::FileActivityServiceClient;
+#[cfg(not(feature = "native-tls"))]
+use hyper_rustls::HttpsConnector;
+#[cfg(feature = "native-tls")]
 use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use log::{debug, info, warn};
-use native_tls::{Certificate, Identity};
-use openssl::{ec::EcKey, pkey::PKey};
 use tokio::{
-    fs,
     sync::{broadcast, watch},
     time::sleep,
 };
@@ -63,7 +63,13 @@ impl Client {
         });
     }
 
-    async fn get_tls_connector(&self) -> anyhow::Result<Option<tokio_native_tls::TlsConnector>> {
+    #[cfg(feature = "native-tls")]
+    async fn get_connector(&self) -> anyhow::Result<Option<HttpsConnector<HttpConnector>>> {
+        use anyhow::Context;
+        use native_tls::{Certificate, Identity};
+        use openssl::{ec::EcKey, pkey::PKey};
+        use tokio::fs;
+
         let certs = {
             let config = self.config.borrow();
             let Some(certs) = config.certs() else {
@@ -91,20 +97,46 @@ impl Client {
             .identity(id)
             .request_alpns(&["h2"])
             .build()?;
-        Ok(Some(connector.into()))
+        let connector = tokio_native_tls::TlsConnector::from(connector);
+
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        let mut connector = HttpsConnector::from((http, connector));
+        connector.https_only(true);
+        Ok(Some(connector))
     }
 
-    fn get_https_connector(
-        &self,
-        connector: Option<tokio_native_tls::TlsConnector>,
-    ) -> Option<HttpsConnector<HttpConnector>> {
-        connector.map(|c| {
-            let mut http = HttpConnector::new();
-            http.enforce_http(false);
-            let mut connector = HttpsConnector::from((http, c));
-            connector.https_only(true);
-            connector
-        })
+    #[cfg(not(feature = "native-tls"))]
+    async fn get_connector(&self) -> anyhow::Result<Option<HttpsConnector<HttpConnector>>> {
+        use hyper_rustls::HttpsConnectorBuilder;
+        use rustls::{
+            pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer},
+            ClientConfig, RootCertStore,
+        };
+
+        let config = self.config.borrow();
+        let Some(certs) = config.certs() else {
+            return Ok(None);
+        };
+        let mut cert_store = RootCertStore::empty();
+        for cert in CertificateDer::pem_file_iter(certs.join("ca.pem"))? {
+            cert_store.add(cert?)?;
+        }
+        let client_certs =
+            CertificateDer::pem_file_iter(certs.join("cert.pem"))?.collect::<Result<_, _>>()?;
+        let client_key = PrivateKeyDer::from_pem_file(certs.join("key.pem"))?;
+
+        let config = ClientConfig::builder()
+            .with_root_certificates(cert_store)
+            .with_client_auth_cert(client_certs, client_key)?;
+
+        let https = HttpsConnectorBuilder::new()
+            .with_tls_config(config)
+            .https_only()
+            .enable_http2()
+            .build();
+
+        Ok(Some(https))
     }
 
     async fn create_channel(
@@ -124,8 +156,7 @@ impl Client {
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
-        let tls_connector = self.get_tls_connector().await?;
-        let connector = self.get_https_connector(tls_connector);
+        let connector = self.get_connector().await?;
         loop {
             info!("Attempting to connect to gRPC server...");
             let channel = match self.create_channel(connector.clone()).await {
