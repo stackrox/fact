@@ -56,7 +56,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
       break;
   }
 
-  submit_event(&m->file_open, event_type, path->path, &inode_key, true);
+  submit_event(&m->file_open, event_type, path, &inode_key, true);
 
   return 0;
 
@@ -116,7 +116,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
   submit_event(&m->path_unlink,
                FILE_ACTIVITY_UNLINK,
-               path->path,
+               path,
                &inode_key,
                path_unlink_supports_bpf_d_path);
   return 0;

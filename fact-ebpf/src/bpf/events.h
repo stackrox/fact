@@ -13,7 +13,7 @@
 
 __always_inline static void submit_event(struct metrics_by_hook_t* m,
                                          file_activity_type_t event_type,
-                                         const char filename[PATH_MAX],
+                                         struct bound_path_t* path,
                                          inode_key_t* inode,
                                          bool use_bpf_d_path) {
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
@@ -25,7 +25,8 @@ __always_inline static void submit_event(struct metrics_by_hook_t* m,
   event->type = event_type;
   event->timestamp = bpf_ktime_get_boot_ns();
   inode_copy_or_reset(&event->inode, inode);
-  bpf_probe_read_str(event->filename, PATH_MAX, filename);
+  bpf_probe_read(event->filename, path->len & (PATH_MAX - 1), path->path);
+  event->filename_len = path->len;
 
   struct helper_t* helper = get_helper();
   if (helper == NULL) {
