@@ -131,7 +131,7 @@ __always_inline static int64_t process_fill(process_t* p, bool use_bpf_d_path) {
     return -1;
   }
 
-  d_path(&task->mm->exe_file->f_path, p->exe_path, PATH_MAX, use_bpf_d_path);
+  p->exe_path_len = d_path(&task->mm->exe_file->f_path, p->exe_path, PATH_MAX, use_bpf_d_path);
 
   const char* cg = get_memory_cgroup(helper);
   if (cg != NULL) {

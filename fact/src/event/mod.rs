@@ -1,15 +1,27 @@
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
+use std::{
+    ffi::{CStr, OsString},
+    os::{raw::c_char, unix::ffi::OsStringExt},
+    path::PathBuf,
+};
 
 use serde::Serialize;
 
-use fact_ebpf::{event_t, file_activity_type_t, inode_key_t, PATH_MAX};
+use fact_ebpf::{event_t, file_activity_type_t, inode_key_t};
 
 use crate::host_info;
 use process::Process;
 
 pub(crate) mod process;
+
+fn slice_to_pathbuf(s: &[c_char]) -> PathBuf {
+    #[cfg(target_arch = "x86_64")]
+    let v = s.iter().map(|c| *c as u8).collect::<Vec<u8>>();
+    #[cfg(not(target_arch = "x86_64"))]
+    let v = s.to_vec();
+    OsString::from_vec(v).into()
+}
 
 fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
@@ -85,7 +97,9 @@ impl TryFrom<&event_t> for Event {
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let process = Process::try_from(value.process)?;
         let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(value.type_, value.filename, value.inode)?;
+        let filename_len = value.filename_len as usize;
+        let (filename, _) = value.filename.as_slice().split_at(filename_len - 1);
+        let file = FileData::new(value.type_, filename, value.inode)?;
 
         Ok(Event {
             timestamp,
@@ -128,7 +142,7 @@ pub enum FileData {
 impl FileData {
     pub fn new(
         event_type: file_activity_type_t,
-        filename: [c_char; PATH_MAX as usize],
+        filename: &[c_char],
         inode: inode_key_t,
     ) -> anyhow::Result<Self> {
         let inner = BaseFileData::new(filename, inode)?;
@@ -185,8 +199,8 @@ pub struct BaseFileData {
 }
 
 impl BaseFileData {
-    pub fn new(filename: [c_char; PATH_MAX as usize], inode: inode_key_t) -> anyhow::Result<Self> {
-        let filename = slice_to_string(&filename)?.into();
+    pub fn new(filename: &[c_char], inode: inode_key_t) -> anyhow::Result<Self> {
+        let filename = slice_to_pathbuf(filename);
 
         Ok(BaseFileData {
             filename,

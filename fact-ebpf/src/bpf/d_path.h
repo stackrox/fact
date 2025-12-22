@@ -77,7 +77,7 @@ __always_inline static long __d_path(const struct path* path, char* buf, int buf
     dentry = parent;
   }
 
-  bpf_probe_read_str(buf, buflen, &helper->buf[offset]);
+  bpf_probe_read(buf, buflen - offset, &helper->buf[offset]);
   return buflen - offset;
 }
 

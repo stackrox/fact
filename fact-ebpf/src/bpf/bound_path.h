@@ -69,6 +69,7 @@ __always_inline static enum path_append_status_t path_append_dentry(struct bound
 
   path->len += len;
   path_write_char(path->path, path->len, '\0');
+  path->len++;
 
   return 0;
 }

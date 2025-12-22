@@ -22,6 +22,7 @@ typedef struct process_t {
   char args[4096];
   unsigned int args_len;
   char exe_path[PATH_MAX];
+  short unsigned int exe_path_len;
   char memory_cgroup[PATH_MAX];
   unsigned int uid;
   unsigned int gid;
@@ -53,6 +54,7 @@ struct event_t {
   unsigned long timestamp;
   process_t process;
   char filename[PATH_MAX];
+  short unsigned int filename_len;
   inode_key_t inode;
   file_activity_type_t type;
 };
