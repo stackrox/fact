@@ -3,12 +3,12 @@ use std::{io, path::PathBuf};
 use anyhow::{bail, Context};
 use aya::{
     maps::{Array, HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::Lsm,
+    programs::Program,
     Btf, Ebpf,
 };
 use checks::Checks;
 use libc::c_char;
-use log::{debug, error, info};
+use log::{error, info};
 use tokio::{
     io::unix::AsyncFd,
     sync::{mpsc, watch},
@@ -48,8 +48,8 @@ impl Bpf {
         let obj = aya::EbpfLoader::new()
             .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
             .set_global(
-                "path_unlink_supports_bpf_d_path",
-                &(checks.path_unlink_supports_bpf_d_path as u8),
+                "path_hooks_support_bpf_d_path",
+                &(checks.path_hooks_support_bpf_d_path as u8),
                 true,
             )
             .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
@@ -143,24 +143,28 @@ impl Bpf {
         Ok(())
     }
 
-    fn load_lsm_prog(&mut self, name: &str, hook: &str, btf: &Btf) -> anyhow::Result<()> {
-        let Some(prog) = self.obj.program_mut(name) else {
-            bail!("{name} program not found");
-        };
-        let prog: &mut Lsm = prog.try_into()?;
-        prog.load(hook, btf)?;
-        Ok(())
-    }
-
     fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
-        self.load_lsm_prog("trace_file_open", "file_open", btf)?;
-        self.load_lsm_prog("trace_path_unlink", "path_unlink", btf)
+        for (name, prog) in self.obj.programs_mut() {
+            // The format used for our hook names is `trace_<hook>`, so
+            // we can just strip trace_ to get the hook name we need for
+            // loading.
+            let Some(hook) = name.strip_prefix("trace_") else {
+                bail!("Invalid hook name: {name}");
+            };
+            match prog {
+                Program::Lsm(prog) => prog.load(hook, btf)?,
+                u => unimplemented!("{u:?}"),
+            }
+        }
+        Ok(())
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
         for (_, prog) in self.obj.programs_mut() {
-            let prog: &mut Lsm = prog.try_into()?;
-            prog.attach()?;
+            match prog {
+                Program::Lsm(prog) => prog.attach()?,
+                u => unimplemented!("{u:?}"),
+            };
         }
         Ok(())
     }
@@ -192,7 +196,6 @@ impl Bpf {
                                 Ok(event) => event,
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
-                                    debug!("Event: {event:?}");
                                     event_counter.dropped();
                                     continue;
                                 }
@@ -225,15 +228,14 @@ impl Bpf {
 
 #[cfg(all(test, feature = "bpf-test"))]
 mod bpf_tests {
-    use std::{env, path::PathBuf, time::Duration};
+    use std::{env, os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};
 
-    use fact_ebpf::file_activity_type_t;
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
     use crate::{
         config::{reloader::Reloader, FactConfig},
-        event::process::Process,
+        event::{process::Process, EventTestData},
         host_info,
         metrics::exporter::Exporter,
     };
@@ -270,12 +272,23 @@ mod bpf_tests {
         let file = NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
         println!("Created {file:?}");
 
+        // Trigger permission changes
+        let mut perms = file
+            .path()
+            .metadata()
+            .expect("Failed to read file permissions")
+            .permissions();
+        let old_perm = perms.mode() as u16;
+        let new_perm: u16 = 0o666;
+        perms.set_mode(new_perm as u32);
+        std::fs::set_permissions(file.path(), perms).expect("Failed to set file permissions");
+
         let current = Process::current();
         let file_path = file.path().to_path_buf();
 
         let expected_events = [
             Event::new(
-                file_activity_type_t::FILE_ACTIVITY_CREATION,
+                EventTestData::Creation,
                 host_info::get_hostname(),
                 file_path.clone(),
                 PathBuf::new(), // host path is resolved by HostScanner
@@ -283,7 +296,15 @@ mod bpf_tests {
             )
             .unwrap(),
             Event::new(
-                file_activity_type_t::FILE_ACTIVITY_UNLINK,
+                EventTestData::Chmod(new_perm, old_perm),
+                host_info::get_hostname(),
+                file_path.clone(),
+                PathBuf::new(), // host path is resolved by HostScanner
+                current.clone(),
+            )
+            .unwrap(),
+            Event::new(
+                EventTestData::Unlink,
                 host_info::get_hostname(),
                 file_path,
                 PathBuf::new(), // host path is resolved by HostScanner
@@ -295,12 +316,13 @@ mod bpf_tests {
         // Close the file, removing it
         file.close().expect("Failed to close temp file");
 
-        println!("Expected: {expected_events:?}");
         let wait = timeout(Duration::from_secs(1), async move {
             for expected in expected_events {
+                println!("expected: {expected:#?}");
                 while let Some(event) = rx.recv().await {
-                    println!("{event:?}");
+                    println!("{event:#?}");
                     if event == expected {
+                        println!("Found!");
                         break;
                     }
                 }
