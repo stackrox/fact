@@ -84,7 +84,7 @@ def test_ignored(fact, test_file, ignored_dir, server):
 
     e = Event(process=process, event_type=EventType.PERMISSION,
               file=test_file, host_path=test_file, mode=mode)
-    print(f'Waiting foor event: {e}')
+    print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
 
