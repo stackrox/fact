@@ -12,30 +12,9 @@
 
 #define LPM_SIZE_MAX 256
 
-typedef struct lineage_t {
-  unsigned int uid;
-  char exe_path[PATH_MAX];
-} lineage_t;
-
-typedef struct process_t {
-  char comm[TASK_COMM_LEN];
-  char args[4096];
-  unsigned int args_len;
-  char exe_path[PATH_MAX];
-  short unsigned int exe_path_len;
-  char memory_cgroup[PATH_MAX];
-  unsigned int uid;
-  unsigned int gid;
-  unsigned int login_uid;
-  unsigned int pid;
-  lineage_t lineage[LINEAGE_MAX];
-  unsigned int lineage_len;
-  char in_root_mount_ns;
-} process_t;
-
 typedef struct inode_key_t {
-  unsigned long inode;
-  unsigned long dev;
+  unsigned int inode;
+  unsigned int dev;
 } inode_key_t;
 
 // We can't use bool here because it is not a standard C type, we would
@@ -49,15 +28,6 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_CREATION,
   FILE_ACTIVITY_UNLINK,
 } file_activity_type_t;
-
-struct event_t {
-  unsigned long timestamp;
-  process_t process;
-  char filename[PATH_MAX];
-  short unsigned int filename_len;
-  inode_key_t inode;
-  file_activity_type_t type;
-};
 
 /**
  * Used as the key for the path_prefix map.

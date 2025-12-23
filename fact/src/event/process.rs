@@ -1,36 +1,43 @@
-use std::{ffi::CStr, path::PathBuf};
+use core::str;
+use std::{
+    ffi::{CStr, CString, OsStr},
+    os::unix::ffi::OsStrExt,
+    path::PathBuf,
+};
 
-use fact_ebpf::{lineage_t, process_t};
-use serde::Serialize;
+use anyhow::bail;
+use serde::{ser::SerializeSeq, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::host_info;
+use crate::host_info::get_username;
 
-use super::{slice_to_pathbuf, slice_to_string};
+use super::Event;
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Lineage {
     uid: u32,
-    exe_path: String,
+    exe_path: PathBuf,
 }
 
 impl Lineage {
-    fn new(uid: u32, exe_path: &str) -> Self {
-        Lineage {
-            uid,
-            exe_path: exe_path.to_owned(),
-        }
-    }
-}
+    /// Parse a `Lineage` object from a ringbuffer event.
+    ///
+    /// # Safety
+    ///
+    /// * The order of fields parsed must match the order used by the
+    ///   BPF programs.
+    fn parse(value: &[u8]) -> anyhow::Result<(Self, &[u8])> {
+        let Some((uid, value)) = Event::parse_int::<u32>(value) else {
+            bail!("Failed to parse lineage uid");
+        };
+        let Some((exe_path, value)) = Event::parse_buffer(value) else {
+            bail!("Failed to parse lineage exe_path");
+        };
+        let exe_path = OsStr::from_bytes(exe_path).into();
 
-impl TryFrom<&lineage_t> for Lineage {
-    type Error = anyhow::Error;
+        let lineage = Lineage { uid, exe_path };
 
-    fn try_from(value: &lineage_t) -> Result<Self, Self::Error> {
-        let lineage_t { uid, exe_path } = value;
-        let exe_path = unsafe { CStr::from_ptr(exe_path.as_ptr()) }.to_str()?;
-
-        Ok(Lineage::new(*uid, exe_path))
+        Ok((lineage, value))
     }
 }
 
@@ -39,15 +46,42 @@ impl From<Lineage> for fact_api::process_signal::LineageInfo {
         let Lineage { uid, exe_path } = value;
         Self {
             parent_uid: uid,
-            parent_exec_file_path: exe_path,
+            parent_exec_file_path: exe_path.to_string_lossy().to_string(),
         }
     }
 }
 
+#[cfg(test)]
+impl PartialEq for Lineage {
+    fn eq(&self, other: &Self) -> bool {
+        self.uid == other.uid && self.exe_path == other.exe_path
+    }
+}
+
+fn serialize_lossy_string<S>(value: &CString, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    value.to_string_lossy().serialize(serializer)
+}
+
+fn serialize_vector_lossy_string<S>(value: &Vec<CString>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(value.len()))?;
+    for i in value {
+        seq.serialize_element(&i.to_string_lossy().to_string())?;
+    }
+    seq.end()
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Process {
-    comm: String,
-    args: Vec<String>,
+    #[serde(serialize_with = "serialize_lossy_string")]
+    comm: CString,
+    #[serde(serialize_with = "serialize_vector_lossy_string")]
+    args: Vec<CString>,
     exe_path: PathBuf,
     container_id: Option<String>,
     uid: u32,
@@ -67,7 +101,9 @@ impl Process {
         use crate::host_info::{get_host_mount_ns, get_mount_ns};
 
         let exe_path = std::env::current_exe().expect("Failed to get current exe");
-        let args = std::env::args().collect::<Vec<_>>();
+        let args = std::env::args()
+            .map(|a| CString::new(a.into_bytes()).unwrap())
+            .collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
         let container_id = Process::extract_container_id(&cgroup);
         let uid = unsafe { libc::getuid() };
@@ -81,7 +117,7 @@ impl Process {
         let in_root_mount_ns = get_host_mount_ns() == get_mount_ns(&pid.to_string(), false);
 
         Self {
-            comm: "".to_string(),
+            comm: c"".into(),
             args,
             exe_path,
             container_id,
@@ -118,6 +154,113 @@ impl Process {
             None
         }
     }
+
+    /// Parse the process comm value.
+    ///
+    /// For simplicity, the kernel side BPF program loads the result of
+    /// calling the bpf_get_current_comm helper directly onto the event.
+    /// The resulting value loaded in is 16 bytes with a guaranteed
+    /// null terminator and null padding if needed.
+    ///
+    /// We could save a few bytes if we were to retrieve the string
+    /// length in kernel side and load a generic buffer onto the event
+    /// like `Event::parse_buffer` expects, but we would need to do a
+    /// bit more work kernel side that is not worth it.
+    fn parse_comm(s: &[u8]) -> Option<(CString, &[u8])> {
+        let (val, s) = s.split_at_checked(16)?;
+        let res = CStr::from_bytes_until_nul(val).ok()?;
+        Some((res.to_owned(), s))
+    }
+
+    /// Parse the arguments of a process.
+    ///
+    /// The kernel stores arguments as a sequence of null terminated
+    /// strings in a single buffer, we copy that blob directly onto the
+    /// ringbuffer and prepend the actual length we copied in the same
+    /// way `Event::parse_buffer` expects. This way we can read the
+    /// buffer and then iterate over the null strings, mapping them to
+    /// `CString`s in a vector.
+    ///
+    /// # Safety
+    ///
+    /// * The BPF program loading the arguments must ensure the last
+    ///   portion ends with a null terminator, even if we truncate it
+    ///   for performance reasons.
+    fn parse_args(s: &[u8]) -> anyhow::Result<(Vec<CString>, &[u8])> {
+        let Some((buf, s)) = Event::parse_buffer(s) else {
+            bail!("Failed to get arguments length");
+        };
+
+        let args = buf
+            .split_inclusive(|a| *a == 0)
+            .map(|arg| CString::from_vec_with_nul(arg.to_vec()))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok((args, s))
+    }
+
+    /// Parse a `Process` from a ringbuffer event.
+    ///
+    /// # Safety
+    ///
+    /// * The order of fields must match the order used by the BPF
+    ///   programs.
+    pub(super) fn parse(value: &[u8]) -> anyhow::Result<(Self, &[u8])> {
+        let Some((uid, value)) = Event::parse_int::<u32>(value) else {
+            bail!("Failed to parse uid");
+        };
+        let username = get_username(uid);
+        let Some((gid, value)) = Event::parse_int::<u32>(value) else {
+            bail!("Failed to parse gid");
+        };
+        let Some((login_uid, value)) = Event::parse_int::<u32>(value) else {
+            bail!("Failed to parse login_uid");
+        };
+        let Some((pid, value)) = Event::parse_int::<u32>(value) else {
+            bail!("Failed to parse pid");
+        };
+        let Some((comm, value)) = Process::parse_comm(value) else {
+            bail!("Failed to parse comm");
+        };
+        let (args, value) = Process::parse_args(value)?;
+        let Some((exe_path, value)) = Event::parse_buffer(value) else {
+            bail!("Failed to parse exe_path");
+        };
+        let exe_path = OsStr::from_bytes(exe_path).into();
+        let Some((cgroup, value)) = Event::parse_buffer(value) else {
+            bail!("Failed to parse cgroup");
+        };
+        let cgroup = str::from_utf8(cgroup)?;
+        let container_id = Process::extract_container_id(cgroup);
+        let Some((in_root_mount_ns, value)) = Event::parse_int::<u8>(value) else {
+            bail!("Failed to parse in_root_mount_ns");
+        };
+        let in_root_mount_ns = in_root_mount_ns != 0;
+        let Some((lineage_len, mut value)) = Event::parse_int::<u16>(value) else {
+            bail!("Failed to parse lineage length");
+        };
+        let mut lineage = Vec::with_capacity(lineage_len as usize);
+        for _ in 0..lineage_len {
+            let (l, v) = Lineage::parse(value)?;
+            value = v;
+            lineage.push(l);
+        }
+
+        let process = Process {
+            comm,
+            uid,
+            username,
+            gid,
+            login_uid,
+            pid,
+            args,
+            exe_path,
+            container_id,
+            in_root_mount_ns,
+            lineage,
+        };
+
+        Ok((process, value))
+    }
 }
 
 #[cfg(test)]
@@ -130,55 +273,6 @@ impl PartialEq for Process {
             && self.args == other.args
             && self.container_id == other.container_id
             && self.in_root_mount_ns == other.in_root_mount_ns
-    }
-}
-
-impl TryFrom<process_t> for Process {
-    type Error = anyhow::Error;
-
-    fn try_from(value: process_t) -> Result<Self, Self::Error> {
-        let comm = slice_to_string(value.comm.as_slice())?;
-        let exe_path_len = value.exe_path_len as usize;
-        let (exe_path, _) = value.exe_path.as_slice().split_at(exe_path_len - 1);
-        let exe_path = slice_to_pathbuf(exe_path);
-        let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
-        let container_id = Process::extract_container_id(memory_cgroup);
-        let in_root_mount_ns = value.in_root_mount_ns != 0;
-
-        let lineage = value.lineage[..value.lineage_len as usize]
-            .iter()
-            .map(Lineage::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut converted_args = Vec::new();
-        let args_len = value.args_len as usize;
-        let mut offset = 0;
-        while offset < args_len {
-            let arg = unsafe { CStr::from_ptr(value.args.as_ptr().add(offset)) }
-                .to_str()?
-                .to_owned();
-            if arg.is_empty() {
-                break;
-            }
-            offset += arg.len() + 1;
-            converted_args.push(arg);
-        }
-
-        let username = host_info::get_username(value.uid);
-
-        Ok(Process {
-            comm,
-            args: converted_args,
-            exe_path,
-            container_id,
-            uid: value.uid,
-            username,
-            gid: value.gid,
-            login_uid: value.login_uid,
-            pid: value.pid,
-            in_root_mount_ns,
-            lineage,
-        })
     }
 }
 
@@ -202,6 +296,7 @@ impl From<Process> for fact_api::ProcessSignal {
 
         let args = args
             .into_iter()
+            .map(|a| a.to_string_lossy().to_string())
             .reduce(|acc, i| acc + " " + &i)
             .unwrap_or("".to_owned());
 
@@ -209,7 +304,7 @@ impl From<Process> for fact_api::ProcessSignal {
             id: Uuid::new_v4().to_string(),
             container_id,
             creation_time: None,
-            name: comm,
+            name: comm.to_string_lossy().to_string(),
             args,
             exec_file_path: exe_path.to_string_lossy().into_owned(),
             pid,
@@ -265,6 +360,178 @@ mod tests {
         for (input, expected) in tests {
             let id = Process::extract_container_id(input);
             assert_eq!(id, expected);
+        }
+    }
+
+    #[test]
+    fn test_parse_comm() {
+        struct TestCase<'a> {
+            input: &'a [u8],
+            expected: Option<(CString, &'a [u8])>,
+        }
+        let tests = [
+            TestCase {
+                input: b"touch\0\0\0\0\0\0\0\0\0\0\0",
+                expected: Some((CString::from(c"touch"), b"")),
+            },
+            TestCase {
+                input: b"touch\0\0\0\0\0\0\0\0\0\0\0ignored",
+                expected: Some((CString::from(c"touch"), b"ignored")),
+            },
+            TestCase {
+                input: b"",
+                expected: None,
+            },
+        ];
+
+        for TestCase { input, expected } in tests {
+            let res = Process::parse_comm(input);
+            assert_eq!(res, expected, "input: {}", String::from_utf8_lossy(input));
+        }
+    }
+
+    #[test]
+    fn test_parse_args() {
+        struct TestCase<'a> {
+            input: &'a [u8],
+            expected: anyhow::Result<(Vec<CString>, &'a [u8])>,
+        }
+        let tests = [
+            TestCase {
+                input: b"\x00\x03id\0",
+                expected: Ok((vec![CString::from(c"id")], b"")),
+            },
+            TestCase {
+                input: b"\x00\x12rm\0-rf\0/some/path\0",
+                expected: Ok((
+                    vec![
+                        CString::from(c"rm"),
+                        CString::from(c"-rf"),
+                        CString::from(c"/some/path"),
+                    ],
+                    b"",
+                )),
+            },
+            TestCase {
+                input: b"\x00\x12rm\0-rf\0/some/path\0ignored",
+                expected: Ok((
+                    vec![
+                        CString::from(c"rm"),
+                        CString::from(c"-rf"),
+                        CString::from(c"/some/path"),
+                    ],
+                    b"ignored",
+                )),
+            },
+            TestCase {
+                input: b"\x00\x13rm\0-rf\0/some/path\0\0ignored",
+                expected: Ok((
+                    vec![
+                        CString::from(c"rm"),
+                        CString::from(c"-rf"),
+                        CString::from(c"/some/path"),
+                        CString::from(c""),
+                    ],
+                    b"ignored",
+                )),
+            },
+            TestCase {
+                input: b"",
+                expected: Err(anyhow::anyhow!("Failed to get arguments length")),
+            },
+            TestCase {
+                input: b"\x00\x11rm\0-rf\0/some/path",
+                expected: Err(anyhow::anyhow!("data provided is not nul terminated")),
+            },
+        ];
+        for TestCase { input, expected } in tests {
+            let res = Process::parse_args(input);
+            match (res, expected) {
+                (Ok(res), Ok(expected)) => {
+                    assert_eq!(res, expected, "input: '{}'", String::from_utf8_lossy(input))
+                }
+                (Err(res), Err(expected)) => {
+                    let res = format!("{res:?}");
+                    let expected = format!("{expected:?}");
+                    assert_eq!(res, expected, "input: '{}'", String::from_utf8_lossy(input));
+                }
+                (left, right) => {
+                    panic!(
+                        "Result mismatch\nleft: {left:#?}\nright: {right:#?}\ninput: '{}'",
+                        String::from_utf8_lossy(input)
+                    )
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_lineage() {
+        struct TestCase<'a> {
+            input: &'a [u8],
+            expected: anyhow::Result<(Lineage, &'a [u8])>,
+        }
+        let tests = [
+            TestCase {
+                input: b"\x00\x00\x03\xE8\x00\x0D/usr/bin/bash",
+                expected: Ok((
+                    Lineage {
+                        exe_path: PathBuf::from("/usr/bin/bash"),
+                        uid: 1000,
+                    },
+                    b"",
+                )),
+            },
+            TestCase {
+                input: b"\x00\x00\x03\xE8\x00\x0D/usr/bin/bashignored",
+                expected: Ok((
+                    Lineage {
+                        exe_path: PathBuf::from("/usr/bin/bash"),
+                        uid: 1000,
+                    },
+                    b"ignored",
+                )),
+            },
+            TestCase {
+                input: b"",
+                expected: Err(anyhow::anyhow!("Failed to parse lineage uid")),
+            },
+            TestCase {
+                input: b"\x00\x00\x03",
+                expected: Err(anyhow::anyhow!("Failed to parse lineage uid")),
+            },
+            TestCase {
+                input: b"\x00\x00\x03\xE8\x00\x0D/usr/bin/bas",
+                expected: Err(anyhow::anyhow!("Failed to parse lineage exe_path")),
+            },
+        ];
+
+        for TestCase { input, expected } in tests {
+            let lineage = Lineage::parse(input);
+            match (lineage, expected) {
+                (Ok(lineage), Ok(expected)) => assert_eq!(
+                    lineage,
+                    expected,
+                    "input: {}",
+                    String::from_utf8_lossy(input)
+                ),
+                (Err(lineage), Err(expected)) => {
+                    let lineage = format!("{lineage:?}");
+                    let expected = format!("{expected:?}");
+                    assert_eq!(
+                        lineage,
+                        expected,
+                        "input: {}",
+                        String::from_utf8_lossy(input)
+                    );
+                }
+                (left, right) => {
+                    panic!(
+                        "Result mismatch\nleft: {left:#?}\nright: {right:#?}\ninput: '{}'",
+                        String::from_utf8_lossy(input)
+                    )
+                }
+            }
         }
     }
 }

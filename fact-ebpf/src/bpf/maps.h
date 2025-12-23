@@ -7,6 +7,18 @@
 
 #include <bpf/bpf_helpers.h>
 
+#define MAX_EVENT_LEN ((1<< 15) - 1)
+/**
+ * Raw buffer to encode events into prior to submitting to the
+ * ringbuffer
+ */
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, __u32);
+  __type(value, char[MAX_EVENT_LEN]);
+  __uint(max_entries, 1);
+} heap_map SEC(".maps");
+
 /**
  * Helper struct with buffers for various operations
  */

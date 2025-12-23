@@ -92,6 +92,17 @@ impl Serialize for inode_key_t {
 
 unsafe impl Pod for inode_key_t {}
 
+impl From<u16> for file_activity_type_t {
+    fn from(value: u16) -> Self {
+        match value {
+            0 => file_activity_type_t::FILE_ACTIVITY_OPEN,
+            1 => file_activity_type_t::FILE_ACTIVITY_CREATION,
+            2 => file_activity_type_t::FILE_ACTIVITY_UNLINK,
+            invalid => unreachable!("Invalid file activity type: {invalid}"),
+        }
+    }
+}
+
 impl metrics_by_hook_t {
     fn accumulate(&self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
         let mut m = metrics_by_hook_t { ..*self };
