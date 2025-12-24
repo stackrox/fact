@@ -8,7 +8,7 @@ use aya::{
 };
 use checks::Checks;
 use libc::c_char;
-use log::{debug, error, info};
+use log::{error, info};
 use tokio::{
     io::unix::AsyncFd,
     sync::{mpsc, watch},
@@ -17,7 +17,7 @@ use tokio::{
 
 use crate::{event::Event, host_info, metrics::EventCounter};
 
-use fact_ebpf::{event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
+use fact_ebpf::{inode_key_t, inode_value_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
 mod checks;
 
@@ -187,12 +187,10 @@ impl Bpf {
                             .context("ringbuffer guard held while runtime is stopping")?;
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
-                            let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
                                 Ok(event) => event,
                                 Err(e) => {
-                                    error!("Failed to parse event: '{e}'");
-                                    debug!("Event: {event:?}");
+                                    error!("Failed to parse event: '{e:?}'");
                                     event_counter.dropped();
                                     continue;
                                 }
