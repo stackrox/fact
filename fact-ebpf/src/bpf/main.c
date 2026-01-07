@@ -175,7 +175,9 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
 }
 
 SEC("lsm/path_chown")
-int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsigned long long gid) {
+int BPF_PROG(trace_path_chown, void* path_ptr, unsigned long long uid, unsigned long long gid) {
+  struct path* path = (struct path*)path_ptr;
+
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
     return 0;
