@@ -63,7 +63,7 @@ impl Client {
         });
     }
 
-    async fn get_tls_connector(&self) -> anyhow::Result<Option<tokio_native_tls::TlsConnector>> {
+    async fn get_connector(&self) -> anyhow::Result<Option<HttpsConnector<HttpConnector>>> {
         let certs = {
             let config = self.config.borrow();
             let Some(certs) = config.certs() else {
@@ -78,9 +78,8 @@ impl Client {
         )?;
         let ca = Certificate::from_pem(&ca).context("Failed to parse CA")?;
 
-        // The key is in PKCS#1 format using EC algorithm, we
-        // need it in PKCS#8 format for native-tls, so we
-        // convert it here
+        // The key is in PKCS#1 format using EC algorithm, we need it
+        // in PKCS#8 format for native-tls, so we convert it here
         let key = EcKey::private_key_from_pem(&key)?;
         let key = PKey::from_ec_key(key)?;
         let key = key.private_key_to_pem_pkcs8()?;
@@ -91,20 +90,15 @@ impl Client {
             .identity(id)
             .request_alpns(&["h2"])
             .build()?;
-        Ok(Some(connector.into()))
-    }
+        let connector = tokio_native_tls::TlsConnector::from(connector);
 
-    fn get_https_connector(
-        &self,
-        connector: Option<tokio_native_tls::TlsConnector>,
-    ) -> Option<HttpsConnector<HttpConnector>> {
-        connector.map(|c| {
-            let mut http = HttpConnector::new();
-            http.enforce_http(false);
-            let mut connector = HttpsConnector::from((http, c));
-            connector.https_only(true);
-            connector
-        })
+        // Wrap the TLS connector into the final HTTPs connector
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        let mut connector = HttpsConnector::from((http, connector));
+        connector.https_only(true);
+
+        Ok(Some(connector))
     }
 
     async fn create_channel(
@@ -118,14 +112,16 @@ impl Client {
         let channel = Channel::from_shared(url)?;
         let channel = match connector {
             Some(connector) => channel.connect_with_connector(connector).await?,
-            None => channel.connect().await?,
+            None => {
+                warn!("Using unencrypted gRPC channel");
+                channel.connect().await?
+            }
         };
         Ok(channel)
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
-        let tls_connector = self.get_tls_connector().await?;
-        let connector = self.get_https_connector(tls_connector);
+        let connector = self.get_connector().await?;
         loop {
             info!("Attempting to connect to gRPC server...");
             let channel = match self.create_channel(connector.clone()).await {
