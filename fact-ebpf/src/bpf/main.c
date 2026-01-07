@@ -202,7 +202,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   switch (inode_is_monitored(inode)) {
     case NOT_MONITORED:
       if (!is_monitored(bound_path)) {
-        m->path_chmod.ignored++;
+        m->path_chown.ignored++;
         return 0;
       }
       break;
