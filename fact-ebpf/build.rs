@@ -49,6 +49,7 @@ fn generate_bindings(out_dir: &Path) -> anyhow::Result<()> {
     let bindings = bindgen::Builder::default()
         .header("src/bpf/types.h")
         .derive_default(true)
+        .impl_debug(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .default_enum_style(bindgen::EnumVariation::NewType {
             is_bitfield: false,
