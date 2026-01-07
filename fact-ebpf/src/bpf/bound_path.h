@@ -11,11 +11,8 @@
 #include <bpf/bpf_core_read.h>
 // clang-format on
 
-#define PATH_MAX_MASK (PATH_MAX - 1)
-#define path_len_clamp(len) ((len) & PATH_MAX_MASK)
-
 __always_inline static char* path_safe_access(char* p, unsigned int offset) {
-  return &p[path_len_clamp(offset)];
+  return &p[PATH_LEN_CLAMP(offset)];
 }
 
 __always_inline static void path_write_char(char* p, unsigned int offset, char c) {
@@ -34,7 +31,7 @@ __always_inline static struct bound_path_t* _path_read(struct path* path, bool u
   }
 
   // Ensure length is within PATH_MAX for the verifier
-  bound_path->len = path_len_clamp(bound_path->len);
+  bound_path->len = PATH_LEN_CLAMP(bound_path->len);
 
   return bound_path;
 }
@@ -63,7 +60,7 @@ __always_inline static enum path_append_status_t path_append_dentry(struct bound
   }
 
   char* path_offset = path_safe_access(path->path, path->len);
-  if (bpf_probe_read_kernel(path_offset, path_len_clamp(len), d_name.name)) {
+  if (bpf_probe_read_kernel(path_offset, PATH_LEN_CLAMP(len), d_name.name)) {
     return PATH_APPEND_READ_ERROR;
   }
 
