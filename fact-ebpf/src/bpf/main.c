@@ -183,7 +183,13 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
 
   m->path_chown.total++;
 
-  struct bound_path_t* bound_path = path_read(path);
+  struct bound_path_t* bound_path = NULL;
+  if (path_hooks_support_bpf_d_path) {
+    bound_path = path_read(path);
+  } else {
+    bound_path = path_read_no_d_path(path);
+  }
+
   if (bound_path == NULL) {
     bpf_printk("Failed to read path");
     m->path_chown.error++;
