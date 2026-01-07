@@ -158,8 +158,6 @@ def test_overlay(fact, test_container, server):
 
     # Create the exec and an equivalent event that it will trigger
     test_container.exec_run(f'touch {fut}')
-    inspect = docker.APIClient().inspect_container(test_container.id)
-    upper_dir = inspect['GraphDriver']['Data']['UpperDir']
 
     process = Process(pid=None,
                       uid=0,
