@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::{ffi::CStr, path::PathBuf};
 
 use fact_ebpf::{lineage_t, process_t};
 use serde::Serialize;
@@ -6,21 +6,12 @@ use uuid::Uuid;
 
 use crate::host_info;
 
-use super::slice_to_string;
+use super::{parse_d_path, slice_to_string};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Lineage {
     uid: u32,
-    exe_path: String,
-}
-
-impl Lineage {
-    fn new(uid: u32, exe_path: &str) -> Self {
-        Lineage {
-            uid,
-            exe_path: exe_path.to_owned(),
-        }
-    }
+    exe_path: PathBuf,
 }
 
 impl TryFrom<&lineage_t> for Lineage {
@@ -28,9 +19,12 @@ impl TryFrom<&lineage_t> for Lineage {
 
     fn try_from(value: &lineage_t) -> Result<Self, Self::Error> {
         let lineage_t { uid, exe_path } = value;
-        let exe_path = unsafe { CStr::from_ptr(exe_path.as_ptr()) }.to_str()?;
+        let exe_path = parse_d_path(exe_path);
 
-        Ok(Lineage::new(*uid, exe_path))
+        Ok(Lineage {
+            uid: *uid,
+            exe_path,
+        })
     }
 }
 
@@ -39,7 +33,7 @@ impl From<Lineage> for fact_api::process_signal::LineageInfo {
         let Lineage { uid, exe_path } = value;
         Self {
             parent_uid: uid,
-            parent_exec_file_path: exe_path,
+            parent_exec_file_path: exe_path.to_string_lossy().to_string(),
         }
     }
 }
@@ -48,7 +42,7 @@ impl From<Lineage> for fact_api::process_signal::LineageInfo {
 pub struct Process {
     comm: String,
     args: Vec<String>,
-    exe_path: String,
+    exe_path: PathBuf,
     container_id: Option<String>,
     uid: u32,
     username: &'static str,
@@ -66,11 +60,7 @@ impl Process {
     pub fn current() -> Self {
         use crate::host_info::{get_host_mount_ns, get_mount_ns};
 
-        let exe_path = std::env::current_exe()
-            .expect("Failed to get current exe")
-            .into_os_string()
-            .into_string()
-            .unwrap();
+        let exe_path = std::env::current_exe().expect("Failed to get current exe");
         let args = std::env::args().collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
         let container_id = Process::extract_container_id(&cgroup);
@@ -142,7 +132,7 @@ impl TryFrom<process_t> for Process {
 
     fn try_from(value: process_t) -> Result<Self, Self::Error> {
         let comm = slice_to_string(value.comm.as_slice())?;
-        let exe_path = slice_to_string(value.exe_path.as_slice())?;
+        let exe_path = parse_d_path(value.exe_path.as_slice());
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
         let container_id = Process::extract_container_id(memory_cgroup);
         let in_root_mount_ns = value.in_root_mount_ns != 0;
@@ -213,7 +203,7 @@ impl From<Process> for fact_api::ProcessSignal {
             creation_time: None,
             name: comm,
             args,
-            exec_file_path: exe_path,
+            exec_file_path: exe_path.to_string_lossy().to_string(),
             pid,
             uid,
             gid,

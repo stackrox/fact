@@ -1,6 +1,10 @@
 #[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{ffi::CStr, os::raw::c_char, path::PathBuf};
+use std::{
+    ffi::{CStr, OsStr},
+    os::{raw::c_char, unix::ffi::OsStrExt},
+    path::{Path, PathBuf},
+};
 
 use serde::Serialize;
 
@@ -13,6 +17,31 @@ pub(crate) mod process;
 
 fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
     Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
+}
+
+/// Parse a buffer obtained from calling d_path kernel side.
+///
+/// Parsing this type of buffer is a special case, because the kernel
+/// may append " (deleted)" to a path when the file has been removed and
+/// can mess with the event we report. This method will take a slice of
+/// c_char and return a PathBuf with the " (deleted)" portion removed.
+///
+/// With the current implementation, non UTF-8 characters in the file
+/// name will be replaced with the U+FFFD character.
+fn parse_d_path(s: &[c_char]) -> PathBuf {
+    let s = unsafe { CStr::from_ptr(s.as_ptr()) };
+    let p = Path::new(OsStr::from_bytes(s.to_bytes()));
+
+    // Take the file name of the path and remove the " (deleted)" suffix
+    // if present.
+    if let Some(file_name) = p.file_name() {
+        if let Some(file_name) = file_name.to_string_lossy().strip_suffix(" (deleted)") {
+            // The file name needed to be sanitized
+            return p.parent().map(|p| p.join(file_name)).unwrap_or_default();
+        }
+    }
+
+    p.to_path_buf()
 }
 
 fn timestamp_to_proto(ts: u64) -> prost_types::Timestamp {
@@ -222,10 +251,8 @@ pub struct BaseFileData {
 
 impl BaseFileData {
     pub fn new(filename: [c_char; PATH_MAX as usize], inode: inode_key_t) -> anyhow::Result<Self> {
-        let filename = slice_to_string(&filename)?.into();
-
         Ok(BaseFileData {
-            filename,
+            filename: parse_d_path(&filename),
             host_file: PathBuf::new(), // this field is set by HostScanner
             inode,
         })
