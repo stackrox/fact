@@ -6,8 +6,13 @@
  * other sources of bloat into this file.
  */
 
+/**
+ * Kernel constant, taken from:
+ * https://github.com/torvalds/linux/blob/f0b9d8eb98dfee8d00419aa07543bdc2c1a44fb1/include/uapi/linux/limits.h#L13
+ */
 #define PATH_MAX 4096
 #define TASK_COMM_LEN 16
+
 #define LINEAGE_MAX 2
 
 #define LPM_SIZE_MAX 256
