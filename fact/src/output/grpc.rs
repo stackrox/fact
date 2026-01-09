@@ -1,9 +1,14 @@
-use std::{fs::read_to_string, path::Path, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use fact_api::file_activity_service_client::FileActivityServiceClient;
+use hyper_tls::HttpsConnector;
+use hyper_util::client::legacy::connect::HttpConnector;
 use log::{debug, info, warn};
+use native_tls::{Certificate, Identity};
+use openssl::{ec::EcKey, pkey::PKey};
 use tokio::{
+    fs,
     sync::{broadcast, watch},
     time::sleep,
 };
@@ -11,46 +16,9 @@ use tokio_stream::{
     wrappers::{errors::BroadcastStreamRecvError, BroadcastStream},
     StreamExt,
 };
-use tonic::{
-    metadata::MetadataValue,
-    service::Interceptor,
-    transport::{Certificate, Channel, ClientTlsConfig, Endpoint, Identity},
-};
+use tonic::transport::Channel;
 
 use crate::{config::GrpcConfig, event::Event, metrics::EventCounter};
-
-struct Certs {
-    pub ca: Certificate,
-    pub identity: Identity,
-}
-
-impl TryFrom<&Path> for Certs {
-    type Error = anyhow::Error;
-
-    fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let ca = read_to_string(path.join("ca.pem"))?;
-        let ca = Certificate::from_pem(ca);
-        let cert = read_to_string(path.join("cert.pem"))?;
-        let key = read_to_string(path.join("key.pem"))?;
-        let identity = Identity::from_pem(cert, key);
-
-        Ok(Self { ca, identity })
-    }
-}
-
-struct UserAgentInterceptor {}
-
-impl Interceptor for UserAgentInterceptor {
-    fn call(
-        &mut self,
-        mut request: tonic::Request<()>,
-    ) -> Result<tonic::Request<()>, tonic::Status> {
-        request
-            .metadata_mut()
-            .insert("user-agent", MetadataValue::from_static("Rox SFA Agent"));
-        Ok(request)
-    }
-}
 
 pub struct Client {
     rx: broadcast::Receiver<Arc<Event>>,
@@ -89,46 +57,84 @@ impl Client {
                         info!("Stopping gRPC output...");
                         break;
                     }
-                    Err(e) => warn!("gRPC error: {e}"),
+                    Err(e) => warn!("gRPC error: {e:?}"),
                 }
             }
         });
     }
 
-    fn create_channel(&self) -> anyhow::Result<Endpoint> {
-        let config = self.config.borrow();
-        let Some(url) = config.url() else {
-            bail!("Attempting to run gRPC client with no URL");
+    async fn get_connector(&self) -> anyhow::Result<Option<HttpsConnector<HttpConnector>>> {
+        let certs = {
+            let config = self.config.borrow();
+            let Some(certs) = config.certs() else {
+                return Ok(None);
+            };
+            certs.to_owned()
         };
-        let url = url.to_string();
-        let certs = config.certs().map(Certs::try_from).transpose()?;
-        let mut channel = Channel::from_shared(url)?;
-        if let Some(certs) = certs {
-            let tls = ClientTlsConfig::new()
-                .domain_name("sensor.stackrox.svc")
-                .ca_certificate(certs.ca.clone())
-                .identity(certs.identity.clone());
-            channel = channel.tls_config(tls)?;
-        }
+        let (ca, cert, key) = tokio::try_join!(
+            fs::read(certs.join("ca.pem")),
+            fs::read(certs.join("cert.pem")),
+            fs::read(certs.join("key.pem")),
+        )?;
+        let ca = Certificate::from_pem(&ca).context("Failed to parse CA")?;
+
+        // The key is in PKCS#1 format using EC algorithm, we need it
+        // in PKCS#8 format for native-tls, so we convert it here
+        let key = EcKey::private_key_from_pem(&key)?;
+        let key = PKey::from_ec_key(key)?;
+        let key = key.private_key_to_pem_pkcs8()?;
+
+        let id = Identity::from_pkcs8(&cert, &key).context("Failed to create TLS identity")?;
+        let connector = native_tls::TlsConnector::builder()
+            .add_root_certificate(ca)
+            .identity(id)
+            .request_alpns(&["h2"])
+            .build()?;
+        let connector = tokio_native_tls::TlsConnector::from(connector);
+
+        // Wrap the TLS connector into the final HTTPs connector
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        let mut connector = HttpsConnector::from((http, connector));
+        connector.https_only(true);
+
+        Ok(Some(connector))
+    }
+
+    async fn create_channel(
+        &self,
+        connector: Option<HttpsConnector<HttpConnector>>,
+    ) -> anyhow::Result<Channel> {
+        let url = match self.config.borrow().url() {
+            Some(url) => url.to_string(),
+            None => bail!("Attempting to run gRPC client with no URL"),
+        };
+        let channel = Channel::from_shared(url)?;
+        let channel = match connector {
+            Some(connector) => channel.connect_with_connector(connector).await?,
+            None => {
+                warn!("Using unencrypted gRPC channel");
+                channel.connect().await?
+            }
+        };
         Ok(channel)
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
-        let channel = self.create_channel()?;
+        let connector = self.get_connector().await?;
         loop {
             info!("Attempting to connect to gRPC server...");
-            let channel = match channel.connect().await {
+            let channel = match self.create_channel(connector.clone()).await {
                 Ok(channel) => channel,
                 Err(e) => {
-                    debug!("Failed to connect to server: {e}");
-                    sleep(Duration::new(1, 0)).await;
+                    debug!("Failed to connect to server: {e:?}");
+                    sleep(Duration::from_secs(1)).await;
                     continue;
                 }
             };
             info!("Successfully connected to gRPC server");
 
-            let mut client =
-                FileActivityServiceClient::with_interceptor(channel, UserAgentInterceptor {});
+            let mut client = FileActivityServiceClient::new(channel);
 
             let metrics = self.metrics.clone();
             let rx =
@@ -149,7 +155,7 @@ impl Client {
                 res = client.communicate(rx) => {
                     match res {
                         Ok(_) => info!("gRPC stream ended"),
-                        Err(e) => warn!("gRPC stream error: {e}"),
+                        Err(e) => warn!("gRPC stream error: {e:?}"),
                     }
                 }
                 _ = self.config.changed() => return Ok(true),

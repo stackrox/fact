@@ -12,11 +12,15 @@ clap = { workspace = true }
 env_logger = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true }
+hyper-tls = { workspace = true }
 hyper-util = { workspace = true }
 libc = { workspace = true }
 log = { workspace = true }
+native-tls = { workspace = true }
+openssl = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true }
+tokio-native-tls = { workspace = true }
 tokio-stream = { workspace = true }
 prometheus-client = { workspace = true }
 prost = { workspace = true }
