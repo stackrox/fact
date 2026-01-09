@@ -1,5 +1,11 @@
 # fact
 
+File ACTivity is a file integrity monitoring tool designed to help with PCI DSS
+compliance, which requires a change detection mechanism. It's implemented as a
+BPF agent, which coordinates a set of BPF programs attached to LSM hooks,
+receives events from the kernel, does basic enrichment and pushes them for
+further processing.
+
 ## Prerequisites
 
 1. stable rust toolchains.
@@ -29,6 +35,9 @@ cargo run --release --config 'target."cfg(all())".runner="sudo -E"'
 
 Cargo build scripts are used to automatically build the eBPF correctly
 and include it in the program.
+
+For more details about available options, check out the
+[references page](docs/references.md).
 
 ## Running eBPF unit tests
 
