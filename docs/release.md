@@ -38,14 +38,20 @@ to create the git resources for Konflux before proceeding.
 
 1.  Set the following environment variables:
 
-    *   `STACKROX_SUFFIX`: The major and minor versions of ACS that will use this `fact` version (e.g., `4-10`).
-    *   `FACT_RELEASE`: The release version you set in the previous section.
+    *   `STACKROX_SUFFIX`: The major and minor versions of ACS that will
+        use this `fact` version (e.g., `4-10`).
+    *   `FACT_RELEASE`: The release version you set in the previous
+        section.
     *   `FACT_PATCH`: The patch version for this release (e.g., `0`).
+    *   `RUST_VERSION`: The version of the rust compiler that will be
+        used with this release, usually the latest stable rust version.
+        (e.g., `1.88`).
 
     ```sh
     export STACKROX_SUFFIX=4-10
     export FACT_RELEASE=0.2
     export FACT_PATCH=0
+    export RUST_VERSION=1.88
     ```
 
 1.  On the release branch, run the following commands to update the
@@ -61,6 +67,20 @@ Konflux build configuration and the application version.
     sed -i \
         -e "/^version = / s/\".*\"/\"${FACT_RELEASE}.0\"/" \
         fact/Cargo.toml
+    ```
+
+1.  Run the following command to pin the Rust version to be used.
+
+    ```sh
+    sed -i -e "/^RUST_VERSION / s/stable/${RUST_VERSION}/" \
+        Makefile
+    ```
+
+1.  Run the following command to stop mintmaker from attempting to
+    update our crate dependencies.
+
+    ```sh
+    sed -i -e "/\"cargo\",/d" .github/renovate.json5
     ```
 
 1. Create a new branch for these changes and push it to the repository.

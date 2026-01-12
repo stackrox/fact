@@ -16,6 +16,7 @@ image:
 	docker build \
 		-f Containerfile \
 		--build-arg FACT_VERSION=$(FACT_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
 

@@ -31,6 +31,9 @@ jobs:
         arch:
           - amd64
           - arm64
+        rust-version:
+          - stable
+          - nightly
     steps:
     - uses: actions/checkout@v4
       with:
@@ -43,7 +46,7 @@ jobs:
           libbpf-dev \
           protobuf-compiler
 
-        rustup component add clippy
+        rustup +${{ matrix.rust-version }} component add clippy
 
     - shell: python
       id: args
@@ -67,7 +70,7 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ steps.args.outputs.args }}-${{ hashFiles('**/Cargo.lock') }}
-    - run: cargo ${{ matrix.args }}
+    - run: cargo +${{ matrix.rust-version }} ${{ matrix.args }}
 
   format-check:
     runs-on: ubuntu-24.04
