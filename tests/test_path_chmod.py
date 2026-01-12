@@ -1,0 +1,259 @@
+import multiprocessing as mp
+import os
+
+from event import Event, EventType, Process
+
+
+def test_chmod(fact, monitored_dir, server):
+    """
+    Tests changing permissions on a file and verifies the corresponding
+    event is captured by the server
+
+    Args:
+        fact: Fixture for file activity (only required to be runing).
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = os.path.join(monitored_dir, 'test.txt')
+    mode = 0o666
+    os.chmod(fut, mode)
+
+    e = Event(process=Process.from_proc(), event_type=EventType.PERMISSION,
+              file=fut, host_path=fut, mode=mode)
+
+    print(f'Waiting for event: {e}')
+
+    server.wait_events([e])
+
+
+def test_multiple(fact, monitored_dir, server):
+    """
+    Tests modifying permissions on multiple files.
+
+    Args:
+        fact: Fixture for file activity (only required to be runing).
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+    """
+    events = []
+    process = Process.from_proc()
+    mode = 0o646
+
+    for i in range(3):
+        fut = os.path.join(monitored_dir, f'{i}.txt')
+        with open(fut, 'w') as f:
+            f.write('This is a test')
+        os.chmod(fut, mode)
+
+        events.extend([
+            Event(process=process, event_type=EventType.CREATION,
+                  file=fut, host_path=''),
+            Event(process=process, event_type=EventType.PERMISSION,
+                  file=fut, host_path='', mode=mode),
+        ])
+
+    server.wait_events(events)
+
+
+def test_ignored(fact, test_file, ignored_dir, server):
+    """
+    Tests that permission events on ignored files are not captured.
+
+    Args:
+        fact: Fixture for file activity (only required to be running).
+        test_file: File monitored on the host, mounted to the container.
+        ignored_dir: Temporary directory path that is not monitored by fact.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+    mode = 0o666
+
+    # Ignored file, must not show up in the server
+    ignored_file = os.path.join(ignored_dir, 'test.txt')
+    with open(ignored_file, 'w') as f:
+        f.write('This is to be ignored')
+    os.chmod(ignored_file, mode)
+
+    ignored_event = Event(process=process, event_type=EventType.PERMISSION,
+                          file=ignored_file, host_path='', mode=mode)
+    print(f'Ignoring: {ignored_event}')
+
+    # File Under Test
+    os.chmod(test_file, mode)
+
+    e = Event(process=process, event_type=EventType.PERMISSION,
+              file=test_file, host_path=test_file, mode=mode)
+    print(f'Waiting for event: {e}')
+
+    server.wait_events([e], ignored=[ignored_event])
+
+
+def do_test(fut: str, mode: int, stop_event: mp.Event):
+    with open(fut, 'w') as f:
+        f.write('This is a test')
+    os.chmod(fut, mode)
+
+    # Wait for test to be done
+    stop_event.wait()
+
+
+def test_external_process(fact, monitored_dir, server):
+    """
+    Tests permission change of a file by an external process and
+    verifies that the corresponding event is captured by the server.
+
+    Args:
+        fact: Fixture for file activity (only required to be running).
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = os.path.join(monitored_dir, 'test2.txt')
+    mode = 0o666
+    stop_event = mp.Event()
+    proc = mp.Process(target=do_test, args=(fut, mode, stop_event))
+    proc.start()
+    process = Process.from_proc(proc.pid)
+
+    event = Event(process=process, event_type=EventType.PERMISSION,
+                  file=fut, host_path='', mode=mode)
+    print(f'Waiting for event: {event}')
+
+    try:
+        server.wait_events([event])
+    finally:
+        stop_event.set()
+        proc.join(1)
+
+
+def test_overlay(fact, test_container, server):
+    """
+    Test permission changes on an overlayfs file (inside a container)
+
+    Args:
+        fact: Fixture for file activity (only required to be running).
+        test_container: A container for running commands in.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = '/container-dir/test.txt'
+    mode = '666'
+
+    # Create the exec and an equivalent event that it will trigger
+    test_container.exec_run(f'touch {fut}')
+    test_container.exec_run(f'chmod {mode} {fut}')
+
+    loginuid = pow(2, 32)-1
+    touch = Process(pid=None,
+                    uid=0,
+                    gid=0,
+                    exe_path='/usr/bin/touch',
+                    args=f'touch {fut}',
+                    name='touch',
+                    container_id=test_container.id[:12],
+                    loginuid=loginuid)
+    chmod = Process(pid=None,
+                    uid=0,
+                    gid=0,
+                    exe_path='/usr/bin/chmod',
+                    args=f'chmod {mode} {fut}',
+                    name='chmod',
+                    container_id=test_container.id[:12],
+                    loginuid=loginuid)
+    events = [
+        Event(process=touch, event_type=EventType.CREATION,
+              file=fut, host_path=''),
+        Event(process=touch, event_type=EventType.OPEN,
+              file=fut, host_path=''),
+        Event(process=chmod, event_type=EventType.PERMISSION,
+              file=fut, host_path='', mode=int(mode, 8)),
+    ]
+
+    for e in events:
+        print(f'Waiting for event: {e}')
+
+    server.wait_events(events)
+
+
+def test_mounted_dir(fact, test_container, ignored_dir, server):
+    """
+    Test permission changes on a file bind mounted into a container
+
+    Args:
+        fact: Fixture for file activity (only required to be running).
+        test_container: A container for running commands in.
+        ignored_dir: This directory is ignored on the host, and mounted to the container.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = '/mounted/test.txt'
+    mode = '666'
+
+    # Create the exec and an equivalent event that it will trigger
+    test_container.exec_run(f'touch {fut}')
+    test_container.exec_run(f'chmod {mode} {fut}')
+
+    loginuid = pow(2, 32)-1
+    touch = Process(pid=None,
+                    uid=0,
+                    gid=0,
+                    exe_path='/usr/bin/touch',
+                    args=f'touch {fut}',
+                    name='touch',
+                    container_id=test_container.id[:12],
+                    loginuid=loginuid)
+    chmod = Process(pid=None,
+                    uid=0,
+                    gid=0,
+                    exe_path='/usr/bin/chmod',
+                    args=f'chmod {mode} {fut}',
+                    name='chmod',
+                    container_id=test_container.id[:12],
+                    loginuid=loginuid)
+    events = [
+        Event(process=touch, event_type=EventType.CREATION, file=fut,
+              host_path=''),
+        Event(process=chmod, event_type=EventType.PERMISSION, file=fut,
+              host_path='', mode=int(mode, 8)),
+    ]
+
+    for e in events:
+        print(f'Waiting for event: {e}')
+
+    server.wait_events(events)
+
+
+def test_unmonitored_mounted_dir(fact, test_container, test_file, server):
+    """
+    Test permission changes on a file bind mounted to a container and
+    monitored on the host.
+
+    Args:
+        fact: Fixture for file activity (only required to be running).
+        test_container: A container for running commands in.
+        test_file: File monitored on the host, mounted to the container.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    # The path corresponds to the container, `test_file` is the path on
+    # host. Events on this path will trigger via inode tracking.
+    fut = '/unmonitored/test.txt'
+    mode = '666'
+
+    # Create the exec and an equivalent event that it will trigger
+    test_container.exec_run(f'chmod {mode} {fut}')
+
+    process = Process(pid=None,
+                      uid=0,
+                      gid=0,
+                      exe_path='/usr/bin/chmod',
+                      args=f'chmod {mode} {fut}',
+                      name='chmod',
+                      container_id=test_container.id[:12],
+                      loginuid=pow(2, 32)-1)
+    event = Event(process=process, event_type=EventType.PERMISSION,
+                  file=fut, host_path=test_file, mode=int(mode, 8))
+    print(f'Waiting for event: {event}')
+
+    server.wait_events([event])

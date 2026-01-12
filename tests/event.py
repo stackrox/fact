@@ -30,6 +30,7 @@ class EventType(Enum):
     OPEN = 1
     CREATION = 2
     UNLINK = 3
+    PERMISSION = 4
 
 
 class Process:
@@ -169,11 +170,13 @@ class Event:
                  process: Process,
                  event_type: EventType,
                  file: str,
-                 host_path: str = ''):
+                 host_path: str = '',
+                 mode: int | None = None):
         self._type: EventType = event_type
         self._process: Process = process
         self._file: str = file
         self._host_path: str = host_path
+        self._mode: int | None = mode
 
     @property
     def event_type(self) -> EventType:
@@ -191,6 +194,10 @@ class Event:
     def host_path(self) -> str:
         return self._host_path
 
+    @property
+    def mode(self) -> int | None:
+        return self._mode
+
     @override
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, FileActivity):
@@ -206,11 +213,22 @@ class Event:
             elif self.event_type == EventType.UNLINK:
                 return self.file == other.unlink.activity.path and \
                     self.host_path == other.unlink.activity.host_path
+            elif self.event_type == EventType.PERMISSION:
+                return self.file == other.permission.activity.path and \
+                    self.host_path == other.permission.activity.host_path and \
+                    self.mode == other.permission.mode
             return False
         raise NotImplementedError
 
     @override
     def __str__(self) -> str:
-        return (f'Event(event_type={self.event_type.name}, '
-                f'process={self.process}, file="{self.file}", '
-                f'host_path="{self.host_path}")')
+        s = (f'Event(event_type={self.event_type.name}, '
+             f'process={self.process}, file="{self.file}", '
+             f'host_path="{self.host_path}"')
+
+        if self.event_type == EventType.PERMISSION:
+            s += f', mode={self.mode}'
+
+        s += ')'
+
+        return s
