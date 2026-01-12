@@ -24,10 +24,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        args:
-          - build --release
-          - clippy -- -D warnings
-          - test
         arch:
           - amd64
           - arm64
@@ -48,19 +44,6 @@ jobs:
 
         rustup +${{ matrix.rust-version }} component add clippy
 
-    - shell: python
-      id: args
-      run: |
-        import os
-
-        # Remove the hyphens from arguments like --release, then join
-        # all words with hyphens to have a key that is valid for GHA
-        # caching.
-        args='${{ matrix.args }}'.replace('-', '').split()
-        args='-'.join(args)
-        with open(os.environ.get('GITHUB_OUTPUT'), 'a') as f:
-          f.write(f'args={args}')
-
     - uses: actions/cache@v4
       with:
         path: |
@@ -69,8 +52,15 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ steps.args.outputs.args }}-${{ hashFiles('**/Cargo.lock') }}
-    - run: cargo +${{ matrix.rust-version }} ${{ matrix.args }}
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ matrix.rust-version }}-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build
+      run: cargo +${{ matrix.rust-version }} build --release
+    - name: Lint
+      run: cargo +${{ matrix.rust-version }} clippy -- -D warnings
+    - name: Test
+      run: cargo +${{ matrix.rust-version }} test
+
 
   format-check:
     runs-on: ubuntu-24.04
