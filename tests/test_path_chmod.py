@@ -62,7 +62,7 @@ def test_ignored(fact, test_file, ignored_dir, server):
 
     Args:
         fact: Fixture for file activity (only required to be running).
-        monitored_dir: Temporary directory path for creating the test file.
+        test_file: File monitored on the host, mounted to the container.
         ignored_dir: Temporary directory path that is not monitored by fact.
         server: The server instance to communicate with.
     """
@@ -236,6 +236,8 @@ def test_unmonitored_mounted_dir(fact, test_container, test_file, server):
         server: The server instance to communicate with.
     """
     # File Under Test
+    # The path corresponds to the container, `test_file` is the path on
+    # host. Events on this path will trigger via inode tracking.
     fut = '/unmonitored/test.txt'
     mode = '666'
 
