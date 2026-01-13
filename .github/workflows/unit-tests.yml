@@ -71,6 +71,7 @@ jobs:
         # need more investigation
         - rhel-8
         - rhcos-412-86-202402272018-0-gcp-x86-64
+        - rhcos-414-92-202407091253-0-gcp-x86-64
         # BPF trampolines are only implemented starting with RHEL 10
         - rhel-9-arm64
         EOF
