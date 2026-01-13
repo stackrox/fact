@@ -11,6 +11,7 @@ pub struct KernelMetrics {
     file_open: EventCounter,
     path_unlink: EventCounter,
     path_chmod: EventCounter,
+    path_chown: EventCounter,
     map: PerCpuArray<MapData, metrics_t>,
 }
 
@@ -31,15 +32,22 @@ impl KernelMetrics {
             "Events processed by the path_chmod LSM hook",
             &[], // Labels are not needed since `collect` will add them all
         );
+        let path_chown = EventCounter::new(
+            "kernel_path_chown_events",
+            "Events processed by the path_chown LSM hook",
+            &[], // Labels are not needed since `collect` will add them all
+        );
 
         file_open.register(reg);
         path_unlink.register(reg);
         path_chmod.register(reg);
+        path_chown.register(reg);
 
         KernelMetrics {
             file_open,
             path_unlink,
             path_chmod,
+            path_chown,
             map: kernel_metrics,
         }
     }
@@ -87,6 +95,7 @@ impl KernelMetrics {
         KernelMetrics::refresh_labels(&self.file_open, &metrics.file_open);
         KernelMetrics::refresh_labels(&self.path_unlink, &metrics.path_unlink);
         KernelMetrics::refresh_labels(&self.path_chmod, &metrics.path_chmod);
+        KernelMetrics::refresh_labels(&self.path_chown, &metrics.path_chown);
 
         Ok(())
     }
