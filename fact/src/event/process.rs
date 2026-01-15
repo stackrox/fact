@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::host_info;
 
-use super::{parse_d_path, slice_to_string};
+use super::{sanitize_d_path, slice_to_string};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Lineage {
@@ -19,7 +19,7 @@ impl TryFrom<&lineage_t> for Lineage {
 
     fn try_from(value: &lineage_t) -> Result<Self, Self::Error> {
         let lineage_t { uid, exe_path } = value;
-        let exe_path = parse_d_path(exe_path);
+        let exe_path = sanitize_d_path(exe_path);
 
         Ok(Lineage {
             uid: *uid,
@@ -132,7 +132,7 @@ impl TryFrom<process_t> for Process {
 
     fn try_from(value: process_t) -> Result<Self, Self::Error> {
         let comm = slice_to_string(value.comm.as_slice())?;
-        let exe_path = parse_d_path(value.exe_path.as_slice());
+        let exe_path = sanitize_d_path(value.exe_path.as_slice());
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
         let container_id = Process::extract_container_id(memory_cgroup);
         let in_root_mount_ns = value.in_root_mount_ns != 0;
