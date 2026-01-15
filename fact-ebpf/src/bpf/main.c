@@ -174,6 +174,9 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   return 0;
 }
 
+/* path_chown takes _unsigned long long_ for uid and gid because kuid_t and kgid_t (structs)
+   fit in registers and since they contain only one integer, their content is extended to the
+   size of the BPF registers (64 bits) to simplify further arithmetic operations. */
 SEC("lsm/path_chown")
 int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsigned long long gid) {
   struct metrics_t* m = get_metrics();
