@@ -234,31 +234,31 @@ def test_no_change(fact, test_container, server):
                     name='touch',
                     container_id=test_container.id[:12],
                     loginuid=loginuid)
-    chown1 = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/chown',
-                    args=chown_cmd,
-                    name='chown',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-    chown2 = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/chown',
-                    args=chown_cmd,
-                    name='chown',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-
+    chown = [
+        Process(pid=None,
+                uid=0,
+                gid=0,
+                exe_path='/usr/bin/chown',
+                args=chown_cmd,
+                name='chown',
+                container_id=test_container.id[:12],
+                loginuid=loginuid),
+        Process(pid=None,
+                uid=0,
+                gid=0,
+                exe_path='/usr/bin/chown',
+                args=chown_cmd,
+                name='chown',
+                container_id=test_container.id[:12],
+                loginuid=loginuid)
+    ]
+    
     # Expect both chown events (all calls to chown trigger events)
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),
-        Event(process=chown1, event_type=EventType.OWNERSHIP, file=fut,
-              host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
-        Event(process=chown2, event_type=EventType.OWNERSHIP, file=fut,
-              host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
+        *(Event(process=p, event_type=EventType.OWNERSHIP, file=fut,
+         host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID) for p in chown),
     ]
 
     for e in events:
