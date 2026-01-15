@@ -82,6 +82,7 @@ impl Event {
             FileData::Creation(data) => &data.inode,
             FileData::Unlink(data) => &data.inode,
             FileData::Chmod(data) => &data.inner.inode,
+            FileData::Chown(data) => &data.inner.inode,
         }
     }
 
@@ -91,6 +92,7 @@ impl Event {
             FileData::Creation(data) => data.host_file = host_path,
             FileData::Unlink(data) => data.host_file = host_path,
             FileData::Chmod(data) => data.inner.host_file = host_path,
+            FileData::Chown(data) => data.inner.host_file = host_path,
         }
     }
 }
@@ -145,6 +147,7 @@ pub enum FileData {
     Creation(BaseFileData),
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
+    Chown(ChownFileData),
 }
 
 impl FileData {
@@ -166,6 +169,16 @@ impl FileData {
                     old_mode: unsafe { extra_data.chmod.old },
                 };
                 FileData::Chmod(data)
+            }
+            file_activity_type_t::FILE_ACTIVITY_CHOWN => {
+                let data = ChownFileData {
+                    inner,
+                    new_uid: unsafe { extra_data.chown.new.uid },
+                    new_gid: unsafe { extra_data.chown.new.gid },
+                    old_uid: unsafe { extra_data.chown.old.uid },
+                    old_gid: unsafe { extra_data.chown.old.gid },
+                };
+                FileData::Chown(data)
             }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
@@ -195,6 +208,10 @@ impl From<FileData> for fact_api::file_activity::File {
             FileData::Chmod(event) => {
                 let f_act = fact_api::FilePermissionChange::from(event);
                 fact_api::file_activity::File::Permission(f_act)
+            }
+            FileData::Chown(event) => {
+                let f_act = fact_api::FileOwnershipChange::from(event);
+                fact_api::file_activity::File::Ownership(f_act)
             }
         }
     }
@@ -255,29 +272,12 @@ pub struct ChmodFileData {
     old_mode: u16,
 }
 
-impl ChmodFileData {
-    pub fn new(
-        filename: [c_char; PATH_MAX as usize],
-        inode: inode_key_t,
-        new_mode: u16,
-        old_mode: u16,
-    ) -> anyhow::Result<Self> {
-        let inner = BaseFileData::new(filename, inode)?;
-
-        Ok(ChmodFileData {
-            inner,
-            new_mode,
-            old_mode,
-        })
-    }
-}
-
 impl From<ChmodFileData> for fact_api::FilePermissionChange {
     fn from(value: ChmodFileData) -> Self {
         let ChmodFileData {
             inner: file,
             new_mode,
-            old_mode: _,
+            ..
         } = value;
         let activity = fact_api::FileActivityBase::from(file);
         fact_api::FilePermissionChange {
@@ -293,5 +293,33 @@ impl PartialEq for ChmodFileData {
         self.new_mode == other.new_mode
             && self.old_mode == other.old_mode
             && self.inner == other.inner
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ChownFileData {
+    inner: BaseFileData,
+    new_uid: u32,
+    new_gid: u32,
+    old_uid: u32,
+    old_gid: u32,
+}
+
+impl From<ChownFileData> for fact_api::FileOwnershipChange {
+    fn from(value: ChownFileData) -> Self {
+        let ChownFileData {
+            inner: file,
+            new_uid,
+            new_gid,
+            ..
+        } = value;
+        let activity = fact_api::FileActivityBase::from(file);
+        fact_api::FileOwnershipChange {
+            activity: Some(activity),
+            uid: new_uid,
+            gid: new_gid,
+            username: "".to_string(),
+            group: "".to_string(),
+        }
     }
 }

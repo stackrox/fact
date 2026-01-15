@@ -31,6 +31,7 @@ class EventType(Enum):
     CREATION = 2
     UNLINK = 3
     PERMISSION = 4
+    OWNERSHIP = 5
 
 
 class Process:
@@ -171,12 +172,16 @@ class Event:
                  event_type: EventType,
                  file: str,
                  host_path: str = '',
-                 mode: int | None = None):
+                 mode: int | None = None,
+                 owner_uid: int | None = None,
+                 owner_gid: int | None = None,):
         self._type: EventType = event_type
         self._process: Process = process
         self._file: str = file
         self._host_path: str = host_path
         self._mode: int | None = mode
+        self._owner_uid: int | None = owner_uid
+        self._owner_gid: int | None = owner_gid
 
     @property
     def event_type(self) -> EventType:
@@ -198,6 +203,14 @@ class Event:
     def mode(self) -> int | None:
         return self._mode
 
+    @property
+    def owner_uid(self) -> int | None:
+        return self._owner_uid
+
+    @property
+    def owner_gid(self) -> int | None:
+        return self._owner_gid
+
     @override
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, FileActivity):
@@ -217,6 +230,11 @@ class Event:
                 return self.file == other.permission.activity.path and \
                     self.host_path == other.permission.activity.host_path and \
                     self.mode == other.permission.mode
+            elif self.event_type == EventType.OWNERSHIP:
+                return self.file == other.ownership.activity.path and \
+                    self.host_path == other.ownership.activity.host_path and \
+                    self.owner_uid == other.ownership.uid and \
+                    self.owner_gid == other.ownership.gid
             return False
         raise NotImplementedError
 
@@ -228,6 +246,9 @@ class Event:
 
         if self.event_type == EventType.PERMISSION:
             s += f', mode={self.mode}'
+
+        if self.event_type == EventType.OWNERSHIP:
+            s += f', owner=(uid={self.owner_uid}, gid={self.owner_gid})'
 
         s += ')'
 
