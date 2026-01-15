@@ -277,7 +277,7 @@ impl From<ChmodFileData> for fact_api::FilePermissionChange {
         let ChmodFileData {
             inner: file,
             new_mode,
-            old_mode: _,
+            ..
         } = value;
         let activity = fact_api::FileActivityBase::from(file);
         fact_api::FilePermissionChange {
@@ -311,8 +311,7 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
             inner: file,
             new_uid,
             new_gid,
-            old_uid: _,
-            old_gid: _,
+            ..
         } = value;
         let activity = fact_api::FileActivityBase::from(file);
         fact_api::FileOwnershipChange {
