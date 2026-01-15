@@ -215,10 +215,8 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   }
 
   struct dentry* d = BPF_CORE_READ(path, dentry);
-  kuid_t kuid = BPF_CORE_READ(d, d_inode, i_uid);
-  kgid_t kgid = BPF_CORE_READ(d, d_inode, i_gid);
-  unsigned long long old_uid = BPF_CORE_READ(&kuid, val);
-  unsigned long long old_gid = BPF_CORE_READ(&kgid, val);
+  unsigned long long old_uid = BPF_CORE_READ(d, d_inode, i_uid.val);
+  unsigned long long old_gid = BPF_CORE_READ(d, d_inode, i_gid.val);
 
   submit_owner_event(&m->path_chown,
                      bound_path->path,
