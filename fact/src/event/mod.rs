@@ -272,23 +272,6 @@ pub struct ChmodFileData {
     old_mode: u16,
 }
 
-impl ChmodFileData {
-    pub fn new(
-        filename: [c_char; PATH_MAX as usize],
-        inode: inode_key_t,
-        new_mode: u16,
-        old_mode: u16,
-    ) -> anyhow::Result<Self> {
-        let inner = BaseFileData::new(filename, inode)?;
-
-        Ok(ChmodFileData {
-            inner,
-            new_mode,
-            old_mode,
-        })
-    }
-}
-
 impl From<ChmodFileData> for fact_api::FilePermissionChange {
     fn from(value: ChmodFileData) -> Self {
         let ChmodFileData {
@@ -322,26 +305,6 @@ pub struct ChownFileData {
     old_gid: u32,
 }
 
-impl ChownFileData {
-    pub fn new(
-        filename: [c_char; PATH_MAX as usize],
-        inode: inode_key_t,
-        new_uid: u32,
-        new_gid: u32,
-        old_uid: u32,
-        old_gid: u32,
-    ) -> anyhow::Result<Self> {
-        let file = BaseFileData::new(filename, inode)?;
-
-        Ok(ChownFileData {
-            inner: file,
-            new_uid,
-            new_gid,
-            old_uid,
-            old_gid,
-        })
-    }
-}
 impl From<ChownFileData> for fact_api::FileOwnershipChange {
     fn from(value: ChownFileData) -> Self {
         let ChownFileData {
