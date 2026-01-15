@@ -233,8 +233,8 @@ class Event:
             elif self.event_type == EventType.OWNERSHIP:
                 return self.file == other.ownership.activity.path and \
                     self.host_path == other.ownership.activity.host_path and \
-                    (self.owner_uid is None or self.owner_uid == other.ownership.uid) and \
-                    (self.owner_gid is None or self.owner_gid == other.ownership.gid)
+                    self.owner_uid == other.ownership.uid and \
+                    self.owner_gid == other.ownership.gid
             return False
         raise NotImplementedError
 
