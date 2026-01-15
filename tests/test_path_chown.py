@@ -110,7 +110,7 @@ def test_multiple(fact, test_container, server):
     server.wait_events(events)
 
 
-def test_ignored(fact, test_container, monitored_dir, ignored_dir, server):
+def test_ignored(fact, test_container, server):
     """
     Tests that ownership events on ignored files are not captured by the
     server.
@@ -118,8 +118,6 @@ def test_ignored(fact, test_container, monitored_dir, ignored_dir, server):
     Args:
         fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
-        monitored_dir: Temporary directory path for creating the test file.
-        ignored_dir: Temporary directory path that is not monitored by fact.
         server: The server instance to communicate with.
     """
     loginuid = pow(2, 32) - 1
