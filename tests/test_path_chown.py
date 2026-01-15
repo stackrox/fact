@@ -24,15 +24,17 @@ def test_chown(fact, test_container, server):
     fut = '/container-dir/test.txt'
 
     # Create the file and chown it
-    test_container.exec_run(f'touch {fut}')
-    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {fut}')
+    touch_cmd = f'touch {fut}'
+    chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut}'
+    test_container.exec_run(touch_cmd)
+    test_container.exec_run(chown_cmd)
 
     loginuid = pow(2, 32) - 1
     touch = Process(pid=None,
                     uid=0,
                     gid=0,
                     exe_path='/usr/bin/touch',
-                    args=f'touch {fut}',
+                    args=touch_cmd,
                     name='touch',
                     container_id=test_container.id[:12],
                     loginuid=loginuid)
@@ -40,7 +42,7 @@ def test_chown(fact, test_container, server):
                    uid=0,
                    gid=0,
                    exe_path='/usr/bin/chown',
-                   args=f'chown {TEST_UID}:{TEST_GID} {fut}',
+                   args=chown_cmd,
                    name='chown',
                    container_id=test_container.id[:12],
                    loginuid=loginuid)
@@ -73,14 +75,16 @@ def test_multiple(fact, test_container, server):
     # File Under Test
     for i in range(3):
         fut = f'/container-dir/{i}.txt'
-        test_container.exec_run(f'touch {fut}')
-        test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {fut}')
+        touch_cmd = f'touch {fut}'
+        chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut}'
+        test_container.exec_run(touch_cmd)
+        test_container.exec_run(chown_cmd)
 
         touch = Process(pid=None,
                         uid=0,
                         gid=0,
                         exe_path='/usr/bin/touch',
-                        args=f'touch {fut}',
+                        args=touch_cmd,
                         name='touch',
                         container_id=test_container.id[:12],
                         loginuid=loginuid)
@@ -88,7 +92,7 @@ def test_multiple(fact, test_container, server):
                        uid=0,
                        gid=0,
                        exe_path='/usr/bin/chown',
-                       args=f'chown {TEST_UID}:{TEST_GID} {fut}',
+                       args=chown_cmd,
                        name='chown',
                        container_id=test_container.id[:12],
                        loginuid=loginuid)
@@ -123,16 +127,21 @@ def test_ignored(fact, test_container, monitored_dir, ignored_dir, server):
     ignored_file = '/test.txt'
     monitored_file = '/container-dir/test.txt'
 
-    test_container.exec_run(f'touch {ignored_file}')
-    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {ignored_file}')
-    test_container.exec_run(f'touch {monitored_file}')
-    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {monitored_file}')
+    ignored_touch_cmd = f'touch {ignored_file}'
+    ignored_chown_cmd = f'chown {TEST_UID}:{TEST_GID} {ignored_file}'
+    monitored_touch_cmd = f'touch {monitored_file}'
+    monitored_chown_cmd = f'chown {TEST_UID}:{TEST_GID} {monitored_file}'
+
+    test_container.exec_run(ignored_touch_cmd)
+    test_container.exec_run(ignored_chown_cmd)
+    test_container.exec_run(monitored_touch_cmd)
+    test_container.exec_run(monitored_chown_cmd)
 
     ignored_touch = Process(pid=None,
                             uid=0,
                             gid=0,
                             exe_path='/usr/bin/touch',
-                            args=f'touch {ignored_file}',
+                            args=ignored_touch_cmd,
                             name='touch',
                             container_id=test_container.id[:12],
                             loginuid=loginuid)
@@ -140,7 +149,7 @@ def test_ignored(fact, test_container, monitored_dir, ignored_dir, server):
                             uid=0,
                             gid=0,
                             exe_path='/usr/bin/chown',
-                            args=f'chown {TEST_UID}:{TEST_GID} {ignored_file}',
+                            args=ignored_chown_cmd,
                             name='chown',
                             container_id=test_container.id[:12],
                             loginuid=loginuid)
@@ -148,7 +157,7 @@ def test_ignored(fact, test_container, monitored_dir, ignored_dir, server):
                              uid=0,
                              gid=0,
                              exe_path='/usr/bin/touch',
-                             args=f'touch {monitored_file}',
+                             args=monitored_touch_cmd,
                              name='touch',
                              container_id=test_container.id[:12],
                              loginuid=loginuid)
@@ -156,12 +165,11 @@ def test_ignored(fact, test_container, monitored_dir, ignored_dir, server):
                              uid=0,
                              gid=0,
                              exe_path='/usr/bin/chown',
-                             args=f'chown {TEST_UID}:{TEST_GID} {monitored_file}',
+                             args=monitored_chown_cmd,
                              name='chown',
                              container_id=test_container.id[:12],
                              loginuid=loginuid)
 
-    # events
     ignored_create_event = Event(process=ignored_touch,
                                  event_type=EventType.CREATION,
                                  file=ignored_file,
@@ -170,21 +178,21 @@ def test_ignored(fact, test_container, monitored_dir, ignored_dir, server):
                                   event_type=EventType.CREATION,
                                   file=monitored_file,
                                   host_path='')
-    ignored_chmod_event = Event(process=ignored_chown,
-                          event_type=EventType.OWNERSHIP,
-                          file=ignored_file,
-                          host_path='',
-                          owner_uid=TEST_UID,
-                          owner_gid=TEST_GID)
-    reported_chmod_event = Event(process=reported_chown,
-                           event_type=EventType.OWNERSHIP,
-                           file=monitored_file,
-                           host_path='',
-                           owner_uid=TEST_UID,
-                           owner_gid=TEST_GID)
+    ignored_chown_event = Event(process=ignored_chown,
+                                event_type=EventType.OWNERSHIP,
+                                file=ignored_file,
+                                host_path='',
+                                owner_uid=TEST_UID,
+                                owner_gid=TEST_GID)
+    reported_chown_event = Event(process=reported_chown,
+                                 event_type=EventType.OWNERSHIP,
+                                 file=monitored_file,
+                                 host_path='',
+                                 owner_uid=TEST_UID,
+                                 owner_gid=TEST_GID)
 
-    server.wait_events(events=[reported_create_event, reported_chmod_event],
-                       ignored=[ignored_create_event, ignored_chmod_event])
+    server.wait_events(events=[reported_create_event, reported_chown_event],
+                       ignored=[ignored_create_event, ignored_chown_event])
 
 
 def test_no_change(fact, test_container, server):
@@ -199,21 +207,24 @@ def test_no_change(fact, test_container, server):
     # File Under Test
     fut = '/container-dir/test.txt'
 
+    touch_cmd = f'touch {fut}'
+    chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut}'
+
     # Create the file
-    test_container.exec_run(f'touch {fut}')
+    test_container.exec_run(touch_cmd)
 
     # First chown to TEST_UID:TEST_GID - this should trigger an event
-    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {fut}')
+    test_container.exec_run(chown_cmd)
 
     # Second chown to the same UID/GID - this should ALSO trigger an event
-    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {fut}')
+    test_container.exec_run(chown_cmd)
 
     loginuid = pow(2, 32) - 1
     touch = Process(pid=None,
                     uid=0,
                     gid=0,
                     exe_path='/usr/bin/touch',
-                    args=f'touch {fut}',
+                    args=touch_cmd,
                     name='touch',
                     container_id=test_container.id[:12],
                     loginuid=loginuid)
@@ -221,7 +232,7 @@ def test_no_change(fact, test_container, server):
                     uid=0,
                     gid=0,
                     exe_path='/usr/bin/chown',
-                    args=f'chown {TEST_UID}:{TEST_GID} {fut}',
+                    args=chown_cmd,
                     name='chown',
                     container_id=test_container.id[:12],
                     loginuid=loginuid)
@@ -229,7 +240,7 @@ def test_no_change(fact, test_container, server):
                     uid=0,
                     gid=0,
                     exe_path='/usr/bin/chown',
-                    args=f'chown {TEST_UID}:{TEST_GID} {fut}',
+                    args=chown_cmd,
                     name='chown',
                     container_id=test_container.id[:12],
                     loginuid=loginuid)
