@@ -218,14 +218,14 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   unsigned long long old_uid = BPF_CORE_READ(d, d_inode, i_uid.val);
   unsigned long long old_gid = BPF_CORE_READ(d, d_inode, i_gid.val);
 
-  submit_owner_event(&m->path_chown,
-                     bound_path->path,
-                     &inode_key,
-                     uid,
-                     gid,
-                     old_uid,
-                     old_gid,
-                     path_hooks_support_bpf_d_path);
+  submit_ownership_event(&m->path_chown,
+                         bound_path->path,
+                         &inode_key,
+                         uid,
+                         gid,
+                         old_uid,
+                         old_gid,
+                         path_hooks_support_bpf_d_path);
 
   return 0;
 }
