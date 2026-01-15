@@ -167,30 +167,38 @@ def test_ignored(fact, test_container, server):
                              name='chown',
                              container_id=test_container.id[:12],
                              loginuid=loginuid)
+    ignored_events = [
+        Event(process=ignored_touch,
+              event_type=EventType.CREATION,
+              file=ignored_file,
+              host_path=''),
+        Event(process=ignored_chown,
+              event_type=EventType.OWNERSHIP,
+              file=ignored_file,
+              host_path='',
+              owner_uid=TEST_UID,
+              owner_gid=TEST_GID),
+    ]
+    expected_events = [
+        Event(process=reported_touch,
+              event_type=EventType.CREATION,
+              file=monitored_file,
+              host_path=''),
+        Event(process=reported_chown,
+              event_type=EventType.OWNERSHIP,
+              file=monitored_file,
+              host_path='',
+              owner_uid=TEST_UID,
+              owner_gid=TEST_GID),
+    ]
 
-    ignored_create_event = Event(process=ignored_touch,
-                                 event_type=EventType.CREATION,
-                                 file=ignored_file,
-                                 host_path='')
-    reported_create_event = Event(process=reported_touch,
-                                  event_type=EventType.CREATION,
-                                  file=monitored_file,
-                                  host_path='')
-    ignored_chown_event = Event(process=ignored_chown,
-                                event_type=EventType.OWNERSHIP,
-                                file=ignored_file,
-                                host_path='',
-                                owner_uid=TEST_UID,
-                                owner_gid=TEST_GID)
-    reported_chown_event = Event(process=reported_chown,
-                                 event_type=EventType.OWNERSHIP,
-                                 file=monitored_file,
-                                 host_path='',
-                                 owner_uid=TEST_UID,
-                                 owner_gid=TEST_GID)
+    for e in ignored_events:
+        print(f'Events that should be ignored: {e}')
 
-    server.wait_events(events=[reported_create_event, reported_chown_event],
-                       ignored=[ignored_create_event, ignored_chown_event])
+    for e in expected_events:
+        print(f'Waiting for event: {e}')
+
+    server.wait_events(events=expected_events, ignored=ignored_events)
 
 
 def test_no_change(fact, test_container, server):
