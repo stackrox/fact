@@ -1,4 +1,4 @@
-RUST_VERSION ?= stable
+RUST_VERSION ?= 1.92
 
 FACT_TAG ?= $(shell git describe --always --tags --abbrev=10 --dirty)
 FACT_VERSION ?= $(FACT_TAG)
