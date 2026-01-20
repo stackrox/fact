@@ -1,0 +1,16 @@
+This Docker image contains the following software and licenses:
+
+1. fact
+   - License: MIT OR Apache-2.0
+   - Full license text: /licenses/LICENSE-MIT and /licenses/LICENSE-APACHE
+
+2. Third-party dependencies
+   - /licenses/THIRD_PARTY_LICENSES.html
+   - /licenses/THIRD_PARTY_LICENSES.json
+
+For detailed license information about all dependencies, please refer to
+the files in the /licenses directory.
+
+eBPF code components are distributed under either GPL-2.0 or MIT license,
+at your option.
+
