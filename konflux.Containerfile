@@ -12,16 +12,11 @@ RUN dnf install -y \
         cargo \
         rust
 
-RUN cargo install cargo-about --locked
-
 WORKDIR /app
 
 COPY . .
 
 RUN cargo build --release
-
-RUN cargo about generate --frozen --format json -o THIRD_PARTY_LICENSES.json && \
-    cargo about generate --frozen --format handlebars -o THIRD_PARTY_LICENSES.html about_html.hbs
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:6fc28bcb6776e387d7a35a2056d9d2b985dc4e26031e98a2bd35a7137cd6fd71
 
@@ -53,10 +48,5 @@ RUN microdnf install -y openssl-libs && \
     rm -rf /var/cache/yum
 
 COPY --from=builder /app/target/release/fact /usr/local/bin
-
-# Copy license information
-RUN mkdir -p /licenses
-COPY --from=builder /app/THIRD_PARTY_LICENSES.json /app/THIRD_PARTY_LICENSES.html /licenses/
-COPY NOTICE LICENSE-APACHE LICENSE-MIT /licenses/
 
 ENTRYPOINT ["fact"]
