@@ -69,7 +69,6 @@
     "tekton",
     "dockerfile",
     "rpm-lockfile",
-    "cargo",
   ],
   "packageRules": [
     {
