@@ -1,0 +1,45 @@
+name: License checks
+
+on:
+  push:
+    branches:
+    - main
+    - release-*
+    - konflux/**
+  pull_request:
+
+jobs:
+  check:
+    runs-on: 'ubuntu-24.04'
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: dorny/paths-filter@v3
+      id: changed
+      with:
+        filters: |
+          builder-changed:
+            - **/Cargo.lock
+
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: check-license-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install cargo-about
+      run: cargo install cargo-about
+
+    - name: Generate licenses
+      run: make licenses
+
+    - name: Store licenses
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: third-party-licenses
+        path: |
+          ${{ github.workspace }}/THIRD_PARTY_LICENSES.html
