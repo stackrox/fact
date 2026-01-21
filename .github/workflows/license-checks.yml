@@ -1,0 +1,61 @@
+name: License checks
+
+on:
+  push:
+    branches:
+    - main
+    - release-*
+    - konflux/**
+  pull_request:
+
+jobs:
+  licenses-need-reevaluation:
+    name: 'Should licenses be evaluated ?'
+    runs-on: 'ubuntu-24.04'
+    outputs:
+      need-reevaluation: ${{ steps.changed.outputs.lockfile }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: dorny/paths-filter@v3
+      id: changed
+      with:
+        filters: |
+          lockfile:
+          - Cargo.lock
+
+  check:
+    name: Check licenses
+    needs:
+    - licenses-need-reevaluation
+    if: needs.licenses-need-reevaluation.outputs.need-reevaluation == 'true'
+    runs-on: 'ubuntu-24.04'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          ~/.cargo/.crates.toml
+          ~/.cargo/.crates2.json
+        key: check-license-${{ runner.os }}
+
+    - name: Install cargo-about
+      run: cargo install cargo-about
+
+    - name: Generate licenses
+      run: make licenses
+
+    - name: Store licenses
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: third-party-licenses
+        path: |
+          ${{ github.workspace }}/THIRD_PARTY_LICENSES.html
