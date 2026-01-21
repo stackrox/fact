@@ -1,0 +1,13 @@
+# For further documentation on CODEOWNERS, visit
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#about-code-owners
+# This will automatically assign a team / people as reviewers for PRs based on the files changed within the PR.
+
+*    @stackrox/collector-team
+
+# Konflux maintainers for ACS review all changes related to the Konflux pipelines, Dockerfiles, etc.
+# Release engineers need to merge MintMaker PRs at the time of the release.
+# rhacs-bot needs an ability to auto-approve MintMaker PRs for automated task and security updates.
+**/konflux.*Containerfile  @stackrox/konflux-maintainers-no-email @stackrox/release-mgmt-no-email @rhacs-bot
+/.tekton/                  @stackrox/konflux-maintainers-no-email @stackrox/release-mgmt-no-email @rhacs-bot
+rpms.*                     @stackrox/konflux-maintainers-no-email @stackrox/release-mgmt-no-email @rhacs-bot
+.github/renovate.json5     @stackrox/konflux-maintainers
