@@ -26,6 +26,7 @@ jobs:
           - Cargo.lock
 
   check:
+    name: Check licenses
     needs:
     - licenses-need-reevaluation
     if: needs.licenses-need-reevaluation.outputs.need-reevaluation == 'true'
