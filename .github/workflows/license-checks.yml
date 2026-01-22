@@ -13,7 +13,7 @@ jobs:
     name: 'Should licenses be evaluated ?'
     runs-on: 'ubuntu-24.04'
     outputs:
-      need-reevaluation: ${{ steps.set-output.outputs.need-reevaluation || 'false' }}
+      need-reevaluation: ${{ steps.changed.outputs.lockfile }}
 
     steps:
     - uses: actions/checkout@v4
@@ -24,11 +24,6 @@ jobs:
         filters: |
           lockfile:
           - Cargo.lock
-
-    - id: set-output
-      if: steps.changed.outputs.lockfile
-      run: |
-        echo "need-reevaluation=true" >> "$GITHUB_OUTPUT"
 
   check:
     needs:
