@@ -9,8 +9,12 @@ on:
   pull_request:
 
 jobs:
-  check:
+  licenses-need-reevaluation:
+    name: 'Should licenses be evaluated ?'
     runs-on: 'ubuntu-24.04'
+    outputs:
+      need-reevaluation: ${{ steps.set-output.outputs.need-reevaluation || 'false' }}
+
     steps:
     - uses: actions/checkout@v4
 
@@ -18,8 +22,22 @@ jobs:
       id: changed
       with:
         filters: |
-          builder-changed:
-            - **/Cargo.lock
+          lockfile:
+          - Cargo.lock
+
+    - id: set-output
+      if: steps.changed.outputs.lockfile
+      run: |
+        echo "need-reevaluation=true" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs:
+    - licenses-need-reevaluation
+    if: needs.licenses-need-reevaluation.outputs.need-reevaluation == 'true'
+    runs-on: 'ubuntu-24.04'
+
+    steps:
+    - uses: actions/checkout@v4
 
     - uses: actions/cache@v4
       with:
