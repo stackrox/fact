@@ -46,7 +46,9 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-        key: check-license-${{ hashFiles('**/Cargo.lock') }}
+          ~/.cargo/.crates.toml
+          ~/.cargo/.crates2.json
+        key: check-license-${{ runner.os }}
 
     - name: Install cargo-about
       run: cargo install cargo-about
