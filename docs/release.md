@@ -73,7 +73,7 @@ Konflux build configuration and the application version.
 
     ```sh
     sed -i -e "/^RUST_VERSION / s/stable/${RUST_VERSION}/" \
-        Makefile
+        constants.mk
     ```
 
 1.  Run the following command to stop mintmaker from attempting to
@@ -104,7 +104,7 @@ Konflux build configuration and the application version.
 1. Ensure the Konflux and GitHub Actions builds succeed and the
 corresponding container images are pushed.
 
-## Handling path releases
+## Handling patch releases
 
 1. Merge any backport PRs you need into the desired release branch.
 1. Figure out the patch version to be released.
