@@ -78,6 +78,7 @@ jobs:
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
       image-name: ${{ steps.vars.outputs.image-name }}
+      rhacs-eng-image: ${{ steps.vars.outputs.rhacs-eng-image }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -89,6 +90,7 @@ jobs:
         cat << EOF >> "$GITHUB_OUTPUT"
         tag=$(make tag)
         image-name=$(make image-name)
+        rhacs-eng-image=$(FACT_REGISTRY="quay.io/rhacs-eng/fact" make image-name)
         EOF
 
   container:
@@ -120,6 +122,19 @@ jobs:
 
     - run: docker push "$(make image-name)"
 
+    - name: Login to quay.io/rhacs-eng
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_RHACS_ENG_RW_USERNAME }}
+        password: ${{ secrets.QUAY_RHACS_ENG_RW_PASSWORD }}
+
+    - name: Tag and push to rhacs-eng
+      run: |
+        RHACS_ENG_IMAGE="$(FACT_REGISTRY="quay.io/rhacs-eng/fact" make image-name)"
+        docker tag "$(make image-name)" "${RHACS_ENG_IMAGE}"
+        docker push "${RHACS_ENG_IMAGE}"
+
   manifest:
     runs-on: ubuntu-24.04
     needs:
@@ -143,6 +158,17 @@ jobs:
       - uses: ./collector/.github/actions/create-multiarch-manifest
         with:
           base-image: ${{ needs.vars.outputs.image-name }}
+          archs: ${{ env.ARCHS }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_RHACS_ENG_RW_USERNAME }}
+          password: ${{ secrets.QUAY_RHACS_ENG_RW_PASSWORD }}
+
+      - uses: ./collector/.github/actions/create-multiarch-manifest
+        with:
+          base-image: ${{ needs.vars.outputs.rhacs-eng-image }}
           archs: ${{ env.ARCHS }}
 
   unit-tests:
