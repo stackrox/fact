@@ -1,24 +1,39 @@
-FROM registry.access.redhat.com/ubi9/ubi@sha256:2c9bb68a869abf7d7417f6639509ab5eb8500d8429ea11ab59e677be5545162b AS builder
+FROM registry.access.redhat.com/ubi8/ubi@sha256:a7e3d45d7ab598aefed9e2691ad9c368bb6b2db06f4cd4473d32eabfd0078519 AS builder
 
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 
 RUN dnf install -y \
         clang \
-        libbpf-devel \
+        make \
+        elfutils-libelf-devel \
+        zlib-devel \
         openssl-devel \
-        protobuf-compiler \
+        protobuf \
         protobuf-devel \
+        protobuf-compiler \
         cargo \
         rust
 
 WORKDIR /app
 
+# Build vendored dependencies
+COPY builder/install builder/install
+COPY builder/third_party builder/third_party
+
+RUN builder/install/install-dependencies.sh
+RUN echo -e '/usr/local/lib\n/usr/local/lib64' > /etc/ld.so.conf.d/usrlocallib.conf && ldconfig
+
+# Set up environment to use vendored libbpf
+ENV PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+ENV LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:$LD_LIBRARY_PATH
+ENV C_INCLUDE_PATH=/usr/local/include:$C_INCLUDE_PATH
+
 COPY . .
 
 RUN cargo build --release
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:6fc28bcb6776e387d7a35a2056d9d2b985dc4e26031e98a2bd35a7137cd6fd71
+FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:fba1e7fb1f50cd7b021c8379f207fb744b00ff55c7f539f15b40709a38cb4cde
 
 ARG FACT_TAG
 
