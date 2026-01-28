@@ -86,10 +86,10 @@
       "automergeSchedule": [
         "at any time",
       ],
-      "platformAutomerge": true,
-    },
+    }
   ],
   "labels": [
+    // Add auto-approve label which triggers the corresponding workflow.
     "auto-approve",
   ],
 }
