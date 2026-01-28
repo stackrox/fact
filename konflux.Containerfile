@@ -6,7 +6,7 @@ RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 RUN dnf install -y \
         clang \
         make \
-        elfutils-libs \
+        elfutils-libelf-devel \
         zlib-devel \
         openssl-devel \
         protobuf \
