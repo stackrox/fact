@@ -2,3 +2,7 @@
 	path = third_party/stackrox
 	url = https://github.com/stackrox/stackrox
 	branch = master
+[submodule "third_party/libbpf"]
+	path = third_party/libbpf
+	url = https://github.com/libbpf/libbpf
+	branch = libbpf-1.5.1

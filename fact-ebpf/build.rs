@@ -7,6 +7,11 @@ use std::{
 
 fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
     let target_arch = format!("-D__TARGET_ARCH_{}", env::var("CARGO_CFG_TARGET_ARCH")?);
+
+    // Get path to vendored libbpf headers
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").context("CARGO_MANIFEST_DIR not set")?;
+    let libbpf_include = format!("-I{}/../../third_party/libbpf/src", manifest_dir);
+
     let base_args = [
         "-target",
         "bpf",
@@ -16,6 +21,7 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
         "-Wall",
         "-Werror",
         &target_arch,
+        &libbpf_include,
     ];
 
     for name in ["main", "checks"] {
