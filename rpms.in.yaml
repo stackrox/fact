@@ -4,11 +4,12 @@
 packages:
 - cargo
 - clang
-- libbpf-devel
+- make
+- elfutils-libs
+- zlib-devel
 - openssl-libs
 - openssl-devel
 - protobuf-compiler
-- protobuf-devel
 - rust
 contentOrigin:
   repofiles: ["rpms.rhel.repo"]

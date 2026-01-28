@@ -5,14 +5,27 @@ RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 
 RUN dnf install -y \
         clang \
-        libbpf-devel \
+        make \
+        elfutils-libs \
+        zlib-devel \
         openssl-devel \
         protobuf-compiler \
-        protobuf-devel \
         cargo \
         rust
 
 WORKDIR /app
+
+# Build vendored dependencies
+COPY builder/install builder/install
+COPY builder/third_party builder/third_party
+
+RUN builder/install/install-dependencies.sh
+RUN echo -e '/usr/local/lib\n/usr/local/lib64' > /etc/ld.so.conf.d/usrlocallib.conf && ldconfig
+
+# Set up environment to use vendored libbpf
+ENV PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+ENV LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:$LD_LIBRARY_PATH
+ENV C_INCLUDE_PATH=/usr/local/include:$C_INCLUDE_PATH
 
 COPY . .
 
