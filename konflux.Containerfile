@@ -9,6 +9,8 @@ RUN dnf install -y \
         elfutils-libs \
         zlib-devel \
         openssl-devel \
+        protobuf \
+        protobuf-devel \
         protobuf-compiler \
         cargo \
         rust

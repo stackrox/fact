@@ -9,6 +9,7 @@ RUN dnf install --enablerepo=crb -y \
         zlib-devel \
         openssl-devel \
         protobuf \
+        protobuf-devel \
         protobuf-compiler && \
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
             sh -s -- -y --default-toolchain $RUST_VERSION --profile minimal

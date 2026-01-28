@@ -9,6 +9,8 @@ packages:
 - zlib-devel
 - openssl-libs
 - openssl-devel
+- protobuf
+- protobuf-devel
 - protobuf-compiler
 - rust
 contentOrigin:
