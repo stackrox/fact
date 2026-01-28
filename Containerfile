@@ -36,4 +36,6 @@ RUN microdnf install -y openssl-libs && \
 
 COPY --from=build /app/fact /usr/local/bin
 
+COPY LICENSE-APACHE LICENSE-MIT LICENSE-GPL2 /licenses/
+
 ENTRYPOINT ["fact"]
