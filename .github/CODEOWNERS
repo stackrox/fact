@@ -10,4 +10,5 @@
 **/konflux.*Containerfile  @stackrox/konflux-maintainers-no-email @stackrox/release-mgmt-no-email @rhacs-bot
 /.tekton/                  @stackrox/konflux-maintainers-no-email @stackrox/release-mgmt-no-email @rhacs-bot
 rpms.*                     @stackrox/konflux-maintainers-no-email @stackrox/release-mgmt-no-email @rhacs-bot
+Cargo.*                    @stackrox/konflux-maintainers-no-email @stackrox/release-mgmt-no-email @rhacs-bot @stackrox/collector-team
 .github/renovate.json5     @stackrox/konflux-maintainers
