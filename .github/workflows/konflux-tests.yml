@@ -28,7 +28,7 @@ jobs:
 
       - id: generate-tag
         run: |
-          echo "fact-tag=$(make tag)" >> "$GITHUB_OUTPUT"
+          echo "fact-tag=$(make tag)-fast" >> "$GITHUB_OUTPUT"
 
   wait-for-images:
     runs-on: ubuntu-24.04
@@ -38,7 +38,7 @@ jobs:
       - uses: stackrox/actions/release/wait-for-image@v1
         with:
           token: ${{ secrets.QUAY_RHACS_ENG_BEARER_TOKEN }}
-          image: rhacs-eng/fact:${{ needs.init.outputs.fact-tag }}
+          image: rhacs-eng/release-fact:${{ needs.init.outputs.fact-tag }}
           limit: 2400 # 40m
 
   run-konflux-tests:
@@ -48,7 +48,7 @@ jobs:
     - wait-for-images
     with:
       version: ${{ github.head_ref || github.ref_name }}
-      registry: quay.io/rhacs-eng/fact
+      registry: quay.io/rhacs-eng/release-fact
       tag: ${{ needs.init.outputs.fact-tag }}
       job-tag: konf
     secrets: inherit
