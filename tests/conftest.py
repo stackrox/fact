@@ -11,6 +11,12 @@ import yaml
 from server import FileActivityService
 
 
+# Declare files holding fixtures
+pytest_plugins = [
+    'test_editors.commons'
+]
+
+
 @pytest.fixture
 def monitored_dir():
     """
@@ -149,7 +155,7 @@ def test_container(request, docker_client, monitored_dir, ignored_dir):
     container.remove()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def fact(request, docker_client, fact_config, server, logs_dir, test_file):
     """
     Run the fact docker container for integration tests.
