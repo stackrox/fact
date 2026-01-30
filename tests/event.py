@@ -104,6 +104,21 @@ class Process:
                        container_id=container_id,
                        loginuid=loginuid)
 
+    @classmethod
+    def in_container(cls,
+                     exe_path: str,
+                     args: str,
+                     name: str,
+                     container_id: str):
+        return Process(pid=None,
+                       uid=0,
+                       gid=0,
+                       loginuid=pow(2, 32)-1,
+                       exe_path=exe_path,
+                       args=args,
+                       name=name,
+                       container_id=container_id)
+
     @property
     def uid(self) -> int:
         return self._uid
