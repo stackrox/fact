@@ -1,4 +1,5 @@
 import os
+from re import Pattern
 import string
 from enum import Enum
 from typing import Any, override
@@ -176,6 +177,13 @@ class Process:
                 f'loginuid={self.loginuid})')
 
 
+def cmp_path(p1: str | Pattern[str], p2: str) -> bool:
+    if isinstance(p1, Pattern):
+        return bool(p1.match(p2))
+    else:
+        return p1 == p2
+
+
 class Event:
     """
     Represents a file activity event, associating a process with an
@@ -185,15 +193,15 @@ class Event:
     def __init__(self,
                  process: Process,
                  event_type: EventType,
-                 file: str,
-                 host_path: str = '',
+                 file: str | Pattern[str],
+                 host_path: str | Pattern[str] = '',
                  mode: int | None = None,
                  owner_uid: int | None = None,
                  owner_gid: int | None = None,):
         self._type: EventType = event_type
         self._process: Process = process
-        self._file: str = file
-        self._host_path: str = host_path
+        self._file: str | Pattern[str] = file
+        self._host_path: str | Pattern[str] = host_path
         self._mode: int | None = mode
         self._owner_uid: int | None = owner_uid
         self._owner_gid: int | None = owner_gid
@@ -207,11 +215,11 @@ class Event:
         return self._process
 
     @property
-    def file(self) -> str:
+    def file(self) -> str | Pattern[str]:
         return self._file
 
     @property
-    def host_path(self) -> str:
+    def host_path(self) -> str | Pattern[str]:
         return self._host_path
 
     @property
@@ -233,21 +241,21 @@ class Event:
                 return False
 
             if self.event_type == EventType.CREATION:
-                return self.file == other.creation.activity.path and \
-                    self.host_path == other.creation.activity.host_path
+                return cmp_path(self.file, other.creation.activity.path) and \
+                    cmp_path(self.host_path, other.creation.activity.host_path)
             elif self.event_type == EventType.OPEN:
-                return self.file == other.open.activity.path and \
-                    self.host_path == other.open.activity.host_path
+                return cmp_path(self.file, other.open.activity.path) and \
+                    cmp_path(self.host_path, other.open.activity.host_path)
             elif self.event_type == EventType.UNLINK:
-                return self.file == other.unlink.activity.path and \
-                    self.host_path == other.unlink.activity.host_path
+                return cmp_path(self.file, other.unlink.activity.path) and \
+                    cmp_path(self.host_path, other.unlink.activity.host_path)
             elif self.event_type == EventType.PERMISSION:
-                return self.file == other.permission.activity.path and \
-                    self.host_path == other.permission.activity.host_path and \
+                return cmp_path(self.file, other.permission.activity.path) and \
+                    cmp_path(self.host_path, other.permission.activity.host_path) and \
                     self.mode == other.permission.mode
             elif self.event_type == EventType.OWNERSHIP:
-                return self.file == other.ownership.activity.path and \
-                    self.host_path == other.ownership.activity.host_path and \
+                return cmp_path(self.file, other.ownership.activity.path) and \
+                    cmp_path(self.host_path, other.ownership.activity.host_path) and \
                     self.owner_uid == other.ownership.uid and \
                     self.owner_gid == other.ownership.gid
             return False
