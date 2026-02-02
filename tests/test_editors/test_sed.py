@@ -34,9 +34,6 @@ def test_sed(vi_container, server):
               file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events, strict=True)
 
 
@@ -75,8 +72,5 @@ def test_sed_ovfs(vi_container, server):
         Event(process=sed, event_type=EventType.OWNERSHIP,
               file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),
     ]
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events, strict=True)

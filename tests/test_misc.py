@@ -62,6 +62,5 @@ def test_d_path_sanitization(fact, monitored_dir, server, run_self_deleter, dock
                       loginuid=pow(2, 32)-1)
     event = Event(process=process, event_type=EventType.OPEN,
                   file=fut, host_path=host_path)
-    print(f'Waiting for event: {event}')
 
     server.wait_events([event])

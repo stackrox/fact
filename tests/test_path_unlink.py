@@ -85,7 +85,6 @@ def test_ignored(fact, test_file, ignored_dir, server):
 
     e = Event(process=process, event_type=EventType.UNLINK,
               file=test_file, host_path=test_file)
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
 
@@ -118,7 +117,6 @@ def test_external_process(fact, monitored_dir, server):
 
     removal = Event(process=process, event_type=EventType.UNLINK,
                     file=fut, host_path='')
-    print(f'Waiting for event: {removal}')
 
     try:
         server.wait_events([removal])
@@ -161,9 +159,6 @@ def test_overlay(fact, test_container, server):
               file=fut, host_path=''),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events)
 
 
@@ -199,9 +194,6 @@ def test_mounted_dir(fact, test_container, ignored_dir, server):
               host_path=''),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events)
 
 
@@ -222,6 +214,5 @@ def test_unmonitored_mounted_dir(fact, test_container, test_file, server):
                       loginuid=pow(2, 32)-1)
     event = Event(process=process, event_type=EventType.UNLINK,
                   file=fut, host_path=test_file)
-    print(f'Waiting for event: {event}')
 
     server.wait_events([event])

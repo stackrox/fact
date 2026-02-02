@@ -20,9 +20,6 @@ def test_new_file(editor_container, server):
               file=fut, host_path=''),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events, strict=True)
 
 
@@ -67,9 +64,6 @@ def test_open_file(editor_container, server):
               file=f'{fut}~', host_path=''),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events, strict=True)
 
 
@@ -91,9 +85,6 @@ def test_new_file_ovfs(editor_container, server):
         Event(process=process, event_type=EventType.OPEN,
               file=fut, host_path=''),
     ]
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events, strict=True)
 
@@ -144,8 +135,5 @@ def test_open_file_ovfs(editor_container, server):
         Event(process=nvim, event_type=EventType.UNLINK,
               file=f'{fut}~', host_path=''),
     ]
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events, strict=True)
