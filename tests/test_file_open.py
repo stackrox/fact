@@ -15,13 +15,12 @@ from event import Event, EventType, Process
     pytest.param('🚀rocket.txt', id='Emoji'),
     pytest.param(b'test\xff\xfe.txt', id='Invalid'),
 ])
-def test_open(fact, monitored_dir, server, filename):
+def test_open(monitored_dir, server, filename):
     """
     Tests the opening of a file and verifies that the corresponding
     event is captured by the server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
         filename: Name of the file to create (includes UTF-8 test cases).
@@ -41,13 +40,12 @@ def test_open(fact, monitored_dir, server, filename):
     server.wait_events([e])
 
 
-def test_multiple(fact, monitored_dir, server):
+def test_multiple(monitored_dir, server):
     """
     Tests the opening of multiple files and verifies that the
     corresponding events are captured by the server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
         filenames: List of filenames to create (includes UTF-8 test cases).
@@ -66,13 +64,12 @@ def test_multiple(fact, monitored_dir, server):
     server.wait_events(events)
 
 
-def test_multiple_access(fact, test_file, server):
+def test_multiple_access(test_file, server):
     """
     Tests multiple opening of a file and verifies that the
     corresponding events are captured by the server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
     """
@@ -87,13 +84,12 @@ def test_multiple_access(fact, test_file, server):
     server.wait_events(events)
 
 
-def test_ignored(fact, test_file, ignored_dir, server):
+def test_ignored(test_file, ignored_dir, server):
     """
     Tests that open events on ignored files are not captured by the
     server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_file: Temporary file for testing.
         ignored_dir: Temporary directory path that is not monitored by fact.
         server: The server instance to communicate with.
@@ -129,13 +125,12 @@ def do_test(fut: str, stop_event: mp.Event):
     stop_event.wait()
 
 
-def test_external_process(fact, monitored_dir, server):
+def test_external_process(monitored_dir, server):
     """
     Tests the opening of a file by an external process and verifies that
     the corresponding event is captured by the server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
     """
@@ -159,7 +154,7 @@ def test_external_process(fact, monitored_dir, server):
         proc.join(1)
 
 
-def test_overlay(fact, test_container, server):
+def test_overlay(test_container, server):
     # File Under Test
     fut = '/container-dir/test.txt'
 
@@ -184,7 +179,7 @@ def test_overlay(fact, test_container, server):
     server.wait_events(events)
 
 
-def test_mounted_dir(fact, test_container, ignored_dir, server):
+def test_mounted_dir(test_container, ignored_dir, server):
     # File Under Test
     fut = '/mounted/test.txt'
 
@@ -205,7 +200,7 @@ def test_mounted_dir(fact, test_container, ignored_dir, server):
     server.wait_events([event])
 
 
-def test_unmonitored_mounted_dir(fact, test_container, test_file, server):
+def test_unmonitored_mounted_dir(test_container, test_file, server):
     # File Under Test
     fut = '/unmonitored/test.txt'
 

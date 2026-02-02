@@ -15,13 +15,12 @@ from event import Event, EventType, Process
     '🔒secure.txt',
     b'perm\xff\xfe.txt',
 ])
-def test_chmod(fact, monitored_dir, server, filename):
+def test_chmod(monitored_dir, server, filename):
     """
     Tests changing permissions on a file and verifies the corresponding
     event is captured by the server
 
     Args:
-        fact: Fixture for file activity (only required to be runing).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
         filename: Name of the file to create (includes UTF-8 test cases).
@@ -50,12 +49,11 @@ def test_chmod(fact, monitored_dir, server, filename):
     server.wait_events(events)
 
 
-def test_multiple(fact, monitored_dir, server):
+def test_multiple(monitored_dir, server):
     """
     Tests modifying permissions on multiple files.
 
     Args:
-        fact: Fixture for file activity (only required to be runing).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
     """
@@ -79,12 +77,11 @@ def test_multiple(fact, monitored_dir, server):
     server.wait_events(events)
 
 
-def test_ignored(fact, test_file, ignored_dir, server):
+def test_ignored(test_file, ignored_dir, server):
     """
     Tests that permission events on ignored files are not captured.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_file: File monitored on the host, mounted to the container.
         ignored_dir: Temporary directory path that is not monitored by fact.
         server: The server instance to communicate with.
@@ -120,13 +117,12 @@ def do_test(fut: str, mode: int, stop_event: mp.Event):
     stop_event.wait()
 
 
-def test_external_process(fact, monitored_dir, server):
+def test_external_process(monitored_dir, server):
     """
     Tests permission change of a file by an external process and
     verifies that the corresponding event is captured by the server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
     """
@@ -148,12 +144,11 @@ def test_external_process(fact, monitored_dir, server):
         proc.join(1)
 
 
-def test_overlay(fact, test_container, server):
+def test_overlay(test_container, server):
     """
     Test permission changes on an overlayfs file (inside a container)
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
@@ -194,12 +189,11 @@ def test_overlay(fact, test_container, server):
     server.wait_events(events)
 
 
-def test_mounted_dir(fact, test_container, ignored_dir, server):
+def test_mounted_dir(test_container, ignored_dir, server):
     """
     Test permission changes on a file bind mounted into a container
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         ignored_dir: This directory is ignored on the host, and mounted to the container.
         server: The server instance to communicate with.
@@ -239,13 +233,12 @@ def test_mounted_dir(fact, test_container, ignored_dir, server):
     server.wait_events(events)
 
 
-def test_unmonitored_mounted_dir(fact, test_container, test_file, server):
+def test_unmonitored_mounted_dir(test_container, test_file, server):
     """
     Test permission changes on a file bind mounted to a container and
     monitored on the host.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         test_file: File monitored on the host, mounted to the container.
         server: The server instance to communicate with.

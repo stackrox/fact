@@ -40,7 +40,7 @@ def run_self_deleter(fact, monitored_dir, logs_dir, docker_client, build_self_de
     container.remove()
 
 
-def test_d_path_sanitization(fact, monitored_dir, server, run_self_deleter, docker_client):
+def test_d_path_sanitization(monitored_dir, server, run_self_deleter, docker_client):
     """
     Ensure the sanitization of paths obtained by calling the bpf_d_path
     helper don't include the " (deleted)" suffix when the file is
