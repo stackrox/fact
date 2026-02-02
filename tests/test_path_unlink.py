@@ -99,17 +99,13 @@ def test_ignored(test_file, ignored_dir, server):
         f.write('This is to be ignored')
     os.remove(ignored_file)
 
-    ignored_event = Event(process=process, event_type=EventType.UNLINK,
-                          file=ignored_file, host_path='')
-    print(f'Ignoring: {ignored_event}')
-
     # File Under Test
     os.remove(test_file)
 
     e = Event(process=process, event_type=EventType.UNLINK,
               file=test_file, host_path=test_file)
 
-    server.wait_events([e], ignored=[ignored_event])
+    server.wait_events([e])
 
 
 def do_test(fut: str, stop_event: mp.Event):
@@ -137,11 +133,15 @@ def test_external_process(monitored_dir, server):
     proc.start()
     process = Process.from_proc(proc.pid)
 
-    removal = Event(process=process, event_type=EventType.UNLINK,
-                    file=fut, host_path='')
+    events = [
+        Event(process=process, event_type=EventType.CREATION,
+              file=fut, host_path=''),
+        Event(process=process, event_type=EventType.UNLINK,
+              file=fut, host_path=''),
+    ]
 
     try:
-        server.wait_events([removal])
+        server.wait_events(events)
     finally:
         stop_event.set()
         proc.join(1)
@@ -155,23 +155,18 @@ def test_overlay(test_container, server):
     test_container.exec_run(f'touch {fut}')
     test_container.exec_run(f'rm {fut}')
 
-    loginuid = pow(2, 32)-1
-    touch = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/touch',
-                    args=f'touch {fut}',
-                    name='touch',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-    rm = Process(pid=None,
-                 uid=0,
-                 gid=0,
-                 exe_path='/usr/bin/rm',
-                 args=f'rm {fut}',
-                 name='rm',
-                 container_id=test_container.id[:12],
-                 loginuid=loginuid)
+    touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=f'touch {fut}',
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    rm = Process.in_container(
+        exe_path='/usr/bin/rm',
+        args=f'rm {fut}',
+        name='rm',
+        container_id=test_container.id[:12],
+    )
     events = [
         Event(process=touch, event_type=EventType.CREATION,
               file=fut, host_path=''),
@@ -192,23 +187,18 @@ def test_mounted_dir(test_container, ignored_dir, server):
     test_container.exec_run(f'touch {fut}')
     test_container.exec_run(f'rm {fut}')
 
-    loginuid = pow(2, 32)-1
-    touch = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/touch',
-                    args=f'touch {fut}',
-                    name='touch',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-    rm = Process(pid=None,
-                 uid=0,
-                 gid=0,
-                 exe_path='/usr/bin/rm',
-                 args=f'rm {fut}',
-                 name='rm',
-                 container_id=test_container.id[:12],
-                 loginuid=loginuid)
+    touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=f'touch {fut}',
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    rm = Process.in_container(
+        exe_path='/usr/bin/rm',
+        args=f'rm {fut}',
+        name='rm',
+        container_id=test_container.id[:12],
+    )
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),
@@ -226,14 +216,12 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
     # Create the exec and an equivalent event that it will trigger
     test_container.exec_run(f'rm {fut}')
 
-    process = Process(pid=None,
-                      uid=0,
-                      gid=0,
-                      exe_path='/usr/bin/rm',
-                      args=f'rm {fut}',
-                      name='rm',
-                      container_id=test_container.id[:12],
-                      loginuid=pow(2, 32)-1)
+    process = Process.in_container(
+        exe_path='/usr/bin/rm',
+        args=f'rm {fut}',
+        name='rm',
+        container_id=test_container.id[:12],
+    )
     event = Event(process=process, event_type=EventType.UNLINK,
                   file=fut, host_path=test_file)
 

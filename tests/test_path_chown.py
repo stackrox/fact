@@ -46,25 +46,22 @@ def test_chown(test_container, server, filename):
     touch_cmd = f'touch {fut}'
     chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut}'
 
-    loginuid = pow(2, 32) - 1
-    touch = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/touch',
-                    args=touch_cmd,
-                    name='touch',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-    chown = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/chown',
-                    args=chown_cmd,
-                    name='chown',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
+    touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=touch_cmd,
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    chown = Process.in_container(
+        exe_path='/usr/bin/chown',
+        args=chown_cmd,
+        name='chown',
+        container_id=test_container.id[:12],
+    )
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
+              host_path=''),
+        Event(process=touch, event_type=EventType.OPEN, file=fut,
               host_path=''),
         Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
               host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
@@ -83,7 +80,6 @@ def test_multiple(test_container, server):
         server: The server instance to communicate with.
     """
     events = []
-    loginuid = pow(2, 32) - 1
 
     # File Under Test
     for i in range(3):
@@ -93,25 +89,23 @@ def test_multiple(test_container, server):
         test_container.exec_run(touch_cmd)
         test_container.exec_run(chown_cmd)
 
-        touch = Process(pid=None,
-                        uid=0,
-                        gid=0,
-                        exe_path='/usr/bin/touch',
-                        args=touch_cmd,
-                        name='touch',
-                        container_id=test_container.id[:12],
-                        loginuid=loginuid)
-        chown = Process(pid=None,
-                        uid=0,
-                        gid=0,
-                        exe_path='/usr/bin/chown',
-                        args=chown_cmd,
-                        name='chown',
-                        container_id=test_container.id[:12],
-                        loginuid=loginuid)
+        touch = Process.in_container(
+            exe_path='/usr/bin/touch',
+            args=touch_cmd,
+            name='touch',
+            container_id=test_container.id[:12],
+        )
+        chown = Process.in_container(
+            exe_path='/usr/bin/chown',
+            args=chown_cmd,
+            name='chown',
+            container_id=test_container.id[:12],
+        )
 
         events.extend([
             Event(process=touch, event_type=EventType.CREATION, file=fut,
+                  host_path=''),
+            Event(process=touch, event_type=EventType.OPEN, file=fut,
                   host_path=''),
             Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
                   host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
@@ -129,8 +123,6 @@ def test_ignored(test_container, server):
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
-    loginuid = pow(2, 32) - 1
-
     ignored_file = '/test.txt'
     monitored_file = '/container-dir/test.txt'
 
@@ -144,67 +136,28 @@ def test_ignored(test_container, server):
     test_container.exec_run(monitored_touch_cmd)
     test_container.exec_run(monitored_chown_cmd)
 
-    ignored_touch = Process(pid=None,
-                            uid=0,
-                            gid=0,
-                            exe_path='/usr/bin/touch',
-                            args=ignored_touch_cmd,
-                            name='touch',
-                            container_id=test_container.id[:12],
-                            loginuid=loginuid)
-    ignored_chown = Process(pid=None,
-                            uid=0,
-                            gid=0,
-                            exe_path='/usr/bin/chown',
-                            args=ignored_chown_cmd,
-                            name='chown',
-                            container_id=test_container.id[:12],
-                            loginuid=loginuid)
-    reported_touch = Process(pid=None,
-                             uid=0,
-                             gid=0,
-                             exe_path='/usr/bin/touch',
-                             args=monitored_touch_cmd,
-                             name='touch',
-                             container_id=test_container.id[:12],
-                             loginuid=loginuid)
-    reported_chown = Process(pid=None,
-                             uid=0,
-                             gid=0,
-                             exe_path='/usr/bin/chown',
-                             args=monitored_chown_cmd,
-                             name='chown',
-                             container_id=test_container.id[:12],
-                             loginuid=loginuid)
-    ignored_events = [
-        Event(process=ignored_touch,
-              event_type=EventType.CREATION,
-              file=ignored_file,
-              host_path=''),
-        Event(process=ignored_chown,
-              event_type=EventType.OWNERSHIP,
-              file=ignored_file,
-              host_path='',
-              owner_uid=TEST_UID,
-              owner_gid=TEST_GID),
-    ]
-    expected_events = [
-        Event(process=reported_touch,
-              event_type=EventType.CREATION,
-              file=monitored_file,
-              host_path=''),
-        Event(process=reported_chown,
-              event_type=EventType.OWNERSHIP,
-              file=monitored_file,
-              host_path='',
-              owner_uid=TEST_UID,
-              owner_gid=TEST_GID),
+    reported_touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=monitored_touch_cmd,
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    reported_chown = Process.in_container(
+        exe_path='/usr/bin/chown',
+        args=monitored_chown_cmd,
+        name='chown',
+        container_id=test_container.id[:12],
+    )
+    events = [
+        Event(process=reported_touch, event_type=EventType.CREATION,
+              file=monitored_file, host_path=''),
+        Event(process=reported_touch, event_type=EventType.OPEN,
+              file=monitored_file, host_path=''),
+        Event(process=reported_chown, event_type=EventType.OWNERSHIP,
+              file=monitored_file, host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
     ]
 
-    for e in ignored_events:
-        print(f'Events that should be ignored: {e}')
-
-    server.wait_events(events=expected_events, ignored=ignored_events)
+    server.wait_events(events=events)
 
 
 def test_no_change(test_container, server):
@@ -230,40 +183,29 @@ def test_no_change(test_container, server):
     # Second chown to the same UID/GID - this should ALSO trigger an event
     test_container.exec_run(chown_cmd)
 
-    loginuid = pow(2, 32) - 1
-    touch = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/touch',
-                    args=touch_cmd,
-                    name='touch',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-    chown = [
-        Process(pid=None,
-                uid=0,
-                gid=0,
-                exe_path='/usr/bin/chown',
-                args=chown_cmd,
-                name='chown',
-                container_id=test_container.id[:12],
-                loginuid=loginuid),
-        Process(pid=None,
-                uid=0,
-                gid=0,
-                exe_path='/usr/bin/chown',
-                args=chown_cmd,
-                name='chown',
-                container_id=test_container.id[:12],
-                loginuid=loginuid)
-    ]
+    touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=touch_cmd,
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    chown = Process.in_container(
+        exe_path='/usr/bin/chown',
+        args=chown_cmd,
+        name='chown',
+        container_id=test_container.id[:12],
+    )
+    chown_event = Event(process=chown, event_type=EventType.OWNERSHIP,
+                        file=fut, host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID)
 
     # Expect both chown events (all calls to chown trigger events)
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),
-        *(Event(process=p, event_type=EventType.OWNERSHIP, file=fut,
-                host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID) for p in chown),
+        Event(process=touch, event_type=EventType.OPEN, file=fut,
+              host_path=''),
+        chown_event,
+        chown_event,
     ]
 
     server.wait_events(events)

@@ -95,17 +95,13 @@ def test_ignored(test_file, ignored_dir, server):
         f.write('This is to be ignored')
     os.chmod(ignored_file, mode)
 
-    ignored_event = Event(process=process, event_type=EventType.PERMISSION,
-                          file=ignored_file, host_path='', mode=mode)
-    print(f'Ignoring: {ignored_event}')
-
     # File Under Test
     os.chmod(test_file, mode)
 
     e = Event(process=process, event_type=EventType.PERMISSION,
               file=test_file, host_path=test_file, mode=mode)
 
-    server.wait_events([e], ignored=[ignored_event])
+    server.wait_events([e])
 
 
 def do_test(fut: str, mode: int, stop_event: mp.Event):
@@ -134,11 +130,15 @@ def test_external_process(monitored_dir, server):
     proc.start()
     process = Process.from_proc(proc.pid)
 
-    event = Event(process=process, event_type=EventType.PERMISSION,
-                  file=fut, host_path='', mode=mode)
+    events = [
+        Event(process=process, event_type=EventType.CREATION,
+              file=fut, host_path='', mode=mode),
+        Event(process=process, event_type=EventType.PERMISSION,
+              file=fut, host_path='', mode=mode),
+    ]
 
     try:
-        server.wait_events([event])
+        server.wait_events(events)
     finally:
         stop_event.set()
         proc.join(1)
@@ -160,23 +160,18 @@ def test_overlay(test_container, server):
     test_container.exec_run(f'touch {fut}')
     test_container.exec_run(f'chmod {mode} {fut}')
 
-    loginuid = pow(2, 32)-1
-    touch = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/touch',
-                    args=f'touch {fut}',
-                    name='touch',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-    chmod = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/chmod',
-                    args=f'chmod {mode} {fut}',
-                    name='chmod',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
+    touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=f'touch {fut}',
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    chmod = Process.in_container(
+        exe_path='/usr/bin/chmod',
+        args=f'chmod {mode} {fut}',
+        name='chmod',
+        container_id=test_container.id[:12],
+    )
     events = [
         Event(process=touch, event_type=EventType.CREATION,
               file=fut, host_path=''),
@@ -206,23 +201,18 @@ def test_mounted_dir(test_container, ignored_dir, server):
     test_container.exec_run(f'touch {fut}')
     test_container.exec_run(f'chmod {mode} {fut}')
 
-    loginuid = pow(2, 32)-1
-    touch = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/touch',
-                    args=f'touch {fut}',
-                    name='touch',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
-    chmod = Process(pid=None,
-                    uid=0,
-                    gid=0,
-                    exe_path='/usr/bin/chmod',
-                    args=f'chmod {mode} {fut}',
-                    name='chmod',
-                    container_id=test_container.id[:12],
-                    loginuid=loginuid)
+    touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=f'touch {fut}',
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    chmod = Process.in_container(
+        exe_path='/usr/bin/chmod',
+        args=f'chmod {mode} {fut}',
+        name='chmod',
+        container_id=test_container.id[:12],
+    )
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),
@@ -252,14 +242,12 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
     # Create the exec and an equivalent event that it will trigger
     test_container.exec_run(f'chmod {mode} {fut}')
 
-    process = Process(pid=None,
-                      uid=0,
-                      gid=0,
-                      exe_path='/usr/bin/chmod',
-                      args=f'chmod {mode} {fut}',
-                      name='chmod',
-                      container_id=test_container.id[:12],
-                      loginuid=pow(2, 32)-1)
+    process = Process.in_container(
+        exe_path='/usr/bin/chmod',
+        args=f'chmod {mode} {fut}',
+        name='chmod',
+        container_id=test_container.id[:12],
+    )
     event = Event(process=process, event_type=EventType.PERMISSION,
                   file=fut, host_path=test_file, mode=int(mode, 8))
 

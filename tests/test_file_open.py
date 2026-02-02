@@ -101,10 +101,6 @@ def test_ignored(test_file, ignored_dir, server):
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
 
-    ignored_event = Event(process=p, event_type=EventType.CREATION,
-                          file=ignored_file, host_path='')
-    print(f'Ignoring: {ignored_event}')
-
     # File Under Test
     with open(test_file, 'w') as f:
         f.write('This is a test')
@@ -112,7 +108,7 @@ def test_ignored(test_file, ignored_dir, server):
     e = Event(process=p, event_type=EventType.OPEN,
               file=test_file, host_path=test_file)
 
-    server.wait_events([e], ignored=[ignored_event])
+    server.wait_events([e])
 
 
 def do_test(fut: str, stop_event: mp.Event):
@@ -161,14 +157,12 @@ def test_overlay(test_container, server):
     # Create the exec and an equivalent event that it will trigger
     test_container.exec_run(f'touch {fut}')
 
-    process = Process(pid=None,
-                      uid=0,
-                      gid=0,
-                      exe_path='/usr/bin/touch',
-                      args=f'touch {fut}',
-                      name='touch',
-                      container_id=test_container.id[:12],
-                      loginuid=pow(2, 32)-1)
+    process = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=f'touch {fut}',
+        name='touch',
+        container_id=test_container.id[:12],
+    )
     events = [
         Event(process=process, event_type=EventType.CREATION,
               file=fut, host_path=''),
@@ -186,14 +180,12 @@ def test_mounted_dir(test_container, ignored_dir, server):
     # Create the exec and an equivalent event that it will trigger
     test_container.exec_run(f'touch {fut}')
 
-    process = Process(pid=None,
-                      uid=0,
-                      gid=0,
-                      exe_path='/usr/bin/touch',
-                      args=f'touch {fut}',
-                      name='touch',
-                      container_id=test_container.id[:12],
-                      loginuid=pow(2, 32)-1)
+    process = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=f'touch {fut}',
+        name='touch',
+        container_id=test_container.id[:12],
+    )
     event = Event(process=process, event_type=EventType.CREATION,
                   file=fut, host_path='')
 
@@ -207,14 +199,12 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
     # Create the exec and an equivalent event that it will trigger
     test_container.exec_run(f'touch {fut}')
 
-    process = Process(pid=None,
-                      uid=0,
-                      gid=0,
-                      exe_path='/usr/bin/touch',
-                      args=f'touch {fut}',
-                      name='touch',
-                      container_id=test_container.id[:12],
-                      loginuid=pow(2, 32)-1)
+    process = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=f'touch {fut}',
+        name='touch',
+        container_id=test_container.id[:12],
+    )
     event = Event(process=process, event_type=EventType.OPEN,
                   file=fut, host_path=test_file)
 

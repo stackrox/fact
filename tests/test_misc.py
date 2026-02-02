@@ -52,14 +52,12 @@ def test_d_path_sanitization(monitored_dir, server, run_self_deleter, docker_cli
 
     container = run_self_deleter
 
-    process = Process(pid=None,
-                      uid=0,
-                      gid=0,
-                      exe_path='/usr/local/bin/self-deleter',
-                      args=f'self-deleter {fut}',
-                      name='self-deleter',
-                      container_id=container.id[:12],
-                      loginuid=pow(2, 32)-1)
+    process = Process.in_container(
+        exe_path='/usr/local/bin/self-deleter',
+        args=f'self-deleter {fut}',
+        name='self-deleter',
+        container_id=container.id[:12],
+    )
     event = Event(process=process, event_type=EventType.OPEN,
                   file=fut, host_path=host_path)
 
