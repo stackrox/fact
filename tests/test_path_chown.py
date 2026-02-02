@@ -10,13 +10,12 @@ TEST_UID = 1234
 TEST_GID = 2345
 
 
-def test_chown(fact, test_container, server):
+def test_chown(test_container, server):
     """
     Execute a chown operation on a file and verifies the corresponding event is
     captured by the server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
@@ -56,13 +55,12 @@ def test_chown(fact, test_container, server):
     server.wait_events(events)
 
 
-def test_multiple(fact, test_container, server):
+def test_multiple(test_container, server):
     """
     Tests ownership operations on multiple files and verifies the corresponding
     events are captured by the server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
@@ -104,13 +102,12 @@ def test_multiple(fact, test_container, server):
     server.wait_events(events)
 
 
-def test_ignored(fact, test_container, server):
+def test_ignored(test_container, server):
     """
     Tests that ownership events on ignored files are not captured by the
     server.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
@@ -192,12 +189,11 @@ def test_ignored(fact, test_container, server):
     server.wait_events(events=expected_events, ignored=ignored_events)
 
 
-def test_no_change(fact, test_container, server):
+def test_no_change(test_container, server):
     """
     Tests that chown to the same UID/GID triggers events for all calls.
 
     Args:
-        fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
