@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import os
 
-import docker
 import pytest
 
 from conftest import join_path_with_filename, path_to_string
@@ -38,7 +37,6 @@ def test_open(fact, monitored_dir, server, filename):
 
     e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
               file=fut, host_path='')
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e])
 
@@ -62,10 +60,8 @@ def test_multiple(fact, monitored_dir, server):
         with open(fut, 'w') as f:
             f.write('This is a test')
 
-        e = Event(process=process, event_type=EventType.CREATION,
-                  file=fut, host_path='')
-        print(f'Waiting for event: {e}')
-        events.append(e)
+        events.append(
+            Event(process=process, event_type=EventType.CREATION, file=fut, host_path=''))
 
     server.wait_events(events)
 
@@ -85,10 +81,8 @@ def test_multiple_access(fact, test_file, server):
         with open(test_file, 'a+') as f:
             f.write('This is a test')
 
-        e = Event(process=Process.from_proc(), file=test_file,
-                  host_path=test_file, event_type=EventType.OPEN)
-        print(f'Waiting for event: {e}')
-        events.append(e)
+        events.append(Event(process=Process.from_proc(), file=test_file,
+                      host_path=test_file, event_type=EventType.OPEN))
 
     server.wait_events(events)
 
@@ -121,7 +115,6 @@ def test_ignored(fact, test_file, ignored_dir, server):
 
     e = Event(process=p, event_type=EventType.OPEN,
               file=test_file, host_path=test_file)
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
 
@@ -156,10 +149,8 @@ def test_external_process(fact, monitored_dir, server):
 
     creation = Event(process=p, event_type=EventType.CREATION,
                      file=fut, host_path='')
-    print(f'Waiting for event: {creation}')
     write_access = Event(
         process=p, event_type=EventType.OPEN, file=fut, host_path='')
-    print(f'Waiting for event: {write_access}')
 
     try:
         server.wait_events([creation, write_access])
@@ -190,9 +181,6 @@ def test_overlay(fact, test_container, server):
               file=fut, host_path='')
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events)
 
 
@@ -213,7 +201,6 @@ def test_mounted_dir(fact, test_container, ignored_dir, server):
                       loginuid=pow(2, 32)-1)
     event = Event(process=process, event_type=EventType.CREATION,
                   file=fut, host_path='')
-    print(f'Waiting for event: {event}')
 
     server.wait_events([event])
 
@@ -235,6 +222,5 @@ def test_unmonitored_mounted_dir(fact, test_container, test_file, server):
                       loginuid=pow(2, 32)-1)
     event = Event(process=process, event_type=EventType.OPEN,
                   file=fut, host_path=test_file)
-    print(f'Waiting for event: {event}')
 
     server.wait_events([event])

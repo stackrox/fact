@@ -47,9 +47,6 @@ def test_chmod(fact, monitored_dir, server, filename):
               file=fut, host_path='', mode=mode),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events)
 
 
@@ -110,7 +107,6 @@ def test_ignored(fact, test_file, ignored_dir, server):
 
     e = Event(process=process, event_type=EventType.PERMISSION,
               file=test_file, host_path=test_file, mode=mode)
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
 
@@ -144,7 +140,6 @@ def test_external_process(fact, monitored_dir, server):
 
     event = Event(process=process, event_type=EventType.PERMISSION,
                   file=fut, host_path='', mode=mode)
-    print(f'Waiting for event: {event}')
 
     try:
         server.wait_events([event])
@@ -196,9 +191,6 @@ def test_overlay(fact, test_container, server):
               file=fut, host_path='', mode=int(mode, 8)),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events)
 
 
@@ -244,9 +236,6 @@ def test_mounted_dir(fact, test_container, ignored_dir, server):
               host_path='', mode=int(mode, 8)),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events)
 
 
@@ -280,6 +269,5 @@ def test_unmonitored_mounted_dir(fact, test_container, test_file, server):
                       loginuid=pow(2, 32)-1)
     event = Event(process=process, event_type=EventType.PERMISSION,
                   file=fut, host_path=test_file, mode=int(mode, 8))
-    print(f'Waiting for event: {event}')
 
     server.wait_events([event])

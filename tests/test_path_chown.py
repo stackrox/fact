@@ -57,22 +57,19 @@ def test_chown(fact, test_container, server, filename):
                     container_id=test_container.id[:12],
                     loginuid=loginuid)
     chown = Process(pid=None,
-                   uid=0,
-                   gid=0,
-                   exe_path='/usr/bin/chown',
-                   args=chown_cmd,
-                   name='chown',
-                   container_id=test_container.id[:12],
-                   loginuid=loginuid)
+                    uid=0,
+                    gid=0,
+                    exe_path='/usr/bin/chown',
+                    args=chown_cmd,
+                    name='chown',
+                    container_id=test_container.id[:12],
+                    loginuid=loginuid)
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),
         Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
               host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
     ]
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events)
 
@@ -107,13 +104,13 @@ def test_multiple(fact, test_container, server):
                         container_id=test_container.id[:12],
                         loginuid=loginuid)
         chown = Process(pid=None,
-                       uid=0,
-                       gid=0,
-                       exe_path='/usr/bin/chown',
-                       args=chown_cmd,
-                       name='chown',
-                       container_id=test_container.id[:12],
-                       loginuid=loginuid)
+                        uid=0,
+                        gid=0,
+                        exe_path='/usr/bin/chown',
+                        args=chown_cmd,
+                        name='chown',
+                        container_id=test_container.id[:12],
+                        loginuid=loginuid)
 
         events.extend([
             Event(process=touch, event_type=EventType.CREATION, file=fut,
@@ -121,9 +118,6 @@ def test_multiple(fact, test_container, server):
             Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
                   host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
         ])
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events)
 
@@ -213,9 +207,6 @@ def test_ignored(fact, test_container, server):
     for e in ignored_events:
         print(f'Events that should be ignored: {e}')
 
-    for e in expected_events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events=expected_events, ignored=ignored_events)
 
 
@@ -270,17 +261,13 @@ def test_no_change(fact, test_container, server):
                 container_id=test_container.id[:12],
                 loginuid=loginuid)
     ]
-    
+
     # Expect both chown events (all calls to chown trigger events)
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),
         *(Event(process=p, event_type=EventType.OWNERSHIP, file=fut,
-         host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID) for p in chown),
+                host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID) for p in chown),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events)
-

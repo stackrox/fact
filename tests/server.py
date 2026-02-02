@@ -113,5 +113,6 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         Raises:
             TimeoutError: If the required events are not found in 5 seconds.
         """
+        print('Waiting for events:', *events, sep='\n')
         fs = self.executor.submit(self._wait_events, events, ignored, strict)
         fs.result(timeout=5)

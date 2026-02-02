@@ -100,7 +100,6 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
     process = Process.from_proc()
     e = Event(process=process, event_type=EventType.CREATION,
               file=fut, host_path='')
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e])
 
@@ -114,7 +113,6 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
 
     e = Event(process=process, event_type=EventType.OPEN,
               file=fut, host_path='')
-    print(f'Waiting for event on alternate server: {e}')
 
     alternate_server.wait_events([e])
 
@@ -138,7 +136,6 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
 
     e = Event(process=p, event_type=EventType.CREATION,
               file=fut, host_path='')
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
 
@@ -153,7 +150,6 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
 
     e = Event(process=p, event_type=EventType.OPEN,
               file=ignored_file, host_path='')
-    print(f'Waiting for event: {e}')
 
     # File Under Test
     with open(fut, 'w') as f:
@@ -185,7 +181,6 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
 
     e = Event(process=p, event_type=EventType.CREATION,
               file=fut, host_path='')
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e], ignored=[ignored_event])
 
@@ -205,6 +200,5 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
               file=ignored_file, host_path=''),
         Event(process=p, event_type=EventType.OPEN, file=fut, host_path='')
     ]
-    print(f'Waiting for events: {events}')
 
     server.wait_events(events)
