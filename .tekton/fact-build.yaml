@@ -13,8 +13,8 @@ metadata:
         event == "push" && target_branch.matches("^(main|release-.*|refs/tags/.*|konflux/.*)$")
       )
   labels:
-    appstudio.openshift.io/application: acs
-    appstudio.openshift.io/component: fact
+    appstudio.openshift.io/application: acs-4-10
+    appstudio.openshift.io/component: fact-4-10
     pipelines.appstudio.openshift.io/type: build
   name: fact-on-push
   namespace: rh-acs-tenant
@@ -50,7 +50,7 @@ spec:
   - name: extra-labels
     value:
     # X.Y in the cpe label must be adjusted for every version stream.
-    - "cpe=cpe:/a:redhat:advanced_cluster_security:X.Y::el8"
+    - "cpe=cpe:/a:redhat:advanced_cluster_security:4.10::el8"
 
   workspaces:
   - name: git-auth
@@ -58,7 +58,7 @@ spec:
       secretName: '{{ git_auth_secret }}'
 
   taskRunTemplate:
-    serviceAccountName: build-pipeline-fact
+    serviceAccountName: build-pipeline-fact-4-10
 
   timeouts:
     # The pipeline regularly takes a couple minutes to finish.
