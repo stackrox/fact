@@ -697,13 +697,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.97.1.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.100.1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 12443872
-    checksum: sha256:d087fa7b59b1c47d279602d778218dc4c2685a292052371a773dc8153da59d7f
+    size: 12445720
+    checksum: sha256:da189bc499b71c28a1f03483bf76d1bf3061b56e37b061e15947bea50403a861
     name: kernel-headers
-    evr: 4.18.0-553.97.1.el8_10
-    sourcerpm: kernel-4.18.0-553.97.1.el8_10.src.rpm
+    evr: 4.18.0-553.100.1.el8_10
+    sourcerpm: kernel-4.18.0-553.100.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 34656
@@ -795,20 +795,13 @@ arches:
     name: libattr
     evr: 2.4.48-3.el8
     sourcerpm: attr-2.4.48-3.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libblkid-2.32.1-47.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libblkid-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 218828
-    checksum: sha256:f095a01eb9eb5d47a41beebfb0f9069365ca0a67ab2e137bc8501c748344b3ea
+    size: 219120
+    checksum: sha256:02202c15390d7ecf9c48e4bce8b0a81b5eff270ffcfbec998c4546bf9483d293
     name: libblkid
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libbpf-0.5.0-1.el8.aarch64.rpm
-    repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 134820
-    checksum: sha256:dd671ab24858ffd36fe2c2d110b92282e25bae0b4a17b50e04c2fda5fe63e367
-    name: libbpf
-    evr: 0.5.0-1.el8
-    sourcerpm: libbpf-0.5.0-1.el8.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libcap-2.48-6.el8_9.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 75344
@@ -865,13 +858,13 @@ arches:
     name: libdb-utils
     evr: 5.3.28-42.el8_4
     sourcerpm: libdb-5.3.28-42.el8_4.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libfdisk-2.32.1-47.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libfdisk-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 249284
-    checksum: sha256:77480a0068650a9b639f0d8ce7875be243e8577c85d1453b17a7360bc30999cf
+    size: 249448
+    checksum: sha256:71b9420a10ef6d32a46068dd0a8f8cd44b3eefabe02bde00346d6cc72cb7d5cc
     name: libfdisk
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libffi-3.1-24.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 37560
@@ -935,13 +928,13 @@ arches:
     name: libkcapi-hmaccalc
     evr: 1.4.0-2.el8
     sourcerpm: libkcapi-1.4.0-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libmount-2.32.1-47.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libmount-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 234412
-    checksum: sha256:9515a7b004a80109e8d7097403cb85f93d2ea886be7663fd7df7371e3cf3cb4b
+    size: 234604
+    checksum: sha256:d94b2c54047114f914301266ca4185dcb2b90e32b3feb7fcb88c8777f992ed4b
     name: libmount
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libnghttp2-1.33.0-6.el8_10.1.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 77144
@@ -1040,13 +1033,13 @@ arches:
     name: libsigsegv
     evr: 2.11-5.el8
     sourcerpm: libsigsegv-2.11-5.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libsmartcols-2.32.1-47.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libsmartcols-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 178592
-    checksum: sha256:c0038da4290bbbad241f36f5f7f9b16b0bb11baf108973eef0b9a9dc41301e65
+    size: 178700
+    checksum: sha256:55da9f33dd305e6d6e156b96fde1f0a2b96b184507b80575b832033aaaaece1b
     name: libsmartcols
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libssh-0.9.6-16.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 214584
@@ -1103,13 +1096,13 @@ arches:
     name: libutempter
     evr: 1.1.6-14.el8
     sourcerpm: libutempter-1.1.6-14.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libuuid-2.32.1-47.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libuuid-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 100032
-    checksum: sha256:24ecbd85e9f6a07435abd85815526ad7d3f2292451424b41685d377a3088fd29
+    size: 100212
+    checksum: sha256:0cd068fb65f72bd3be463f4aed931340bad45ebdb1adf2a0ed1b9a3f3d9b96d5
     name: libuuid
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libverto-0.3.2-2.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 24168
@@ -1355,13 +1348,13 @@ arches:
     name: pkgconf-pkg-config
     evr: 1.4.2-1.el8
     sourcerpm: pkgconf-1.4.2-1.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/p/platform-python-3.6.8-71.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/p/platform-python-3.6.8-72.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 89844
-    checksum: sha256:22b8476ce131da79ae5afdec7c685f9f7c3cfeac3303d2eccde6ef9e97279584
+    size: 89944
+    checksum: sha256:44dc3b2650801f02fdfc089b50221fb221d74119b42eb29158f3786a58f42c3c
     name: platform-python
-    evr: 3.6.8-71.el8_10
-    sourcerpm: python3-3.6.8-71.el8_10.src.rpm
+    evr: 3.6.8-72.el8_10
+    sourcerpm: python3-3.6.8-72.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/p/platform-python-pip-9.0.3-24.el8.noarch.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 1633024
@@ -1418,13 +1411,13 @@ arches:
     name: python3-audit
     evr: 3.1.2-1.el8_10.1
     sourcerpm: audit-3.1.2-1.el8_10.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/p/python3-libs-3.6.8-71.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/p/python3-libs-3.6.8-72.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 8113884
-    checksum: sha256:d17af894fad9fe0582b21f9abb6371c0eda62753101b9fe373928092b509d38c
+    size: 8114508
+    checksum: sha256:e71f0faa3e07a074a216a0dd405a3e33f13aecf4fceb2e64e38cf83e29559651
     name: python3-libs
-    evr: 3.6.8-71.el8_10
-    sourcerpm: python3-3.6.8-71.el8_10.src.rpm
+    evr: 3.6.8-72.el8_10
+    sourcerpm: python3-3.6.8-72.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/p/python3-libselinux-2.9-10.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 278392
@@ -1593,13 +1586,13 @@ arches:
     name: tzdata
     evr: 2025c-1.el8
     sourcerpm: tzdata-2025c-1.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/u/util-linux-2.32.1-47.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/u/util-linux-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 2587504
-    checksum: sha256:5632571c56cabce61cd6c7f88411e0f77743a9cc163f677a73a6b603b8f15044
+    size: 2587976
+    checksum: sha256:8a737712dfe00ec954e1f959c1b25faaf02700548efd4dfa37539a3dcaa9022e
     name: util-linux
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/w/which-2.21-21.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 50372
@@ -1635,13 +1628,6 @@ arches:
     name: zlib-devel
     evr: 1.2.11-25.el8
     sourcerpm: zlib-1.2.11-25.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/codeready-builder/os/Packages/l/libbpf-devel-0.5.0-1.el8.aarch64.rpm
-    repoid: codeready-builder-for-rhel-8-aarch64-rpms
-    size: 70004
-    checksum: sha256:9cfd1dfbdbe11505bb87e7e1c9b2c84478018e2a06274b05103ab067d0e1a4be
-    name: libbpf-devel
-    evr: 0.5.0-1.el8
-    sourcerpm: libbpf-0.5.0-1.el8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/codeready-builder/os/Packages/p/protobuf-devel-3.5.0-17.el8_10.aarch64.rpm
     repoid: codeready-builder-for-rhel-8-aarch64-rpms
     size: 364312
@@ -1651,10 +1637,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/0185065e2f273594194f482b934fb9e06db8b6599bebce2e2b4f1cc87eba67bd-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/00c4a3347da79951a0ca670dfddca958e4cab299023c81c035320101a3516b13-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 758439
-    checksum: sha256:0185065e2f273594194f482b934fb9e06db8b6599bebce2e2b4f1cc87eba67bd
+    size: 760949
+    checksum: sha256:00c4a3347da79951a0ca670dfddca958e4cab299023c81c035320101a3516b13
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.88.0-1.module+el8.10.0+23326+3c6ade25.x86_64.rpm
@@ -2350,13 +2336,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.97.1.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.100.1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 12475644
-    checksum: sha256:60e064b382b737217ee05ea4e4d783adf6088888aed1a0ac4c7f9add4b22356a
+    size: 12477472
+    checksum: sha256:ab4da63ad45b49d7e623dc6e778e632fed82ae2fb4580784e56099c3eba8d10a
     name: kernel-headers
-    evr: 4.18.0-553.97.1.el8_10
-    sourcerpm: kernel-4.18.0-553.97.1.el8_10.src.rpm
+    evr: 4.18.0-553.100.1.el8_10
+    sourcerpm: kernel-4.18.0-553.100.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 34816
@@ -2441,20 +2427,13 @@ arches:
     name: libattr
     evr: 2.4.48-3.el8
     sourcerpm: attr-2.4.48-3.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libblkid-2.32.1-47.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libblkid-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 225348
-    checksum: sha256:d20de50e05c6c7a6a3232c57ba69a2e62d0aebe4ebe5540f6b4776eb762465a8
+    size: 225512
+    checksum: sha256:1ea002cffcfbccaa258fffebb05bee62ec92b6ca6c3204b2eece0d3142122912
     name: libblkid
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libbpf-0.5.0-1.el8.x86_64.rpm
-    repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 140008
-    checksum: sha256:644529740fa2e3655ab2aea0f5622958c34a591c0d08ee033ecbe2fb40dd437c
-    name: libbpf
-    evr: 0.5.0-1.el8
-    sourcerpm: libbpf-0.5.0-1.el8.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libcap-2.48-6.el8_9.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 76264
@@ -2511,13 +2490,13 @@ arches:
     name: libdb-utils
     evr: 5.3.28-42.el8_4
     sourcerpm: libdb-5.3.28-42.el8_4.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libfdisk-2.32.1-47.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libfdisk-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 259176
-    checksum: sha256:93d94607b800a70cffe242fdaf13ebcf9a62eb77aa98564bab7087f86a8e0832
+    size: 259376
+    checksum: sha256:59733655dc4a424ab2314895e5c2f7e274180bb092b65167cbf23e5634662a0a
     name: libfdisk
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libffi-3.1-24.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 38584
@@ -2581,13 +2560,13 @@ arches:
     name: libkcapi-hmaccalc
     evr: 1.4.0-2.el8
     sourcerpm: libkcapi-1.4.0-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libmount-2.32.1-47.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libmount-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 241732
-    checksum: sha256:c92289f2e195e15fece08617be1d675abfd513109a0bd14c5cf45fcd68fb84a9
+    size: 241976
+    checksum: sha256:41bf9c5ca51eee9e986e5abf81d10fa3e5abe93b0a11d1cd9e0ca4f59f6d7322
     name: libmount
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libnghttp2-1.33.0-6.el8_10.1.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 80224
@@ -2686,13 +2665,13 @@ arches:
     name: libsigsegv
     evr: 2.11-5.el8
     sourcerpm: libsigsegv-2.11-5.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libsmartcols-2.32.1-47.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libsmartcols-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 183072
-    checksum: sha256:7203046a7bbf0c72965933901614a682a220800c43f69748f8a4cb209193061c
+    size: 183356
+    checksum: sha256:c33ea3acbc4eaeb7b5b9d72e683769665931e8839d13e9ccb0da4dcfaa1a3e16
     name: libsmartcols
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libssh-0.9.6-16.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 224400
@@ -2742,13 +2721,13 @@ arches:
     name: libutempter
     evr: 1.1.6-14.el8
     sourcerpm: libutempter-1.1.6-14.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libuuid-2.32.1-47.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libuuid-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 100768
-    checksum: sha256:9ba65072e9949c2c6dfa85b8daa36292264f4c3e6a35a515b6ef572d3405aaba
+    size: 100956
+    checksum: sha256:111e2fa9fc01063230326f03b6fc810ad1f01353b8102ab470b828102a535c0c
     name: libuuid
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libverto-0.3.2-2.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 24636
@@ -2994,13 +2973,13 @@ arches:
     name: pkgconf-pkg-config
     evr: 1.4.2-1.el8
     sourcerpm: pkgconf-1.4.2-1.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/p/platform-python-3.6.8-71.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/p/platform-python-3.6.8-72.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 89788
-    checksum: sha256:225f9e81e7ff60618c43bdb2fd9d46b43c1ec7d195faf7704dacead5f6bbffe4
+    size: 89900
+    checksum: sha256:65927e53c1bc6aa3de47556ab68d5fef84dea6043545c493824ff3bb7a263b09
     name: platform-python
-    evr: 3.6.8-71.el8_10
-    sourcerpm: python3-3.6.8-71.el8_10.src.rpm
+    evr: 3.6.8-72.el8_10
+    sourcerpm: python3-3.6.8-72.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/p/platform-python-pip-9.0.3-24.el8.noarch.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 1633024
@@ -3057,13 +3036,13 @@ arches:
     name: python3-audit
     evr: 3.1.2-1.el8_10.1
     sourcerpm: audit-3.1.2-1.el8_10.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/p/python3-libs-3.6.8-71.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/p/python3-libs-3.6.8-72.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 8250824
-    checksum: sha256:b80ef80e565941803678ce69506358c269cb2d02a862642199a5b22d20ca52a4
+    size: 8250656
+    checksum: sha256:894b54365c7cd91ba029efcb98714e6ac3886971554baeb16cef883d5687b473
     name: python3-libs
-    evr: 3.6.8-71.el8_10
-    sourcerpm: python3-3.6.8-71.el8_10.src.rpm
+    evr: 3.6.8-72.el8_10
+    sourcerpm: python3-3.6.8-72.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/p/python3-libselinux-2.9-10.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 290460
@@ -3232,13 +3211,13 @@ arches:
     name: tzdata
     evr: 2025c-1.el8
     sourcerpm: tzdata-2025c-1.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/u/util-linux-2.32.1-47.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/u/util-linux-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 2596592
-    checksum: sha256:4861ff37cf00bd0bab78a81004dfed1e7b0ee5355403510b9e78e2a90fc7226c
+    size: 2597936
+    checksum: sha256:16f51c38ab76c0a1bfb1c9da94d48946a48d94367096ef855343db11574f5aca
     name: util-linux
-    evr: 2.32.1-47.el8_10
-    sourcerpm: util-linux-2.32.1-47.el8_10.src.rpm
+    evr: 2.32.1-48.el8_10
+    sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/w/which-2.21-21.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 51220
@@ -3274,13 +3253,6 @@ arches:
     name: zlib-devel
     evr: 1.2.11-25.el8
     sourcerpm: zlib-1.2.11-25.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/codeready-builder/os/Packages/l/libbpf-devel-0.5.0-1.el8.x86_64.rpm
-    repoid: codeready-builder-for-rhel-8-x86_64-rpms
-    size: 70040
-    checksum: sha256:03e4dca3e3e206189483ccdca49491cf7778bf7119af155ea80ac661e1469d9f
-    name: libbpf-devel
-    evr: 0.5.0-1.el8
-    sourcerpm: libbpf-0.5.0-1.el8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/codeready-builder/os/Packages/p/protobuf-devel-3.5.0-17.el8_10.x86_64.rpm
     repoid: codeready-builder-for-rhel-8-x86_64-rpms
     size: 364344
@@ -3290,7 +3262,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/0bb49f1bae688657fa73c3ac92685b2b7f144c23bdfb0f8ae016726dcbf969c8-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/4d051d537f0bcc64fb1898f3457f329535a3a199560266afdd1c5780afdc6c98-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 782414
-    checksum: sha256:0bb49f1bae688657fa73c3ac92685b2b7f144c23bdfb0f8ae016726dcbf969c8
+    size: 784123
+    checksum: sha256:4d051d537f0bcc64fb1898f3457f329535a3a199560266afdd1c5780afdc6c98
