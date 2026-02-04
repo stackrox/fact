@@ -31,7 +31,7 @@ LABEL \
     io.k8s.display-name="fact" \
     io.openshift.tags="rhacs,fact,stackrox" \
     maintainer="Red Hat, Inc." \
-    name="advanced-cluster-security/rhacs-fact-rhel8" \
+    name="advanced-cluster-security/rhacs-fact-rhel9" \
     # Custom Snapshot creation in `operator-bundle-pipeline` depends on source-location label to be set correctly.
     source-location="https://github.com/stackrox/fact" \
     summary="File activity data collection for Red Hat Advanced Cluster Security for Kubernetes" \
