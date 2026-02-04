@@ -38,12 +38,15 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:fba1e7fb1f50cd7b021c8379
 ARG FACT_TAG
 
 LABEL \
+    com.redhat.component="rhacs-fact-container" \
     com.redhat.license_terms="https://www.redhat.com/agreements" \
     description="This image supports file activity data collection for Red Hat Advanced Cluster Security for Kubernetes" \
     distribution-scope="public" \
     io.k8s.description="This image supports file activity data collection for Red Hat Advanced Cluster Security for Kubernetes" \
+    io.k8s.display-name="fact" \
     io.openshift.tags="rhacs,fact,stackrox" \
     maintainer="Red Hat, Inc." \
+    name="advanced-cluster-security/rhacs-fact-rhel8" \
     # Custom Snapshot creation in `operator-bundle-pipeline` depends on source-location label to be set correctly.
     source-location="https://github.com/stackrox/fact" \
     summary="File activity data collection for Red Hat Advanced Cluster Security for Kubernetes" \
