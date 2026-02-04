@@ -42,6 +42,14 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
+ARG FACT_VERSION
+LABEL name="fact" \
+      vendor="StackRox" \
+      maintainer="support@stackrox.com" \
+      summary="File activity data collection for the StackRox Kubernetes Security Platform" \
+      description="This image supports file activity data collection in the StackRox Kubernetes Security Platform." \
+      io.stackrox.fact.version="${FACT_VERSION}"
+
 RUN microdnf install -y openssl-libs && \
     microdnf clean all && \
     rpm --verbose -e --nodeps $( \
