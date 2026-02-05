@@ -222,6 +222,49 @@ impl From<Process> for fact_api::ProcessSignal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::raw::c_char;
+
+    /// Helper function to convert a Rust string to a c_char array for testing
+    fn string_to_c_char_array<const N: usize>(s: &str) -> [c_char; N] {
+        let mut array = [0 as c_char; N];
+        let bytes = s.as_bytes();
+        let len = bytes.len().min(N - 1);
+        for (i, &byte) in bytes.iter().take(len).enumerate() {
+            array[i] = byte as c_char;
+        }
+        array
+    }
+
+    /// Helper function to convert raw bytes to a c_char array for testing invalid UTF-8
+    fn bytes_to_c_char_array<const N: usize>(bytes: &[u8]) -> [c_char; N] {
+        let mut array = [0 as c_char; N];
+        let len = bytes.len().min(N - 1);
+        for (i, &byte) in bytes.iter().take(len).enumerate() {
+            array[i] = byte as c_char;
+        }
+        array
+    }
+
+    /// Helper to create a default process_t for testing
+    fn default_process_t() -> process_t {
+        process_t {
+            comm: string_to_c_char_array::<16>("test"),
+            args: string_to_c_char_array::<4096>("arg1\0arg2\0"),
+            args_len: 10,
+            exe_path: string_to_c_char_array::<4096>("/usr/bin/test"),
+            memory_cgroup: string_to_c_char_array::<4096>("init.scope"),
+            uid: 1000,
+            gid: 1000,
+            login_uid: 1000,
+            pid: 12345,
+            lineage: [lineage_t {
+                uid: 1000,
+                exe_path: string_to_c_char_array::<4096>("/bin/bash"),
+            }; 2],
+            lineage_len: 0,
+            in_root_mount_ns: 1,
+        }
+    }
 
     #[test]
     fn extract_container_id() {
@@ -258,5 +301,181 @@ mod tests {
             let id = Process::extract_container_id(input);
             assert_eq!(id, expected);
         }
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_comm() {
+        let tests = [
+            ("test", "ASCII"),
+            ("тест", "Cyrillic"),
+            ("测试", "Chinese"),
+            ("app🚀", "emoji"),
+        ];
+
+        for (comm, description) in tests {
+            let mut proc = default_process_t();
+            proc.comm = string_to_c_char_array::<16>(comm);
+            let result = Process::try_from(proc);
+            assert!(result.is_ok(), "Failed for {}", description);
+            assert_eq!(result.unwrap().comm, comm, "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_comm() {
+        let tests: &[(&[u8], &str)] = &[
+            (&[b't', b'e', b's', b't', 0xFF, 0xFE], "invalid bytes"),
+            (&[b'a', b'p', b'p', 0xE2, 0x80], "truncated multi-byte sequence"),
+        ];
+
+        for (bytes, description) in tests {
+            let mut proc = default_process_t();
+            proc.comm = bytes_to_c_char_array::<16>(bytes);
+            let result = Process::try_from(proc);
+            assert!(result.is_err(), "Should fail for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_exe_path() {
+        let tests = [
+            ("/usr/bin/test", "ASCII"),
+            ("/usr/bin/тест", "Cyrillic"),
+            ("/opt/应用/测试", "Chinese"),
+            ("/home/user/🚀app", "emoji"),
+            ("/var/app-данные-数据/bin", "mixed UTF-8"),
+        ];
+
+        for (path, description) in tests {
+            let mut proc = default_process_t();
+            proc.exe_path = string_to_c_char_array::<4096>(path);
+            let result = Process::try_from(proc);
+            assert!(result.is_ok(), "Failed for {}", description);
+            assert_eq!(result.unwrap().exe_path, PathBuf::from(path), "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_exe_path() {
+        let mut proc = default_process_t();
+        proc.exe_path = bytes_to_c_char_array::<4096>(&[
+            b'/', b'u', b's', b'r', b'/', b'b', b'i', b'n', b'/', 0xFF, 0xFE,
+        ]);
+        let result = Process::try_from(proc);
+        assert!(result.is_ok());
+        let exe_path = result.unwrap().exe_path;
+        assert!(exe_path.to_string_lossy().contains("/usr/bin/"));
+        assert!(exe_path.to_string_lossy().contains('\u{FFFD}'));
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_args() {
+        let tests: &[(&str, Vec<&str>, &str)] = &[
+            ("arg1\0arg2\0arg3\0", vec!["arg1", "arg2", "arg3"], "ASCII"),
+            ("файл\0данные\0", vec!["файл", "данные"], "Cyrillic"),
+            ("测试\0文件\0数据\0", vec!["测试", "文件", "数据"], "Chinese"),
+            ("app\0🚀file\0📁data\0", vec!["app", "🚀file", "📁data"], "emoji"),
+            ("test\0файл\0测试\0🚀\0", vec!["test", "файл", "测试", "🚀"], "mixed UTF-8"),
+        ];
+
+        for (args_str, expected, description) in tests {
+            let mut proc = default_process_t();
+            proc.args = string_to_c_char_array::<4096>(args_str);
+            proc.args_len = args_str.len() as u32;
+            let result = Process::try_from(proc);
+            assert!(result.is_ok(), "Failed for {}", description);
+            assert_eq!(result.unwrap().args, *expected, "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_args() {
+        let tests: &[(&[u8], u32, &str)] = &[
+            (&[b'a', b'r', b'g', b'1', 0, 0xFF, 0xFE, b'a', b'r', b'g', 0], 11, "invalid bytes"),
+            (&[b't', b'e', b's', b't', 0, 0xE2, 0x80, 0], 8, "truncated multi-byte sequence"),
+        ];
+
+        for (bytes, args_len, description) in tests {
+            let mut proc = default_process_t();
+            proc.args = bytes_to_c_char_array::<4096>(bytes);
+            proc.args_len = *args_len;
+            let result = Process::try_from(proc);
+            assert!(result.is_err(), "Should fail for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_memory_cgroup() {
+        let tests = [
+            ("init.scope", None, "ASCII init.scope"),
+            (
+                "/docker/951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4",
+                Some("951e643e3c24"),
+                "container ID",
+            ),
+        ];
+
+        for (cgroup, expected_id, description) in tests {
+            let mut proc = default_process_t();
+            proc.memory_cgroup = string_to_c_char_array::<4096>(cgroup);
+            let result = Process::try_from(proc);
+            assert!(result.is_ok(), "Failed for {}", description);
+            assert_eq!(
+                result.unwrap().container_id,
+                expected_id.map(|s| s.to_string()),
+                "Failed for {}",
+                description
+            );
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_memory_cgroup() {
+        let mut proc = default_process_t();
+        proc.memory_cgroup = bytes_to_c_char_array::<4096>(&[
+            b'/', b'd', b'o', b'c', b'k', b'e', b'r', b'/', 0xFF, 0xFE,
+        ]);
+        let result = Process::try_from(proc);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_lineage() {
+        let tests = [
+            ("/bin/bash", "ASCII"),
+            ("/usr/bin/тест", "Cyrillic"),
+            ("/opt/应用", "Chinese"),
+        ];
+
+        for (path, description) in tests {
+            let mut proc = default_process_t();
+            proc.lineage[0] = lineage_t {
+                uid: 1000,
+                exe_path: string_to_c_char_array::<4096>(path),
+            };
+            proc.lineage_len = 1;
+            let result = Process::try_from(proc);
+            assert!(result.is_ok(), "Failed for {}", description);
+            let lineage = result.unwrap().lineage;
+            assert_eq!(lineage.len(), 1);
+            assert_eq!(lineage[0].exe_path, PathBuf::from(path), "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_lineage() {
+        let mut proc = default_process_t();
+        proc.lineage[0] = lineage_t {
+            uid: 1000,
+            exe_path: bytes_to_c_char_array::<4096>(&[
+                b'/', b'b', b'i', b'n', b'/', 0xFF, 0xFE,
+            ]),
+        };
+        proc.lineage_len = 1;
+        let result = Process::try_from(proc);
+        assert!(result.is_ok());
+        let lineage = result.unwrap().lineage;
+        assert!(lineage[0].exe_path.to_string_lossy().contains("/bin/"));
+        assert!(lineage[0].exe_path.to_string_lossy().contains('\u{FFFD}'));
     }
 }

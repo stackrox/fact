@@ -2,11 +2,19 @@ import multiprocessing as mp
 import os
 
 import docker
+import pytest
 
 from event import Event, EventType, Process
 
 
-def test_open(fact, monitored_dir, server):
+@pytest.mark.parametrize("filename", [
+    'create.txt',
+    'café.txt',
+    'файл.txt',
+    '测试.txt',
+    '🚀rocket.txt',
+])
+def test_open(fact, monitored_dir, server, filename):
     """
     Tests the opening of a file and verifies that the corresponding
     event is captured by the server.
@@ -15,9 +23,10 @@ def test_open(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
+        filename: Name of the file to create (includes UTF-8 test cases).
     """
     # File Under Test
-    fut = os.path.join(monitored_dir, 'create.txt')
+    fut = os.path.join(monitored_dir, filename)
     with open(fut, 'w') as f:
         f.write('This is a test')
 
@@ -28,7 +37,11 @@ def test_open(fact, monitored_dir, server):
     server.wait_events([e])
 
 
-def test_multiple(fact, monitored_dir, server):
+@pytest.mark.parametrize("filenames", [
+    ['0.txt', '1.txt', '2.txt'],
+    ['café.txt', 'файл.txt', '测试.txt'],
+])
+def test_multiple(fact, monitored_dir, server, filenames):
     """
     Tests the opening of multiple files and verifies that the
     corresponding events are captured by the server.
@@ -37,12 +50,13 @@ def test_multiple(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
+        filenames: List of filenames to create (includes UTF-8 test cases).
     """
     events = []
     process = Process.from_proc()
     # File Under Test
-    for i in range(3):
-        fut = os.path.join(monitored_dir, f'{i}.txt')
+    for filename in filenames:
+        fut = os.path.join(monitored_dir, filename)
         with open(fut, 'w') as f:
             f.write('This is a test')
 
