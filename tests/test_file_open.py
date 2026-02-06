@@ -13,6 +13,7 @@ from event import Event, EventType, Process
     'файл.txt',
     '测试.txt',
     '🚀rocket.txt',
+    b'test\xff\xfe.txt',
 ])
 def test_open(fact, monitored_dir, server, filename):
     """
