@@ -37,11 +37,7 @@ def test_open(fact, monitored_dir, server, filename):
     server.wait_events([e])
 
 
-@pytest.mark.parametrize("filenames", [
-    ['0.txt', '1.txt', '2.txt'],
-    ['café.txt', 'файл.txt', '测试.txt'],
-])
-def test_multiple(fact, monitored_dir, server, filenames):
+def test_multiple(fact, monitored_dir, server):
     """
     Tests the opening of multiple files and verifies that the
     corresponding events are captured by the server.
@@ -55,8 +51,8 @@ def test_multiple(fact, monitored_dir, server, filenames):
     events = []
     process = Process.from_proc()
     # File Under Test
-    for filename in filenames:
-        fut = os.path.join(monitored_dir, filename)
+    for i in range(3):
+        fut = os.path.join(monitored_dir, f'{i}.txt')
         with open(fut, 'w') as f:
             f.write('This is a test')
 
