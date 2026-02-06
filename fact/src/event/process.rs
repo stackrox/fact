@@ -222,28 +222,8 @@ impl From<Process> for fact_api::ProcessSignal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::test_utils::*;
     use std::os::raw::c_char;
-
-    /// Helper function to convert a Rust string to a c_char array for testing
-    fn string_to_c_char_array<const N: usize>(s: &str) -> [c_char; N] {
-        let mut array = [0 as c_char; N];
-        let bytes = s.as_bytes();
-        let len = bytes.len().min(N - 1);
-        for (i, &byte) in bytes.iter().take(len).enumerate() {
-            array[i] = byte as c_char;
-        }
-        array
-    }
-
-    /// Helper function to convert raw bytes to a c_char array for testing invalid UTF-8
-    fn bytes_to_c_char_array<const N: usize>(bytes: &[u8]) -> [c_char; N] {
-        let mut array = [0 as c_char; N];
-        let len = bytes.len().min(N - 1);
-        for (i, &byte) in bytes.iter().take(len).enumerate() {
-            array[i] = byte as c_char;
-        }
-        array
-    }
 
     /// Helper to create a default process_t for testing
     fn default_process_t() -> process_t {
