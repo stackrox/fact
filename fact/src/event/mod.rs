@@ -360,29 +360,29 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod test_utils {
+    use std::os::raw::c_char;
+
+    /// Helper function to convert raw bytes to a c_char array for testing
+    pub fn bytes_to_c_char_array<const N: usize>(bytes: &[u8]) -> [c_char; N] {
+        let mut array = [0 as c_char; N];
+        let len = bytes.len().min(N - 1);
+        for (i, &byte) in bytes.iter().take(len).enumerate() {
+            array[i] = byte as c_char;
+        }
+        array
+    }
 
     /// Helper function to convert a Rust string to a c_char array for testing
-    fn string_to_c_char_array<const N: usize>(s: &str) -> [c_char; N] {
-        let mut array = [0 as c_char; N];
-        let bytes = s.as_bytes();
-        let len = bytes.len().min(N - 1);
-        for (i, &byte) in bytes.iter().take(len).enumerate() {
-            array[i] = byte as c_char;
-        }
-        array
+    pub fn string_to_c_char_array<const N: usize>(s: &str) -> [c_char; N] {
+        bytes_to_c_char_array(s.as_bytes())
     }
+}
 
-    /// Helper function to convert raw bytes to a c_char array for testing invalid UTF-8
-    fn bytes_to_c_char_array<const N: usize>(bytes: &[u8]) -> [c_char; N] {
-        let mut array = [0 as c_char; N];
-        let len = bytes.len().min(N - 1);
-        for (i, &byte) in bytes.iter().take(len).enumerate() {
-            array[i] = byte as c_char;
-        }
-        array
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::test_utils::*;
 
     #[test]
     fn slice_to_string_valid_utf8() {
