@@ -381,8 +381,8 @@ mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::test_utils::*;
+    use super::*;
 
     #[test]
     fn slice_to_string_valid_utf8() {
@@ -400,7 +400,12 @@ mod tests {
 
         for (input, description) in tests {
             let arr = string_to_c_char_array::<256>(input);
-            assert_eq!(slice_to_string(&arr).unwrap(), input, "Failed for {}", description);
+            assert_eq!(
+                slice_to_string(&arr).unwrap(),
+                input,
+                "Failed for {}",
+                description
+            );
         }
     }
 
@@ -408,16 +413,31 @@ mod tests {
     fn slice_to_string_invalid_utf8() {
         let tests: &[(&[u8], &str)] = &[
             (&[0xFF, 0xFE, 0xFD], "invalid continuation bytes"),
-            (&[b't', b'e', b's', b't', 0xE2], "truncated multi-byte sequence"),
+            (
+                &[b't', b'e', b's', b't', 0xE2],
+                "truncated multi-byte sequence",
+            ),
             (&[0xC0, 0x80], "overlong encoding"),
-            (&[b'h', b'e', b'l', b'l', b'o', 0x80, b'w', b'o', b'r', b'l', b'd'], "invalid start byte"),
+            (
+                &[
+                    b'h', b'e', b'l', b'l', b'o', 0x80, b'w', b'o', b'r', b'l', b'd',
+                ],
+                "invalid start byte",
+            ),
             (&[0x80], "lone continuation byte"),
-            (&[b't', b'e', b's', b't', 0xFF, 0xFE], "mixed valid and invalid bytes"),
+            (
+                &[b't', b'e', b's', b't', 0xFF, 0xFE],
+                "mixed valid and invalid bytes",
+            ),
         ];
 
         for (bytes, description) in tests {
             let arr = bytes_to_c_char_array::<256>(bytes);
-            assert!(slice_to_string(&arr).is_err(), "Should fail for {}", description);
+            assert!(
+                slice_to_string(&arr).is_err(),
+                "Should fail for {}",
+                description
+            );
         }
     }
 
@@ -426,31 +446,61 @@ mod tests {
         let tests = [
             ("/etc/test", "/etc/test", "ASCII"),
             ("/tmp/файл.txt", "/tmp/файл.txt", "Cyrillic"),
-            ("/home/user/测试文件.log", "/home/user/测试文件.log", "Chinese"),
+            (
+                "/home/user/测试文件.log",
+                "/home/user/测试文件.log",
+                "Chinese",
+            ),
             ("/data/🚀rocket.dat", "/data/🚀rocket.dat", "emoji"),
-            ("/var/log/app-данные-数据-🐛.log", "/var/log/app-данные-数据-🐛.log", "mixed Unicode"),
+            (
+                "/var/log/app-данные-数据-🐛.log",
+                "/var/log/app-данные-数据-🐛.log",
+                "mixed Unicode",
+            ),
             ("/home/ملف.txt", "/home/ملف.txt", "Arabic"),
             ("/opt/ファイル.conf", "/opt/ファイル.conf", "Japanese"),
         ];
 
         for (input, expected, description) in tests {
             let arr = string_to_c_char_array::<4096>(input);
-            assert_eq!(sanitize_d_path(&arr), PathBuf::from(expected), "Failed for {}", description);
+            assert_eq!(
+                sanitize_d_path(&arr),
+                PathBuf::from(expected),
+                "Failed for {}",
+                description
+            );
         }
     }
 
     #[test]
     fn sanitize_d_path_deleted_suffix() {
         let tests = [
-            ("/tmp/test.txt (deleted)", "/tmp/test.txt", "ASCII with deleted suffix"),
-            ("/tmp/файл.txt (deleted)", "/tmp/файл.txt", "Unicode with deleted suffix"),
+            (
+                "/tmp/test.txt (deleted)",
+                "/tmp/test.txt",
+                "ASCII with deleted suffix",
+            ),
+            (
+                "/tmp/файл.txt (deleted)",
+                "/tmp/файл.txt",
+                "Unicode with deleted suffix",
+            ),
             ("/etc/config.yaml", "/etc/config.yaml", "no deleted suffix"),
-            ("/var/log/app/debug.log (deleted)", "/var/log/app/debug.log", "nested path with deleted suffix"),
+            (
+                "/var/log/app/debug.log (deleted)",
+                "/var/log/app/debug.log",
+                "nested path with deleted suffix",
+            ),
         ];
 
         for (input, expected, description) in tests {
             let arr = string_to_c_char_array::<4096>(input);
-            assert_eq!(sanitize_d_path(&arr), PathBuf::from(expected), "Failed for {}", description);
+            assert_eq!(
+                sanitize_d_path(&arr),
+                PathBuf::from(expected),
+                "Failed for {}",
+                description
+            );
         }
     }
 
@@ -458,25 +508,35 @@ mod tests {
     fn sanitize_d_path_invalid_utf8() {
         let tests: &[(&[u8], &str, &str, &str)] = &[
             (
-                &[b'/', b't', b'm', b'p', b'/', 0xFF, 0xFE, b'.', b't', b'x', b't'],
+                &[
+                    b'/', b't', b'm', b'p', b'/', 0xFF, 0xFE, b'.', b't', b'x', b't',
+                ],
                 "/tmp/",
                 ".txt",
                 "invalid continuation bytes",
             ),
             (
-                &[b'/', b'v', b'a', b'r', b'/', b't', b'e', b's', b't', 0xE2, 0x80],
+                &[
+                    b'/', b'v', b'a', b'r', b'/', b't', b'e', b's', b't', 0xE2, 0x80,
+                ],
                 "/var/",
                 "",
                 "truncated multi-byte sequence",
             ),
             (
-                &[b'/', b'h', b'o', b'm', b'e', b'/', b'f', b'i', b'l', b'e', 0x80, b'.', b'l', b'o', b'g'],
+                &[
+                    b'/', b'h', b'o', b'm', b'e', b'/', b'f', b'i', b'l', b'e', 0x80, b'.', b'l',
+                    b'o', b'g',
+                ],
                 "/home/",
                 ".log",
                 "invalid start byte",
             ),
             (
-                &[b'/', b't', b'm', b'p', b'/', 0xD1, 0x84, 0xFF, 0xD0, 0xBB, b'.', b't', b'x', b't'],
+                &[
+                    b'/', b't', b'm', b'p', b'/', 0xD1, 0x84, 0xFF, 0xD0, 0xBB, b'.', b't', b'x',
+                    b't',
+                ],
                 "/tmp/",
                 "",
                 "mixed valid and invalid UTF-8",
@@ -488,18 +548,33 @@ mod tests {
             let result = sanitize_d_path(&arr);
             let result_str = result.to_string_lossy();
 
-            assert!(result_str.contains(must_contain1), "Failed for {} - should contain '{}'", description, must_contain1);
+            assert!(
+                result_str.contains(must_contain1),
+                "Failed for {} - should contain '{}'",
+                description,
+                must_contain1
+            );
             if !must_contain2.is_empty() {
-                assert!(result_str.contains(must_contain2), "Failed for {} - should contain '{}'", description, must_contain2);
+                assert!(
+                    result_str.contains(must_contain2),
+                    "Failed for {} - should contain '{}'",
+                    description,
+                    must_contain2
+                );
             }
-            assert!(result_str.contains('\u{FFFD}'), "Failed for {} - should contain replacement character", description);
+            assert!(
+                result_str.contains('\u{FFFD}'),
+                "Failed for {} - should contain replacement character",
+                description
+            );
         }
     }
 
     #[test]
     fn sanitize_d_path_invalid_utf8_with_deleted_suffix() {
         let invalid_with_deleted = bytes_to_c_char_array::<4096>(&[
-            b'/', b't', b'm', b'p', b'/', 0xFF, 0xFE, b' ', b'(', b'd', b'e', b'l', b'e', b't', b'e', b'd', b')',
+            b'/', b't', b'm', b'p', b'/', 0xFF, 0xFE, b' ', b'(', b'd', b'e', b'l', b'e', b't',
+            b'e', b'd', b')',
         ]);
         let result = sanitize_d_path(&invalid_with_deleted);
         let result_str = result.to_string_lossy();
