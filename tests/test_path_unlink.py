@@ -2,26 +2,57 @@ import multiprocessing as mp
 import os
 
 import docker
+import pytest
 
 from event import Event, EventType, Process
 
 
-def test_remove(fact, test_file, server):
+@pytest.mark.parametrize("filename", [
+    'remove.txt',
+    'café.txt',
+    'файл.txt',
+    '测试.txt',
+    '🗑️delete.txt',
+    b'rm\xff\xfe.txt',
+])
+def test_remove(fact, monitored_dir, server, filename):
     """
     Tests the removal of a file and verifies the corresponding event is
     captured by the server.
 
     Args:
         fact: Fixture for file activity (only required to be running).
-        test_file: Temporary file for testing.
+        monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
+        filename: Name of the file to create and remove (includes UTF-8 test cases).
     """
+    # Handle bytes filenames by converting monitored_dir to bytes
+    if isinstance(filename, bytes):
+        test_file = os.path.join(os.fsencode(monitored_dir), filename)
+    else:
+        test_file = os.path.join(monitored_dir, filename)
+
+    # Create the file first
+    with open(test_file, 'w') as f:
+        f.write('This is a test')
+
+    # Remove the file
     os.remove(test_file)
 
+    # Convert test_file back to string for the Event
+    # For bytes paths with invalid UTF-8, Rust will use the replacement character U+FFFD
+    if isinstance(test_file, bytes):
+        test_file_str = test_file.decode('utf-8', errors='replace')
+    else:
+        test_file_str = test_file
+
     process = Process.from_proc()
+    # We expect both CREATION (from file creation) and UNLINK (from removal)
     events = [
+        Event(process=process, event_type=EventType.CREATION,
+              file=test_file_str, host_path=''),
         Event(process=process, event_type=EventType.UNLINK,
-              file=test_file, host_path=test_file),
+              file=test_file_str, host_path=''),
     ]
 
     server.wait_events(events)
