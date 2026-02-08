@@ -2,11 +2,20 @@ import multiprocessing as mp
 import os
 
 import docker
+import pytest
 
 from event import Event, EventType, Process
 
 
-def test_open(fact, monitored_dir, server):
+@pytest.mark.parametrize("filename", [
+    'create.txt',
+    'café.txt',
+    'файл.txt',
+    '测试.txt',
+    '🚀rocket.txt',
+    b'test\xff\xfe.txt',
+])
+def test_open(fact, monitored_dir, server, filename):
     """
     Tests the opening of a file and verifies that the corresponding
     event is captured by the server.
@@ -15,14 +24,28 @@ def test_open(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
+        filename: Name of the file to create (includes UTF-8 test cases).
     """
     # File Under Test
-    fut = os.path.join(monitored_dir, 'create.txt')
+    # Handle bytes filenames by converting monitored_dir to bytes
+    if isinstance(filename, bytes):
+        fut = os.path.join(os.fsencode(monitored_dir), filename)
+    else:
+        fut = os.path.join(monitored_dir, filename)
+
     with open(fut, 'w') as f:
         f.write('This is a test')
 
+    # Convert fut back to string for the Event
+    # For bytes paths with invalid UTF-8, Rust will use the replacement character U+FFFD
+    if isinstance(fut, bytes):
+        # Manually convert to match Rust's behavior: replace invalid UTF-8 with U+FFFD
+        fut_str = fut.decode('utf-8', errors='replace')
+    else:
+        fut_str = fut
+
     e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
-              file=fut, host_path='')
+              file=fut_str, host_path='')
     print(f'Waiting for event: {e}')
 
     server.wait_events([e])
@@ -37,6 +60,7 @@ def test_multiple(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be running).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
+        filenames: List of filenames to create (includes UTF-8 test cases).
     """
     events = []
     process = Process.from_proc()
