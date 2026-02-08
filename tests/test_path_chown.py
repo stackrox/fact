@@ -19,6 +19,7 @@ TEST_GID = 2345
     'файл.txt',
     '测试.txt',
     '👤owner.txt',
+    b'own\xff\xfe.txt',
 ])
 def test_chown(fact, test_container, server, filename):
     """
@@ -31,8 +32,15 @@ def test_chown(fact, test_container, server, filename):
         server: The server instance to communicate with.
         filename: Name of the file to create (includes UTF-8 test cases).
     """
+    # Handle bytes filenames - convert to string with replacement characters
+    # Rust will use the same replacement, so the strings will match
+    if isinstance(filename, bytes):
+        filename_str = filename.decode('utf-8', errors='replace')
+    else:
+        filename_str = filename
+
     # File Under Test
-    fut = f'/container-dir/{filename}'
+    fut = f'/container-dir/{filename_str}'
 
     # Create the file and chown it
     # Use shlex.quote to properly escape special characters for shell
