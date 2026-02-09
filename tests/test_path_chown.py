@@ -3,6 +3,7 @@ import shlex
 
 import pytest
 
+from conftest import path_to_string
 from event import Event, EventType, Process
 
 # Tests here have to use a container to do 'chown',
@@ -32,12 +33,8 @@ def test_chown(fact, test_container, server, filename):
         server: The server instance to communicate with.
         filename: Name of the file to create (includes UTF-8 test cases).
     """
-    # Handle bytes filenames - convert to string with replacement characters
-    # Rust will use the same replacement, so the strings will match
-    if isinstance(filename, bytes):
-        filename_str = filename.decode('utf-8', errors='replace')
-    else:
-        filename_str = filename
+    # Convert filename to string, replacing invalid UTF-8 with U+FFFD
+    filename_str = path_to_string(filename)
 
     # File Under Test
     fut = f'/container-dir/{filename_str}'

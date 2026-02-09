@@ -4,6 +4,7 @@ import os
 import docker
 import pytest
 
+from conftest import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 
@@ -26,11 +27,7 @@ def test_remove(fact, monitored_dir, server, filename):
         server: The server instance to communicate with.
         filename: Name of the file to create and remove (includes UTF-8 test cases).
     """
-    # Handle bytes filenames by converting monitored_dir to bytes
-    if isinstance(filename, bytes):
-        test_file = os.path.join(os.fsencode(monitored_dir), filename)
-    else:
-        test_file = os.path.join(monitored_dir, filename)
+    test_file = join_path_with_filename(monitored_dir, filename)
 
     # Create the file first
     with open(test_file, 'w') as f:
@@ -39,12 +36,8 @@ def test_remove(fact, monitored_dir, server, filename):
     # Remove the file
     os.remove(test_file)
 
-    # Convert test_file back to string for the Event
-    # For bytes paths with invalid UTF-8, Rust will use the replacement character U+FFFD
-    if isinstance(test_file, bytes):
-        test_file_str = test_file.decode('utf-8', errors='replace')
-    else:
-        test_file_str = test_file
+    # Convert test_file to string for the Event, replacing invalid UTF-8 with U+FFFD
+    test_file_str = path_to_string(test_file)
 
     process = Process.from_proc()
     # We expect both CREATION (from file creation) and UNLINK (from removal)

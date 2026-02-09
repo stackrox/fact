@@ -3,6 +3,7 @@ import os
 
 import pytest
 
+from conftest import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 
@@ -25,11 +26,7 @@ def test_chmod(fact, monitored_dir, server, filename):
         server: The server instance to communicate with.
         filename: Name of the file to create (includes UTF-8 test cases).
     """
-    # Handle bytes filenames by converting monitored_dir to bytes
-    if isinstance(filename, bytes):
-        fut = os.path.join(os.fsencode(monitored_dir), filename)
-    else:
-        fut = os.path.join(monitored_dir, filename)
+    fut = join_path_with_filename(monitored_dir, filename)
 
     # Create the file first
     with open(fut, 'w') as f:
@@ -38,12 +35,8 @@ def test_chmod(fact, monitored_dir, server, filename):
     mode = 0o666
     os.chmod(fut, mode)
 
-    # Convert fut back to string for the Event
-    # For bytes paths with invalid UTF-8, Rust will use the replacement character U+FFFD
-    if isinstance(fut, bytes):
-        fut_str = fut.decode('utf-8', errors='replace')
-    else:
-        fut_str = fut
+    # Convert fut to string for the Event, replacing invalid UTF-8 with U+FFFD
+    fut_str = path_to_string(fut)
 
     process = Process.from_proc()
     # We expect both CREATION (from file creation) and PERMISSION (from chmod)

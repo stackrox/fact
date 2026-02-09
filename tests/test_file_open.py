@@ -4,6 +4,7 @@ import os
 import docker
 import pytest
 
+from conftest import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 
@@ -27,20 +28,13 @@ def test_open(fact, monitored_dir, server, filename):
         filename: Name of the file to create (includes UTF-8 test cases).
     """
     # File Under Test
-    # Handle bytes filenames by converting monitored_dir to bytes
-    if isinstance(filename, bytes):
-        fut = os.path.join(os.fsencode(monitored_dir), filename)
-    else:
-        fut = os.path.join(monitored_dir, filename)
+    fut = join_path_with_filename(monitored_dir, filename)
 
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    # Convert fut back to string for the Event
-    # For bytes paths with invalid UTF-8, Rust will use the replacement character U+FFFD
-    if isinstance(fut, bytes):
-        # Manually convert to match Rust's behavior: replace invalid UTF-8 with U+FFFD
-        fut = fut.decode('utf-8', errors='replace')
+    # Convert fut to string for the Event, replacing invalid UTF-8 with U+FFFD
+    fut_str = path_to_string(fut)
 
     e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
               file=fut_str, host_path='')
