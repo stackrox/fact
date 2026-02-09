@@ -8,12 +8,12 @@ from event import Event, EventType, Process
 
 
 @pytest.mark.parametrize("filename", [
-    'create.txt',
-    'café.txt',
-    'файл.txt',
-    '测试.txt',
-    '🚀rocket.txt',
-    b'test\xff\xfe.txt',
+    pytest.param('create.txt', id='ascii'),
+    pytest.param('café.txt', id='spanish'),
+    pytest.param('файл.txt', id='cyrilic'),
+    pytest.param('测试.txt', id='chinese'),
+    pytest.param('🚀rocket.txt', id='emoji'),
+    pytest.param(b'test\xff\xfe.txt', id='invalid'),
 ])
 def test_open(fact, monitored_dir, server, filename):
     """
@@ -40,9 +40,7 @@ def test_open(fact, monitored_dir, server, filename):
     # For bytes paths with invalid UTF-8, Rust will use the replacement character U+FFFD
     if isinstance(fut, bytes):
         # Manually convert to match Rust's behavior: replace invalid UTF-8 with U+FFFD
-        fut_str = fut.decode('utf-8', errors='replace')
-    else:
-        fut_str = fut
+        fut = fut.decode('utf-8', errors='replace')
 
     e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
               file=fut_str, host_path='')

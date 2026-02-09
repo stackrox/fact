@@ -413,22 +413,11 @@ mod tests {
     fn slice_to_string_invalid_utf8() {
         let tests: &[(&[u8], &str)] = &[
             (&[0xFF, 0xFE, 0xFD], "invalid continuation bytes"),
-            (
-                &[b't', b'e', b's', b't', 0xE2],
-                "truncated multi-byte sequence",
-            ),
+            (b"test\xE2", "truncated multi-byte sequence"),
             (&[0xC0, 0x80], "overlong encoding"),
-            (
-                &[
-                    b'h', b'e', b'l', b'l', b'o', 0x80, b'w', b'o', b'r', b'l', b'd',
-                ],
-                "invalid start byte",
-            ),
+            (b"hello\x80world", "invalid start byte"),
             (&[0x80], "lone continuation byte"),
-            (
-                &[b't', b'e', b's', b't', 0xFF, 0xFE],
-                "mixed valid and invalid bytes",
-            ),
+            (b"test\xFF\xFE", "mixed valid and invalid bytes"),
         ];
 
         for (bytes, description) in tests {
@@ -508,35 +497,25 @@ mod tests {
     fn sanitize_d_path_invalid_utf8() {
         let tests: &[(&[u8], &str, &str, &str)] = &[
             (
-                &[
-                    b'/', b't', b'm', b'p', b'/', 0xFF, 0xFE, b'.', b't', b'x', b't',
-                ],
+                b"/tmp/\xFF\xFE.txt",
                 "/tmp/",
                 ".txt",
                 "invalid continuation bytes",
             ),
             (
-                &[
-                    b'/', b'v', b'a', b'r', b'/', b't', b'e', b's', b't', 0xE2, 0x80,
-                ],
+                b"/var/test\xE2\x80",
                 "/var/",
                 "",
                 "truncated multi-byte sequence",
             ),
             (
-                &[
-                    b'/', b'h', b'o', b'm', b'e', b'/', b'f', b'i', b'l', b'e', 0x80, b'.', b'l',
-                    b'o', b'g',
-                ],
+                b"/home/file\x80.log",
                 "/home/",
                 ".log",
                 "invalid start byte",
             ),
             (
-                &[
-                    b'/', b't', b'm', b'p', b'/', 0xD1, 0x84, 0xFF, 0xD0, 0xBB, b'.', b't', b'x',
-                    b't',
-                ],
+                b"/tmp/\xD1\x84\xFF\xD0\xBB.txt",
                 "/tmp/",
                 "",
                 "mixed valid and invalid UTF-8",
@@ -572,10 +551,7 @@ mod tests {
 
     #[test]
     fn sanitize_d_path_invalid_utf8_with_deleted_suffix() {
-        let invalid_with_deleted = bytes_to_c_char_array::<4096>(&[
-            b'/', b't', b'm', b'p', b'/', 0xFF, 0xFE, b' ', b'(', b'd', b'e', b'l', b'e', b't',
-            b'e', b'd', b')',
-        ]);
+        let invalid_with_deleted = bytes_to_c_char_array::<4096>(b"/tmp/\xFF\xFE (deleted)");
         let result = sanitize_d_path(&invalid_with_deleted);
         let result_str = result.to_string_lossy();
 

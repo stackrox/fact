@@ -304,11 +304,8 @@ mod tests {
     #[test]
     fn process_conversion_invalid_utf8_comm() {
         let tests: &[(&[u8], &str)] = &[
-            (&[b't', b'e', b's', b't', 0xFF, 0xFE], "invalid bytes"),
-            (
-                &[b'a', b'p', b'p', 0xE2, 0x80],
-                "truncated multi-byte sequence",
-            ),
+            (b"test\xFF\xFE", "invalid bytes"),
+            (b"app\xE2\x80", "truncated multi-byte sequence"),
         ];
 
         for (bytes, description) in tests {
@@ -346,9 +343,7 @@ mod tests {
     #[test]
     fn process_conversion_invalid_utf8_exe_path() {
         let mut proc = default_process_t();
-        proc.exe_path = bytes_to_c_char_array::<4096>(&[
-            b'/', b'u', b's', b'r', b'/', b'b', b'i', b'n', b'/', 0xFF, 0xFE,
-        ]);
+        proc.exe_path = bytes_to_c_char_array::<4096>(b"/usr/bin/\xFF\xFE");
         let result = Process::try_from(proc);
         assert!(result.is_ok());
         let exe_path = result.unwrap().exe_path;
@@ -396,16 +391,8 @@ mod tests {
     #[test]
     fn process_conversion_invalid_utf8_args() {
         let tests: &[(&[u8], u32, &str)] = &[
-            (
-                &[b'a', b'r', b'g', b'1', 0, 0xFF, 0xFE, b'a', b'r', b'g', 0],
-                11,
-                "invalid bytes",
-            ),
-            (
-                &[b't', b'e', b's', b't', 0, 0xE2, 0x80, 0],
-                8,
-                "truncated multi-byte sequence",
-            ),
+            (b"arg1\0\xFF\xFEarg\0", 11, "invalid bytes"),
+            (b"test\0\xE2\x80\0", 8, "truncated multi-byte sequence"),
         ];
 
         for (bytes, args_len, description) in tests {
@@ -445,9 +432,7 @@ mod tests {
     #[test]
     fn process_conversion_invalid_utf8_memory_cgroup() {
         let mut proc = default_process_t();
-        proc.memory_cgroup = bytes_to_c_char_array::<4096>(&[
-            b'/', b'd', b'o', b'c', b'k', b'e', b'r', b'/', 0xFF, 0xFE,
-        ]);
+        proc.memory_cgroup = bytes_to_c_char_array::<4096>(b"/docker/\xFF\xFE");
         let result = Process::try_from(proc);
         assert!(result.is_err());
     }
@@ -485,7 +470,7 @@ mod tests {
         let mut proc = default_process_t();
         proc.lineage[0] = lineage_t {
             uid: 1000,
-            exe_path: bytes_to_c_char_array::<4096>(&[b'/', b'b', b'i', b'n', b'/', 0xFF, 0xFE]),
+            exe_path: bytes_to_c_char_array::<4096>(b"/bin/\xFF\xFE"),
         };
         proc.lineage_len = 1;
         let result = Process::try_from(proc);
