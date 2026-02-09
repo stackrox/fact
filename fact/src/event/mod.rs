@@ -399,7 +399,7 @@ mod tests {
         ];
 
         for (input, description) in tests {
-            let arr = string_to_c_char_array::<256>(input);
+            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
             assert_eq!(
                 slice_to_string(&arr).unwrap(),
                 input,
@@ -421,7 +421,7 @@ mod tests {
         ];
 
         for (bytes, description) in tests {
-            let arr = bytes_to_c_char_array::<256>(bytes);
+            let arr = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
             assert!(
                 slice_to_string(&arr).is_err(),
                 "Should fail for {}",
@@ -451,7 +451,7 @@ mod tests {
         ];
 
         for (input, expected, description) in tests {
-            let arr = string_to_c_char_array::<4096>(input);
+            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
             assert_eq!(
                 sanitize_d_path(&arr),
                 PathBuf::from(expected),
@@ -483,7 +483,7 @@ mod tests {
         ];
 
         for (input, expected, description) in tests {
-            let arr = string_to_c_char_array::<4096>(input);
+            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
             assert_eq!(
                 sanitize_d_path(&arr),
                 PathBuf::from(expected),
@@ -523,7 +523,7 @@ mod tests {
         ];
 
         for (bytes, must_contain1, must_contain2, description) in tests {
-            let arr = bytes_to_c_char_array::<4096>(bytes);
+            let arr = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
             let result = sanitize_d_path(&arr);
             let result_str = result.to_string_lossy();
 
@@ -551,7 +551,8 @@ mod tests {
 
     #[test]
     fn sanitize_d_path_invalid_utf8_with_deleted_suffix() {
-        let invalid_with_deleted = bytes_to_c_char_array::<4096>(b"/tmp/\xFF\xFE (deleted)");
+        let invalid_with_deleted =
+            bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/tmp/\xFF\xFE (deleted)");
         let result = sanitize_d_path(&invalid_with_deleted);
         let result_str = result.to_string_lossy();
 
