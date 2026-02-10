@@ -495,56 +495,43 @@ mod tests {
 
     #[test]
     fn sanitize_d_path_invalid_utf8() {
-        let tests: &[(&[u8], &str, &str, &str)] = &[
+        use regex::Regex;
+
+        let tests: &[(&[u8], &str, &str)] = &[
             (
                 b"/tmp/\xFF\xFE.txt",
-                "/tmp/",
-                ".txt",
+                r"^/tmp/\u{FFFD}+\.txt$",
                 "invalid continuation bytes",
             ),
             (
                 b"/var/test\xE2\x80",
-                "/var/",
-                "",
+                r"^/var/test\u{FFFD}+$",
                 "truncated multi-byte sequence",
             ),
             (
                 b"/home/file\x80.log",
-                "/home/",
-                ".log",
+                r"^/home/file\u{FFFD}\.log$",
                 "invalid start byte",
             ),
             (
                 b"/tmp/\xD1\x84\xFF\xD0\xBB.txt",
-                "/tmp/",
-                "",
+                r"^/tmp/ф\u{FFFD}л\.txt$",
                 "mixed valid and invalid UTF-8",
             ),
         ];
 
-        for (bytes, must_contain1, must_contain2, description) in tests {
+        for (bytes, pattern, description) in tests {
             let arr = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
             let result = sanitize_d_path(&arr);
             let result_str = result.to_string_lossy();
 
+            let re = Regex::new(pattern).expect("Invalid regex pattern");
             assert!(
-                result_str.contains(must_contain1),
-                "Failed for {} - should contain '{}'",
+                re.is_match(&result_str),
+                "Failed for {}: expected pattern '{}', got '{}'",
                 description,
-                must_contain1
-            );
-            if !must_contain2.is_empty() {
-                assert!(
-                    result_str.contains(must_contain2),
-                    "Failed for {} - should contain '{}'",
-                    description,
-                    must_contain2
-                );
-            }
-            assert!(
-                result_str.contains('\u{FFFD}'),
-                "Failed for {} - should contain replacement character",
-                description
+                pattern,
+                result_str
             );
         }
     }

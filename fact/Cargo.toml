@@ -35,6 +35,7 @@ fact-ebpf = { path = "../fact-ebpf" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+regex = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }

@@ -342,13 +342,21 @@ mod tests {
 
     #[test]
     fn process_conversion_invalid_utf8_exe_path() {
+        use regex::Regex;
+
         let mut proc = default_process_t();
         proc.exe_path = bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/usr/bin/\xFF\xFE");
         let result = Process::try_from(proc);
         assert!(result.is_ok());
         let exe_path = result.unwrap().exe_path;
-        assert!(exe_path.to_string_lossy().contains("/usr/bin/"));
-        assert!(exe_path.to_string_lossy().contains('\u{FFFD}'));
+        let exe_path_str = exe_path.to_string_lossy();
+
+        let re = Regex::new(r"^/usr/bin/\u{FFFD}+$").expect("Invalid regex pattern");
+        assert!(
+            re.is_match(&exe_path_str),
+            "Expected pattern '^/usr/bin/\\u{{FFFD}}+$', got '{}'",
+            exe_path_str
+        );
     }
 
     #[test]
@@ -467,6 +475,8 @@ mod tests {
 
     #[test]
     fn process_conversion_invalid_utf8_lineage() {
+        use regex::Regex;
+
         let mut proc = default_process_t();
         proc.lineage[0] = lineage_t {
             uid: 1000,
@@ -476,7 +486,13 @@ mod tests {
         let result = Process::try_from(proc);
         assert!(result.is_ok());
         let lineage = result.unwrap().lineage;
-        assert!(lineage[0].exe_path.to_string_lossy().contains("/bin/"));
-        assert!(lineage[0].exe_path.to_string_lossy().contains('\u{FFFD}'));
+        let lineage_path_str = lineage[0].exe_path.to_string_lossy();
+
+        let re = Regex::new(r"^/bin/\u{FFFD}+$").expect("Invalid regex pattern");
+        assert!(
+            re.is_match(&lineage_path_str),
+            "Expected pattern '^/bin/\\u{{FFFD}}+$', got '{}'",
+            lineage_path_str
+        );
     }
 }
