@@ -225,26 +225,6 @@ mod tests {
     use crate::event::test_utils::*;
     use std::os::raw::c_char;
 
-    /// Helper to create a default process_t for testing
-    fn default_process_t() -> process_t {
-        process_t {
-            comm: string_to_c_char_array::<16>("test"),
-            args: string_to_c_char_array::<{ PATH_MAX as usize }>("arg1\0arg2\0"),
-            args_len: 10,
-            exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>("/usr/bin/test"),
-            memory_cgroup: string_to_c_char_array::<{ PATH_MAX as usize }>("init.scope"),
-            uid: 1000,
-            gid: 1000,
-            login_uid: 1000,
-            pid: 12345,
-            lineage: [lineage_t {
-                uid: 1000,
-                exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>("/bin/bash"),
-            }; 2],
-            lineage_len: 0,
-            in_root_mount_ns: 1,
-        }
-    }
 
     #[test]
     fn extract_container_id() {
@@ -293,7 +273,7 @@ mod tests {
         ];
 
         for (comm, description) in tests {
-            let mut proc = default_process_t();
+            let mut proc = process_t::default();
             proc.comm = string_to_c_char_array::<16>(comm);
             let result = Process::try_from(proc);
             assert!(result.is_ok(), "Failed for {}", description);
@@ -309,7 +289,7 @@ mod tests {
         ];
 
         for (bytes, description) in tests {
-            let mut proc = default_process_t();
+            let mut proc = process_t::default();
             proc.comm = bytes_to_c_char_array::<16>(bytes);
             let result = Process::try_from(proc);
             assert!(result.is_err(), "Should fail for {}", description);
@@ -327,7 +307,7 @@ mod tests {
         ];
 
         for (path, description) in tests {
-            let mut proc = default_process_t();
+            let mut proc = process_t::default();
             proc.exe_path = string_to_c_char_array::<{ PATH_MAX as usize }>(path);
             let result = Process::try_from(proc);
             assert!(result.is_ok(), "Failed for {}", description);
@@ -344,7 +324,7 @@ mod tests {
     fn process_conversion_invalid_utf8_exe_path() {
         use regex::Regex;
 
-        let mut proc = default_process_t();
+        let mut proc = process_t::default();
         proc.exe_path = bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/usr/bin/\xFF\xFE");
         let result = Process::try_from(proc);
         assert!(result.is_ok());
@@ -382,7 +362,7 @@ mod tests {
         ];
 
         for (args_str, expected, description) in tests {
-            let mut proc = default_process_t();
+            let mut proc = process_t::default();
             proc.args = string_to_c_char_array::<{ PATH_MAX as usize }>(args_str);
             proc.args_len = args_str.len() as u32;
             let result = Process::try_from(proc);
@@ -404,7 +384,7 @@ mod tests {
         ];
 
         for (bytes, args_len, description) in tests {
-            let mut proc = default_process_t();
+            let mut proc = process_t::default();
             proc.args = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
             proc.args_len = *args_len;
             let result = Process::try_from(proc);
@@ -424,7 +404,7 @@ mod tests {
         ];
 
         for (cgroup, expected_id, description) in tests {
-            let mut proc = default_process_t();
+            let mut proc = process_t::default();
             proc.memory_cgroup = string_to_c_char_array::<{ PATH_MAX as usize }>(cgroup);
             let result = Process::try_from(proc);
             assert!(result.is_ok(), "Failed for {}", description);
@@ -439,7 +419,7 @@ mod tests {
 
     #[test]
     fn process_conversion_invalid_utf8_memory_cgroup() {
-        let mut proc = default_process_t();
+        let mut proc = process_t::default();
         proc.memory_cgroup = bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/docker/\xFF\xFE");
         let result = Process::try_from(proc);
         assert!(result.is_err());
@@ -454,7 +434,7 @@ mod tests {
         ];
 
         for (path, description) in tests {
-            let mut proc = default_process_t();
+            let mut proc = process_t::default();
             proc.lineage[0] = lineage_t {
                 uid: 1000,
                 exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
@@ -477,7 +457,7 @@ mod tests {
     fn process_conversion_invalid_utf8_lineage() {
         use regex::Regex;
 
-        let mut proc = default_process_t();
+        let mut proc = process_t::default();
         proc.lineage[0] = lineage_t {
             uid: 1000,
             exe_path: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/bin/\xFF\xFE"),
