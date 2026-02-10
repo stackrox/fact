@@ -388,11 +388,11 @@ mod tests {
     fn slice_to_string_valid_utf8() {
         let tests = [
             ("hello", "ASCII"),
-            ("café", "Latin-1 supplement"),
+            ("café", "French"),
             ("файл", "Cyrillic"),
             ("测试文件", "Chinese"),
-            ("test🚀file", "emoji"),
-            ("test-файл-测试-🐛.txt", "mixed characters"),
+            ("test🚀file", "Emoji"),
+            ("test-файл-测试-🐛.txt", "Mixed Unicode"),
             ("ملف", "Arabic"),
             ("קובץ", "Hebrew"),
             ("ファイル", "Japanese"),
@@ -412,12 +412,12 @@ mod tests {
     #[test]
     fn slice_to_string_invalid_utf8() {
         let tests: &[(&[u8], &str)] = &[
-            (&[0xFF, 0xFE, 0xFD], "invalid continuation bytes"),
-            (b"test\xE2", "truncated multi-byte sequence"),
-            (&[0xC0, 0x80], "overlong encoding"),
-            (b"hello\x80world", "invalid start byte"),
-            (&[0x80], "lone continuation byte"),
-            (b"test\xFF\xFE", "mixed valid and invalid bytes"),
+            (&[0xFF, 0xFE, 0xFD], "Invalid continuation bytes"),
+            (b"test\xE2", "Truncated multi-byte sequence"),
+            (&[0xC0, 0x80], "Overlong encoding"),
+            (b"hello\x80world", "Invalid start byte"),
+            (&[0x80], "Lone continuation byte"),
+            (b"test\xFF\xFE", "Mixed valid and invalid bytes"),
         ];
 
         for (bytes, description) in tests {
@@ -440,11 +440,11 @@ mod tests {
                 "/home/user/测试文件.log",
                 "Chinese",
             ),
-            ("/data/🚀rocket.dat", "/data/🚀rocket.dat", "emoji"),
+            ("/data/🚀rocket.dat", "/data/🚀rocket.dat", "Emoji"),
             (
                 "/var/log/app-данные-数据-🐛.log",
                 "/var/log/app-данные-数据-🐛.log",
-                "mixed Unicode",
+                "Mixed Unicode",
             ),
             ("/home/ملف.txt", "/home/ملف.txt", "Arabic"),
             ("/opt/ファイル.conf", "/opt/ファイル.conf", "Japanese"),
@@ -474,11 +474,11 @@ mod tests {
                 "/tmp/файл.txt",
                 "Unicode with deleted suffix",
             ),
-            ("/etc/config.yaml", "/etc/config.yaml", "no deleted suffix"),
+            ("/etc/config.yaml", "/etc/config.yaml", "No deleted suffix"),
             (
                 "/var/log/app/debug.log (deleted)",
                 "/var/log/app/debug.log",
-                "nested path with deleted suffix",
+                "Nested path with deleted suffix",
             ),
         ];
 
@@ -501,22 +501,22 @@ mod tests {
             (
                 b"/tmp/\xFF\xFE.txt",
                 r"^/tmp/\u{FFFD}+\.txt$",
-                "invalid continuation bytes",
+                "Invalid continuation bytes",
             ),
             (
                 b"/var/test\xE2\x80",
                 r"^/var/test\u{FFFD}+$",
-                "truncated multi-byte sequence",
+                "Truncated multi-byte sequence",
             ),
             (
                 b"/home/file\x80.log",
                 r"^/home/file\u{FFFD}\.log$",
-                "invalid start byte",
+                "Invalid start byte",
             ),
             (
                 b"/tmp/\xD1\x84\xFF\xD0\xBB.txt",
                 r"^/tmp/ф\u{FFFD}л\.txt$",
-                "mixed valid and invalid UTF-8",
+                "Mixed valid and invalid UTF-8",
             ),
         ];
 

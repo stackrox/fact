@@ -9,12 +9,12 @@ from event import Event, EventType, Process
 
 
 @pytest.mark.parametrize("filename", [
-    pytest.param('create.txt', id='ascii'),
-    pytest.param('café.txt', id='spanish'),
-    pytest.param('файл.txt', id='cyrilic'),
-    pytest.param('测试.txt', id='chinese'),
-    pytest.param('🚀rocket.txt', id='emoji'),
-    pytest.param(b'test\xff\xfe.txt', id='invalid'),
+    pytest.param('create.txt', id='ASCII'),
+    pytest.param('café.txt', id='French'),
+    pytest.param('файл.txt', id='Cyrillic'),
+    pytest.param('测试.txt', id='Chinese'),
+    pytest.param('🚀rocket.txt', id='Emoji'),
+    pytest.param(b'test\xff\xfe.txt', id='Invalid'),
 ])
 def test_open(fact, monitored_dir, server, filename):
     """

@@ -269,7 +269,7 @@ mod tests {
             ("test", "ASCII"),
             ("тест", "Cyrillic"),
             ("测试", "Chinese"),
-            ("app🚀", "emoji"),
+            ("app🚀", "Emoji"),
         ];
 
         for (comm, description) in tests {
@@ -289,8 +289,8 @@ mod tests {
     #[test]
     fn process_conversion_invalid_utf8_comm() {
         let tests: &[(&[u8], &str)] = &[
-            (b"test\xFF\xFE", "invalid bytes"),
-            (b"app\xE2\x80", "truncated multi-byte sequence"),
+            (b"test\xFF\xFE", "Invalid bytes"),
+            (b"app\xE2\x80", "Truncated multi-byte sequence"),
         ];
 
         for (bytes, description) in tests {
@@ -309,8 +309,8 @@ mod tests {
             ("/usr/bin/test", "ASCII"),
             ("/usr/bin/тест", "Cyrillic"),
             ("/opt/应用/测试", "Chinese"),
-            ("/home/user/🚀app", "emoji"),
-            ("/var/app-данные-数据/bin", "mixed UTF-8"),
+            ("/home/user/🚀app", "Emoji"),
+            ("/var/app-данные-数据/bin", "Mixed UTF-8"),
         ];
 
         for (path, description) in tests {
@@ -359,12 +359,12 @@ mod tests {
             (
                 "app\0🚀file\0📁data\0",
                 vec!["app", "🚀file", "📁data"],
-                "emoji",
+                "Emoji",
             ),
             (
                 "test\0файл\0测试\0🚀\0",
                 vec!["test", "файл", "测试", "🚀"],
-                "mixed UTF-8",
+                "Mixed UTF-8",
             ),
         ];
 
@@ -386,8 +386,8 @@ mod tests {
     #[test]
     fn process_conversion_invalid_utf8_args() {
         let tests: &[(&[u8], u32, &str)] = &[
-            (b"arg1\0\xFF\xFEarg\0", 11, "invalid bytes"),
-            (b"test\0\xE2\x80\0", 8, "truncated multi-byte sequence"),
+            (b"arg1\0\xFF\xFEarg\0", 11, "Invalid bytes"),
+            (b"test\0\xE2\x80\0", 8, "Truncated multi-byte sequence"),
         ];
 
         for (bytes, args_len, description) in tests {
