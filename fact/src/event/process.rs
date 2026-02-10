@@ -1,6 +1,6 @@
 use std::{ffi::CStr, path::PathBuf};
 
-use fact_ebpf::{lineage_t, process_t, PATH_MAX};
+use fact_ebpf::{lineage_t, process_t};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -8,7 +8,7 @@ use crate::host_info;
 
 use super::{sanitize_d_path, slice_to_string};
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Lineage {
     uid: u32,
     exe_path: PathBuf,
@@ -223,7 +223,7 @@ impl From<Process> for fact_api::ProcessSignal {
 mod tests {
     use super::*;
     use crate::event::test_utils::*;
-    use std::os::raw::c_char;
+    use fact_ebpf::PATH_MAX;
 
 
     #[test]
@@ -273,11 +273,16 @@ mod tests {
         ];
 
         for (comm, description) in tests {
-            let mut proc = process_t::default();
-            proc.comm = string_to_c_char_array::<16>(comm);
-            let result = Process::try_from(proc);
-            assert!(result.is_ok(), "Failed for {}", description);
-            assert_eq!(result.unwrap().comm, comm, "Failed for {}", description);
+            let proc = process_t {
+                comm: string_to_c_char_array::<16>(comm),
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected = Process {
+                comm: comm.to_string(),
+                ..Default::default()
+            };
+            assert_eq!(result, expected, "Failed for {}", description);
         }
     }
 
@@ -289,8 +294,10 @@ mod tests {
         ];
 
         for (bytes, description) in tests {
-            let mut proc = process_t::default();
-            proc.comm = bytes_to_c_char_array::<16>(bytes);
+            let proc = process_t {
+                comm: bytes_to_c_char_array::<16>(bytes),
+                ..Default::default()
+            };
             let result = Process::try_from(proc);
             assert!(result.is_err(), "Should fail for {}", description);
         }
@@ -307,16 +314,16 @@ mod tests {
         ];
 
         for (path, description) in tests {
-            let mut proc = process_t::default();
-            proc.exe_path = string_to_c_char_array::<{ PATH_MAX as usize }>(path);
-            let result = Process::try_from(proc);
-            assert!(result.is_ok(), "Failed for {}", description);
-            assert_eq!(
-                result.unwrap().exe_path,
-                PathBuf::from(path),
-                "Failed for {}",
-                description
-            );
+            let proc = process_t {
+                exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected = Process {
+                exe_path: PathBuf::from(path),
+                ..Default::default()
+            };
+            assert_eq!(result, expected, "Failed for {}", description);
         }
     }
 
@@ -324,12 +331,12 @@ mod tests {
     fn process_conversion_invalid_utf8_exe_path() {
         use regex::Regex;
 
-        let mut proc = process_t::default();
-        proc.exe_path = bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/usr/bin/\xFF\xFE");
-        let result = Process::try_from(proc);
-        assert!(result.is_ok());
-        let exe_path = result.unwrap().exe_path;
-        let exe_path_str = exe_path.to_string_lossy();
+        let proc = process_t {
+            exe_path: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/usr/bin/\xFF\xFE"),
+            ..Default::default()
+        };
+        let result = Process::try_from(proc).expect("Failed to parse process");
+        let exe_path_str = result.exe_path.to_string_lossy();
 
         let re = Regex::new(r"^/usr/bin/\u{FFFD}+$").expect("Invalid regex pattern");
         assert!(
@@ -362,17 +369,17 @@ mod tests {
         ];
 
         for (args_str, expected, description) in tests {
-            let mut proc = process_t::default();
-            proc.args = string_to_c_char_array::<{ PATH_MAX as usize }>(args_str);
-            proc.args_len = args_str.len() as u32;
-            let result = Process::try_from(proc);
-            assert!(result.is_ok(), "Failed for {}", description);
-            assert_eq!(
-                result.unwrap().args,
-                *expected,
-                "Failed for {}",
-                description
-            );
+            let proc = process_t {
+                args: string_to_c_char_array::<{ PATH_MAX as usize }>(args_str),
+                args_len: args_str.len() as u32,
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected_process = Process {
+                args: expected.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            };
+            assert_eq!(result, expected_process, "Failed for {}", description);
         }
     }
 
@@ -384,9 +391,11 @@ mod tests {
         ];
 
         for (bytes, args_len, description) in tests {
-            let mut proc = process_t::default();
-            proc.args = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
-            proc.args_len = *args_len;
+            let proc = process_t {
+                args: bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes),
+                args_len: *args_len,
+                ..Default::default()
+            };
             let result = Process::try_from(proc);
             assert!(result.is_err(), "Should fail for {}", description);
         }
@@ -404,23 +413,25 @@ mod tests {
         ];
 
         for (cgroup, expected_id, description) in tests {
-            let mut proc = process_t::default();
-            proc.memory_cgroup = string_to_c_char_array::<{ PATH_MAX as usize }>(cgroup);
-            let result = Process::try_from(proc);
-            assert!(result.is_ok(), "Failed for {}", description);
-            assert_eq!(
-                result.unwrap().container_id,
-                expected_id.map(|s| s.to_string()),
-                "Failed for {}",
-                description
-            );
+            let proc = process_t {
+                memory_cgroup: string_to_c_char_array::<{ PATH_MAX as usize }>(cgroup),
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected_process = Process {
+                container_id: expected_id.map(|s| s.to_string()),
+                ..Default::default()
+            };
+            assert_eq!(result, expected_process, "Failed for {}", description);
         }
     }
 
     #[test]
     fn process_conversion_invalid_utf8_memory_cgroup() {
-        let mut proc = process_t::default();
-        proc.memory_cgroup = bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/docker/\xFF\xFE");
+        let proc = process_t {
+            memory_cgroup: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/docker/\xFF\xFE"),
+            ..Default::default()
+        };
         let result = Process::try_from(proc);
         assert!(result.is_err());
     }
@@ -434,22 +445,26 @@ mod tests {
         ];
 
         for (path, description) in tests {
-            let mut proc = process_t::default();
-            proc.lineage[0] = lineage_t {
-                uid: 1000,
-                exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
+            let proc = process_t {
+                lineage: [
+                    lineage_t {
+                        uid: 1000,
+                        exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
+                    },
+                    Default::default(),
+                ],
+                lineage_len: 1,
+                ..Default::default()
             };
-            proc.lineage_len = 1;
-            let result = Process::try_from(proc);
-            assert!(result.is_ok(), "Failed for {}", description);
-            let lineage = result.unwrap().lineage;
-            assert_eq!(lineage.len(), 1);
-            assert_eq!(
-                lineage[0].exe_path,
-                PathBuf::from(path),
-                "Failed for {}",
-                description
-            );
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected_process = Process {
+                lineage: vec![Lineage {
+                    uid: 1000,
+                    exe_path: PathBuf::from(path),
+                }],
+                ..Default::default()
+            };
+            assert_eq!(result, expected_process, "Failed for {}", description);
         }
     }
 
@@ -457,12 +472,17 @@ mod tests {
     fn process_conversion_invalid_utf8_lineage() {
         use regex::Regex;
 
-        let mut proc = process_t::default();
-        proc.lineage[0] = lineage_t {
-            uid: 1000,
-            exe_path: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/bin/\xFF\xFE"),
+        let proc = process_t {
+            lineage: [
+                lineage_t {
+                    uid: 1000,
+                    exe_path: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/bin/\xFF\xFE"),
+                },
+                Default::default(),
+            ],
+            lineage_len: 1,
+            ..Default::default()
         };
-        proc.lineage_len = 1;
         let result = Process::try_from(proc);
         assert!(result.is_ok());
         let lineage = result.unwrap().lineage;
