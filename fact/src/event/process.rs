@@ -225,7 +225,6 @@ mod tests {
     use crate::event::test_utils::*;
     use fact_ebpf::PATH_MAX;
 
-
     #[test]
     fn extract_container_id() {
         let tests = [
