@@ -56,7 +56,7 @@ jobs:
     - name: Build
       run: cargo +${{ matrix.rust-version }} build --release
     - name: Lint
-      run: cargo +${{ matrix.rust-version }} clippy -- -D warnings
+      run: cargo +${{ matrix.rust-version }} clippy --all-targets --all-features -- -D warnings
     - name: Test
       run: cargo +${{ matrix.rust-version }} test
 
