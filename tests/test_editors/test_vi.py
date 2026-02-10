@@ -6,14 +6,14 @@ def test_new_file(vi_container, server):
     fut = '/mounted/test.txt'
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
 
     vi_container.exec_run(
         f"vi {fut} +':normal iThis is a test<CR>' -c x")
 
     process = Process.in_container(
         exe_path=exe,
-        args=f'{exe} {fut} +:normal iThis is a test<CR> -c x',
+        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
         name='vi',
         container_id=vi_container.id[:12],
     )
@@ -45,14 +45,14 @@ def test_new_file_ovfs(vi_container, server):
     fut = '/container-dir/test.txt'
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
 
     vi_container.exec_run(
         f"vi {fut} +':normal iThis is a test<CR>' -c x")
 
     process = Process.in_container(
         exe_path=exe,
-        args=f'{exe} {fut} +:normal iThis is a test<CR> -c x',
+        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
         name='vi',
         container_id=vi_container.id[:12],
     )
@@ -93,7 +93,7 @@ def test_open_file(vi_container, server):
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
     vi_test_file = get_vi_test_file('/mounted')
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
     container_id = vi_container.id[:12]
 
     # We ensure the file exists before editing.
@@ -109,7 +109,7 @@ def test_open_file(vi_container, server):
     )
     vi_process = Process.in_container(
         exe_path=exe,
-        args=f'{exe} {fut} +:normal iThis is a test<CR> -c x',
+        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
         name='vi',
         container_id=container_id,
     )
@@ -156,7 +156,7 @@ def test_open_file_ovfs(vi_container, server):
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
     vi_test_file = get_vi_test_file('/container-dir')
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
     container_id = vi_container.id[:12]
 
     # We ensure the file exists before editing.
@@ -172,7 +172,7 @@ def test_open_file_ovfs(vi_container, server):
     )
     vi_process = Process.in_container(
         exe_path=exe,
-        args=f'{exe} {fut} +:normal iThis is a test<CR> -c x',
+        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
         name='vi',
         container_id=container_id,
     )
