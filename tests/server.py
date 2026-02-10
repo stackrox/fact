@@ -81,7 +81,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         """
         return self.running.is_set()
 
-    def _wait_events(self, events: list[Event], ignored: list[Event]):
+    def _wait_events(self, events: list[Event], ignored: list[Event], strict: bool):
         while self.is_running():
             msg = self.get_next()
             if msg is None:
@@ -96,8 +96,10 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
                 events.remove(msg)
                 if len(events) == 0:
                     break
+            elif strict:
+                raise ValueError(f'Encountered unexpected event: {msg}')
 
-    def wait_events(self, events: list[Event], ignored: list[Event] = []):
+    def wait_events(self, events: list[Event], ignored: list[Event] = [], strict: bool = False):
         """
         Continuously checks the server for incoming events until the
         specified events are found.
@@ -106,9 +108,10 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
             server: The server instance to retrieve events from.
             event (list[Event]): The events to search for.
             ignored (list[Event]): List of events that should not happen.
+            strict (bool): Fail if an unexpected event is detected.
 
         Raises:
             TimeoutError: If the required events are not found in 5 seconds.
         """
-        fs = self.executor.submit(self._wait_events, events, ignored)
+        fs = self.executor.submit(self._wait_events, events, ignored, strict)
         fs.result(timeout=5)
