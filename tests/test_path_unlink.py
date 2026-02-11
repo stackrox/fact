@@ -27,25 +27,27 @@ def test_remove(fact, monitored_dir, server, filename):
         server: The server instance to communicate with.
         filename: Name of the file to create and remove (includes UTF-8 test cases).
     """
-    test_file = join_path_with_filename(monitored_dir, filename)
+
+    # File under test
+    fut = join_path_with_filename(monitored_dir, filename)
 
     # Create the file first
-    with open(test_file, 'w') as f:
+    with open(fut, 'w') as f:
         f.write('This is a test')
 
     # Remove the file
-    os.remove(test_file)
+    os.remove(fut)
 
     # Convert test_file to string for the Event, replacing invalid UTF-8 with U+FFFD
-    test_file = path_to_string(test_file)
+    fut = path_to_string(fut)
 
     process = Process.from_proc()
     # We expect both CREATION (from file creation) and UNLINK (from removal)
     events = [
         Event(process=process, event_type=EventType.CREATION,
-              file=test_file, host_path=''),
+              file=fut, host_path=''),
         Event(process=process, event_type=EventType.UNLINK,
-              file=test_file, host_path=''),
+              file=fut, host_path=''),
     ]
 
     server.wait_events(events)
