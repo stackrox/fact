@@ -34,7 +34,7 @@ def test_open(fact, monitored_dir, server, filename):
         f.write('This is a test')
 
     # Convert fut to string for the Event, replacing invalid UTF-8 with U+FFFD
-    fut_str = path_to_string(fut)
+    fut = path_to_string(fut)
 
     e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
               file=fut_str, host_path='')
