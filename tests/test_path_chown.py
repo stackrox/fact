@@ -42,10 +42,8 @@ def test_chown(fact, test_container, server, filename):
     # Create the file and chown it
     # Use shlex.quote to properly escape special characters for shell
     fut_quoted = shlex.quote(fut)
-    touch_cmd_shell = f'touch {fut_quoted}'
-    chown_cmd_shell = f'chown {TEST_UID}:{TEST_GID} {fut_quoted}'
-    test_container.exec_run(touch_cmd_shell)
-    test_container.exec_run(chown_cmd_shell)
+    test_container.exec_run(f'touch {fut_quoted}')
+    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {fut_quoted}')
 
     # The args in the event won't have quotes (shell removes them)
     touch_cmd = f'touch {fut}'
