@@ -33,11 +33,9 @@ def test_chown(fact, test_container, server, filename):
         server: The server instance to communicate with.
         filename: Name of the file to create (includes UTF-8 test cases).
     """
-    # Convert filename to string, replacing invalid UTF-8 with U+FFFD
-    filename_str = path_to_string(filename)
 
     # File Under Test
-    fut = f'/container-dir/{filename_str}'
+    fut = f'/container-dir/{path_to_string(filename)}'
 
     # Create the file and chown it
     # Use shlex.quote to properly escape special characters for shell
