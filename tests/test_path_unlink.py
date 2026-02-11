@@ -43,9 +43,9 @@ def test_remove(fact, monitored_dir, server, filename):
     # We expect both CREATION (from file creation) and UNLINK (from removal)
     events = [
         Event(process=process, event_type=EventType.CREATION,
-              file=test_file_str, host_path=''),
+              file=test_file, host_path=''),
         Event(process=process, event_type=EventType.UNLINK,
-              file=test_file_str, host_path=''),
+              file=test_file, host_path=''),
     ]
 
     server.wait_events(events)

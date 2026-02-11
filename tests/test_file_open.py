@@ -37,7 +37,7 @@ def test_open(fact, monitored_dir, server, filename):
     fut = path_to_string(fut)
 
     e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
-              file=fut_str, host_path='')
+              file=fut, host_path='')
     print(f'Waiting for event: {e}')
 
     server.wait_events([e])

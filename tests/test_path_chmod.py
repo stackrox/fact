@@ -42,9 +42,9 @@ def test_chmod(fact, monitored_dir, server, filename):
     # We expect both CREATION (from file creation) and PERMISSION (from chmod)
     events = [
         Event(process=process, event_type=EventType.CREATION,
-              file=fut_str, host_path=''),
+              file=fut, host_path=''),
         Event(process=process, event_type=EventType.PERMISSION,
-              file=fut_str, host_path='', mode=mode),
+              file=fut, host_path='', mode=mode),
     ]
 
     for e in events:
