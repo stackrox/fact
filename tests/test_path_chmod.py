@@ -1,10 +1,21 @@
 import multiprocessing as mp
 import os
 
+import pytest
+
+from conftest import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 
-def test_chmod(fact, monitored_dir, server):
+@pytest.mark.parametrize("filename", [
+    'chmod.txt',
+    'café.txt',
+    'файл.txt',
+    '测试.txt',
+    '🔒secure.txt',
+    b'perm\xff\xfe.txt',
+])
+def test_chmod(fact, monitored_dir, server, filename):
     """
     Tests changing permissions on a file and verifies the corresponding
     event is captured by the server
@@ -13,18 +24,33 @@ def test_chmod(fact, monitored_dir, server):
         fact: Fixture for file activity (only required to be runing).
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
+        filename: Name of the file to create (includes UTF-8 test cases).
     """
-    # File Under Test
-    fut = os.path.join(monitored_dir, 'test.txt')
+    fut = join_path_with_filename(monitored_dir, filename)
+
+    # Create the file first
+    with open(fut, 'w') as f:
+        f.write('This is a test')
+
     mode = 0o666
     os.chmod(fut, mode)
 
-    e = Event(process=Process.from_proc(), event_type=EventType.PERMISSION,
-              file=fut, host_path=fut, mode=mode)
+    # Convert fut to string for the Event, replacing invalid UTF-8 with U+FFFD
+    fut = path_to_string(fut)
 
-    print(f'Waiting for event: {e}')
+    process = Process.from_proc()
+    # We expect both CREATION (from file creation) and PERMISSION (from chmod)
+    events = [
+        Event(process=process, event_type=EventType.CREATION,
+              file=fut, host_path=''),
+        Event(process=process, event_type=EventType.PERMISSION,
+              file=fut, host_path='', mode=mode),
+    ]
 
-    server.wait_events([e])
+    for e in events:
+        print(f'Waiting for event: {e}')
+
+    server.wait_events(events)
 
 
 def test_multiple(fact, monitored_dir, server):

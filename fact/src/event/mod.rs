@@ -358,3 +358,193 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
         }
     }
 }
+
+#[cfg(test)]
+mod test_utils {
+    use std::os::raw::c_char;
+
+    /// Helper function to convert raw bytes to a c_char array for testing
+    pub fn bytes_to_c_char_array<const N: usize>(bytes: &[u8]) -> [c_char; N] {
+        let mut array = [0 as c_char; N];
+        let len = bytes.len().min(N - 1);
+        for (i, &byte) in bytes.iter().take(len).enumerate() {
+            array[i] = byte as c_char;
+        }
+        array
+    }
+
+    /// Helper function to convert a Rust string to a c_char array for testing
+    pub fn string_to_c_char_array<const N: usize>(s: &str) -> [c_char; N] {
+        bytes_to_c_char_array(s.as_bytes())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_utils::*;
+    use super::*;
+
+    #[test]
+    fn slice_to_string_valid_utf8() {
+        let tests = [
+            ("hello", "ASCII"),
+            ("café", "French"),
+            ("файл", "Cyrillic"),
+            ("测试文件", "Chinese"),
+            ("test🚀file", "Emoji"),
+            ("test-файл-测试-🐛.txt", "Mixed Unicode"),
+            ("ملف", "Arabic"),
+            ("קובץ", "Hebrew"),
+            ("ファイル", "Japanese"),
+        ];
+
+        for (input, description) in tests {
+            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
+            assert_eq!(
+                slice_to_string(&arr).unwrap(),
+                input,
+                "Failed for {}",
+                description
+            );
+        }
+    }
+
+    #[test]
+    fn slice_to_string_invalid_utf8() {
+        let tests: &[(&[u8], &str)] = &[
+            (&[0xFF, 0xFE, 0xFD], "Invalid continuation bytes"),
+            (b"test\xE2", "Truncated multi-byte sequence"),
+            (&[0xC0, 0x80], "Overlong encoding"),
+            (b"hello\x80world", "Invalid start byte"),
+            (&[0x80], "Lone continuation byte"),
+            (b"test\xFF\xFE", "Mixed valid and invalid bytes"),
+        ];
+
+        for (bytes, description) in tests {
+            let arr = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
+            assert!(
+                slice_to_string(&arr).is_err(),
+                "Should fail for {}",
+                description
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_d_path_valid_utf8() {
+        let tests = [
+            ("/etc/test", "/etc/test", "ASCII"),
+            ("/tmp/файл.txt", "/tmp/файл.txt", "Cyrillic"),
+            (
+                "/home/user/测试文件.log",
+                "/home/user/测试文件.log",
+                "Chinese",
+            ),
+            ("/data/🚀rocket.dat", "/data/🚀rocket.dat", "Emoji"),
+            (
+                "/var/log/app-данные-数据-🐛.log",
+                "/var/log/app-данные-数据-🐛.log",
+                "Mixed Unicode",
+            ),
+            ("/home/ملف.txt", "/home/ملف.txt", "Arabic"),
+            ("/opt/ファイル.conf", "/opt/ファイル.conf", "Japanese"),
+        ];
+
+        for (input, expected, description) in tests {
+            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
+            assert_eq!(
+                sanitize_d_path(&arr),
+                PathBuf::from(expected),
+                "Failed for {}",
+                description
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_d_path_deleted_suffix() {
+        let tests = [
+            (
+                "/tmp/test.txt (deleted)",
+                "/tmp/test.txt",
+                "ASCII with deleted suffix",
+            ),
+            (
+                "/tmp/файл.txt (deleted)",
+                "/tmp/файл.txt",
+                "Unicode with deleted suffix",
+            ),
+            ("/etc/config.yaml", "/etc/config.yaml", "No deleted suffix"),
+            (
+                "/var/log/app/debug.log (deleted)",
+                "/var/log/app/debug.log",
+                "Nested path with deleted suffix",
+            ),
+        ];
+
+        for (input, expected, description) in tests {
+            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
+            assert_eq!(
+                sanitize_d_path(&arr),
+                PathBuf::from(expected),
+                "Failed for {}",
+                description
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_d_path_invalid_utf8() {
+        use regex::Regex;
+
+        let tests: &[(&[u8], &str, &str)] = &[
+            (
+                b"/tmp/\xFF\xFE.txt",
+                r"^/tmp/\u{FFFD}+\.txt$",
+                "Invalid continuation bytes",
+            ),
+            (
+                b"/var/test\xE2\x80",
+                r"^/var/test\u{FFFD}+$",
+                "Truncated multi-byte sequence",
+            ),
+            (
+                b"/home/file\x80.log",
+                r"^/home/file\u{FFFD}\.log$",
+                "Invalid start byte",
+            ),
+            (
+                b"/tmp/\xD1\x84\xFF\xD0\xBB.txt",
+                r"^/tmp/ф\u{FFFD}л\.txt$",
+                "Mixed valid and invalid UTF-8",
+            ),
+        ];
+
+        for (bytes, pattern, description) in tests {
+            let arr = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
+            let result = sanitize_d_path(&arr);
+            let result_str = result.to_string_lossy();
+
+            let re = Regex::new(pattern).expect("Invalid regex pattern");
+            assert!(
+                re.is_match(&result_str),
+                "Failed for {}: expected pattern '{}', got '{}'",
+                description,
+                pattern,
+                result_str
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_d_path_invalid_utf8_with_deleted_suffix() {
+        let invalid_with_deleted =
+            bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/tmp/\xFF\xFE (deleted)");
+        let result = sanitize_d_path(&invalid_with_deleted);
+        let result_str = result.to_string_lossy();
+
+        assert!(result_str.contains("/tmp/"));
+        assert!(!result_str.ends_with(" (deleted)"));
+        assert!(result_str.contains('\u{FFFD}'));
+    }
+}

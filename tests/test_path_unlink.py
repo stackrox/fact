@@ -2,26 +2,52 @@ import multiprocessing as mp
 import os
 
 import docker
+import pytest
 
+from conftest import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 
-def test_remove(fact, test_file, server):
+@pytest.mark.parametrize("filename", [
+    'remove.txt',
+    'café.txt',
+    'файл.txt',
+    '测试.txt',
+    '🗑️delete.txt',
+    b'rm\xff\xfe.txt',
+])
+def test_remove(fact, monitored_dir, server, filename):
     """
     Tests the removal of a file and verifies the corresponding event is
     captured by the server.
 
     Args:
         fact: Fixture for file activity (only required to be running).
-        test_file: Temporary file for testing.
+        monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
+        filename: Name of the file to create and remove (includes UTF-8 test cases).
     """
-    os.remove(test_file)
+
+    # File under test
+    fut = join_path_with_filename(monitored_dir, filename)
+
+    # Create the file first
+    with open(fut, 'w') as f:
+        f.write('This is a test')
+
+    # Remove the file
+    os.remove(fut)
+
+    # Convert test_file to string for the Event, replacing invalid UTF-8 with U+FFFD
+    fut = path_to_string(fut)
 
     process = Process.from_proc()
+    # We expect both CREATION (from file creation) and UNLINK (from removal)
     events = [
+        Event(process=process, event_type=EventType.CREATION,
+              file=fut, host_path=''),
         Event(process=process, event_type=EventType.UNLINK,
-              file=test_file, host_path=test_file),
+              file=fut, host_path=''),
     ]
 
     server.wait_events(events)

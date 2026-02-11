@@ -1,5 +1,9 @@
 import os
+import shlex
 
+import pytest
+
+from conftest import path_to_string
 from event import Event, EventType, Process
 
 # Tests here have to use a container to do 'chown',
@@ -10,7 +14,15 @@ TEST_UID = 1234
 TEST_GID = 2345
 
 
-def test_chown(fact, test_container, server):
+@pytest.mark.parametrize("filename", [
+    'chown.txt',
+    'café.txt',
+    'файл.txt',
+    '测试.txt',
+    '👤owner.txt',
+    b'own\xff\xfe.txt',
+])
+def test_chown(fact, test_container, server, filename):
     """
     Execute a chown operation on a file and verifies the corresponding event is
     captured by the server.
@@ -19,15 +31,21 @@ def test_chown(fact, test_container, server):
         fact: Fixture for file activity (only required to be running).
         test_container: A container for running commands in.
         server: The server instance to communicate with.
+        filename: Name of the file to create (includes UTF-8 test cases).
     """
+
     # File Under Test
-    fut = '/container-dir/test.txt'
+    fut = f'/container-dir/{path_to_string(filename)}'
 
     # Create the file and chown it
+    # Use shlex.quote to properly escape special characters for shell
+    fut_quoted = shlex.quote(fut)
+    test_container.exec_run(f'touch {fut_quoted}')
+    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {fut_quoted}')
+
+    # The args in the event won't have quotes (shell removes them)
     touch_cmd = f'touch {fut}'
     chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut}'
-    test_container.exec_run(touch_cmd)
-    test_container.exec_run(chown_cmd)
 
     loginuid = pow(2, 32) - 1
     touch = Process(pid=None,

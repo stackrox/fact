@@ -8,7 +8,7 @@ use crate::host_info;
 
 use super::{sanitize_d_path, slice_to_string};
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Lineage {
     uid: u32,
     exe_path: PathBuf,
@@ -222,6 +222,8 @@ impl From<Process> for fact_api::ProcessSignal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::test_utils::*;
+    use fact_ebpf::PATH_MAX;
 
     #[test]
     fn extract_container_id() {
@@ -258,5 +260,238 @@ mod tests {
             let id = Process::extract_container_id(input);
             assert_eq!(id, expected);
         }
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_comm() {
+        let tests = [
+            ("test", "ASCII"),
+            ("тест", "Cyrillic"),
+            ("测试", "Chinese"),
+            ("app🚀", "Emoji"),
+        ];
+
+        for (comm, description) in tests {
+            let proc = process_t {
+                comm: string_to_c_char_array::<16>(comm),
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected = Process {
+                comm: comm.to_string(),
+                ..Default::default()
+            };
+            assert_eq!(result, expected, "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_comm() {
+        let tests: &[(&[u8], &str)] = &[
+            (b"test\xFF\xFE", "Invalid bytes"),
+            (b"app\xE2\x80", "Truncated multi-byte sequence"),
+        ];
+
+        for (bytes, description) in tests {
+            let proc = process_t {
+                comm: bytes_to_c_char_array::<16>(bytes),
+                ..Default::default()
+            };
+            let result = Process::try_from(proc);
+            assert!(result.is_err(), "Should fail for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_exe_path() {
+        let tests = [
+            ("/usr/bin/test", "ASCII"),
+            ("/usr/bin/тест", "Cyrillic"),
+            ("/opt/应用/测试", "Chinese"),
+            ("/home/user/🚀app", "Emoji"),
+            ("/var/app-данные-数据/bin", "Mixed UTF-8"),
+        ];
+
+        for (path, description) in tests {
+            let proc = process_t {
+                exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected = Process {
+                exe_path: PathBuf::from(path),
+                ..Default::default()
+            };
+            assert_eq!(result, expected, "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_exe_path() {
+        use regex::Regex;
+
+        let proc = process_t {
+            exe_path: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/usr/bin/\xFF\xFE"),
+            ..Default::default()
+        };
+        let result = Process::try_from(proc).expect("Failed to parse process");
+        let exe_path_str = result.exe_path.to_string_lossy();
+
+        let re = Regex::new(r"^/usr/bin/\u{FFFD}+$").expect("Invalid regex pattern");
+        assert!(
+            re.is_match(&exe_path_str),
+            "Expected pattern '^/usr/bin/\\u{{FFFD}}+$', got '{}'",
+            exe_path_str
+        );
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_args() {
+        let tests: &[(&str, Vec<&str>, &str)] = &[
+            ("arg1\0arg2\0arg3\0", vec!["arg1", "arg2", "arg3"], "ASCII"),
+            ("файл\0данные\0", vec!["файл", "данные"], "Cyrillic"),
+            (
+                "测试\0文件\0数据\0",
+                vec!["测试", "文件", "数据"],
+                "Chinese",
+            ),
+            (
+                "app\0🚀file\0📁data\0",
+                vec!["app", "🚀file", "📁data"],
+                "Emoji",
+            ),
+            (
+                "test\0файл\0测试\0🚀\0",
+                vec!["test", "файл", "测试", "🚀"],
+                "Mixed UTF-8",
+            ),
+        ];
+
+        for (args_str, expected, description) in tests {
+            let proc = process_t {
+                args: string_to_c_char_array::<{ PATH_MAX as usize }>(args_str),
+                args_len: args_str.len() as u32,
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected_process = Process {
+                args: expected.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            };
+            assert_eq!(result, expected_process, "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_args() {
+        let tests: &[(&[u8], u32, &str)] = &[
+            (b"arg1\0\xFF\xFEarg\0", 11, "Invalid bytes"),
+            (b"test\0\xE2\x80\0", 8, "Truncated multi-byte sequence"),
+        ];
+
+        for (bytes, args_len, description) in tests {
+            let proc = process_t {
+                args: bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes),
+                args_len: *args_len,
+                ..Default::default()
+            };
+            let result = Process::try_from(proc);
+            assert!(result.is_err(), "Should fail for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_memory_cgroup() {
+        let tests = [
+            ("init.scope", None, "ASCII init.scope"),
+            (
+                "/docker/951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4",
+                Some("951e643e3c24"),
+                "container ID",
+            ),
+        ];
+
+        for (cgroup, expected_id, description) in tests {
+            let proc = process_t {
+                memory_cgroup: string_to_c_char_array::<{ PATH_MAX as usize }>(cgroup),
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected_process = Process {
+                container_id: expected_id.map(|s| s.to_string()),
+                ..Default::default()
+            };
+            assert_eq!(result, expected_process, "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_memory_cgroup() {
+        let proc = process_t {
+            memory_cgroup: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/docker/\xFF\xFE"),
+            ..Default::default()
+        };
+        let result = Process::try_from(proc);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn process_conversion_valid_utf8_lineage() {
+        let tests = [
+            ("/bin/bash", "ASCII"),
+            ("/usr/bin/тест", "Cyrillic"),
+            ("/opt/应用", "Chinese"),
+        ];
+
+        for (path, description) in tests {
+            let proc = process_t {
+                lineage: [
+                    lineage_t {
+                        uid: 1000,
+                        exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
+                    },
+                    Default::default(),
+                ],
+                lineage_len: 1,
+                ..Default::default()
+            };
+            let result = Process::try_from(proc).expect("Failed to parse process");
+            let expected_process = Process {
+                lineage: vec![Lineage {
+                    uid: 1000,
+                    exe_path: PathBuf::from(path),
+                }],
+                ..Default::default()
+            };
+            assert_eq!(result, expected_process, "Failed for {}", description);
+        }
+    }
+
+    #[test]
+    fn process_conversion_invalid_utf8_lineage() {
+        use regex::Regex;
+
+        let proc = process_t {
+            lineage: [
+                lineage_t {
+                    uid: 1000,
+                    exe_path: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/bin/\xFF\xFE"),
+                },
+                Default::default(),
+            ],
+            lineage_len: 1,
+            ..Default::default()
+        };
+        let result = Process::try_from(proc);
+        assert!(result.is_ok());
+        let lineage = result.unwrap().lineage;
+        let lineage_path_str = lineage[0].exe_path.to_string_lossy();
+
+        let re = Regex::new(r"^/bin/\u{FFFD}+$").expect("Invalid regex pattern");
+        assert!(
+            re.is_match(&lineage_path_str),
+            "Expected pattern '^/bin/\\u{{FFFD}}+$', got '{}'",
+            lineage_path_str
+        );
     }
 }

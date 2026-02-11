@@ -454,6 +454,7 @@ dependencies = [
  "prometheus-client",
  "prost",
  "prost-types",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
