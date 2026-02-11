@@ -37,7 +37,7 @@ def test_remove(fact, monitored_dir, server, filename):
     os.remove(test_file)
 
     # Convert test_file to string for the Event, replacing invalid UTF-8 with U+FFFD
-    test_file_str = path_to_string(test_file)
+    test_file = path_to_string(test_file)
 
     process = Process.from_proc()
     # We expect both CREATION (from file creation) and UNLINK (from removal)
