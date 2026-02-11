@@ -36,7 +36,7 @@ def test_chmod(fact, monitored_dir, server, filename):
     os.chmod(fut, mode)
 
     # Convert fut to string for the Event, replacing invalid UTF-8 with U+FFFD
-    fut_str = path_to_string(fut)
+    fut = path_to_string(fut)
 
     process = Process.from_proc()
     # We expect both CREATION (from file creation) and PERMISSION (from chmod)
