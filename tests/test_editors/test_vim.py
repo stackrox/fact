@@ -33,9 +33,6 @@ def test_new_file(editor_container, server):
               file=swap_file, host_path=''),
     ]
 
-    for e in events:
-        print(f'Waiting for event: {e}')
-
     server.wait_events(events, strict=True)
 
 
@@ -77,9 +74,6 @@ def test_new_file_ovfs(editor_container, server):
         Event(process=process, event_type=EventType.UNLINK,
               file=swap_file, host_path=''),
     ]
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events, strict=True)
 
@@ -139,9 +133,6 @@ def test_open_file(editor_container, server):
         Event(process=vi_process, event_type=EventType.UNLINK,
               file=swap_file, host_path=''),
     ]
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events, strict=True)
 
@@ -213,8 +204,5 @@ def test_open_file_ovfs(editor_container, server):
         Event(process=vi_process, event_type=EventType.UNLINK,
               file=swap_file, host_path=''),
     ]
-
-    for e in events:
-        print(f'Waiting for event: {e}')
 
     server.wait_events(events, strict=True)

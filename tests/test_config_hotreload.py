@@ -100,7 +100,6 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
     process = Process.from_proc()
     e = Event(process=process, event_type=EventType.CREATION,
               file=fut, host_path='')
-    print(f'Waiting for event: {e}')
 
     server.wait_events([e])
 
@@ -114,7 +113,6 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
 
     e = Event(process=process, event_type=EventType.OPEN,
               file=fut, host_path='')
-    print(f'Waiting for event on alternate server: {e}')
 
     alternate_server.wait_events([e])
 
@@ -127,10 +125,6 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
 
-    ignored_event = Event(process=p, event_type=EventType.CREATION,
-                          file=ignored_file, host_path='')
-    print(f'Ignoring: {ignored_event}')
-
     # File Under Test
     fut = os.path.join(monitored_dir, 'test2.txt')
     with open(fut, 'w') as f:
@@ -138,9 +132,8 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
 
     e = Event(process=p, event_type=EventType.CREATION,
               file=fut, host_path='')
-    print(f'Waiting for event: {e}')
 
-    server.wait_events([e], ignored=[ignored_event])
+    server.wait_events([e])
 
     config, config_file = fact_config
     config['paths'] = [ignored_dir]
@@ -153,17 +146,12 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
 
     e = Event(process=p, event_type=EventType.OPEN,
               file=ignored_file, host_path='')
-    print(f'Waiting for event: {e}')
 
     # File Under Test
     with open(fut, 'w') as f:
         f.write('This is another ignored event')
 
-    ignored_event = Event(
-        process=p, event_type=EventType.OPEN, file=fut, host_path='')
-    print(f'Ignoring: {ignored_event}')
-
-    server.wait_events([e], ignored=[ignored_event])
+    server.wait_events([e])
 
 
 def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
@@ -174,10 +162,6 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
     with open(ignored_file, 'w') as f:
         f.write('This is to be ignored')
 
-    ignored_event = Event(process=p, event_type=EventType.CREATION,
-                          file=ignored_file, host_path='')
-    print(f'Ignoring: {ignored_event}')
-
     # File Under Test
     fut = os.path.join(monitored_dir, 'test2.txt')
     with open(fut, 'w') as f:
@@ -185,9 +169,8 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
 
     e = Event(process=p, event_type=EventType.CREATION,
               file=fut, host_path='')
-    print(f'Waiting for event: {e}')
 
-    server.wait_events([e], ignored=[ignored_event])
+    server.wait_events([e])
 
     config, config_file = fact_config
     config['paths'] = [monitored_dir, ignored_dir]
@@ -205,6 +188,5 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
               file=ignored_file, host_path=''),
         Event(process=p, event_type=EventType.OPEN, file=fut, host_path='')
     ]
-    print(f'Waiting for events: {events}')
 
     server.wait_events(events)
