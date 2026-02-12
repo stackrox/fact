@@ -200,7 +200,6 @@ impl Bpf {
 
             loop {
                 if running.has_changed()? && !*running.borrow() {
-                    info!("Stopping BPF worker...");
                     break;
                 }
 
