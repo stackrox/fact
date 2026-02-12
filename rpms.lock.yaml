@@ -60,13 +60,13 @@ arches:
     name: gcc-c++
     evr: 8.5.0-28.el8_10
     sourcerpm: gcc-8.5.0-28.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-14-binutils-2.41-4.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-14-binutils-2.41-4.el8_10.1.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 8231540
-    checksum: sha256:f0c98b4413654c946bbb2c8cfc76fd5a52644633cac44d6ce99e96c861a1b9b5
+    size: 8230264
+    checksum: sha256:e128ca3f0011fc6d76c5b62539707a7c1279e24d6c9308854d41a4f731f6c5c3
     name: gcc-toolset-14-binutils
-    evr: 2.41-4.el8_10
-    sourcerpm: gcc-toolset-14-binutils-2.41-4.el8_10.src.rpm
+    evr: 2.41-4.el8_10.1
+    sourcerpm: gcc-toolset-14-binutils-2.41-4.el8_10.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-14-gcc-14.2.1-11.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 46005436
@@ -1637,10 +1637,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/9defc408b0c54e7a6e7e585e46562612b239aad9bda8bef74c9df51c13399cac-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/e62c25503f03450a41570ead5fa1c0d47ad3b90ab4c55c5569808987760e63e9-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 765799
-    checksum: sha256:9defc408b0c54e7a6e7e585e46562612b239aad9bda8bef74c9df51c13399cac
+    size: 766812
+    checksum: sha256:e62c25503f03450a41570ead5fa1c0d47ad3b90ab4c55c5569808987760e63e9
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.88.0-1.module+el8.10.0+23326+3c6ade25.x86_64.rpm
@@ -1699,13 +1699,13 @@ arches:
     name: gcc-c++
     evr: 8.5.0-28.el8_10
     sourcerpm: gcc-8.5.0-28.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-14-binutils-2.41-4.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-14-binutils-2.41-4.el8_10.1.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 7955476
-    checksum: sha256:9080afc0bc11d10e759a00e99ffcf10c0721e01a295e81096dfb613d3b8acbd1
+    size: 7954692
+    checksum: sha256:81368162b0089377ac36cce35bd5f1557e142c64b9e33dda4ff4a60477730340
     name: gcc-toolset-14-binutils
-    evr: 2.41-4.el8_10
-    sourcerpm: gcc-toolset-14-binutils-2.41-4.el8_10.src.rpm
+    evr: 2.41-4.el8_10.1
+    sourcerpm: gcc-toolset-14-binutils-2.41-4.el8_10.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-14-gcc-14.2.1-11.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 52912104
@@ -3262,7 +3262,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/df3598346465738d8f58b8438ea681058a8b9753d4d980ab3b9f9f272e0a945a-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/fd8ae68519e0c8d8f4bfb4cb930438e94a8aafc0bb0379212c25ae227c72b89f-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 788611
-    checksum: sha256:df3598346465738d8f58b8438ea681058a8b9753d4d980ab3b9f9f272e0a945a
+    size: 789386
+    checksum: sha256:fd8ae68519e0c8d8f4bfb4cb930438e94a8aafc0bb0379212c25ae227c72b89f
