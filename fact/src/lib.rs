@@ -94,8 +94,14 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     )?;
     let mut host_scanner_handle = host_scanner.start();
     endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
-    let mut bpf_handle = bpf.start(running.subscribe(), exporter.metrics.bpf_worker.clone());
+    let bpf_handle = bpf.start(running.subscribe(), exporter.metrics.bpf_worker.clone());
     reloader.start(running.subscribe());
+
+    let (bpf_shutdown_tx, mut bpf_shutdown_rx) = mpsc::channel::<anyhow::Result<()>>(1);
+    tokio::task::spawn_blocking(move || {
+        let res = bpf_handle.join().unwrap();
+        bpf_shutdown_tx.blocking_send(res).unwrap();
+    });
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sighup = signal(SignalKind::hangup())?;
@@ -104,12 +110,11 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
             _ = tokio::signal::ctrl_c() => break,
             _ = sigterm.recv() => break,
             _ = sighup.recv() => config_trigger.notify_one(),
-            res = bpf_handle.borrow_mut() => {
+            res = bpf_shutdown_rx.recv() => {
                 match res {
-                    Ok(res) => if let Err(e) = res {
-                        warn!("BPF worker errored out: {e:?}");
-                    }
-                    Err(e) => warn!("BPF task errored out: {e:?}"),
+                    Some(Ok(())) => info!("BPF worker finished"),
+                    Some(Err(e)) => warn!("BPF worker errored out: {e:?}"),
+                    None => warn!("BPF worker channel closed"),
                 }
                 break;
             }
