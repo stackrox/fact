@@ -13,7 +13,7 @@ mock-server:
 	make -C mock-server
 
 image:
-	docker build \
+	$(DOCKER) build \
 		-f Containerfile \
 		--build-arg FACT_VERSION=$(FACT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
