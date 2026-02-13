@@ -112,7 +112,8 @@ jobs:
       with:
         submodules: true
 
-    - run: make image
+    - name: Build image
+      run: DOCKER=podman make image
 
     - name: Login to quay.io/stackrox-io
       uses: docker/login-action@v3
@@ -121,7 +122,7 @@ jobs:
         username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
         password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
 
-    - run: docker push "${STACKROX_IO_IMAGE}"
+    - run: podman push "${STACKROX_IO_IMAGE}"
 
     - name: Login to quay.io/rhacs-eng
       uses: docker/login-action@v3
@@ -132,10 +133,10 @@ jobs:
 
     - name: Tag and push to rhacs-eng
       run: |
-        docker tag "${STACKROX_IO_IMAGE}" "${RHACS_ENG_IMAGE}"
-        docker push "${RHACS_ENG_IMAGE}"
+        podman tag "${STACKROX_IO_IMAGE}" "${RHACS_ENG_IMAGE}"
+        podman push "${RHACS_ENG_IMAGE}"
 
-  manifest:
+  manifest-stackrox-io:
     runs-on: ubuntu-24.04
     needs:
       - container
@@ -143,33 +144,41 @@ jobs:
     env:
       ARCHS: amd64 arm64
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: stackrox/collector
-          path: collector
-          ref: master
-
-      - uses: docker/login-action@v3
+      - uses: redhat-actions/podman-login@v1
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
           password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
 
-      - uses: ./collector/.github/actions/create-multiarch-manifest
-        with:
-          base-image: ${{ needs.vars.outputs.stackrox-io-image }}
-          archs: ${{ env.ARCHS }}
+      - name: Create multiarch manifest
+        run: |
+          podman manifest create ${{ needs.vars.outputs.stackrox-io-image }} \
+            ${{ needs.vars.outputs.stackrox-io-image }}-amd64 \
+            ${{ needs.vars.outputs.stackrox-io-image }}-arm64
+          podman manifest inspect ${{ needs.vars.outputs.stackrox-io-image }}
+          podman manifest push ${{ needs.vars.outputs.stackrox-io-image }}
 
-      - uses: docker/login-action@v3
+  manifest-rhacs-eng:
+    runs-on: ubuntu-24.04
+    needs:
+      - container
+      - vars
+    env:
+      ARCHS: amd64 arm64
+    steps:
+      - uses: redhat-actions/podman-login@v1
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_RHACS_ENG_RW_USERNAME }}
           password: ${{ secrets.QUAY_RHACS_ENG_RW_PASSWORD }}
 
-      - uses: ./collector/.github/actions/create-multiarch-manifest
-        with:
-          base-image: ${{ needs.vars.outputs.rhacs-eng-image }}
-          archs: ${{ env.ARCHS }}
+      - name: Create multiarch manifest
+        run: |
+          podman manifest create ${{ needs.vars.outputs.rhacs-eng-image }} \
+            ${{ needs.vars.outputs.rhacs-eng-image }}-amd64 \
+            ${{ needs.vars.outputs.rhacs-eng-image }}-arm64
+          podman manifest inspect ${{ needs.vars.outputs.rhacs-eng-image }}
+          podman manifest push ${{ needs.vars.outputs.rhacs-eng-image }}
 
   unit-tests:
     uses: ./.github/workflows/unit-tests.yml
@@ -178,7 +187,8 @@ jobs:
   integration-tests:
     needs:
       - vars
-      - manifest
+      - manifest-stackrox-io
+      - manifest-rhacs-eng
     uses: ./.github/workflows/integration-tests.yml
     with:
       tag: ${{ needs.vars.outputs.tag }}
@@ -188,7 +198,8 @@ jobs:
     if: github.event_name == 'schedule'
     needs:
       - vars
-      - manifest
+      - manifest-stackrox-io
+      - manifest-rhacs-eng
       - integration-tests
     uses: ./.github/workflows/performance-tests.yml
     with:
