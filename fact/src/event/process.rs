@@ -194,8 +194,8 @@ impl From<Process> for fact_api::ProcessSignal {
 
         // try_join can fail if args contain nul bytes, though this should not happen
         // since args are parsed from C strings which are nul-terminated
-        let args = shlex::try_join(args.iter().map(|s| s.as_str()))
-            .unwrap_or_else(|_| String::new());
+        let args =
+            shlex::try_join(args.iter().map(|s| s.as_str())).unwrap_or_else(|_| String::new());
 
         Self {
             id: Uuid::new_v4().to_string(),
