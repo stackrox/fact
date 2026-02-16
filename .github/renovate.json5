@@ -67,6 +67,7 @@
     "dockerfile",
     "rpm-lockfile",
     "cargo",
+    "github-actions",
   ],
   "packageRules": [
     {
