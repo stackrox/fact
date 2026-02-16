@@ -22,7 +22,7 @@
   // `null` means the branch limit should be the same as PR limit.
   "branchConcurrentLimit": null,
   // The number of PRs MintMaker can open in one hour, effectively in one run.
-  "prHourlyLimit": 4,
+  "prHourlyLimit": 6,
   // Automerge all rpm-lockfile security updates. This is configured separately from other package managers.
   // https://konflux-ci.dev/docs/mintmaker/rpm-lockfile/#how-to-enable-automerge-for-rpm-security-updates
   "rpmVulnerabilityAutomerge": "ALL",
@@ -67,6 +67,7 @@
     "dockerfile",
     "rpm-lockfile",
     "cargo",
+    "github-actions",
   ],
   "packageRules": [
     {
