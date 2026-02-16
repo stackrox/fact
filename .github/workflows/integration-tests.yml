@@ -87,6 +87,8 @@ jobs:
         make -C "./collector/ansible" create-ci-vms
 
     - name: Run the tests
+      env:
+        ANSIBLE_CONFIG: ${{ github.workspace }}/fact/ansible/ansible.cfg
       run: |
         ansible-playbook \
           -i "${GITHUB_WORKSPACE}/collector/ansible/ci" \
