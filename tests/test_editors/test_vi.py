@@ -6,14 +6,15 @@ def test_new_file(vi_container, server):
     fut = '/mounted/test.txt'
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
-    exe = '/usr/bin/vi'
+    exe = '/usr/libexec/vi'
 
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
+
+    vi_container.exec_run(cmd)
 
     process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=vi_container.id[:12],
     )
@@ -42,14 +43,15 @@ def test_new_file_ovfs(vi_container, server):
     fut = '/container-dir/test.txt'
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
-    exe = '/usr/bin/vi'
+    exe = '/usr/libexec/vi'
 
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
+
+    vi_container.exec_run(cmd)
 
     process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=vi_container.id[:12],
     )
@@ -87,13 +89,14 @@ def test_open_file(vi_container, server):
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
     vi_test_file = get_vi_test_file('/mounted')
-    exe = '/usr/bin/vi'
+    exe = '/usr/libexec/vi'
     container_id = vi_container.id[:12]
+
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
     # We ensure the file exists before editing.
     vi_container.exec_run(f'touch {fut}')
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    vi_container.exec_run(cmd)
 
     touch_process = Process.in_container(
         exe_path='/usr/bin/touch',
@@ -103,7 +106,7 @@ def test_open_file(vi_container, server):
     )
     vi_process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=container_id,
     )
@@ -147,13 +150,14 @@ def test_open_file_ovfs(vi_container, server):
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
     vi_test_file = get_vi_test_file('/container-dir')
-    exe = '/usr/bin/vi'
+    exe = '/usr/libexec/vi'
     container_id = vi_container.id[:12]
+
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
     # We ensure the file exists before editing.
     vi_container.exec_run(f'touch {fut}')
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    vi_container.exec_run(cmd)
 
     touch_process = Process.in_container(
         exe_path='/usr/bin/touch',
@@ -163,7 +167,7 @@ def test_open_file_ovfs(vi_container, server):
     )
     vi_process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=container_id,
     )
