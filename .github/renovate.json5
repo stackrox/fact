@@ -61,6 +61,10 @@
       "**/*konflux*.Containerfile",
     ],
   },
+  // RPM lockfile updates need to be set explicitly to automerge, separately from other package managers.
+  "lockFileMaintanance": {
+    "automerge": true,
+  },
   "enabledManagers": [
     // Restrict Renovate focus on Konflux things since we rely on GitHub's dependabot for everything else.
     "tekton",
