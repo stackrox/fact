@@ -4,13 +4,6 @@ lockfileVendor: redhat
 arches:
 - arch: aarch64
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/c/cargo-1.88.0-1.el9.aarch64.rpm
-    repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 7738248
-    checksum: sha256:db106a81f1e6afa16afc7a28d008f42784f6602bca19bd147cb046b5dacc11e5
-    name: cargo
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/c/checkpolicy-3.6-1.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 360096
@@ -116,20 +109,20 @@ arches:
     name: gcc-toolset-14-runtime
     evr: 14.0-2.el9
     sourcerpm: gcc-toolset-14-14.0-2.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/g/glibc-devel-2.34-231.el9_7.2.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/g/glibc-devel-2.34-231.el9_7.10.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 568363
-    checksum: sha256:5e3bbdb64dad55fdb07540756c333e0a73afe4ab493de199277a82138c224352
+    size: 574689
+    checksum: sha256:8c65fcccb3edde97d47a2a226cf768476ed4a12a31074a6112925f6569750b20
     name: glibc-devel
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-611.30.1.el9_7.aarch64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-611.34.1.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 2976441
-    checksum: sha256:b5a0a8e436d742362c21503b98d3d3bf2d41cdb709fa7f6df9d0dceee64cb468
+    size: 2978525
+    checksum: sha256:eddce638a249ea9f3b42e56a9860b5dffb9958f5afa9a9a1c8317cd43dd923e6
     name: kernel-headers
-    evr: 5.14.0-611.30.1.el9_7
-    sourcerpm: kernel-5.14.0-611.30.1.el9_7.src.rpm
+    evr: 5.14.0-611.34.1.el9_7
+    sourcerpm: kernel-5.14.0-611.34.1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-11.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 408716
@@ -263,20 +256,6 @@ arches:
     name: python3-policycoreutils
     evr: 3.6-3.el9
     sourcerpm: policycoreutils-3.6-3.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/r/rust-1.88.0-1.el9.aarch64.rpm
-    repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 28639155
-    checksum: sha256:ef479c53d6d2e75753f5d36661ec01746d70ad16dcbb82f51dc4296de8e32613
-    name: rust
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/r/rust-std-static-1.88.0-1.el9.aarch64.rpm
-    repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 39777482
-    checksum: sha256:9431bb9d0a3dd5fbfe3bfef2c28ef5149c72173ad53b75b046e1f4dad9d9d48d
-    name: rust-std-static
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/s/scl-utils-2.0.3-4.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 42050
@@ -501,34 +480,34 @@ arches:
     name: gdbm-libs
     evr: 1:1.23-1.el9
     sourcerpm: gdbm-1.23-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-2.34-231.el9_7.2.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-2.34-231.el9_7.10.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 1807994
-    checksum: sha256:c115c760944430436616c5d2ce532fb14887cde281b469a61072d9779bf59521
+    size: 1816615
+    checksum: sha256:cda08ffeb26cf926087f6aafd98d7c192c9e6f422ea0a33dbccd2c8e71a3feae
     name: glibc
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-common-2.34-231.el9_7.2.aarch64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-common-2.34-231.el9_7.10.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 303900
-    checksum: sha256:a0b62778fc3b2893de4ca0c75fb7ac5b806f1598e4711c562bd4f05381b2796b
+    size: 310292
+    checksum: sha256:5fba269c9c1713ff7857bc1397e0f629ee6ed76775fcf2c9f3a464891ff0340b
     name: glibc-common
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-gconv-extra-2.34-231.el9_7.2.aarch64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-gconv-extra-2.34-231.el9_7.10.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 1817539
-    checksum: sha256:9664e711983109a5b1c7b4b61a1a9f0c9b518a829eeef7064a138e7bcfec1f2d
+    size: 1824070
+    checksum: sha256:d181ac8b41e7b184af5fa20494fdf467a585a508a274b3d3af39f34fcc3823e9
     name: glibc-gconv-extra
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-minimal-langpack-2.34-231.el9_7.2.aarch64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/glibc-minimal-langpack-2.34-231.el9_7.10.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 22021
-    checksum: sha256:fe9b35d4297f32f924613f00febabe50f92cb442473d246f1015d60ab24d2743
+    size: 28365
+    checksum: sha256:f14adf0f40453c1f504a705f172070cdbc7f64846f3c2f93ac26c361b3a9c77e
     name: glibc-minimal-langpack
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/gmp-6.2.0-13.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 275679
@@ -1310,13 +1289,6 @@ arches:
   module_metadata: []
 - arch: x86_64
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/c/cargo-1.88.0-1.el9.x86_64.rpm
-    repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 8326606
-    checksum: sha256:8d5b570c23f08d8e619cd9d69f4e6a25572cc4df0747f9cdc8c531621ce45480
-    name: cargo
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/c/checkpolicy-3.6-1.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 365931
@@ -1422,27 +1394,27 @@ arches:
     name: gcc-toolset-14-runtime
     evr: 14.0-2.el9
     sourcerpm: gcc-toolset-14-14.0-2.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/g/glibc-devel-2.34-231.el9_7.2.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/g/glibc-devel-2.34-231.el9_7.10.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 37885
-    checksum: sha256:6468a64e723d9fff4921fe05b8b5117b19277999053b20d67416f727b2b8d3dd
+    size: 44222
+    checksum: sha256:4bf307483b5c6c359b7484804c453ab5c6b0fc65c7cd5368e2572077d804d559
     name: glibc-devel
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/g/glibc-headers-2.34-231.el9_7.2.x86_64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/g/glibc-headers-2.34-231.el9_7.10.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 558293
-    checksum: sha256:f4405218c4527e240f0739ba1b63e8a653e74ef48e960c0e164da55eec8c51dc
+    size: 564682
+    checksum: sha256:dfabaa79899e36aa920d901851e5c2101d43b91d9f466dc97c35b4c14290d4e7
     name: glibc-headers
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-611.30.1.el9_7.x86_64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-611.34.1.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 3015485
-    checksum: sha256:185f864d28cc5f8cd37737935b1aeb491ad4aa0afde9c2a07d5442476c940a1b
+    size: 3017565
+    checksum: sha256:a44cd4df083740e6de10a546a6a549b5df55ef20063af9f9fdac2e290879a368
     name: kernel-headers
-    evr: 5.14.0-611.30.1.el9_7
-    sourcerpm: kernel-5.14.0-611.30.1.el9_7.src.rpm
+    evr: 5.14.0-611.34.1.el9_7
+    sourcerpm: kernel-5.14.0-611.34.1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
@@ -1569,20 +1541,6 @@ arches:
     name: python3-policycoreutils
     evr: 3.6-3.el9
     sourcerpm: policycoreutils-3.6-3.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/r/rust-1.88.0-1.el9.x86_64.rpm
-    repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 30892199
-    checksum: sha256:d976ea2f80c38598484e6e6e5501bc92f8581b94227dd554e0492bf5d2234f04
-    name: rust
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/r/rust-std-static-1.88.0-1.el9.x86_64.rpm
-    repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 41209382
-    checksum: sha256:5ac616ad878773059445a8c8cbc8ee013541712b321435a9adff5989558a3227
-    name: rust-std-static
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/s/scl-utils-2.0.3-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 42223
@@ -1807,34 +1765,34 @@ arches:
     name: gdbm-libs
     evr: 1:1.23-1.el9
     sourcerpm: gdbm-1.23-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-2.34-231.el9_7.2.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-2.34-231.el9_7.10.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 2074021
-    checksum: sha256:d66bcbe73831d22598af6d930ed542e6740671568764894a51f36c1d9d16e96e
+    size: 2079929
+    checksum: sha256:a579dd638fca8d9829b33988592df76199233297eb68a19d7e0e3d13775f8d54
     name: glibc
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-common-2.34-231.el9_7.2.x86_64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-common-2.34-231.el9_7.10.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 313407
-    checksum: sha256:1c4c2f8e57ae9c9b7e751749de3af85615d936123625d802aaef5a28c068a670
+    size: 319966
+    checksum: sha256:fec3c305983e64fbb6150a61e6591f743542e44908a6c6c7b50e9c39d6ebed1a
     name: glibc-common
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-gconv-extra-2.34-231.el9_7.2.x86_64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-gconv-extra-2.34-231.el9_7.10.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 1759310
-    checksum: sha256:62b806a05b998161d8d5f4d5b9006664f279f1afdb7861b3c8516c81ce0fa4b1
+    size: 1765503
+    checksum: sha256:17c997f5c4f492905f20196848d3dbee3ff46ce02033992465d750d2ecede7c8
     name: glibc-gconv-extra
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-minimal-langpack-2.34-231.el9_7.2.x86_64.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/glibc-minimal-langpack-2.34-231.el9_7.10.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 22065
-    checksum: sha256:7af1a2a9d1c8cff3e267cfb43a09fe3aeac587e6f2bad89d8bbbd04a3ef740c0
+    size: 28397
+    checksum: sha256:ec2bee0afbe9f360b4ac23655b42daaf2c30f4c276d5c82090cb6fe5cbab3e1c
     name: glibc-minimal-langpack
-    evr: 2.34-231.el9_7.2
-    sourcerpm: glibc-2.34-231.el9_7.2.src.rpm
+    evr: 2.34-231.el9_7.10
+    sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/gmp-6.2.0-13.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 326840
