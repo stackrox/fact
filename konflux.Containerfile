@@ -1,16 +1,16 @@
-FROM registry.access.redhat.com/ubi9/ubi@sha256:b8923f58ef6aebe2b8f543f8f6c5af15c6f9aeeef34ba332f33bf7610012de0c AS builder
+FROM quay.io/redhat-user-workloads/trusted-content-tenant/rust:latest@sha256:65df42e12099a34344c6c476eb992a98a1733baed4e440ef5162b0387a3eb629 AS builder
 
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
+
+USER 0:0
 
 RUN dnf install -y \
         clang \
         libbpf-devel \
         openssl-devel \
         protobuf-compiler \
-        protobuf-devel \
-        cargo \
-        rust
+        protobuf-devel
 
 WORKDIR /app
 
