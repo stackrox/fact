@@ -1,4 +1,4 @@
-FROM quay.io/redhat-user-workloads/trusted-content-tenant/rust:latest@sha256:65df42e12099a34344c6c476eb992a98a1733baed4e440ef5162b0387a3eb629 AS builder
+FROM quay.io/konflux-ci/rust-builder:latest@sha256:373af43ca3de49827d38fe84febd143fe608123cad32fa0d34f66a33e6796eda AS builder
 
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
