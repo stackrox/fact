@@ -58,17 +58,15 @@
       "**/*konflux*.Containerfile",
     ],
   },
-  // Automerge all rpm-lockfile security updates. This is configured separately from other package managers.
+  // Turns on automerge for the RPM updates coming with CVE fixes.
   // https://konflux-ci.dev/docs/mintmaker/rpm-lockfile/#how-to-enable-automerge-for-rpm-security-updates
   "rpmVulnerabilityAutomerge": "ALL",
-  // RPM lockfile updates need to be set explicitly to automerge, separately from other package managers.
+  // Turns on automerge for the RPM updates without CVE fixes.
+  // The same settings as in `packageRules` below. See comments/explanations there.
   "lockFileMaintanance": {
     "automerge": true,
-    // A known issue is that some non-Konflux CI jobs currently fail, which may prevent successful auto-merging with a "branch" auto-merge setting.
-    // Therefore, we use PR merge type and have automation approve PRs.
     "automergeType": "pr",
     "automergeStrategy": "squash",
-    // Tell Renovate that it can automerge branches at any time of the day.
     "automergeSchedule": [
       "at any time",
     ],
