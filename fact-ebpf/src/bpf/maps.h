@@ -79,12 +79,16 @@ struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __type(key, __u32);
   __type(value, struct bound_path_t);
-  __uint(max_entries, 1);
+  __uint(max_entries, 2);
 } bound_path_heap SEC(".maps");
 
-__always_inline static struct bound_path_t* get_bound_path() {
-  unsigned int zero = 0;
-  return bpf_map_lookup_elem(&bound_path_heap, &zero);
+typedef enum {
+  BOUND_PATH_MAIN = 0,
+  BOUND_PATH_ALTERNATE = 1,
+} bound_path_buffer_t;
+
+__always_inline static struct bound_path_t* get_bound_path(bound_path_buffer_t key) {
+  return bpf_map_lookup_elem(&bound_path_heap, &key);
 }
 
 struct {

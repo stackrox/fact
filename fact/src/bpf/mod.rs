@@ -269,7 +269,7 @@ mod bpf_tests {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Create a file
-        let file = NamedTempFile::new_in(monitored_path).expect("Failed to create temporary file");
+        let file = NamedTempFile::new_in(&monitored_path).expect("Failed to create temporary file");
         println!("Created {file:?}");
 
         // Trigger permission changes
@@ -285,6 +285,12 @@ mod bpf_tests {
 
         let current = Process::current();
         let file_path = file.path().to_path_buf();
+
+        // Trigger a file rename
+        let renamed_path = monitored_path.join("target");
+        std::fs::rename(&file, &renamed_path).expect("Failed to rename file");
+        // Move the file back so it can be properly closed
+        std::fs::rename(&renamed_path, &file).expect("Failed to rename file");
 
         let expected_events = [
             Event::new(
@@ -304,6 +310,22 @@ mod bpf_tests {
             )
             .unwrap(),
             Event::new(
+                EventTestData::Rename(file_path.clone()),
+                host_info::get_hostname(),
+                renamed_path.clone(),
+                PathBuf::new(),
+                current.clone(),
+            )
+            .unwrap(),
+            Event::new(
+                EventTestData::Rename(renamed_path),
+                host_info::get_hostname(),
+                file_path.clone(),
+                PathBuf::new(),
+                current.clone(),
+            )
+            .unwrap(),
+            Event::new(
                 EventTestData::Unlink,
                 host_info::get_hostname(),
                 file_path,
@@ -312,7 +334,6 @@ mod bpf_tests {
             )
             .unwrap(),
         ];
-
         // Close the file, removing it
         file.close().expect("Failed to close temp file");
 
