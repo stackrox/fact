@@ -63,7 +63,7 @@
   "rpmVulnerabilityAutomerge": "ALL",
   // Turns on automerge for the RPM updates without CVE fixes.
   // The same settings as in `packageRules` below. See comments/explanations there.
-  "lockFileMaintanance": {
+  "lockFileMaintenance": {
     "automerge": true,
     "automergeType": "pr",
     "automergeStrategy": "squash",
