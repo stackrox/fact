@@ -3,6 +3,7 @@
 // clang-format off
 #include "vmlinux.h"
 
+#include "bound_path.h"
 #include "inode.h"
 #include "maps.h"
 #include "process.h"
@@ -42,26 +43,36 @@ error:
   bpf_ringbuf_discard(event, 0);
 }
 
-__always_inline static void submit_event(struct metrics_by_hook_t* m,
-                                         file_activity_type_t event_type,
-                                         const char filename[PATH_MAX],
-                                         inode_key_t* inode,
-                                         bool use_bpf_d_path) {
+__always_inline static void submit_open_event(struct metrics_by_hook_t* m,
+                                              file_activity_type_t event_type,
+                                              const char filename[PATH_MAX],
+                                              inode_key_t* inode) {
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
     m->ringbuffer_full++;
     return;
   }
 
-  __submit_event(event, m, event_type, filename, inode, use_bpf_d_path);
+  __submit_event(event, m, event_type, filename, inode, true);
+}
+
+__always_inline static void submit_unlink_event(struct metrics_by_hook_t* m,
+                                                const char filename[PATH_MAX],
+                                                inode_key_t* inode) {
+  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (event == NULL) {
+    m->ringbuffer_full++;
+    return;
+  }
+
+  __submit_event(event, m, FILE_ACTIVITY_UNLINK, filename, inode, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static void submit_mode_event(struct metrics_by_hook_t* m,
                                               const char filename[PATH_MAX],
                                               inode_key_t* inode,
                                               umode_t mode,
-                                              umode_t old_mode,
-                                              bool use_bpf_d_path) {
+                                              umode_t old_mode) {
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
     m->ringbuffer_full++;
@@ -71,7 +82,7 @@ __always_inline static void submit_mode_event(struct metrics_by_hook_t* m,
   event->chmod.new = mode;
   event->chmod.old = old_mode;
 
-  __submit_event(event, m, FILE_ACTIVITY_CHMOD, filename, inode, use_bpf_d_path);
+  __submit_event(event, m, FILE_ACTIVITY_CHMOD, filename, inode, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static void submit_ownership_event(struct metrics_by_hook_t* m,
@@ -80,8 +91,7 @@ __always_inline static void submit_ownership_event(struct metrics_by_hook_t* m,
                                                    unsigned long long uid,
                                                    unsigned long long gid,
                                                    unsigned long long old_uid,
-                                                   unsigned long long old_gid,
-                                                   bool use_bpf_d_path) {
+                                                   unsigned long long old_gid) {
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
     m->ringbuffer_full++;
@@ -93,15 +103,14 @@ __always_inline static void submit_ownership_event(struct metrics_by_hook_t* m,
   event->chown.old.uid = old_uid;
   event->chown.old.gid = old_gid;
 
-  __submit_event(event, m, FILE_ACTIVITY_CHOWN, filename, inode, use_bpf_d_path);
+  __submit_event(event, m, FILE_ACTIVITY_CHOWN, filename, inode, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static void submit_rename_event(struct metrics_by_hook_t* m,
                                                 const char new_filename[PATH_MAX],
                                                 const char old_filename[PATH_MAX],
                                                 inode_key_t* new_inode,
-                                                inode_key_t* old_inode,
-                                                bool use_bpf_d_path) {
+                                                inode_key_t* old_inode) {
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
     m->ringbuffer_full++;
@@ -111,5 +120,5 @@ __always_inline static void submit_rename_event(struct metrics_by_hook_t* m,
   bpf_probe_read_str(event->rename.old_filename, PATH_MAX, old_filename);
   inode_copy_or_reset(&event->rename.old_inode, old_inode);
 
-  __submit_event(event, m, FILE_ACTIVITY_RENAME, new_filename, new_inode, use_bpf_d_path);
+  __submit_event(event, m, FILE_ACTIVITY_RENAME, new_filename, new_inode, path_hooks_support_bpf_d_path);
 }
