@@ -5,20 +5,22 @@ from event import Event, EventType, Process
 def test_sed(vi_container, server):
     # File Under Test
     fut = '/mounted/test.txt'
+    create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""
+    sed_cmd = fr'sed -i -e "s/a test/not \\0/" {fut}'
     container_id = vi_container.id[:12]
 
-    vi_container.exec_run(f"sh -c \"echo 'This is a test' > {fut}\"")
-    vi_container.exec_run(fr"sed -i -e 's/a test/not \0/' {fut}")
+    vi_container.exec_run(create_cmd)
+    vi_container.exec_run(sed_cmd)
 
     shell = Process.in_container(
         exe_path='/usr/bin/bash',
-        args=f"sh -c echo 'This is a test' > {fut}",
+        args=create_cmd,
         name='sh',
         container_id=container_id,
     )
     sed = Process.in_container(
         exe_path='/usr/bin/sed',
-        args=fr'sed -i -e s/a test/not \0/ {fut}',
+        args=sed_cmd,
         name='sed',
         container_id=container_id,
     )
@@ -40,20 +42,22 @@ def test_sed(vi_container, server):
 def test_sed_ovfs(vi_container, server):
     # File Under Test
     fut = '/container-dir/test.txt'
+    create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""
+    sed_cmd = fr'sed -i -e "s/a test/not \\0/" {fut}'
     container_id = vi_container.id[:12]
 
-    vi_container.exec_run(f"sh -c \"echo 'This is a test' > {fut}\"")
-    vi_container.exec_run(fr"sed -i -e 's/a test/not \0/' {fut}")
+    vi_container.exec_run(create_cmd)
+    vi_container.exec_run(sed_cmd)
 
     shell = Process.in_container(
         exe_path='/usr/bin/bash',
-        args=f"sh -c echo 'This is a test' > {fut}",
+        args=create_cmd,
         name='sh',
         container_id=container_id,
     )
     sed = Process.in_container(
         exe_path='/usr/bin/sed',
-        args=fr'sed -i -e s/a test/not \0/ {fut}',
+        args=sed_cmd,
         name='sed',
         container_id=container_id,
     )
