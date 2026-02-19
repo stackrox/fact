@@ -37,7 +37,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
-  struct bound_path_t* path = path_read(&file->f_path);
+  struct bound_path_t* path = path_read_unchecked(&file->f_path);
   if (path == NULL) {
     bpf_printk("Failed to read path");
     m->file_open.error++;
@@ -56,7 +56,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
       break;
   }
 
-  submit_event(&m->file_open, event_type, path->path, &inode_key, true);
+  submit_open_event(&m->file_open, event_type, path->path, &inode_key);
 
   return 0;
 
@@ -97,11 +97,9 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
       break;
   }
 
-  submit_event(&m->path_unlink,
-               FILE_ACTIVITY_UNLINK,
-               path->path,
-               &inode_key,
-               path_hooks_support_bpf_d_path);
+  submit_unlink_event(&m->path_unlink,
+                      path->path,
+                      &inode_key);
   return 0;
 }
 
@@ -114,13 +112,7 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
 
   m->path_chmod.total++;
 
-  struct bound_path_t* bound_path = NULL;
-  if (path_hooks_support_bpf_d_path) {
-    bound_path = path_read(path);
-  } else {
-    bound_path = path_read_no_d_path(path);
-  }
-
+  struct bound_path_t* bound_path = path_read(path);
   if (bound_path == NULL) {
     bpf_printk("Failed to read path");
     m->path_chmod.error++;
@@ -147,8 +139,7 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
                     bound_path->path,
                     &inode_key,
                     mode,
-                    old_mode,
-                    path_hooks_support_bpf_d_path);
+                    old_mode);
 
   return 0;
 }
@@ -165,13 +156,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
 
   m->path_chown.total++;
 
-  struct bound_path_t* bound_path = NULL;
-  if (path_hooks_support_bpf_d_path) {
-    bound_path = path_read(path);
-  } else {
-    bound_path = path_read_no_d_path(path);
-  }
-
+  struct bound_path_t* bound_path = path_read(path);
   if (bound_path == NULL) {
     bpf_printk("Failed to read path");
     m->path_chown.error++;
@@ -203,8 +188,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
                          uid,
                          gid,
                          old_uid,
-                         old_gid,
-                         path_hooks_support_bpf_d_path);
+                         old_gid);
 
   return 0;
 }
@@ -249,8 +233,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
                       new_path->path,
                       old_path->path,
                       &old_inode,
-                      &new_inode,
-                      path_hooks_support_bpf_d_path);
+                      &new_inode);
   return 0;
 
 error:

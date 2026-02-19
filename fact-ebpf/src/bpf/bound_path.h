@@ -11,6 +11,8 @@
 #include <bpf/bpf_core_read.h>
 // clang-format on
 
+volatile const bool path_hooks_support_bpf_d_path;
+
 __always_inline static char* path_safe_access(char* p, unsigned int offset) {
   return &p[PATH_LEN_CLAMP(offset)];
 }
@@ -36,20 +38,16 @@ __always_inline static struct bound_path_t* _path_read(struct path* path, bound_
   return bound_path;
 }
 
-__always_inline static struct bound_path_t* path_read(struct path* path) {
+__always_inline static struct bound_path_t* path_read_unchecked(struct path* path) {
   return _path_read(path, BOUND_PATH_MAIN, true);
 }
 
-__always_inline static struct bound_path_t* path_read_no_d_path(struct path* path) {
-  return _path_read(path, BOUND_PATH_MAIN, false);
+__always_inline static struct bound_path_t* path_read(struct path* path) {
+  return _path_read(path, BOUND_PATH_MAIN, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static struct bound_path_t* path_read_alt(struct path* path) {
-  return _path_read(path, BOUND_PATH_ALTERNATE, true);
-}
-
-__always_inline static struct bound_path_t* path_read_alt_no_d_path(struct path* path) {
-  return _path_read(path, BOUND_PATH_ALTERNATE, false);
+  return _path_read(path, BOUND_PATH_ALTERNATE, path_hooks_support_bpf_d_path);
 }
 
 enum path_append_status_t {
