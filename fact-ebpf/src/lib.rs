@@ -113,6 +113,7 @@ impl metrics_t {
         m.path_unlink = m.path_unlink.accumulate(&other.path_unlink);
         m.path_chmod = m.path_chmod.accumulate(&other.path_chmod);
         m.path_chown = m.path_chown.accumulate(&other.path_chown);
+        m.path_rename = m.path_rename.accumulate(&other.path_rename);
         m
     }
 }

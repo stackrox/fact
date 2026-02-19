@@ -64,6 +64,7 @@ pub(crate) enum EventTestData {
     Creation,
     Unlink,
     Chmod(u16, u16),
+    Rename(PathBuf),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -103,6 +104,16 @@ impl Event {
                 };
                 FileData::Chmod(data)
             }
+            EventTestData::Rename(old_path) => {
+                let data = RenameFileData {
+                    new: inner,
+                    old: BaseFileData {
+                        filename: old_path,
+                        ..Default::default()
+                    },
+                };
+                FileData::Rename(data)
+            }
         };
 
         Ok(Event {
@@ -113,6 +124,11 @@ impl Event {
         })
     }
 
+    /// Unwrap the inner FileData and return the inode that triggered
+    /// the event.
+    ///
+    /// In the case of operations that involve two inodes, like rename,
+    /// the 'new' inode will be returned.
     pub fn get_inode(&self) -> &inode_key_t {
         match &self.file {
             FileData::Open(data) => &data.inode,
@@ -120,9 +136,24 @@ impl Event {
             FileData::Unlink(data) => &data.inode,
             FileData::Chmod(data) => &data.inner.inode,
             FileData::Chown(data) => &data.inner.inode,
+            FileData::Rename(data) => &data.new.inode,
         }
     }
 
+    /// Same as `get_inode` but returning the 'old' inode for operations
+    /// like rename. For operations that involve a single inode, `None`
+    /// will be returned.
+    pub fn get_old_inode(&self) -> Option<&inode_key_t> {
+        match &self.file {
+            FileData::Rename(data) => Some(&data.old.inode),
+            _ => None,
+        }
+    }
+
+    /// Set the `host_file` field of the event to the one provided.
+    ///
+    /// In the case of operations that involve two paths, like rename,
+    /// the 'new' host_file will be set.
     pub fn set_host_path(&mut self, host_path: PathBuf) {
         match &mut self.file {
             FileData::Open(data) => data.host_file = host_path,
@@ -130,6 +161,15 @@ impl Event {
             FileData::Unlink(data) => data.host_file = host_path,
             FileData::Chmod(data) => data.inner.host_file = host_path,
             FileData::Chown(data) => data.inner.host_file = host_path,
+            FileData::Rename(data) => data.new.host_file = host_path,
+        }
+    }
+
+    /// Same as `set_host_path` but setting the 'old' host_file for
+    /// operations that have one, like rename.
+    pub fn set_old_host_path(&mut self, host_path: PathBuf) {
+        if let FileData::Rename(data) = &mut self.file {
+            data.old.host_file = host_path
         }
     }
 }
@@ -185,6 +225,7 @@ pub enum FileData {
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
     Chown(ChownFileData),
+    Rename(RenameFileData),
 }
 
 impl FileData {
@@ -216,6 +257,15 @@ impl FileData {
                     old_gid: unsafe { extra_data.chown.old.gid },
                 };
                 FileData::Chown(data)
+            }
+            file_activity_type_t::FILE_ACTIVITY_RENAME => {
+                let old_filename = unsafe { extra_data.rename.old_filename };
+                let old_inode = unsafe { extra_data.rename.old_inode };
+                let data = RenameFileData {
+                    new: inner,
+                    old: BaseFileData::new(old_filename, old_inode)?,
+                };
+                FileData::Rename(data)
             }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
@@ -250,6 +300,10 @@ impl From<FileData> for fact_api::file_activity::File {
                 let f_act = fact_api::FileOwnershipChange::from(event);
                 fact_api::file_activity::File::Ownership(f_act)
             }
+            FileData::Rename(event) => {
+                let f_act = fact_api::FileRename::from(event);
+                fact_api::file_activity::File::Rename(f_act)
+            }
         }
     }
 }
@@ -262,12 +316,13 @@ impl PartialEq for FileData {
             (FileData::Creation(this), FileData::Creation(other)) => this == other,
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
             (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
+            (FileData::Rename(this), FileData::Rename(other)) => this == other,
             _ => false,
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct BaseFileData {
     pub filename: PathBuf,
     host_file: PathBuf,
@@ -356,6 +411,30 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
             username: "".to_string(),
             group: "".to_string(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RenameFileData {
+    new: BaseFileData,
+    old: BaseFileData,
+}
+
+impl From<RenameFileData> for fact_api::FileRename {
+    fn from(RenameFileData { new, old }: RenameFileData) -> Self {
+        let new = fact_api::FileActivityBase::from(new);
+        let old = fact_api::FileActivityBase::from(old);
+        fact_api::FileRename {
+            old: Some(old),
+            new: Some(new),
+        }
+    }
+}
+
+#[cfg(test)]
+impl PartialEq for RenameFileData {
+    fn eq(&self, other: &Self) -> bool {
+        self.new == other.new && self.old == other.old
     }
 }
 

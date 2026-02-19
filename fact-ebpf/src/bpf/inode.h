@@ -85,7 +85,7 @@ typedef enum inode_monitored_t {
  * check if the parent of the provided inode is monitored and provide
  * different results for handling more complicated scenarios.
  */
-__always_inline static inode_monitored_t inode_is_monitored(const inode_value_t* inode) {
+__always_inline static inode_monitored_t inode_is_monitored(const inode_value_t* volatile inode) {
   if (inode != NULL) {
     return MONITORED;
   }

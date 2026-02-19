@@ -33,6 +33,7 @@ class EventType(Enum):
     UNLINK = 3
     PERMISSION = 4
     OWNERSHIP = 5
+    RENAME = 6
 
 
 class Process:
@@ -190,14 +191,18 @@ class Event:
     event type and a file.
     """
 
-    def __init__(self,
-                 process: Process,
-                 event_type: EventType,
-                 file: str | Pattern[str],
-                 host_path: str | Pattern[str] = '',
-                 mode: int | None = None,
-                 owner_uid: int | None = None,
-                 owner_gid: int | None = None,):
+    def __init__(
+        self,
+        process: Process,
+        event_type: EventType,
+        file: str | Pattern[str],
+        host_path: str | Pattern[str] = '',
+        mode: int | None = None,
+        owner_uid: int | None = None,
+        owner_gid: int | None = None,
+        old_file: str | Pattern[str] | None = None,
+        old_host_path: str | Pattern[str] | None = None,
+    ):
         self._type: EventType = event_type
         self._process: Process = process
         self._file: str | Pattern[str] = file
@@ -205,6 +210,8 @@ class Event:
         self._mode: int | None = mode
         self._owner_uid: int | None = owner_uid
         self._owner_gid: int | None = owner_gid
+        self._old_file: str | Pattern[str] | None = old_file
+        self._old_host_path: str | Pattern[str] | None = old_host_path
 
     @property
     def event_type(self) -> EventType:
@@ -234,6 +241,14 @@ class Event:
     def owner_gid(self) -> int | None:
         return self._owner_gid
 
+    @property
+    def old_file(self) -> str | Pattern[str] | None:
+        return self._old_file
+
+    @property
+    def old_host_path(self) -> str | Pattern[str] | None:
+        return self._old_host_path
+
     @override
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, FileActivity):
@@ -258,6 +273,12 @@ class Event:
                     cmp_path(self.host_path, other.ownership.activity.host_path) and \
                     self.owner_uid == other.ownership.uid and \
                     self.owner_gid == other.ownership.gid
+            elif self.event_type == EventType.RENAME:
+                return cmp_path(self.file, other.rename.new.path) and \
+                    cmp_path(self.host_path, other.rename.new.host_path) and \
+                    cmp_path(self.old_file, other.rename.old.path) and \
+                    cmp_path(self.old_host_path, other.rename.old.host_path)
+
             return False
         raise NotImplementedError
 
@@ -272,6 +293,9 @@ class Event:
 
         if self.event_type == EventType.OWNERSHIP:
             s += f', owner=(uid={self.owner_uid}, gid={self.owner_gid})'
+
+        if self.event_type == EventType.RENAME:
+            s += f', old_file="{self.old_file}", old_host_path="{self.old_host_path}"'
 
         s += ')'
 

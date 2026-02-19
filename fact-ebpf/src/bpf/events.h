@@ -95,3 +95,21 @@ __always_inline static void submit_ownership_event(struct metrics_by_hook_t* m,
 
   __submit_event(event, m, FILE_ACTIVITY_CHOWN, filename, inode, use_bpf_d_path);
 }
+
+__always_inline static void submit_rename_event(struct metrics_by_hook_t* m,
+                                                const char new_filename[PATH_MAX],
+                                                const char old_filename[PATH_MAX],
+                                                inode_key_t* new_inode,
+                                                inode_key_t* old_inode,
+                                                bool use_bpf_d_path) {
+  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (event == NULL) {
+    m->ringbuffer_full++;
+    return;
+  }
+
+  bpf_probe_read_str(event->rename.old_filename, PATH_MAX, old_filename);
+  inode_copy_or_reset(&event->rename.old_inode, old_inode);
+
+  __submit_event(event, m, FILE_ACTIVITY_RENAME, new_filename, new_inode, use_bpf_d_path);
+}

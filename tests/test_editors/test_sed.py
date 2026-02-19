@@ -32,6 +32,8 @@ def test_sed(vi_container, server):
               file=sed_tmp_file, host_path=''),
         Event(process=sed, event_type=EventType.OWNERSHIP,
               file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),
+        Event(process=sed, event_type=EventType.RENAME,
+              file=fut, host_path='', old_file=sed_tmp_file, old_host_path=''),
     ]
 
     server.wait_events(events, strict=True)
@@ -71,6 +73,8 @@ def test_sed_ovfs(vi_container, server):
               file=sed_tmp_file, host_path=''),
         Event(process=sed, event_type=EventType.OWNERSHIP,
               file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),
+        Event(process=sed, event_type=EventType.RENAME,
+              file=fut, host_path='', old_file=sed_tmp_file, old_host_path=''),
     ]
 
     server.wait_events(events, strict=True)
