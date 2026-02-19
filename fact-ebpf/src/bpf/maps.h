@@ -116,6 +116,5 @@ __always_inline static struct metrics_t* get_metrics() {
 }
 
 uint64_t host_mount_ns;
-volatile const bool path_hooks_support_bpf_d_path;
 
 // clang-format on
