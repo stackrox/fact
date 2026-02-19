@@ -4,13 +4,6 @@ lockfileVendor: redhat
 arches:
 - arch: aarch64
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/c/cargo-1.88.0-1.el9.aarch64.rpm
-    repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 7738248
-    checksum: sha256:db106a81f1e6afa16afc7a28d008f42784f6602bca19bd147cb046b5dacc11e5
-    name: cargo
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/c/checkpolicy-3.6-1.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 360096
@@ -263,20 +256,6 @@ arches:
     name: python3-policycoreutils
     evr: 3.6-3.el9
     sourcerpm: policycoreutils-3.6-3.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/r/rust-1.88.0-1.el9.aarch64.rpm
-    repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 28639155
-    checksum: sha256:ef479c53d6d2e75753f5d36661ec01746d70ad16dcbb82f51dc4296de8e32613
-    name: rust
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/r/rust-std-static-1.88.0-1.el9.aarch64.rpm
-    repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 39777482
-    checksum: sha256:9431bb9d0a3dd5fbfe3bfef2c28ef5149c72173ad53b75b046e1f4dad9d9d48d
-    name: rust-std-static
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/s/scl-utils-2.0.3-4.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 42050
@@ -1310,13 +1289,6 @@ arches:
   module_metadata: []
 - arch: x86_64
   packages:
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/c/cargo-1.88.0-1.el9.x86_64.rpm
-    repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 8326606
-    checksum: sha256:8d5b570c23f08d8e619cd9d69f4e6a25572cc4df0747f9cdc8c531621ce45480
-    name: cargo
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/c/checkpolicy-3.6-1.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 365931
@@ -1569,20 +1541,6 @@ arches:
     name: python3-policycoreutils
     evr: 3.6-3.el9
     sourcerpm: policycoreutils-3.6-3.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/r/rust-1.88.0-1.el9.x86_64.rpm
-    repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 30892199
-    checksum: sha256:d976ea2f80c38598484e6e6e5501bc92f8581b94227dd554e0492bf5d2234f04
-    name: rust
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/r/rust-std-static-1.88.0-1.el9.x86_64.rpm
-    repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 41209382
-    checksum: sha256:5ac616ad878773059445a8c8cbc8ee013541712b321435a9adff5989558a3227
-    name: rust-std-static
-    evr: 1.88.0-1.el9
-    sourcerpm: rust-1.88.0-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/s/scl-utils-2.0.3-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 42223
