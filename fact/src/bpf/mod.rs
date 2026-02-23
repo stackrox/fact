@@ -14,6 +14,7 @@ use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
 };
+use globset::{GlobSet, GlobSetBuilder, Glob};
 
 use crate::{event::Event, host_info, metrics::EventCounter};
 
@@ -30,6 +31,8 @@ pub struct Bpf {
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
+
+    paths_globset: GlobSet,
 }
 
 impl Bpf {
@@ -61,6 +64,7 @@ impl Bpf {
             tx,
             paths,
             paths_config,
+            paths_globset: GlobSet::empty(),
         };
 
         bpf.load_paths()?;
@@ -127,11 +131,14 @@ impl Bpf {
 
         // Add the new prefixes
         let mut new_paths = Vec::with_capacity(paths_config.len());
+        let mut builder = GlobSetBuilder::new();
         for p in paths_config.iter() {
+            builder.add(Glob::new(&p.to_string_lossy())?);
             let prefix = path_prefix_t::try_from(p)?;
             path_prefix.insert(&prefix.into(), 0, 0)?;
             new_paths.push(prefix);
         }
+        self.paths_globset = builder.build()?;
 
         // Remove old prefixes
         for p in self.paths.iter().filter(|p| !new_paths.contains(p)) {
@@ -193,7 +200,22 @@ impl Bpf {
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
-                                Ok(event) => event,
+                                Ok(event) => {
+                                    // With wildcards, the kernel can only match on the inode and
+                                    // then the longest non-wildcard prefix (e.g. for /etc/**/*.conf,
+                                    // the kernel matches up to /etc/)
+                                    //
+                                    // We do a proper glob match here to do a final check
+                                    // using short circuiting to avoid calling is_match in all
+                                    // scenarios
+                                    if self.paths_globset.is_match(event.get_filename()) ||
+                                        self.paths_globset.is_match(event.get_host_path()) {
+                                        event
+                                    } else {
+                                        event_counter.dropped();
+                                        continue;
+                                    }
+                                },
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     event_counter.dropped();
