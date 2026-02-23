@@ -150,6 +150,28 @@ impl Event {
         }
     }
 
+    pub fn get_filename(&self) -> &PathBuf {
+        match &self.file {
+            FileData::Open(data) => &data.filename,
+            FileData::Creation(data) => &data.filename,
+            FileData::Unlink(data) => &data.filename,
+            FileData::Chmod(data) => &data.inner.filename,
+            FileData::Chown(data) => &data.inner.filename,
+            FileData::Rename(data) => &data.new.filename,
+        }
+    }
+
+    pub fn get_host_path(&self) -> &PathBuf {
+        match &self.file {
+            FileData::Open(data) => &data.host_file,
+            FileData::Creation(data) => &data.host_file,
+            FileData::Unlink(data) => &data.host_file,
+            FileData::Chmod(data) => &data.inner.host_file,
+            FileData::Chown(data) => &data.inner.host_file,
+            FileData::Rename(data) => &data.new.host_file,
+        }
+    }
+
     /// Set the `host_file` field of the event to the one provided.
     ///
     /// In the case of operations that involve two paths, like rename,
