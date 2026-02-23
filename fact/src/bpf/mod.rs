@@ -133,7 +133,11 @@ impl Bpf {
         let mut new_paths = Vec::with_capacity(paths_config.len());
         let mut builder = GlobSetBuilder::new();
         for p in paths_config.iter() {
-            builder.add(Glob::new(&p.to_string_lossy())?);
+            builder.add(
+                Glob::new(&p.to_string_lossy())
+                    .with_context(|| format!("invalid glob {}", p.display()))
+                    .unwrap(),
+            );
             let prefix = path_prefix_t::try_from(p)?;
             path_prefix.insert(&prefix.into(), 0, 0)?;
             new_paths.push(prefix);
@@ -208,8 +212,8 @@ impl Bpf {
                                     // We do a proper glob match here to do a final check
                                     // using short circuiting to avoid calling is_match in all
                                     // scenarios
-                                    if self.paths_globset.is_match(event.get_filename()) ||
-                                        self.paths_globset.is_match(event.get_host_path()) {
+                                    if !event.get_inode().empty() ||
+                                        self.paths_globset.is_match(event.get_filename()) {
                                         event
                                     } else {
                                         event_counter.dropped();
