@@ -35,15 +35,14 @@ impl TryFrom<&PathBuf> for path_prefix_t {
         // character. This is used as a filter in the kernel in cases where
         // the inode has failed to match. The full wildcard string is used
         // for further processing in userspace.
-        let filename_prefix = if let Some(wildcard_idx) = filename.chars().position(|c| {
-            "*?[]{}".contains(c)
-        }) {
-            &filename[..wildcard_idx]
-        } else {
-            // if there are no wildcards then the whole path can be
-            // the prefix
-            filename
-        };
+        let filename_prefix =
+            if let Some(wildcard_idx) = filename.chars().position(|c| "*?[]{}".contains(c)) {
+                &filename[..wildcard_idx]
+            } else {
+                // if there are no wildcards then the whole path can be
+                // the prefix
+                filename
+            };
 
         let len = if filename_prefix.len() > LPM_SIZE_MAX as usize {
             LPM_SIZE_MAX as usize

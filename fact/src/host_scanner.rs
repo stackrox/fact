@@ -85,17 +85,16 @@ impl HostScanner {
     }
 
     fn scan_inner(&self, path: &Path) -> anyhow::Result<()> {
-        glob::glob(&path.to_string_lossy())?.try_for_each(|entry| {
-            match  entry {
-                Ok(path) => {
-                    if path.is_file() {
-                        self.update_entry(path.as_path())
-                            .with_context(|| format!("Failed to update entry for {}", path.display()))?;
-                    }
-                    Ok(())
-                },
-                Err(e) => Err(e.into())
+        glob::glob(&path.to_string_lossy())?.try_for_each(|entry| match entry {
+            Ok(path) => {
+                if path.is_file() {
+                    self.update_entry(path.as_path()).with_context(|| {
+                        format!("Failed to update entry for {}", path.display())
+                    })?;
+                }
+                Ok(())
             }
+            Err(e) => Err(e.into()),
         })
     }
 

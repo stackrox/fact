@@ -7,6 +7,7 @@ use aya::{
     Btf, Ebpf,
 };
 use checks::Checks;
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use libc::c_char;
 use log::{error, info};
 use tokio::{
@@ -14,7 +15,6 @@ use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
 };
-use globset::{GlobSet, GlobSetBuilder, Glob};
 
 use crate::{event::Event, host_info, metrics::EventCounter};
 
