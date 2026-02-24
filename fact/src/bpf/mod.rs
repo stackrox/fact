@@ -278,7 +278,7 @@ mod bpf_tests {
 
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
-        let paths = vec![monitored_path.clone()];
+        let paths = vec![PathBuf::from(format!("{}/**/*", monitored_path.display()))];
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let reloader = Reloader::from(config);
