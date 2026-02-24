@@ -17,6 +17,7 @@ pub struct Reloader {
     grpc: watch::Sender<GrpcConfig>,
     paths: watch::Sender<Vec<PathBuf>>,
     files: HashMap<&'static str, i64>,
+    scan_interval: watch::Sender<Duration>,
     trigger: Arc<Notify>,
 }
 
@@ -73,6 +74,12 @@ impl Reloader {
     /// changed.
     pub fn paths(&self) -> watch::Receiver<Vec<PathBuf>> {
         self.paths.subscribe()
+    }
+
+    /// Subscribe to get notifications when scan_interval configuration
+    /// is changed.
+    pub fn scan_interval(&self) -> watch::Receiver<Duration> {
+        self.scan_interval.subscribe()
     }
 
     /// Get a reference to the internal trigger for manual reloading of
@@ -171,6 +178,17 @@ impl Reloader {
             }
         });
 
+        self.scan_interval.send_if_modified(|old| {
+            let new = new.scan_interval();
+            if *old != new {
+                debug!("Sending new scan interval configuration...");
+                *old = new;
+                true
+            } else {
+                false
+            }
+        });
+
         if self.config.hotreload() != new.hotreload() {
             warn!("Changes to the hotreload field only take effect on startup");
         }
@@ -203,6 +221,7 @@ impl From<FactConfig> for Reloader {
         let (endpoint, _) = watch::channel(config.endpoint.clone());
         let (grpc, _) = watch::channel(config.grpc.clone());
         let (paths, _) = watch::channel(config.paths().to_vec());
+        let (scan_interval, _) = watch::channel(config.scan_interval());
         let trigger = Arc::new(Notify::new());
 
         Reloader {
@@ -210,6 +229,7 @@ impl From<FactConfig> for Reloader {
             endpoint,
             grpc,
             paths,
+            scan_interval,
             files,
             trigger,
         }

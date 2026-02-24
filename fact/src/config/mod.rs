@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::LazyLock,
+    time::Duration,
 };
 
 use anyhow::{bail, Context};
@@ -31,6 +32,7 @@ pub struct FactConfig {
     json: Option<bool>,
     ringbuf_size: Option<u32>,
     hotreload: Option<bool>,
+    scan_interval: Option<Duration>,
 }
 
 impl FactConfig {
@@ -95,6 +97,10 @@ impl FactConfig {
         if let Some(hotreload) = from.hotreload {
             self.hotreload = Some(hotreload);
         }
+
+        if let Some(scan_interval) = from.scan_interval {
+            self.scan_interval = Some(scan_interval);
+        }
     }
 
     pub fn paths(&self) -> &[PathBuf] {
@@ -115,6 +121,10 @@ impl FactConfig {
 
     pub fn hotreload(&self) -> bool {
         self.hotreload.unwrap_or(true)
+    }
+
+    pub fn scan_interval(&self) -> Duration {
+        self.scan_interval.unwrap_or(Duration::from_secs(30))
     }
 
     #[cfg(test)]
@@ -215,6 +225,21 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                         bail!("hotreload field has incorrect type: {v:?}");
                     };
                     config.hotreload = Some(hotreload);
+                }
+                "scan_interval" => {
+                    if let Some(scan_interval) = v.as_f64() {
+                        if scan_interval <= 0.0 {
+                            bail!("invalid scan_interval: {scan_interval}");
+                        }
+                        config.scan_interval = Some(Duration::from_secs_f64(scan_interval));
+                    } else if let Some(scan_interval) = v.as_i64() {
+                        if scan_interval <= 0 {
+                            bail!("invalid scan_interval: {scan_interval}");
+                        }
+                        config.scan_interval = Some(Duration::from_secs(scan_interval as u64))
+                    } else {
+                        bail!("scan_interval field has incorrect type: {v:?}");
+                    }
                 }
                 name => bail!("Invalid field '{name}' with value: {v:?}"),
             }
@@ -429,6 +454,15 @@ pub struct FactCli {
     hotreload: bool,
     #[arg(long, overrides_with = "hotreload", hide(true))]
     no_hotreload: bool,
+
+    /// Interval at which scanning of monitored directories should
+    /// happen in seconds.
+    ///
+    /// The seconds can use a decimal point for fractions of seconds.
+    ///
+    /// Default value is 30 seconds
+    #[arg(long, short, env = "FACT_SCAN_INTERVAL")]
+    scan_interval: Option<f64>,
 }
 
 impl FactCli {
@@ -448,6 +482,7 @@ impl FactCli {
             json: resolve_bool_arg(self.json, self.no_json),
             ringbuf_size: self.ringbuf_size,
             hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),
+            scan_interval: self.scan_interval.map(Duration::from_secs_f64),
         }
     }
 }

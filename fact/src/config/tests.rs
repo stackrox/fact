@@ -204,6 +204,20 @@ fn parsing() {
             },
         ),
         (
+            "scan_interval: 60",
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(60)),
+                ..Default::default()
+            },
+        ),
+        (
+            "scan_interval: 30.5",
+            FactConfig {
+                scan_interval: Some(Duration::from_secs_f64(30.5)),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
@@ -218,6 +232,7 @@ fn parsing() {
             json: false
             ringbuf_size: 8192
             hotreload: false
+            scan_interval: 60
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -234,6 +249,7 @@ fn parsing() {
                 json: Some(false),
                 ringbuf_size: Some(8192),
                 hotreload: Some(false),
+                scan_interval: Some(Duration::from_secs(60)),
             },
         ),
     ];
@@ -387,6 +403,14 @@ paths:
             "hotreload: 4",
             "hotreload field has incorrect type: Integer(4)",
         ),
+        (
+            "scan_interval: true",
+            "scan_interval field has incorrect type: Boolean(true)",
+        ),
+        ("scan_interval: 0", "invalid scan_interval: 0"),
+        ("scan_interval: 0.0", "invalid scan_interval: 0"),
+        ("scan_interval: -128", "invalid scan_interval: -128"),
+        ("scan_interval: -128.5", "invalid scan_interval: -128.5"),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
     for (input, expected) in tests {
@@ -727,6 +751,36 @@ fn update() {
             },
         ),
         (
+            "ringbuf_size: 16384",
+            FactConfig::default(),
+            FactConfig {
+                ringbuf_size: Some(16384),
+                ..Default::default()
+            },
+        ),
+        (
+            "ringbuf_size: 16384",
+            FactConfig {
+                ringbuf_size: Some(8192),
+                ..Default::default()
+            },
+            FactConfig {
+                ringbuf_size: Some(16384),
+                ..Default::default()
+            },
+        ),
+        (
+            "ringbuf_size: 16384",
+            FactConfig {
+                ringbuf_size: Some(16384),
+                ..Default::default()
+            },
+            FactConfig {
+                ringbuf_size: Some(16384),
+                ..Default::default()
+            },
+        ),
+        (
             "hotreload: false",
             FactConfig::default(),
             FactConfig {
@@ -757,6 +811,55 @@ fn update() {
             },
         ),
         (
+            "scan_interval: 60",
+            FactConfig::default(),
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(60)),
+                ..Default::default()
+            },
+        ),
+        (
+            "scan_interval: 0.5",
+            FactConfig::default(),
+            FactConfig {
+                scan_interval: Some(Duration::from_secs_f64(0.5)),
+                ..Default::default()
+            },
+        ),
+        (
+            "scan_interval: 60",
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(30)),
+                ..Default::default()
+            },
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(60)),
+                ..Default::default()
+            },
+        ),
+        (
+            "scan_interval: 25.5",
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(30)),
+                ..Default::default()
+            },
+            FactConfig {
+                scan_interval: Some(Duration::from_secs_f64(25.5)),
+                ..Default::default()
+            },
+        ),
+        (
+            "scan_interval: 60",
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(60)),
+                ..Default::default()
+            },
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(60)),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
@@ -771,6 +874,7 @@ fn update() {
             json: false
             ringbuf_size: 16384
             hotreload: false
+            scan_interval: 60
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
@@ -787,6 +891,7 @@ fn update() {
                 json: Some(true),
                 ringbuf_size: Some(64),
                 hotreload: Some(true),
+                scan_interval: Some(Duration::from_secs(30)),
             },
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -803,6 +908,7 @@ fn update() {
                 json: Some(false),
                 ringbuf_size: Some(16384),
                 hotreload: Some(false),
+                scan_interval: Some(Duration::from_secs(60)),
             },
         ),
     ];
