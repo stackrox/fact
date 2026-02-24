@@ -209,9 +209,8 @@ impl Bpf {
                                     // then the longest non-wildcard prefix (e.g. for /etc/**/*.conf,
                                     // the kernel matches up to /etc/)
                                     //
-                                    // We do a proper glob match here to do a final check
-                                    // using short circuiting to avoid calling is_match in all
-                                    // scenarios
+                                    // The kernel sets inode to 0 when it matched via path prefix only.
+                                    // so we only need to perform a glob match against the filename
                                     if !event.get_inode().empty() ||
                                         self.paths_globset.is_match(event.get_filename()) {
                                         event
