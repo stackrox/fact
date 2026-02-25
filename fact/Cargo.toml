@@ -29,6 +29,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 yaml-rust2 = { workspace = true }
+epoll = { workspace = true }
 
 fact-api = { path = "../fact-api" }
 fact-ebpf = { path = "../fact-ebpf" }
