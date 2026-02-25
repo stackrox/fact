@@ -25,7 +25,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use aya::maps::MapData;
 use fact_ebpf::{inode_key_t, inode_value_t};
 use log::{debug, info, warn};
@@ -85,7 +85,11 @@ impl HostScanner {
     }
 
     fn scan_inner(&self, path: &Path) -> anyhow::Result<()> {
-        for entry in glob::glob(&path.to_string_lossy())? {
+        let Some(glob_str) = path.to_str() else {
+            bail!("invalid path {}", path.display());
+        };
+
+        for entry in glob::glob(glob_str)? {
             match entry {
                 Ok(path) => {
                     if path.is_file() {

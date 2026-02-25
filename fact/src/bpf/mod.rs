@@ -133,11 +133,16 @@ impl Bpf {
         let mut new_paths = Vec::with_capacity(paths_config.len());
         let mut builder = GlobSetBuilder::new();
         for p in paths_config.iter() {
+            let Some(glob_str) = p.to_str() else {
+                bail!("failed to convert path {} to string", p.display());
+            };
+
             builder.add(
-                Glob::new(&p.to_string_lossy())
-                    .with_context(|| format!("invalid glob {}", p.display()))
+                Glob::new(glob_str)
+                    .with_context(|| format!("invalid glob {}", glob_str))
                     .unwrap(),
             );
+
             let prefix = path_prefix_t::try_from(p)?;
             path_prefix.insert(&prefix.into(), 0, 0)?;
             new_paths.push(prefix);
