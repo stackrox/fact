@@ -16,6 +16,7 @@ pytest_plugins = [
     'test_editors.commons'
 ]
 
+
 def join_path_with_filename(directory, filename):
     """
     Join a directory path with a filename, handling bytes filenames properly.
@@ -53,6 +54,7 @@ def path_to_string(path):
         return path.decode('utf-8', errors='replace')
     else:
         return path
+
 
 @pytest.fixture
 def monitored_dir():
@@ -249,8 +251,8 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
             with open(metric_log, 'w') as f:
                 f.write(resp.text)
 
-    container.stop(timeout=1)
-    exit_status = container.wait(timeout=1)
+    container.stop(timeout=2)
+    exit_status = container.wait(timeout=2)
     dump_logs(container, container_log)
     container.remove()
     assert exit_status['StatusCode'] == 0

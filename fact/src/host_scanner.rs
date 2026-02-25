@@ -126,10 +126,10 @@ impl HostScanner {
         self.tx.subscribe()
     }
 
-    fn get_host_path(&self, inode: &inode_key_t) -> Option<PathBuf> {
+    fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
         // The path here needs to be cloned because we won't keep the
         // inode_map borrow long enough.
-        self.inode_map.borrow().get(inode).cloned()
+        self.inode_map.borrow().get(inode?).cloned()
     }
 
     pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
@@ -144,8 +144,12 @@ impl HostScanner {
                             break;
                         };
 
-                        if let Some(host_path) = self.get_host_path(event.get_inode()) {
+                        if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
                             event.set_host_path(host_path);
+                        }
+
+                        if let Some(host_path) = self.get_host_path(event.get_old_inode()) {
+                            event.set_old_host_path(host_path);
                         }
 
                         let event = Arc::new(event);
