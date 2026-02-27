@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from conftest import join_path_with_filename, path_to_string
+from utils import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 

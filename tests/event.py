@@ -6,6 +6,7 @@ from typing import Any, override
 
 from internalapi.sensor.collector_pb2 import ProcessSignal
 from internalapi.sensor.sfa_pb2 import FileActivity
+import utils
 
 
 def extract_container_id(cgroup: str) -> str:
@@ -86,7 +87,7 @@ class Process:
             content = f.read(4096)
             args = [arg.decode('utf-8')
                     for arg in content.split(b'\x00') if arg]
-        args = ' '.join(args)
+        args = utils.rust_style_join(args)
 
         with open(os.path.join(proc_dir, 'comm'), 'r') as f:
             name = f.read().strip()

@@ -192,10 +192,11 @@ impl From<Process> for fact_api::ProcessSignal {
 
         let container_id = container_id.unwrap_or("".to_string());
 
-        let args = args
-            .into_iter()
-            .reduce(|acc, i| acc + " " + &i)
-            .unwrap_or("".to_owned());
+        // try_join can fail if args contain nul bytes, though this should not happen
+        // since args are parsed from C strings which are nul-terminated
+        let Ok(args) = shlex::try_join(args.iter().map(|s| s.as_str())) else {
+            unreachable!();
+        };
 
         Self {
             id: Uuid::new_v4().to_string(),

@@ -8,12 +8,13 @@ def test_new_file(vi_container, server):
     swx_file = '/mounted/.test.txt.swx'
     exe = '/usr/bin/vi'
 
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
+
+    vi_container.exec_run(cmd)
 
     process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=vi_container.id[:12],
     )
@@ -44,12 +45,13 @@ def test_new_file_ovfs(vi_container, server):
     swx_file = '/container-dir/.test.txt.swx'
     exe = '/usr/bin/vi'
 
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
+
+    vi_container.exec_run(cmd)
 
     process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=vi_container.id[:12],
     )
@@ -91,10 +93,11 @@ def test_open_file(vi_container, server):
     exe = '/usr/bin/vi'
     container_id = vi_container.id[:12]
 
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
+
     # We ensure the file exists before editing.
     vi_container.exec_run(f'touch {fut}')
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    vi_container.exec_run(cmd)
 
     touch_process = Process.in_container(
         exe_path='/usr/bin/touch',
@@ -104,7 +107,7 @@ def test_open_file(vi_container, server):
     )
     vi_process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=container_id,
     )
@@ -154,10 +157,11 @@ def test_open_file_ovfs(vi_container, server):
     exe = '/usr/bin/vi'
     container_id = vi_container.id[:12]
 
+    cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
+
     # We ensure the file exists before editing.
     vi_container.exec_run(f'touch {fut}')
-    vi_container.exec_run(
-        f"vi {fut} +':normal iThis is a test<CR>' -c x")
+    vi_container.exec_run(cmd)
 
     touch_process = Process.in_container(
         exe_path='/usr/bin/touch',
@@ -167,7 +171,7 @@ def test_open_file_ovfs(vi_container, server):
     )
     vi_process = Process.in_container(
         exe_path=exe,
-        args=f'vi {fut} +:normal iThis is a test<CR> -c x',
+        args=cmd,
         name='vi',
         container_id=container_id,
     )
