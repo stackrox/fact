@@ -6,7 +6,7 @@ def test_new_file(vi_container, server):
     fut = '/mounted/test.txt'
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
@@ -43,7 +43,7 @@ def test_new_file_ovfs(vi_container, server):
     fut = '/container-dir/test.txt'
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
@@ -90,7 +90,7 @@ def test_open_file(vi_container, server):
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
     vi_test_file = get_vi_test_file('/mounted')
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
     container_id = vi_container.id[:12]
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
@@ -154,7 +154,7 @@ def test_open_file_ovfs(vi_container, server):
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
     vi_test_file = get_vi_test_file('/container-dir')
-    exe = '/usr/libexec/vi'
+    exe = '/usr/bin/vi'
     container_id = vi_container.id[:12]
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
