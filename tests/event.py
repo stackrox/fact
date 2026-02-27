@@ -1,5 +1,4 @@
 import os
-import re
 from re import Pattern
 import string
 from enum import Enum
@@ -7,6 +6,7 @@ from typing import Any, override
 
 from internalapi.sensor.collector_pb2 import ProcessSignal
 from internalapi.sensor.sfa_pb2 import FileActivity
+import utils
 
 
 def extract_container_id(cgroup: str) -> str:
@@ -26,19 +26,6 @@ def extract_container_id(cgroup: str) -> str:
     else:
         return ''
 
-def rust_style_quote(s):
-    if not s:
-        return "''"
-    if re.search(r'[^a-zA-Z0-9_./-]', s):
-        # Try to match the behavior of shlex.try_join()
-        if '\'' in s and not '"' in s:
-            return f'"{s}"'
-        escaped = s.replace("'", "\\'")
-        return f"'{escaped}'"
-    return s
-
-def rust_style_join(args):
-    return ' '.join(rust_style_quote(arg) for arg in args)
 
 class EventType(Enum):
     """Enumeration for different types of file activity events."""
@@ -100,7 +87,7 @@ class Process:
             content = f.read(4096)
             args = [arg.decode('utf-8')
                     for arg in content.split(b'\x00') if arg]
-        args = rust_style_join(args)
+        args = utils.rust_style_join(args)
 
         with open(os.path.join(proc_dir, 'comm'), 'r') as f:
             name = f.read().strip()

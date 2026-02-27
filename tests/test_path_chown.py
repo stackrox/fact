@@ -3,7 +3,7 @@ import shlex
 
 import pytest
 
-from conftest import path_to_string
+from utils import path_to_string, rust_style_quote
 from event import Event, EventType, Process
 
 # Tests here have to use a container to do 'chown',
@@ -37,14 +37,13 @@ def test_chown(test_container, server, filename):
     fut = f'/container-dir/{path_to_string(filename)}'
 
     # Create the file and chown it
-    # Use shlex.quote to properly escape special characters for shell
-    fut_quoted = shlex.quote(fut)
-    test_container.exec_run(f'touch {fut_quoted}')
-    test_container.exec_run(f'chown {TEST_UID}:{TEST_GID} {fut_quoted}')
+    fut_quoted = rust_style_quote(fut)
 
-    # The args in the event won't have quotes (shell removes them)
-    touch_cmd = f'touch {fut}'
-    chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut}'
+    touch_cmd = f'touch {fut_quoted}'
+    chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut_quoted}'
+
+    test_container.exec_run(touch_cmd)
+    test_container.exec_run(chown_cmd)
 
     touch = Process.in_container(
         exe_path='/usr/bin/touch',
