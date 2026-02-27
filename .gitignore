@@ -22,3 +22,6 @@ logs/
 # clangd and compilation database
 .cache/
 compile_commands.json
+
+# Claude local configuration
+.claude/*.local.*
