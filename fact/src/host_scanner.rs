@@ -25,7 +25,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, bail};
+use anyhow::{bail, Context};
 use aya::maps::MapData;
 use fact_ebpf::{inode_key_t, inode_value_t};
 use log::{debug, info, warn};

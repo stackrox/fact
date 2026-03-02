@@ -210,19 +210,11 @@ impl Bpf {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
                                 Ok(event) => {
-                                    // With wildcards, the kernel can only match on the inode and
-                                    // then the longest non-wildcard prefix (e.g. for /etc/**/*.conf,
-                                    // the kernel matches up to /etc/)
-                                    //
-                                    // The kernel sets inode to 0 when it matched via path prefix only.
-                                    // so we only need to perform a glob match against the filename
-                                    if !event.get_inode().empty() ||
-                                        self.paths_globset.is_match(event.get_filename()) {
-                                        event
-                                    } else {
+                                    if event.is_ignored(&self.paths_globset) {
                                         event_counter.dropped();
                                         continue;
                                     }
+                                    event
                                 },
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
