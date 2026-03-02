@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use globset::GlobSet;
 use serde::Serialize;
 
 use fact_ebpf::{event_t, file_activity_type_t, inode_key_t, PATH_MAX};
@@ -150,6 +151,35 @@ impl Event {
         }
     }
 
+    fn get_filename(&self) -> &PathBuf {
+        match &self.file {
+            FileData::Open(data) => &data.filename,
+            FileData::Creation(data) => &data.filename,
+            FileData::Unlink(data) => &data.filename,
+            FileData::Chmod(data) => &data.inner.filename,
+            FileData::Chown(data) => &data.inner.filename,
+            FileData::Rename(data) => &data.new.filename,
+        }
+    }
+
+    fn get_old_filename(&self) -> Option<&PathBuf> {
+        match &self.file {
+            FileData::Rename(data) => Some(&data.old.filename),
+            _ => None,
+        }
+    }
+
+    pub fn get_host_path(&self) -> &PathBuf {
+        match &self.file {
+            FileData::Open(data) => &data.host_file,
+            FileData::Creation(data) => &data.host_file,
+            FileData::Unlink(data) => &data.host_file,
+            FileData::Chmod(data) => &data.inner.host_file,
+            FileData::Chown(data) => &data.inner.host_file,
+            FileData::Rename(data) => &data.new.host_file,
+        }
+    }
+
     /// Set the `host_file` field of the event to the one provided.
     ///
     /// In the case of operations that involve two paths, like rename,
@@ -171,6 +201,25 @@ impl Event {
         if let FileData::Rename(data) = &mut self.file {
             data.old.host_file = host_path
         }
+    }
+
+    /// Determine if the event should be ignored.
+    ///
+    /// With wildcards, the kernel can only match on the inode and
+    /// then the longest non-wildcard prefix (e.g. for /etc/**/*.conf,
+    /// the kernel matches up to /etc/).
+    ///
+    /// The kernel sets inode to 0 when it matched via path prefix only.
+    /// so we only need to perform a glob match against the filename.
+    ///
+    /// We also need to check the old values for rename events.
+    pub fn is_ignored(&self, globset: &GlobSet) -> bool {
+        self.get_inode().empty()
+            && self.get_old_inode().is_none_or(|inode| inode.empty())
+            && !globset.is_match(self.get_filename())
+            && self
+                .get_old_filename()
+                .is_none_or(|path| !globset.is_match(path))
     }
 }
 

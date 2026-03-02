@@ -7,6 +7,7 @@ use aya::{
     Btf, Ebpf,
 };
 use checks::Checks;
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use libc::c_char;
 use log::{error, info};
 use tokio::{
@@ -30,6 +31,8 @@ pub struct Bpf {
 
     paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
+
+    paths_globset: GlobSet,
 }
 
 impl Bpf {
@@ -61,6 +64,7 @@ impl Bpf {
             tx,
             paths,
             paths_config,
+            paths_globset: GlobSet::empty(),
         };
 
         bpf.load_paths()?;
@@ -127,11 +131,23 @@ impl Bpf {
 
         // Add the new prefixes
         let mut new_paths = Vec::with_capacity(paths_config.len());
+        let mut builder = GlobSetBuilder::new();
         for p in paths_config.iter() {
+            let Some(glob_str) = p.to_str() else {
+                bail!("failed to convert path {} to string", p.display());
+            };
+
+            builder.add(
+                Glob::new(glob_str)
+                    .with_context(|| format!("invalid glob {}", glob_str))
+                    .unwrap(),
+            );
+
             let prefix = path_prefix_t::try_from(p)?;
             path_prefix.insert(&prefix.into(), 0, 0)?;
             new_paths.push(prefix);
         }
+        self.paths_globset = builder.build()?;
 
         // Remove old prefixes
         for p in self.paths.iter().filter(|p| !new_paths.contains(p)) {
@@ -193,7 +209,13 @@ impl Bpf {
                         while let Some(event) = ringbuf.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
-                                Ok(event) => event,
+                                Ok(event) => {
+                                    if event.is_ignored(&self.paths_globset) {
+                                        event_counter.dropped();
+                                        continue;
+                                    }
+                                    event
+                                },
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     event_counter.dropped();
@@ -253,7 +275,7 @@ mod bpf_tests {
 
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
-        let paths = vec![monitored_path.clone()];
+        let paths = vec![PathBuf::from(format!("{}/**/*", monitored_path.display()))];
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let reloader = Reloader::from(config);

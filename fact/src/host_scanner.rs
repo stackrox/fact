@@ -25,7 +25,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use aya::maps::MapData;
 use fact_ebpf::{inode_key_t, inode_value_t};
 use log::{debug, info, warn};
@@ -75,8 +75,8 @@ impl HostScanner {
 
     fn scan(&self) -> anyhow::Result<()> {
         debug!("Host scan started");
-        for path in self.config.borrow().iter() {
-            let path = host_info::prepend_host_mount(path);
+        for pattern in self.config.borrow().iter() {
+            let path = host_info::prepend_host_mount(pattern);
             self.scan_inner(&path)?;
         }
         debug!("Host scan done");
@@ -85,15 +85,21 @@ impl HostScanner {
     }
 
     fn scan_inner(&self, path: &Path) -> anyhow::Result<()> {
-        if path.is_dir() {
-            for entry in path.read_dir()?.flatten() {
-                let entry = entry.path();
-                self.scan_inner(&entry)
-                    .with_context(|| format!("Failed to scan {}", entry.display()))?;
+        let Some(glob_str) = path.to_str() else {
+            bail!("invalid path {}", path.display());
+        };
+
+        for entry in glob::glob(glob_str)? {
+            match entry {
+                Ok(path) => {
+                    if path.is_file() {
+                        self.update_entry(path.as_path()).with_context(|| {
+                            format!("Failed to update entry for {}", path.display())
+                        })?;
+                    }
+                }
+                Err(e) => return Err(e.into()),
             }
-        } else if path.is_file() {
-            self.update_entry(path)
-                .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
     }
