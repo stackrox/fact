@@ -107,6 +107,9 @@ spec:
     default: docker
     type: string
     description: The format for the resulting image's mediaType. Valid values are oci or docker.
+  - name: extra-labels
+    type: array
+    description: Additional labels to put on the built containers.
   - name: enable-cache-proxy
     default: 'false'
     description: Enable cache proxy configuration
@@ -263,6 +266,10 @@ spec:
       value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
     - name: BUILDAH_FORMAT
       value: $(params.buildah-format)
+    - name: LABELS
+      value: ["$(params.extra-labels[*])"]
+    - name: BUILD_TIMESTAMP
+      value: "$(tasks.clone-repository.results.commit-timestamp)"
     - name: HTTP_PROXY
       value: $(tasks.init.results.http-proxy)
     - name: NO_PROXY
