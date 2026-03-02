@@ -37,10 +37,10 @@ __always_inline static bool is_monitored(inode_key_t inode, struct bound_path_t*
 
   switch (inode_is_monitored(inode_value)) {
     case NOT_MONITORED:
+      *submit = NULL;
       if (path_is_monitored(path)) {
         return true;
       }
-      *submit = NULL;
       return false;
     case MONITORED:
       break;
