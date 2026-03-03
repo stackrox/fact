@@ -23,6 +23,7 @@ use std::{
     os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::Arc,
+    time::Duration,
 };
 
 use anyhow::Context;
@@ -30,29 +31,39 @@ use aya::maps::MapData;
 use fact_ebpf::{inode_key_t, inode_value_t};
 use log::{debug, info, warn};
 use tokio::{
-    sync::{broadcast, mpsc, watch},
+    sync::{broadcast, mpsc, watch, Notify},
     task::JoinHandle,
 };
 
-use crate::{bpf::Bpf, event::Event, host_info};
+use crate::{
+    bpf::Bpf,
+    event::Event,
+    host_info,
+    metrics::host_scanner::{HostScannerMetrics, ScanLabels},
+};
 
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<std::collections::HashMap<inode_key_t, PathBuf>>,
 
-    config: watch::Receiver<Vec<PathBuf>>,
+    paths: watch::Receiver<Vec<PathBuf>>,
+    scan_interval: watch::Receiver<Duration>,
     running: watch::Receiver<bool>,
 
     rx: mpsc::Receiver<Event>,
     tx: broadcast::Sender<Arc<Event>>,
+
+    metrics: HostScannerMetrics,
 }
 
 impl HostScanner {
     pub fn new(
         bpf: &mut Bpf,
         rx: mpsc::Receiver<Event>,
-        config: watch::Receiver<Vec<PathBuf>>,
+        paths: watch::Receiver<Vec<PathBuf>>,
+        scan_interval: watch::Receiver<Duration>,
         running: watch::Receiver<bool>,
+        metrics: HostScannerMetrics,
     ) -> anyhow::Result<Self> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(std::collections::HashMap::new());
@@ -61,10 +72,12 @@ impl HostScanner {
         let host_scanner = HostScanner {
             kernel_inode_map,
             inode_map,
-            config,
+            paths,
+            scan_interval,
             running,
             rx,
             tx,
+            metrics,
         };
 
         // Run an initial scan to fill in the inode map
@@ -75,7 +88,26 @@ impl HostScanner {
 
     fn scan(&self) -> anyhow::Result<()> {
         debug!("Host scan started");
-        for path in self.config.borrow().iter() {
+        self.metrics.scan_inc(ScanLabels::Scans);
+        let config = self.paths.borrow();
+
+        // Cleanup any items that are either:
+        // * Not configured to be monitored anymore.
+        // * Are configured to be monitored but no longer are found in
+        //   the file system.
+        self.inode_map.borrow_mut().retain(|inode, path| {
+            if config.iter().any(|prefix| path.starts_with(prefix))
+                && host_info::prepend_host_mount(path).exists()
+            {
+                true
+            } else {
+                let _ = self.kernel_inode_map.borrow_mut().remove(inode);
+                self.metrics.scan_inc(ScanLabels::InodeRemoved);
+                false
+            }
+        });
+
+        for path in config.iter() {
             let path = host_info::prepend_host_mount(path);
             self.scan_inner(&path)?;
         }
@@ -85,15 +117,21 @@ impl HostScanner {
     }
 
     fn scan_inner(&self, path: &Path) -> anyhow::Result<()> {
+        self.metrics.scan_inc(ScanLabels::ElementsScanned);
+
         if path.is_dir() {
+            self.metrics.scan_inc(ScanLabels::DirectoryScanned);
             for entry in path.read_dir()?.flatten() {
                 let entry = entry.path();
                 self.scan_inner(&entry)
                     .with_context(|| format!("Failed to scan {}", entry.display()))?;
             }
         } else if path.is_file() {
+            self.metrics.scan_inc(ScanLabels::FileScanned);
             self.update_entry(path)
                 .with_context(|| format!("Failed to update entry for {}", path.display()))?;
+        } else {
+            self.metrics.scan_inc(ScanLabels::FsItemIgnored);
         }
         Ok(())
     }
@@ -101,6 +139,7 @@ impl HostScanner {
     fn update_entry(&self, path: &Path) -> anyhow::Result<()> {
         if !path.exists() {
             // If path does not exist, we don't have anything to update
+            self.metrics.scan_inc(ScanLabels::FileRemoved);
             return Ok(());
         }
 
@@ -118,6 +157,8 @@ impl HostScanner {
         let entry = inode_map.entry(inode).or_default();
         *entry = host_info::remove_host_mount(path);
 
+        self.metrics.scan_inc(ScanLabels::FileUpdated);
+
         debug!("Added entry for {}: {inode:?}", path.display());
         Ok(())
     }
@@ -132,7 +173,35 @@ impl HostScanner {
         self.inode_map.borrow().get(inode?).cloned()
     }
 
+    /// Periodically notify the host scanner main task that a scan needs
+    /// to happen.
+    ///
+    /// This is needed because `tokio::time::Interval::tick` will create
+    /// a new future every time it is called, if used in a
+    /// `tokio::select` with other events that trigger more often, the
+    /// tick will never happen. This way we have a separate task that
+    /// will reliably send a notification to the main one.
+    fn start_scan_notifier(&self, scan_trigger: Arc<Notify>) {
+        let mut running = self.running.clone();
+        let mut scan_interval = self.scan_interval.clone();
+        tokio::spawn(async move {
+            while *running.borrow() {
+                let mut interval = tokio::time::interval(*scan_interval.borrow());
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => scan_trigger.notify_one(),
+                        _ = running.changed() => break,
+                        _ = scan_interval.changed() => break,
+                    }
+                }
+            }
+        });
+    }
+
     pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
+        let scan_trigger = Arc::new(Notify::new());
+        self.start_scan_notifier(scan_trigger.clone());
+
         tokio::spawn(async move {
             info!("Starting host scanner...");
 
@@ -143,20 +212,26 @@ impl HostScanner {
                             info!("No more events to process");
                             break;
                         };
+                        self.metrics.events.added();
 
                         if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
+                            self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_host_path(host_path);
                         }
 
                         if let Some(host_path) = self.get_host_path(event.get_old_inode()) {
+                            self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_old_host_path(host_path);
                         }
 
                         let event = Arc::new(event);
                         if let Err(e) = self.tx.send(event) {
+                            self.metrics.events.dropped();
                             warn!("Failed to send event: {e}");
                         }
                     },
+                    _ = scan_trigger.notified() => self.scan()?,
+                    _ = self.paths.changed() => self.scan()?,
                     _ = self.running.changed() => {
                         if !*self.running.borrow() {
                             break;

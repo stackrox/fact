@@ -83,7 +83,14 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)?;
     let exporter = Exporter::new(bpf.take_metrics()?);
 
-    let host_scanner = HostScanner::new(&mut bpf, rx, reloader.paths(), running.subscribe())?;
+    let host_scanner = HostScanner::new(
+        &mut bpf,
+        rx,
+        reloader.paths(),
+        reloader.scan_interval(),
+        running.subscribe(),
+        exporter.metrics.host_scanner.clone(),
+    )?;
 
     output::start(
         host_scanner.subscribe(),

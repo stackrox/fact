@@ -4,7 +4,10 @@ use prometheus_client::{
     registry::Registry,
 };
 
+use host_scanner::HostScannerMetrics;
+
 pub mod exporter;
+pub mod host_scanner;
 mod kernel_metrics;
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelValue, Copy)]
@@ -135,6 +138,7 @@ impl OutputMetrics {
 pub struct Metrics {
     pub bpf_worker: EventCounter,
     pub output: OutputMetrics,
+    pub host_scanner: HostScannerMetrics,
 }
 
 impl Metrics {
@@ -153,9 +157,13 @@ impl Metrics {
         let output_metrics = OutputMetrics::new();
         output_metrics.register(registry);
 
+        let host_scanner = HostScannerMetrics::new();
+        host_scanner.register(registry);
+
         Metrics {
             bpf_worker,
             output: output_metrics,
+            host_scanner,
         }
     }
 }

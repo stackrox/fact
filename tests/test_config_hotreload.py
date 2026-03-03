@@ -145,7 +145,7 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
         f.write('This is another test')
 
     e = Event(process=p, event_type=EventType.OPEN,
-              file=ignored_file, host_path='')
+              file=ignored_file, host_path=ignored_file)
 
     # File Under Test
     with open(fut, 'w') as f:
@@ -185,8 +185,8 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
 
     events = [
         Event(process=p, event_type=EventType.OPEN,
-              file=ignored_file, host_path=''),
-        Event(process=p, event_type=EventType.OPEN, file=fut, host_path='')
+              file=ignored_file, host_path=ignored_file),
+        Event(process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
     ]
 
     server.wait_events(events)
