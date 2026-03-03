@@ -43,7 +43,11 @@ LABEL \
     # We also set it to not inherit one from a base stage in case it's RHEL or UBI.
     release="1"
 
-RUN microdnf install -y openssl-libs && \
+RUN microdnf install -y \
+        crypto-policies-scripts \
+        openssl-libs && \
+    # Enable post-quantum cryptography key exchange for TLS.
+    update-crypto-policies --set DEFAULT:PQ && \
     microdnf clean all && \
     rpm --verbose -e --nodeps $( \
         rpm -qa 'curl' '*rpm*' '*dnf*' '*libsolv*' '*hawkey*' 'yum*' 'libyaml*' 'libarchive*' \
