@@ -4,6 +4,7 @@
 packages:
 - cargo
 - clang
+- crypto-policies-scripts
 - libbpf-devel
 - openssl-libs
 - openssl-devel
