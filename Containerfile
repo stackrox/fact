@@ -35,7 +35,9 @@ LABEL name="fact" \
       description="This image supports file activity data collection in the StackRox Kubernetes Security Platform." \
       io.stackrox.fact.version="${FACT_VERSION}"
 
-RUN microdnf install -y openssl-libs && \
+RUN microdnf install -y openssl-libs crypto-policies-scripts && \
+    # Enable post-quantum cryptography key exchange for TLS.
+    update-crypto-policies --set DEFAULT:PQ && \
     microdnf clean all && \
     rpm --verbose -e --nodeps $( \
         rpm -qa 'curl' '*rpm*' '*dnf*' '*libsolv*' '*hawkey*' 'yum*' 'libyaml*' 'libarchive*' \
