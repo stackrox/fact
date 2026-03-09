@@ -1,9 +1,9 @@
-use std::{io, path::PathBuf};
+use std::{collections, io, path::PathBuf};
 
 use anyhow::{bail, Context};
 use aya::{
-    maps::{Array, HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::Program,
+    maps::{HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
+    programs::{lsm::LsmLinkId, Program},
     Btf, Ebpf,
 };
 use checks::Checks;
@@ -33,6 +33,10 @@ pub struct Bpf {
     paths_config: watch::Receiver<Vec<PathBuf>>,
 
     paths_globset: GlobSet,
+
+    link_ids: collections::HashMap<String, LsmLinkId>,
+
+    progs_loaded: bool,
 }
 
 impl Bpf {
@@ -65,10 +69,13 @@ impl Bpf {
             paths,
             paths_config,
             paths_globset: GlobSet::empty(),
+            link_ids: collections::HashMap::new(),
+            progs_loaded: false,
         };
 
         bpf.load_paths()?;
         bpf.load_progs(&btf)?;
+        bpf.progs_loaded = true;
 
         Ok(bpf)
     }
@@ -116,12 +123,18 @@ impl Bpf {
     }
 
     fn load_paths(&mut self) -> anyhow::Result<()> {
-        let paths_config = self.paths_config.borrow();
-        let Some(filter_by_prefix) = self.obj.map_mut("filter_by_prefix_map") else {
-            bail!("filter_by_prefix_map map not found");
-        };
-        let mut filter_by_prefix: Array<&mut MapData, c_char> = Array::try_from(filter_by_prefix)?;
-        filter_by_prefix.set(0, !paths_config.is_empty() as c_char, 0)?;
+        if self.paths_config.borrow().is_empty() {
+            if self.progs_loaded {
+                self.detach_progs()?;
+            }
+            self.paths.clear();
+            self.paths_globset = GlobSet::empty();
+            return Ok(());
+        }
+
+        if self.progs_loaded && self.link_ids.is_empty() {
+            self.attach_progs()?;
+        }
 
         let Some(path_prefix) = self.obj.map_mut("path_prefix") else {
             bail!("path_prefix map not found");
@@ -130,6 +143,7 @@ impl Bpf {
             LpmTrie::try_from(path_prefix)?;
 
         // Add the new prefixes
+        let paths_config = self.paths_config.borrow();
         let mut new_paths = Vec::with_capacity(paths_config.len());
         let mut builder = GlobSetBuilder::new();
         for p in paths_config.iter() {
@@ -176,11 +190,25 @@ impl Bpf {
     }
 
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        for (_, prog) in self.obj.programs_mut() {
-            match prog {
+        for (name, prog) in self.obj.programs_mut() {
+            let name = name.to_string();
+            let link_id = match prog {
                 Program::Lsm(prog) => prog.attach()?,
                 u => unimplemented!("{u:?}"),
             };
+            self.link_ids.insert(name, link_id);
+        }
+        Ok(())
+    }
+
+    fn detach_progs(&mut self) -> anyhow::Result<()> {
+        for (name, prog) in self.obj.programs_mut() {
+            if let Some(link_id) = self.link_ids.remove(name) {
+                match prog {
+                    Program::Lsm(prog) => prog.detach(link_id)?,
+                    u => unimplemented!("{u:?}"),
+                };
+            }
         }
         Ok(())
     }
@@ -194,8 +222,10 @@ impl Bpf {
         info!("Starting BPF worker...");
 
         tokio::spawn(async move {
-            self.attach_progs()
-                .context("Failed to attach ebpf programs")?;
+            if !self.paths.is_empty() {
+                self.attach_progs()
+                    .context("Failed to attach ebpf programs")?;
+            }
 
             let rb = self.take_ringbuffer()?;
             let mut fd = AsyncFd::new(rb)?;
@@ -379,4 +409,5 @@ mod bpf_tests {
 
         run_tx.send(false).unwrap();
     }
+
 }

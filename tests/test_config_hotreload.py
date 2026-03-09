@@ -154,6 +154,70 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     server.wait_events([e])
 
 
+def test_no_paths_then_add(fact, fact_config, monitored_dir, server):
+    """
+    Start with no paths configured, verify no events are produced,
+    then add paths via hot-reload and verify events appear.
+    """
+    p = Process.from_proc()
+
+    # Remove all paths
+    config, config_file = fact_config
+    config['paths'] = []
+    reload_config(fact, config, config_file, delay=0.5)
+
+    # Write to a file — should NOT produce events
+    fut = os.path.join(monitored_dir, 'test2.txt')
+    with open(fut, 'w') as f:
+        f.write('This should be ignored')
+    sleep(1)
+
+    assert server.is_empty(), 'Should not receive events with no paths configured'
+
+    # Add paths back
+    config['paths'] = [f'{monitored_dir}/**/*']
+    reload_config(fact, config, config_file, delay=0.5)
+
+    # Write to a file — should produce events
+    with open(fut, 'w') as f:
+        f.write('This should be detected')
+
+    e = Event(process=p, event_type=EventType.OPEN,
+              file=fut, host_path=fut)
+
+    server.wait_events([e])
+
+
+def test_paths_then_remove(fact, fact_config, monitored_dir, server):
+    """
+    Start with paths configured, verify events are produced,
+    then remove all paths via hot-reload and verify events stop.
+    """
+    p = Process.from_proc()
+
+    # Write to a file — should produce events
+    fut = os.path.join(monitored_dir, 'test2.txt')
+    with open(fut, 'w') as f:
+        f.write('This is a test')
+
+    e = Event(process=p, event_type=EventType.CREATION,
+              file=fut, host_path='')
+
+    server.wait_events([e])
+
+    # Remove all paths
+    config, config_file = fact_config
+    config['paths'] = []
+    reload_config(fact, config, config_file, delay=0.5)
+
+    # Write to a file — should NOT produce events
+    with open(fut, 'w') as f:
+        f.write('This should be ignored')
+    sleep(1)
+
+    assert server.is_empty(), 'Should not receive events after removing paths'
+
+
 def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
     p = Process.from_proc()
 

@@ -13,11 +13,6 @@
 // clang-format on
 
 __always_inline static bool path_is_monitored(struct bound_path_t* path) {
-  if (!filter_by_prefix()) {
-    // no path configured, allow all
-    return true;
-  }
-
   // Backup bytes length and restore it before exiting
   unsigned int len = path->len;
 
