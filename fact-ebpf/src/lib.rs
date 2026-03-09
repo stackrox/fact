@@ -30,17 +30,22 @@ impl TryFrom<&PathBuf> for path_prefix_t {
                 prefix: value.display().to_string(),
             });
         };
-        let len = if filename.len() > LPM_SIZE_MAX as usize {
-            LPM_SIZE_MAX as usize
-        } else {
-            filename.len()
-        };
+
+        // Take the start of the path until the first occurence of a wildcard
+        // character. This is used as a filter in the kernel in cases where
+        // the inode has failed to match. The full wildcard string is used
+        // for further processing in userspace.
+        //
+        // unwrap is safe here - if there are no matches, the full string is the
+        // only item in the iterator
+        let filename_prefix = filename.split(['*', '?', '[', '{']).next().unwrap();
+        let len = filename_prefix.len().min(LPM_SIZE_MAX as usize);
 
         unsafe {
             let mut cfg: path_prefix_t = std::mem::zeroed();
             memcpy(
                 cfg.path.as_mut_ptr() as *mut _,
-                filename.as_ptr() as *const _,
+                filename_prefix.as_ptr() as *const _,
                 len,
             );
             cfg.bit_len = (len * 8) as u32;
@@ -62,6 +67,12 @@ impl PartialEq for path_prefix_t {
 }
 
 unsafe impl Pod for path_prefix_t {}
+
+impl inode_key_t {
+    pub fn empty(&self) -> bool {
+        self.inode == 0 && self.dev == 0
+    }
+}
 
 impl PartialEq for inode_key_t {
     fn eq(&self, other: &Self) -> bool {

@@ -45,18 +45,13 @@ int BPF_PROG(trace_file_open, struct file* file) {
   }
 
   inode_key_t inode_key = inode_to_key(file->f_inode);
-  const inode_value_t* inode = inode_get(&inode_key);
-  switch (inode_is_monitored(inode)) {
-    case NOT_MONITORED:
-      if (!is_monitored(path)) {
-        goto ignored;
-      }
-      break;
-    case MONITORED:
-      break;
+  inode_key_t* inode_to_submit = &inode_key;
+
+  if (!is_monitored(inode_key, path, &inode_to_submit)) {
+    goto ignored;
   }
 
-  submit_open_event(&m->file_open, event_type, path->path, &inode_key);
+  submit_open_event(&m->file_open, event_type, path->path, inode_to_submit);
 
   return 0;
 
@@ -82,24 +77,16 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   }
 
   inode_key_t inode_key = inode_to_key(dentry->d_inode);
-  const inode_value_t* inode = inode_get(&inode_key);
+  inode_key_t* inode_to_submit = &inode_key;
 
-  switch (inode_is_monitored(inode)) {
-    case NOT_MONITORED:
-      if (!is_monitored(path)) {
-        m->path_unlink.ignored++;
-        return 0;
-      }
-      break;
-
-    case MONITORED:
-      inode_remove(&inode_key);
-      break;
+  if (!is_monitored(inode_key, path, &inode_to_submit)) {
+    m->path_unlink.ignored++;
+    return 0;
   }
 
   submit_unlink_event(&m->path_unlink,
                       path->path,
-                      &inode_key);
+                      inode_to_submit);
   return 0;
 }
 
@@ -120,24 +107,17 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   }
 
   inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
-  const inode_value_t* inode = inode_get(&inode_key);
+  inode_key_t* inode_to_submit = &inode_key;
 
-  switch (inode_is_monitored(inode)) {
-    case NOT_MONITORED:
-      if (!is_monitored(bound_path)) {
-        m->path_chmod.ignored++;
-        return 0;
-      }
-      break;
-
-    case MONITORED:
-      break;
+  if (!is_monitored(inode_key, bound_path, &inode_to_submit)) {
+    m->path_chmod.ignored++;
+    return 0;
   }
 
   umode_t old_mode = BPF_CORE_READ(path, dentry, d_inode, i_mode);
   submit_mode_event(&m->path_chmod,
                     bound_path->path,
-                    &inode_key,
+                    inode_to_submit,
                     mode,
                     old_mode);
 
@@ -164,18 +144,11 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   }
 
   inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
-  const inode_value_t* inode = inode_get(&inode_key);
+  inode_key_t* inode_to_submit = &inode_key;
 
-  switch (inode_is_monitored(inode)) {
-    case NOT_MONITORED:
-      if (!is_monitored(bound_path)) {
-        m->path_chown.ignored++;
-        return 0;
-      }
-      break;
-
-    case MONITORED:
-      break;
+  if (!is_monitored(inode_key, bound_path, &inode_to_submit)) {
+    m->path_chown.ignored++;
+    return 0;
   }
 
   struct dentry* d = BPF_CORE_READ(path, dentry);
@@ -184,7 +157,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
 
   submit_ownership_event(&m->path_chown,
                          bound_path->path,
-                         &inode_key,
+                         inode_to_submit,
                          uid,
                          gid,
                          old_uid,
@@ -217,14 +190,15 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
   }
 
   inode_key_t old_inode = inode_to_key(old_dentry->d_inode);
-  const inode_value_t* volatile old_inode_value = inode_get(&old_inode);
   inode_key_t new_inode = inode_to_key(new_dentry->d_inode);
-  const inode_value_t* volatile new_inode_value = inode_get(&new_inode);
 
-  if (inode_is_monitored(old_inode_value) == NOT_MONITORED &&
-      inode_is_monitored(new_inode_value) == NOT_MONITORED &&
-      !is_monitored(old_path) &&
-      !is_monitored(new_path)) {
+  inode_key_t* old_inode_submit = &old_inode;
+  inode_key_t* new_inode_submit = &new_inode;
+
+  bool old_monitored = is_monitored(old_inode, old_path, &old_inode_submit);
+  bool new_monitored = is_monitored(new_inode, new_path, &new_inode_submit);
+
+  if (!old_monitored && !new_monitored) {
     m->path_rename.ignored++;
     return 0;
   }
@@ -232,8 +206,8 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
   submit_rename_event(&m->path_rename,
                       new_path->path,
                       old_path->path,
-                      &old_inode,
-                      &new_inode);
+                      old_inode_submit,
+                      new_inode_submit);
   return 0;
 
 error:

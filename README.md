@@ -50,7 +50,7 @@ In order to run these tests as part of the unit test suite y use the
 following command:
 
 ```shell
-cargo test --config 'target."cfg(all())".runner="sudo -E" --features=bpf-test
+cargo test --config 'target."cfg(all())".runner="sudo -E"' --features=bpf-test
 ```
 
 ## Create compile_commands.json

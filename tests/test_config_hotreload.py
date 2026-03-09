@@ -136,7 +136,7 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     server.wait_events([e])
 
     config, config_file = fact_config
-    config['paths'] = [ignored_dir]
+    config['paths'] = [f'{ignored_dir}/**/*']
     reload_config(fact, config, config_file, delay=0.5)
 
     # At this point, the event in the ignored directory should show up
@@ -173,7 +173,7 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
     server.wait_events([e])
 
     config, config_file = fact_config
-    config['paths'] = [monitored_dir, ignored_dir]
+    config['paths'] = [f'{monitored_dir}/**/*', f'{ignored_dir}/**/*']
     reload_config(fact, config, config_file, delay=0.5)
 
     # At this point, the event in the ignored directory should show up
