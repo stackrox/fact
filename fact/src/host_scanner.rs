@@ -127,9 +127,12 @@ impl HostScanner {
             match entry {
                 Ok(path) => {
                     if path.is_file() {
+                        self.metrics.scan_inc(ScanLabels::FileScanned);
                         self.update_entry(path.as_path()).with_context(|| {
                             format!("Failed to update entry for {}", path.display())
                         })?;
+                    } else {
+                        self.metrics.scan_inc(ScanLabels::FsItemIgnored);
                     }
                 }
                 Err(e) => return Err(e.into()),
