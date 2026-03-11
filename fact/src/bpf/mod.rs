@@ -186,17 +186,17 @@ impl Bpf {
     /// Attaches all BPF programs. If any attach fails, all previously
     /// attached programs are automatically detached via drop.
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        let mut links = Vec::new();
-        for (_name, prog) in self.obj.programs_mut() {
-            match prog {
+        self.links = self
+            .obj
+            .programs_mut()
+            .map(|(_, prog)| match prog {
                 Program::Lsm(prog) => {
                     let link_id = prog.attach()?;
-                    links.push(prog.take_link(link_id)?);
+                    prog.take_link(link_id)
                 }
                 u => unimplemented!("{u:?}"),
-            };
-        }
-        self.links = links;
+            })
+            .collect::<Result<_, _>>()?;
         Ok(())
     }
 
