@@ -2,8 +2,8 @@ use std::{io, path::PathBuf};
 
 use anyhow::{bail, Context};
 use aya::{
-    maps::{Array, HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::Program,
+    maps::{HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
+    programs::{lsm::LsmLink, Program},
     Btf, Ebpf,
 };
 use checks::Checks;
@@ -33,6 +33,8 @@ pub struct Bpf {
     paths_config: watch::Receiver<Vec<PathBuf>>,
 
     paths_globset: GlobSet,
+
+    links: Vec<LsmLink>,
 }
 
 impl Bpf {
@@ -65,10 +67,11 @@ impl Bpf {
             paths,
             paths_config,
             paths_globset: GlobSet::empty(),
+            links: Vec::new(),
         };
 
-        bpf.load_paths()?;
         bpf.load_progs(&btf)?;
+        bpf.load_paths()?;
 
         Ok(bpf)
     }
@@ -116,12 +119,16 @@ impl Bpf {
     }
 
     fn load_paths(&mut self) -> anyhow::Result<()> {
-        let paths_config = self.paths_config.borrow();
-        let Some(filter_by_prefix) = self.obj.map_mut("filter_by_prefix_map") else {
-            bail!("filter_by_prefix_map map not found");
-        };
-        let mut filter_by_prefix: Array<&mut MapData, c_char> = Array::try_from(filter_by_prefix)?;
-        filter_by_prefix.set(0, !paths_config.is_empty() as c_char, 0)?;
+        if self.paths_config.borrow().is_empty() {
+            self.detach_progs();
+            self.paths.clear();
+            self.paths_globset = GlobSet::empty();
+            return Ok(());
+        }
+
+        if self.links.is_empty() {
+            self.attach_progs()?;
+        }
 
         let Some(path_prefix) = self.obj.map_mut("path_prefix") else {
             bail!("path_prefix map not found");
@@ -130,6 +137,7 @@ impl Bpf {
             LpmTrie::try_from(path_prefix)?;
 
         // Add the new prefixes
+        let paths_config = self.paths_config.borrow();
         let mut new_paths = Vec::with_capacity(paths_config.len());
         let mut builder = GlobSetBuilder::new();
         for p in paths_config.iter() {
@@ -175,14 +183,26 @@ impl Bpf {
         Ok(())
     }
 
+    /// Attaches all BPF programs. If any attach fails, all previously
+    /// attached programs are automatically detached via drop.
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        for (_, prog) in self.obj.programs_mut() {
-            match prog {
-                Program::Lsm(prog) => prog.attach()?,
+        self.links = self
+            .obj
+            .programs_mut()
+            .map(|(_, prog)| match prog {
+                Program::Lsm(prog) => {
+                    let link_id = prog.attach()?;
+                    prog.take_link(link_id)
+                }
                 u => unimplemented!("{u:?}"),
-            };
-        }
+            })
+            .collect::<Result<_, _>>()?;
         Ok(())
+    }
+
+    /// Detaches all BPF programs by dropping owned links.
+    fn detach_progs(&mut self) {
+        self.links.clear();
     }
 
     // Gather events from the ring buffer and print them out.
@@ -194,9 +214,6 @@ impl Bpf {
         info!("Starting BPF worker...");
 
         tokio::spawn(async move {
-            self.attach_progs()
-                .context("Failed to attach ebpf programs")?;
-
             let rb = self.take_ringbuffer()?;
             let mut fd = AsyncFd::new(rb)?;
 

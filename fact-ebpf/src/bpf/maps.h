@@ -27,27 +27,6 @@ __always_inline static struct helper_t* get_helper() {
   return bpf_map_lookup_elem(&helper_map, &zero);
 }
 
-/**
- * A map with a single entry, determining whether prefix filtering
- * should be done based on the `path_prefix` map.
- */
-struct {
-  __uint(type, BPF_MAP_TYPE_ARRAY);
-  __type(key, __u32);
-  __type(value, char);
-  __uint(max_entries, 1);
-} filter_by_prefix_map SEC(".maps");
-
-/// Whether we should filter by path prefix or not.
-__always_inline static bool filter_by_prefix() {
-  unsigned int zero = 0;
-  char* res = bpf_map_lookup_elem(&filter_by_prefix_map, &zero);
-
-  // The NULL check is simply here to satisfy some verifiers, the result
-  // will never actually be NULL.
-  return res == NULL || *res != 0;
-}
-
 struct {
   __uint(type, BPF_MAP_TYPE_LPM_TRIE);
   __type(key, struct path_prefix_t);

@@ -1,7 +1,7 @@
 from concurrent import futures
 from collections import deque
 import json
-from threading import Event
+from threading import Event as ThreadingEvent
 from time import sleep
 
 import grpc
@@ -24,7 +24,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         sfa_iservice_pb2_grpc.FileActivityService.__init__(self)
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
         self.queue = deque()
-        self.running = Event()
+        self.running = ThreadingEvent()
         self.executor = futures.ThreadPoolExecutor(max_workers=2)
 
     def Communicate(self, request_iterator, context):
@@ -81,8 +81,8 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         """
         return self.running.is_set()
 
-    def _wait_events(self, events: list[Event], strict: bool):
-        while self.is_running():
+    def _wait_events(self, events: list['Event'], strict: bool, cancel: ThreadingEvent):
+        while self.is_running() and not cancel.is_set():
             msg = self.get_next()
             if msg is None:
                 sleep(0.5)
@@ -99,19 +99,24 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
             elif strict:
                 raise ValueError(json.dumps(diff, indent=4))
 
-    def wait_events(self, events: list[Event], strict: bool = True):
+    def wait_events(self, events: list['Event'], strict: bool = True):
         """
         Continuously checks the server for incoming events until the
         specified events are found.
 
         Args:
-            server: The server instance to retrieve events from.
-            event (list[Event]): The events to search for.
+            events (list['Event']): The events to search for.
             strict (bool): Fail if an unexpected event is detected.
 
         Raises:
             TimeoutError: If the required events are not found in 5 seconds.
         """
         print('Waiting for events:', *events, sep='\n')
-        fs = self.executor.submit(self._wait_events, events, strict)
-        fs.result(timeout=5)
+        cancel = ThreadingEvent()
+        fs = self.executor.submit(self._wait_events, events, strict, cancel)
+        try:
+            fs.result(timeout=5)
+        except TimeoutError:
+            raise
+        finally:
+            cancel.set()
