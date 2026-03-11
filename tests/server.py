@@ -117,5 +117,6 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         try:
             fs.result(timeout=5)
         except TimeoutError:
-            cancel.set()
             raise
+        finally:
+            cancel.set()
