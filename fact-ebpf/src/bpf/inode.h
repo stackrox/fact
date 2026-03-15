@@ -65,6 +65,14 @@ __always_inline static inode_value_t* inode_get(struct inode_key_t* inode) {
   return bpf_map_lookup_elem(&inode_map, inode);
 }
 
+__always_inline static long inode_add(struct inode_key_t* inode) {
+  if (inode == NULL) {
+    return -1;
+  }
+  inode_value_t value = 0;
+  return bpf_map_update_elem(&inode_map, inode, &value, BPF_ANY);
+}
+
 __always_inline static long inode_remove(struct inode_key_t* inode) {
   if (inode == NULL) {
     return 0;
