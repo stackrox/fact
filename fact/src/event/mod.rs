@@ -125,6 +125,10 @@ impl Event {
         })
     }
 
+    pub fn is_creation(&self) -> bool {
+        matches!(self.file, FileData::Creation(_))
+    }
+
     /// Unwrap the inner FileData and return the inode that triggered
     /// the event.
     ///
@@ -151,7 +155,7 @@ impl Event {
         }
     }
 
-    fn get_filename(&self) -> &PathBuf {
+    pub fn get_filename(&self) -> &PathBuf {
         match &self.file {
             FileData::Open(data) => &data.filename,
             FileData::Creation(data) => &data.filename,
