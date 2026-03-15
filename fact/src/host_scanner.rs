@@ -126,7 +126,7 @@ impl HostScanner {
         for entry in glob::glob(glob_str)? {
             match entry {
                 Ok(path) => {
-                    if path.is_file() {
+                    if path.is_file() || path.is_dir() {
                         self.metrics.scan_inc(ScanLabels::FileScanned);
                         self.update_entry(path.as_path()).with_context(|| {
                             format!("Failed to update entry for {}", path.display())
@@ -178,6 +178,25 @@ impl HostScanner {
         self.inode_map.borrow().get(inode?).cloned()
     }
 
+    /// Handle file creation events by adding new inodes to the map.
+    fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
+        if self.get_host_path(Some(event.get_inode())).is_some() {
+            return Ok(());
+        }
+
+        let host_path = host_info::prepend_host_mount(event.get_filename());
+
+        if host_path.exists() {
+            self.update_entry(&host_path)
+                .with_context(|| format!("Failed to add creation event entry for {}", host_path.display()))?;
+        } else {
+            debug!("Creation event for non-existent file: {}", host_path.display());
+            self.metrics.scan_inc(ScanLabels::FileRemoved);
+        }
+
+        Ok(())
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -218,6 +237,13 @@ impl HostScanner {
                             break;
                         };
                         self.metrics.events.added();
+
+                        // Handle file creation events by adding new inodes to the map
+                        if event.is_creation() {
+                            if let Err(e) = self.handle_creation_event(&event) {
+                                warn!("Failed to handle creation event: {e}");
+                            }
+                        }
 
                         if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
