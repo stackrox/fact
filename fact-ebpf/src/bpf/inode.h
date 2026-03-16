@@ -33,12 +33,12 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
     return key;
   }
 
-  unsigned long magic = inode->i_sb->s_magic;
+  unsigned long magic = BPF_CORE_READ(inode, i_sb, s_magic);
   switch (magic) {
     case BTRFS_SUPER_MAGIC:
       if (bpf_core_type_exists(struct btrfs_inode)) {
         struct btrfs_inode* btrfs_inode = container_of(inode, struct btrfs_inode, vfs_inode);
-        key.inode = inode->i_ino;
+        key.inode = BPF_CORE_READ(inode, i_ino);
         key.dev = BPF_CORE_READ(btrfs_inode, root, anon_dev);
         break;
       }
@@ -46,8 +46,8 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
     // supported on the system. Fallback to the generic implementation
     // just in case.
     default:
-      key.inode = inode->i_ino;
-      key.dev = inode->i_sb->s_dev;
+      key.inode = BPF_CORE_READ(inode, i_ino);
+      key.dev = BPF_CORE_READ(inode, i_sb, s_dev);
       break;
   }
 
