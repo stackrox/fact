@@ -52,23 +52,8 @@ int BPF_PROG(trace_file_open, struct file* file) {
   if (event_type == FILE_ACTIVITY_CREATION) {
     struct dentry* parent_dentry = BPF_CORE_READ(file, f_path.dentry, d_parent);
     if (parent_dentry) {
-      // Build the parent inode key by reading fields directly
-      // to avoid verifier issues with untrusted pointers.
-      // We need to replicate the logic from inode_to_key() to handle
-      // special filesystems like btrfs correctly.
-      inode_key_t parent_key = {0};
-      parent_key.inode = BPF_CORE_READ(parent_dentry, d_inode, i_ino);
-
-      unsigned long magic = BPF_CORE_READ(parent_dentry, d_inode, i_sb, s_magic);
-      unsigned long parent_dev;
-
-      if (magic == BTRFS_SUPER_MAGIC && bpf_core_type_exists(struct btrfs_inode)) {
-        parent_dev = BPF_CORE_READ(parent_dentry, d_inode, i_sb, s_dev);
-      } else {
-        parent_dev = BPF_CORE_READ(parent_dentry, d_inode, i_sb, s_dev);
-      }
-
-      parent_key.dev = new_encode_dev(parent_dev);
+      struct inode* parent_inode = BPF_CORE_READ(parent_dentry, d_inode);
+      inode_key_t parent_key = inode_to_key(parent_inode);
 
       if (inode_is_monitored(inode_get(&parent_key)) == MONITORED) {
         inode_add(&inode_key);
