@@ -1,6 +1,7 @@
 import os
 import shlex
 
+from conftest import monitored_dir
 import pytest
 
 from utils import path_to_string, rust_style_quote
@@ -67,6 +68,36 @@ def test_chown(test_container, server, filename):
     ]
 
     server.wait_events(events)
+
+
+def test_existing_file(test_container, monitored_dir, server):
+    """
+    Test a file that exists is properly scanned and the host_path is set
+
+    Args:
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = '/unmonitored/test.txt'
+    fut_quoted = rust_style_quote(fut)
+    host_path = os.path.join(monitored_dir, 'test.txt')
+
+    chown_cmd = f'chown {TEST_UID}:{TEST_GID} {fut_quoted}'
+
+    test_container.exec_run(chown_cmd)
+
+    chown = Process.in_container(
+        exe_path='/usr/bin/chown',
+        args=chown_cmd,
+        name='chown',
+        container_id=test_container.id[:12],
+    )
+
+    server.wait_events([
+        Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
+              host_path=host_path, owner_uid=TEST_UID, owner_gid=TEST_GID),
+    ])
 
 
 def test_multiple(test_container, server):

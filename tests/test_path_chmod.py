@@ -49,6 +49,26 @@ def test_chmod(monitored_dir, server, filename):
     server.wait_events(events)
 
 
+def test_existing_file(monitored_dir, server):
+    """
+    Test a file that exists is properly scanned and the host_path is set
+
+    Args:
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = os.path.join(monitored_dir, 'test.txt')
+
+    mode = 0o666
+    os.chmod(fut, mode)
+
+    server.wait_events([
+        Event(process=Process.from_proc(), event_type=EventType.PERMISSION,
+              file=fut, host_path=fut, mode=mode),
+    ])
+
+
 def test_multiple(monitored_dir, server):
     """
     Tests modifying permissions on multiple files.

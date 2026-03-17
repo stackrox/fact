@@ -49,6 +49,30 @@ def test_rename(monitored_dir, server, filename):
     server.wait_events(events)
 
 
+def test_existing_file(monitored_dir, server):
+    """
+    Test a file that exists is properly scanned and the host_path is set
+
+    Args:
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    fut = os.path.join(monitored_dir, 'test.txt')
+    host_path = fut
+    rename_target = os.path.join(monitored_dir, 'something.txt')
+
+    os.rename(fut, rename_target)
+    os.rename(rename_target, fut)
+
+    server.wait_events([
+        Event(process=Process.from_proc(), event_type=EventType.RENAME,
+              file=rename_target, host_path=fut, old_file=fut, old_host_path=''),
+        Event(process=Process.from_proc(), event_type=EventType.RENAME,
+              file=fut, host_path=fut, old_file=rename_target, old_host_path=''),
+    ])
+
+
 def test_ignored(monitored_dir, ignored_dir, server):
     """
     Tests that rename events on ignored files are not captured by the

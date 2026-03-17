@@ -131,6 +131,22 @@ impl HostScanner {
                         self.update_entry(path.as_path()).with_context(|| {
                             format!("Failed to update entry for {}", path.display())
                         })?;
+                    } else if path.is_dir() {
+                        // If the glob expression matched a directory,
+                        // we need to monitor any files in that.
+                        self.metrics.scan_inc(ScanLabels::DirectoryScanned);
+                        for entry in path
+                            .read_dir()
+                            .with_context(|| {
+                                format!("Failed to scan directory {}", path.display())
+                            })?
+                            .flatten()
+                        {
+                            let entry = entry.path();
+                            if entry.is_file() {
+                                self.scan_inner(&entry)?;
+                            }
+                        }
                     } else {
                         self.metrics.scan_inc(ScanLabels::FsItemIgnored);
                     }
