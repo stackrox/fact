@@ -126,8 +126,13 @@ impl HostScanner {
         for entry in glob::glob(glob_str)? {
             match entry {
                 Ok(path) => {
-                    if path.is_file() || path.is_dir() {
+                    if path.is_file() {
                         self.metrics.scan_inc(ScanLabels::FileScanned);
+                        self.update_entry(path.as_path()).with_context(|| {
+                            format!("Failed to update entry for {}", path.display())
+                        })?;
+                    } else if path.is_dir() {
+                        self.metrics.scan_inc(ScanLabels::DirectoryScanned);
                         self.update_entry(path.as_path()).with_context(|| {
                             format!("Failed to update entry for {}", path.display())
                         })?;
@@ -179,16 +184,51 @@ impl HostScanner {
     }
 
     /// Handle file creation events by adding new inodes to the map.
+    ///
+    /// For creation events, we use the parent inode provided by the eBPF code
+    /// to look up the parent directory's host path, then construct the full
+    /// path by appending the new file's name.
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
         if self.get_host_path(Some(event.get_inode())).is_some() {
             return Ok(());
         }
 
-        let host_path = host_info::prepend_host_mount(event.get_filename());
+        let parent_inode = event.get_parent_inode();
+
+        if parent_inode.empty() {
+            debug!("Creation event has no parent inode: {}", event.get_filename().display());
+            return Ok(());
+        }
+
+        let event_filename = event.get_filename();
+        let Some(filename) = event_filename.file_name() else {
+            debug!("Creation event has no filename component: {}", event_filename.display());
+            return Ok(());
+        };
+
+        let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) else {
+            debug!("Parent inode not in map, using prepend_host_mount for: {}", event_filename.display());
+            let host_path = host_info::prepend_host_mount(event_filename);
+            if host_path.exists() {
+                return self.update_entry(&host_path)
+                    .with_context(|| format!("Failed to add creation event entry for {}", host_path.display()));
+            }
+            return Ok(());
+        };
+
+        let host_path = parent_host_path.join(filename);
+
+        debug!(
+            "Constructed host path for creation event: {} (from container path: {}, parent host path: {})",
+            host_path.display(),
+            event_filename.display(),
+            parent_host_path.display()
+        );
 
         if host_path.exists() {
             self.update_entry(&host_path)
                 .with_context(|| format!("Failed to add creation event entry for {}", host_path.display()))?;
+            debug!("Successfully added inode entry for newly created file: {}", host_path.display());
         } else {
             debug!("Creation event for non-existent file: {}", host_path.display());
             self.metrics.scan_inc(ScanLabels::FileRemoved);

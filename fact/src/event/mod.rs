@@ -93,6 +93,7 @@ impl Event {
             filename,
             host_file,
             inode: Default::default(),
+            parent_inode: Default::default(),
         };
         let file = match data {
             EventTestData::Creation => FileData::Creation(inner),
@@ -142,6 +143,18 @@ impl Event {
             FileData::Chmod(data) => &data.inner.inode,
             FileData::Chown(data) => &data.inner.inode,
             FileData::Rename(data) => &data.new.inode,
+        }
+    }
+
+    /// Get the parent inode for the file in this event.
+    pub fn get_parent_inode(&self) -> &inode_key_t {
+        match &self.file {
+            FileData::Open(data) => &data.parent_inode,
+            FileData::Creation(data) => &data.parent_inode,
+            FileData::Unlink(data) => &data.parent_inode,
+            FileData::Chmod(data) => &data.inner.parent_inode,
+            FileData::Chown(data) => &data.inner.parent_inode,
+            FileData::Rename(data) => &data.new.parent_inode,
         }
     }
 
@@ -237,6 +250,7 @@ impl TryFrom<&event_t> for Event {
             value.type_,
             value.filename,
             value.inode,
+            value.parent_inode,
             value.__bindgen_anon_1,
         )?;
 
@@ -286,9 +300,10 @@ impl FileData {
         event_type: file_activity_type_t,
         filename: [c_char; PATH_MAX as usize],
         inode: inode_key_t,
+        parent_inode: inode_key_t,
         extra_data: fact_ebpf::event_t__bindgen_ty_1,
     ) -> anyhow::Result<Self> {
-        let inner = BaseFileData::new(filename, inode)?;
+        let inner = BaseFileData::new(filename, inode, parent_inode)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
@@ -316,7 +331,7 @@ impl FileData {
                 let old_inode = unsafe { extra_data.rename.old_inode };
                 let data = RenameFileData {
                     new: inner,
-                    old: BaseFileData::new(old_filename, old_inode)?,
+                    old: BaseFileData::new(old_filename, old_inode, Default::default())?,
                 };
                 FileData::Rename(data)
             }
@@ -380,14 +395,16 @@ pub struct BaseFileData {
     pub filename: PathBuf,
     host_file: PathBuf,
     inode: inode_key_t,
+    parent_inode: inode_key_t,
 }
 
 impl BaseFileData {
-    pub fn new(filename: [c_char; PATH_MAX as usize], inode: inode_key_t) -> anyhow::Result<Self> {
+    pub fn new(filename: [c_char; PATH_MAX as usize], inode: inode_key_t, parent_inode: inode_key_t) -> anyhow::Result<Self> {
         Ok(BaseFileData {
             filename: sanitize_d_path(&filename),
             host_file: PathBuf::new(), // this field is set by HostScanner
             inode,
+            parent_inode,
         })
     }
 }

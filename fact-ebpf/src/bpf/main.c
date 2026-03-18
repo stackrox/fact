@@ -47,17 +47,16 @@ int BPF_PROG(trace_file_open, struct file* file) {
   inode_key_t inode_key = inode_to_key(file->f_inode);
   inode_key_t* inode_to_submit = &inode_key;
 
+  // Extract parent inode
+  struct dentry* parent_dentry = BPF_CORE_READ(file, f_path.dentry, d_parent);
+  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  inode_key_t parent_key = inode_to_key(parent_inode_ptr);
+
   // For file creation events, check if the parent directory is being
   // monitored. If so, add the new file's inode to the tracked set.
   if (event_type == FILE_ACTIVITY_CREATION) {
-    struct dentry* parent_dentry = BPF_CORE_READ(file, f_path.dentry, d_parent);
-    if (parent_dentry) {
-      struct inode* parent_inode = BPF_CORE_READ(parent_dentry, d_inode);
-      inode_key_t parent_key = inode_to_key(parent_inode);
-
-      if (inode_is_monitored(inode_get(&parent_key)) == MONITORED) {
-        inode_add(&inode_key);
-      }
+    if (inode_is_monitored(inode_get(&parent_key)) == MONITORED) {
+      inode_add(&inode_key);
     }
   }
 
@@ -65,7 +64,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
-  submit_open_event(&m->file_open, event_type, path->path, inode_to_submit);
+  submit_open_event(&m->file_open, event_type, path->path, inode_to_submit, &parent_key);
 
   return 0;
 
@@ -93,6 +92,10 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   inode_key_t inode_key = inode_to_key(dentry->d_inode);
   inode_key_t* inode_to_submit = &inode_key;
 
+  // Extract parent inode from dir parameter
+  struct inode* parent_inode = BPF_CORE_READ(dir, dentry, d_inode);
+  inode_key_t parent_key = inode_to_key(parent_inode);
+
   if (!is_monitored(inode_key, path, &inode_to_submit)) {
     m->path_unlink.ignored++;
     return 0;
@@ -100,7 +103,8 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
   submit_unlink_event(&m->path_unlink,
                       path->path,
-                      inode_to_submit);
+                      inode_to_submit,
+                      &parent_key);
   return 0;
 }
 
@@ -123,6 +127,11 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
   inode_key_t* inode_to_submit = &inode_key;
 
+  // Extract parent inode
+  struct dentry* parent_dentry = BPF_CORE_READ(path, dentry, d_parent);
+  struct inode* parent_inode = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  inode_key_t parent_key = inode_to_key(parent_inode);
+
   if (!is_monitored(inode_key, bound_path, &inode_to_submit)) {
     m->path_chmod.ignored++;
     return 0;
@@ -132,6 +141,7 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   submit_mode_event(&m->path_chmod,
                     bound_path->path,
                     inode_to_submit,
+                    &parent_key,
                     mode,
                     old_mode);
 
@@ -160,6 +170,11 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
   inode_key_t* inode_to_submit = &inode_key;
 
+  // Extract parent inode
+  struct dentry* parent_dentry = BPF_CORE_READ(path, dentry, d_parent);
+  struct inode* parent_inode = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  inode_key_t parent_key = inode_to_key(parent_inode);
+
   if (!is_monitored(inode_key, bound_path, &inode_to_submit)) {
     m->path_chown.ignored++;
     return 0;
@@ -172,6 +187,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   submit_ownership_event(&m->path_chown,
                          bound_path->path,
                          inode_to_submit,
+                         &parent_key,
                          uid,
                          gid,
                          old_uid,
@@ -209,6 +225,10 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
   inode_key_t* old_inode_submit = &old_inode;
   inode_key_t* new_inode_submit = &new_inode;
 
+  // Extract new parent inode from new_dir
+  struct inode* new_parent_inode = BPF_CORE_READ(new_dir, dentry, d_inode);
+  inode_key_t new_parent_key = inode_to_key(new_parent_inode);
+
   bool old_monitored = is_monitored(old_inode, old_path, &old_inode_submit);
   bool new_monitored = is_monitored(new_inode, new_path, &new_inode_submit);
 
@@ -221,7 +241,8 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
                       new_path->path,
                       old_path->path,
                       old_inode_submit,
-                      new_inode_submit);
+                      new_inode_submit,
+                      &new_parent_key);
   return 0;
 
 error:

@@ -62,6 +62,7 @@ struct event_t {
   process_t process;
   char filename[PATH_MAX];
   inode_key_t inode;
+  inode_key_t parent_inode;
   file_activity_type_t type;
   union {
     struct {
