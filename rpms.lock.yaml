@@ -1250,13 +1250,13 @@ arches:
     name: tcl
     evr: 1:8.6.10-7.el9
     sourcerpm: tcl-8.6.10-7.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/t/tzdata-2025c-1.el9.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/t/tzdata-2026a-1.el9.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 925360
-    checksum: sha256:1de77872c3c896e801dc1e28ab01218026ea812cc03999d65a886a4a0afc5797
+    size: 933237
+    checksum: sha256:90bc7252dcef87507a6dc097763894d264544b42c77ce67696192db2bcc8cd07
     name: tzdata
-    evr: 2025c-1.el9
-    sourcerpm: tzdata-2025c-1.el9.src.rpm
+    evr: 2026a-1.el9
+    sourcerpm: tzdata-2026a-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/u/util-linux-2.37.4-21.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 2388428
@@ -2563,13 +2563,13 @@ arches:
     name: tcl
     evr: 1:8.6.10-7.el9
     sourcerpm: tcl-8.6.10-7.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/t/tzdata-2025c-1.el9.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/t/tzdata-2026a-1.el9.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 925360
-    checksum: sha256:1de77872c3c896e801dc1e28ab01218026ea812cc03999d65a886a4a0afc5797
+    size: 933237
+    checksum: sha256:90bc7252dcef87507a6dc097763894d264544b42c77ce67696192db2bcc8cd07
     name: tzdata
-    evr: 2025c-1.el9
-    sourcerpm: tzdata-2025c-1.el9.src.rpm
+    evr: 2026a-1.el9
+    sourcerpm: tzdata-2026a-1.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/u/util-linux-2.37.4-21.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 2382589
