@@ -173,7 +173,7 @@ impl HostScanner {
         Ok(())
     }
 
-    // Similar to update_entry except we are are directly using the inode instead of the path. 
+    // Similar to update_entry except we are are directly using the inode instead of the path.
     fn update_entry_with_inode(&self, inode: &inode_key_t, path: PathBuf) -> anyhow::Result<()> {
         debug!("Adding entry for {}: {inode:?}", path.display());
 
