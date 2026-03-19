@@ -16,7 +16,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{event::Event, host_info, metrics::EventCounter};
+use crate::{config::BpfConfig, event::Event, host_info, metrics::EventCounter};
 
 use fact_ebpf::{event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
 
@@ -40,7 +40,7 @@ pub struct Bpf {
 impl Bpf {
     pub fn new(
         paths_config: watch::Receiver<Vec<PathBuf>>,
-        ringbuf_size: u32,
+        bpf_config: &BpfConfig,
         tx: mpsc::Sender<Event>,
     ) -> anyhow::Result<Self> {
         Bpf::bump_memlock_rlimit()?;
@@ -57,7 +57,8 @@ impl Bpf {
                 &(checks.path_hooks_support_bpf_d_path as u8),
                 true,
             )
-            .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
+            .set_max_entries(RINGBUFFER_NAME, bpf_config.ringbuf_size() * 1024)
+            .set_max_entries("inode_map", bpf_config.inodes_max())
             .load(fact_ebpf::EBPF_OBJ)?;
 
         let paths = Vec::new();
@@ -297,7 +298,7 @@ mod bpf_tests {
         config.set_paths(paths);
         let reloader = Reloader::from(config);
         let (tx, mut rx) = mpsc::channel(100);
-        let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)
+        let mut bpf = Bpf::new(reloader.paths(), &reloader.config().bpf, tx)
             .expect("Failed to load BPF code");
         let (run_tx, run_rx) = watch::channel(true);
         // Create a metrics exporter, but don't start it
