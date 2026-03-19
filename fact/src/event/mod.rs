@@ -399,7 +399,11 @@ pub struct BaseFileData {
 }
 
 impl BaseFileData {
-    pub fn new(filename: [c_char; PATH_MAX as usize], inode: inode_key_t, parent_inode: inode_key_t) -> anyhow::Result<Self> {
+    pub fn new(
+        filename: [c_char; PATH_MAX as usize],
+        inode: inode_key_t,
+        parent_inode: inode_key_t,
+    ) -> anyhow::Result<Self> {
         Ok(BaseFileData {
             filename: sanitize_d_path(&filename),
             host_file: PathBuf::new(), // this field is set by HostScanner

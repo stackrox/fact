@@ -217,18 +217,27 @@ impl HostScanner {
         let parent_inode = event.get_parent_inode();
 
         if parent_inode.empty() {
-            debug!("Creation event has no parent inode: {}", event.get_filename().display());
+            debug!(
+                "Creation event has no parent inode: {}",
+                event.get_filename().display()
+            );
             return Ok(());
         }
 
         let event_filename = event.get_filename();
         let Some(filename) = event_filename.file_name() else {
-            debug!("Creation event has no filename component: {}", event_filename.display());
+            debug!(
+                "Creation event has no filename component: {}",
+                event_filename.display()
+            );
             return Ok(());
         };
 
         let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) else {
-            debug!("Parent inode not in map, cannot construct host path for: {}", event_filename.display());
+            debug!(
+                "Parent inode not in map, cannot construct host path for: {}",
+                event_filename.display()
+            );
             return Ok(());
         };
 
@@ -242,8 +251,16 @@ impl HostScanner {
         );
 
         self.update_entry_with_inode(inode, host_path)
-            .with_context(|| format!("Failed to add creation event entry for {}", event_filename.display()))?;
-        debug!("Successfully added inode entry for newly created file: {}", event_filename.display());
+            .with_context(|| {
+                format!(
+                    "Failed to add creation event entry for {}",
+                    event_filename.display()
+                )
+            })?;
+        debug!(
+            "Successfully added inode entry for newly created file: {}",
+            event_filename.display()
+        );
 
         Ok(())
     }
