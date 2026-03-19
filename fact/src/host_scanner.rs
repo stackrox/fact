@@ -173,6 +173,25 @@ impl HostScanner {
         Ok(())
     }
 
+    // Similar to update_entry except we are are directly using the inode instead of the path. 
+    fn update_entry_with_inode(&self, inode: &inode_key_t, path: PathBuf) -> anyhow::Result<()> {
+        debug!("Adding entry for {}: {inode:?}", path.display());
+
+        self.kernel_inode_map
+            .borrow_mut()
+            .insert(*inode, 0, 0)
+            .with_context(|| format!("Failed to insert kernel entry for {}", path.display()))?;
+        let mut inode_map = self.inode_map.borrow_mut();
+        let entry = inode_map.entry(*inode).or_default();
+        // Not removing the host mount, which is done in update_entry.
+        // I am not sure if that is correct.
+        *entry = path;
+
+        self.metrics.scan_inc(ScanLabels::FileUpdated);
+
+        Ok(())
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<Arc<Event>> {
         self.tx.subscribe()
     }
@@ -185,11 +204,13 @@ impl HostScanner {
 
     /// Handle file creation events by adding new inodes to the map.
     ///
-    /// For creation events, we use the parent inode provided by the eBPF code
+    /// We use the parent inode provided by the eBPF code
     /// to look up the parent directory's host path, then construct the full
     /// path by appending the new file's name.
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
-        if self.get_host_path(Some(event.get_inode())).is_some() {
+        let inode = event.get_inode();
+
+        if self.get_host_path(Some(inode)).is_some() {
             return Ok(());
         }
 
@@ -207,12 +228,7 @@ impl HostScanner {
         };
 
         let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) else {
-            debug!("Parent inode not in map, using prepend_host_mount for: {}", event_filename.display());
-            let host_path = host_info::prepend_host_mount(event_filename);
-            if host_path.exists() {
-                return self.update_entry(&host_path)
-                    .with_context(|| format!("Failed to add creation event entry for {}", host_path.display()));
-            }
+            debug!("Parent inode not in map, cannot construct host path for: {}", event_filename.display());
             return Ok(());
         };
 
@@ -225,14 +241,9 @@ impl HostScanner {
             parent_host_path.display()
         );
 
-        if host_path.exists() {
-            self.update_entry(&host_path)
-                .with_context(|| format!("Failed to add creation event entry for {}", host_path.display()))?;
-            debug!("Successfully added inode entry for newly created file: {}", host_path.display());
-        } else {
-            debug!("Creation event for non-existent file: {}", host_path.display());
-            self.metrics.scan_inc(ScanLabels::FileRemoved);
-        }
+        self.update_entry_with_inode(inode, host_path)
+            .with_context(|| format!("Failed to add creation event entry for {}", event_filename.display()))?;
+        debug!("Successfully added inode entry for newly created file: {}", event_filename.display());
 
         Ok(())
     }
