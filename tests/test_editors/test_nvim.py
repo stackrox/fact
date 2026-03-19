@@ -23,9 +23,11 @@ def test_new_file(editor_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file(editor_container, server):
+def test_open_file(editor_container, server, ignored_dir):
     fut = '/mounted/test.txt'
+    fut_host = f'{ignored_dir}/test.txt'
     fut_backup = f'{fut}~'
+    fut_backup_host = f'{ignored_dir}/test.txt~'
     cmd = f"nvim {fut} '+:normal iThis is a test<CR>' -c x"
     container_id = editor_container.id[:12]
 
@@ -47,24 +49,25 @@ def test_open_file(editor_container, server):
     )
 
     vi_test_file = get_vi_test_file('/mounted')
+    vi_test_file_host = get_vi_test_file(ignored_dir)
 
     events = [
         Event(process=touch, event_type=EventType.CREATION,
-              file=fut, host_path=''),
+              file=fut, host_path=fut_host),
         Event(process=nvim, event_type=EventType.CREATION,
-              file=vi_test_file, host_path=''),
+              file=vi_test_file, host_path=vi_test_file_host),
         Event(process=nvim, event_type=EventType.OWNERSHIP,
-              file=vi_test_file, host_path='', owner_uid=0, owner_gid=0),
+              file=vi_test_file, host_path=vi_test_file_host, owner_uid=0, owner_gid=0),
         Event(process=nvim, event_type=EventType.UNLINK,
-              file=vi_test_file, host_path=''),
+              file=vi_test_file, host_path=vi_test_file_host),
         Event(process=nvim, event_type=EventType.RENAME,
-              file=fut_backup, host_path='', old_file=fut, old_host_path=''),
+              file=fut_backup, host_path=fut_backup_host, old_file=fut, old_host_path=fut_host),
         Event(process=nvim, event_type=EventType.CREATION,
-              file=fut, host_path=''),
+              file=fut, host_path=fut_host),
         Event(process=nvim, event_type=EventType.PERMISSION,
-              file=fut, host_path='', mode=0o100644),
+              file=fut, host_path=fut_host, mode=0o100644),
         Event(process=nvim, event_type=EventType.UNLINK,
-              file=fut_backup, host_path=''),
+              file=fut_backup, host_path=fut_backup_host),
     ]
 
     server.wait_events(events, strict=True)

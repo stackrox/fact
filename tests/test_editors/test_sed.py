@@ -2,9 +2,10 @@ import re
 from event import Event, EventType, Process
 
 
-def test_sed(vi_container, server):
+def test_sed(vi_container, server, ignored_dir):
     # File Under Test
     fut = '/mounted/test.txt'
+    fut_host = f'{ignored_dir}/test.txt'
     create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""
     sed_cmd = fr'sed -i -e "s/a test/not \\0/" {fut}'
     container_id = vi_container.id[:12]
@@ -26,16 +27,17 @@ def test_sed(vi_container, server):
     )
 
     sed_tmp_file = re.compile(r'\/mounted\/sed[0-9a-zA-Z]{6}')
+    sed_tmp_host = re.compile(rf'{re.escape(ignored_dir)}\/sed[0-9a-zA-Z]{{6}}')
 
     events = [
         Event(process=shell, event_type=EventType.CREATION,
-              file=fut, host_path=''),
+              file=fut, host_path=fut_host),
         Event(process=sed, event_type=EventType.CREATION,
-              file=sed_tmp_file, host_path=''),
+              file=sed_tmp_file, host_path=sed_tmp_host),
         Event(process=sed, event_type=EventType.OWNERSHIP,
-              file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),
+              file=sed_tmp_file, host_path=sed_tmp_host, owner_uid=0, owner_gid=0),
         Event(process=sed, event_type=EventType.RENAME,
-              file=fut, host_path='', old_file=sed_tmp_file, old_host_path=''),
+              file=fut, host_path=fut_host, old_file=sed_tmp_file, old_host_path=sed_tmp_host),
     ]
 
     server.wait_events(events, strict=True)

@@ -37,7 +37,7 @@ def test_extension_wildcard(wildcard_config, monitored_dir, server):
         f.write('This should be captured')
 
     e = Event(process=process, event_type=EventType.CREATION,
-              file=txt_file, host_path='')
+              file=txt_file, host_path=txt_file)
 
     server.wait_events([e])
 
@@ -55,7 +55,7 @@ def test_prefix_wildcard(wildcard_config, monitored_dir, server):
         f.write('This should be captured')
 
     e = Event(process=process, event_type=EventType.CREATION,
-              file=test_log, host_path='')
+              file=test_log, host_path=test_log)
 
     server.wait_events([e])
 
@@ -81,9 +81,9 @@ def test_recursive_wildcard(wildcard_config, monitored_dir, server):
 
     events = [
         Event(process=process, event_type=EventType.CREATION,
-              file=root_txt, host_path=''),
+              file=root_txt, host_path=root_txt),
         Event(process=process, event_type=EventType.CREATION,
-              file=nested_txt, host_path=''),
+              file=nested_txt, host_path=nested_txt),
     ]
 
     server.wait_events(events)
@@ -97,7 +97,7 @@ def test_nonrecursive_wildcard(wildcard_config, monitored_dir, server):
         f.write('This should be captured')
 
     e = Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path='')
+              file=fut, host_path=fut)
 
     server.wait_events([e])
 
@@ -120,9 +120,9 @@ def test_multiple_patterns(wildcard_config, monitored_dir, server):
 
     events = [
         Event(process=process, event_type=EventType.CREATION,
-              file=txt_file, host_path=''),
+              file=txt_file, host_path=txt_file),
         Event(process=process, event_type=EventType.CREATION,
-              file=log_file, host_path=''),
+              file=log_file, host_path=log_file),
     ]
 
     server.wait_events(events)

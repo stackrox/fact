@@ -44,9 +44,9 @@ def test_remove(monitored_dir, server, filename):
     # We expect both CREATION (from file creation) and UNLINK (from removal)
     events = [
         Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=''),
+              file=fut, host_path=fut),
         Event(process=process, event_type=EventType.UNLINK,
-              file=fut, host_path=''),
+              file=fut, host_path=fut),
     ]
 
     server.wait_events(events)
@@ -73,9 +73,9 @@ def test_multiple(monitored_dir, server):
 
         events.extend([
             Event(process=process, event_type=EventType.CREATION,
-                  file=fut, host_path=''),
+                  file=fut, host_path=fut),
             Event(process=process, event_type=EventType.UNLINK,
-                  file=fut, host_path=''),
+                  file=fut, host_path=fut),
         ])
 
     server.wait_events(events)
@@ -135,9 +135,9 @@ def test_external_process(monitored_dir, server):
 
     events = [
         Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=''),
+              file=fut, host_path=fut),
         Event(process=process, event_type=EventType.UNLINK,
-              file=fut, host_path=''),
+              file=fut, host_path=fut),
     ]
 
     try:
@@ -199,6 +199,7 @@ def test_mounted_dir(test_container, ignored_dir, server):
         name='rm',
         container_id=test_container.id[:12],
     )
+    # ignored_dir is not monitored, so host_path should be blank
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),

@@ -25,7 +25,7 @@ def fact_config(monitored_dir, logs_dir):
     """
     cwd = os.getcwd()
     config = {
-        'paths': [f'{monitored_dir}/**', '/mounted/**', '/container-dir/**'],
+        'paths': [f'{monitored_dir}', f'{monitored_dir}/*', f'{monitored_dir}/**', '/mounted/**', '/container-dir/**'],
         'grpc': {
             'url': 'http://127.0.0.1:9999',
         },
@@ -63,7 +63,7 @@ def test_inode_tracking_on_creation(monitored_dir, test_file, server):
     # Wait for creation event
     process = Process.from_proc()
     creation_event = Event(process=process, event_type=EventType.CREATION,
-                          file=fut, host_path='')
+                          file=fut, host_path=fut)
 
     server.wait_events([creation_event])
 
