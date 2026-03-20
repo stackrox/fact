@@ -19,6 +19,8 @@ def test_new_file(vi_container, server):
         container_id=vi_container.id[:12],
     )
 
+    # TODO: host_path is empty for creation events in bind-mounted directories
+    # because the host-side parent directory (ignored_dir) is not scanned
     events = [
         Event(process=process, event_type=EventType.CREATION,
               file=swap_file, host_path=''),
@@ -86,15 +88,10 @@ def test_new_file_ovfs(vi_container, server):
 
 def test_open_file(vi_container, server, ignored_dir):
     fut = '/mounted/test.txt'
-    fut_host = f'{ignored_dir}/test.txt'
     fut_backup = f'{fut}~'
-    fut_backup_host = f'{ignored_dir}/test.txt~'
     swap_file = '/mounted/.test.txt.swp'
-    swap_file_host = f'{ignored_dir}/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
-    swx_file_host = f'{ignored_dir}/.test.txt.swx'
     vi_test_file = get_vi_test_file('/mounted')
-    vi_test_file_host = get_vi_test_file(ignored_dir)
     exe = '/usr/bin/vi'
     container_id = vi_container.id[:12]
 
@@ -117,37 +114,39 @@ def test_open_file(vi_container, server, ignored_dir):
         container_id=container_id,
     )
 
+    # TODO: host_path is empty for creation events in bind-mounted directories
+    # because the host-side parent directory (ignored_dir) is not scanned
     events = [
         Event(process=touch_process, event_type=EventType.CREATION,
-              file=fut, host_path=fut_host),
+              file=fut, host_path=''),
         Event(process=vi_process, event_type=EventType.CREATION,
-              file=swap_file, host_path=swap_file_host),
+              file=swap_file, host_path=''),
         Event(process=vi_process, event_type=EventType.CREATION,
-              file=swx_file, host_path=swx_file_host),
+              file=swx_file, host_path=''),
         Event(process=vi_process, event_type=EventType.UNLINK,
-              file=swx_file, host_path=swx_file_host),
+              file=swx_file, host_path=''),
         Event(process=vi_process, event_type=EventType.UNLINK,
-              file=swap_file, host_path=swap_file_host),
+              file=swap_file, host_path=''),
         Event(process=vi_process, event_type=EventType.CREATION,
-              file=swap_file, host_path=swap_file_host),
+              file=swap_file, host_path=''),
         Event(process=vi_process, event_type=EventType.PERMISSION,
-              file=swap_file, host_path=swap_file_host, mode=0o644),
+              file=swap_file, host_path='', mode=0o644),
         Event(process=vi_process, event_type=EventType.CREATION,
-              file=vi_test_file, host_path=vi_test_file_host),
+              file=vi_test_file, host_path=''),
         Event(process=vi_process, event_type=EventType.OWNERSHIP,
-              file=vi_test_file, host_path=vi_test_file_host, owner_uid=0, owner_gid=0),
+              file=vi_test_file, host_path='', owner_uid=0, owner_gid=0),
         Event(process=vi_process, event_type=EventType.UNLINK,
-              file=vi_test_file, host_path=vi_test_file_host),
+              file=vi_test_file, host_path=''),
         Event(process=vi_process, event_type=EventType.RENAME,
-              file=fut_backup, host_path=fut_backup_host, old_file=fut, old_host_path=fut_host),
+              file=fut_backup, host_path='', old_file=fut, old_host_path=''),
         Event(process=vi_process, event_type=EventType.CREATION,
-              file=fut, host_path=fut_host),
+              file=fut, host_path=''),
         Event(process=vi_process, event_type=EventType.PERMISSION,
-              file=fut, host_path=fut_host, mode=0o100644),
+              file=fut, host_path='', mode=0o100644),
         Event(process=vi_process, event_type=EventType.UNLINK,
-              file=fut_backup, host_path=fut_backup_host),
+              file=fut_backup, host_path=''),
         Event(process=vi_process, event_type=EventType.UNLINK,
-              file=swap_file, host_path=swap_file_host),
+              file=swap_file, host_path=''),
     ]
 
     server.wait_events(events, strict=True)

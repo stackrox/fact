@@ -106,12 +106,11 @@ def fact_config(request, monitored_dir, logs_dir):
     config = {
         'paths': [
             f'{monitored_dir}',
-            f'{monitored_dir}/*',
-            f'{monitored_dir}/**',
+            f'{monitored_dir}/**/*',
             '/mounted',
-            '/mounted/**',
+            '/mounted/**/*',
             '/container-dir',
-            '/container-dir/**',
+            '/container-dir/**/*',
         ],
         'grpc': {
             'url': 'http://127.0.0.1:9999',
