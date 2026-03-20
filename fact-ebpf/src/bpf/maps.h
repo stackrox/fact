@@ -79,7 +79,8 @@ struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __type(key, inode_key_t);
   __type(value, inode_value_t);
-  __uint(max_entries, 1024);
+  __uint(max_entries, 65536);
+  __uint(map_flags, BPF_F_NO_PREALLOC);
 } inode_map SEC(".maps");
 
 struct {

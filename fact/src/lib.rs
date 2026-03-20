@@ -80,7 +80,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let (tx, rx) = mpsc::channel(100);
 
-    let mut bpf = Bpf::new(reloader.paths(), reloader.config().ringbuf_size(), tx)?;
+    let mut bpf = Bpf::new(reloader.paths(), &reloader.config().bpf, tx)?;
     let exporter = Exporter::new(bpf.take_metrics()?);
 
     let host_scanner = HostScanner::new(

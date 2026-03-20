@@ -28,9 +28,9 @@ pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     pub grpc: GrpcConfig,
     pub endpoint: EndpointConfig,
+    pub bpf: BpfConfig,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
-    ringbuf_size: Option<u32>,
     hotreload: Option<bool>,
     scan_interval: Option<Duration>,
 }
@@ -81,6 +81,7 @@ impl FactConfig {
 
         self.grpc.update(&from.grpc);
         self.endpoint.update(&from.endpoint);
+        self.bpf.update(&from.bpf);
 
         if let Some(skip_pre_flight) = from.skip_pre_flight {
             self.skip_pre_flight = Some(skip_pre_flight);
@@ -88,10 +89,6 @@ impl FactConfig {
 
         if let Some(json) = from.json {
             self.json = Some(json);
-        }
-
-        if let Some(ringbuf_size) = from.ringbuf_size {
-            self.ringbuf_size = Some(ringbuf_size);
         }
 
         if let Some(hotreload) = from.hotreload {
@@ -113,10 +110,6 @@ impl FactConfig {
 
     pub fn json(&self) -> bool {
         self.json.unwrap_or(false)
-    }
-
-    pub fn ringbuf_size(&self) -> u32 {
-        self.ringbuf_size.unwrap_or(8192)
     }
 
     pub fn hotreload(&self) -> bool {
@@ -207,18 +200,11 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.json = Some(json);
                 }
-                "ringbuf_size" => {
-                    let Some(rb_size) = v.as_i64() else {
-                        bail!("ringbuf_size field has incorrect type: {v:?}");
+                "bpf" => {
+                    let Some(bpf) = v.as_hash() else {
+                        bail!("bpf section has incorrect type: {v:#?}");
                     };
-                    if rb_size < 64 || rb_size > (u32::MAX / 1024) as i64 {
-                        bail!("ringbuf_size out of range: {rb_size}");
-                    }
-                    let rb_size = rb_size as u32;
-                    if rb_size.count_ones() != 1 {
-                        bail!("ringbuf_size is not a power of 2: {rb_size}");
-                    }
-                    config.ringbuf_size = Some(rb_size);
+                    config.bpf = BpfConfig::try_from(bpf)?;
                 }
                 "hotreload" => {
                     let Some(hotreload) = v.as_bool() else {
@@ -383,6 +369,71 @@ impl TryFrom<&yaml::Hash> for GrpcConfig {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct BpfConfig {
+    ringbuf_size: Option<u32>,
+    inodes_max: Option<u32>,
+}
+
+impl BpfConfig {
+    fn update(&mut self, from: &BpfConfig) {
+        if let Some(ringbuf_size) = from.ringbuf_size {
+            self.ringbuf_size = Some(ringbuf_size);
+        }
+
+        if let Some(inodes_max) = from.inodes_max {
+            self.inodes_max = Some(inodes_max);
+        }
+    }
+
+    pub fn ringbuf_size(&self) -> u32 {
+        self.ringbuf_size.unwrap_or(8192)
+    }
+
+    pub fn inodes_max(&self) -> u32 {
+        self.inodes_max.unwrap_or(65536)
+    }
+}
+
+impl TryFrom<&yaml::Hash> for BpfConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
+        value
+            .iter()
+            .try_fold(BpfConfig::default(), |mut bpf, (k, v)| {
+                let Some(k) = k.as_str() else {
+                    bail!("key is not string: {k:?}");
+                };
+
+                match k {
+                    "ringbuf_size" => {
+                        let Some(rb_size) = v.as_i64() else {
+                            bail!("ringbuf_size field has incorrect type: {v:?}");
+                        };
+                        if rb_size < 64 || rb_size > (u32::MAX / 1024) as i64 {
+                            bail!("ringbuf_size out of range: {rb_size}");
+                        }
+                        let rb_size = rb_size as u32;
+                        if rb_size.count_ones() != 1 {
+                            bail!("ringbuf_size is not a power of 2: {rb_size}");
+                        }
+                        bpf.ringbuf_size = Some(rb_size);
+                    }
+                    "inodes_max" => {
+                        let Some(inode_max) = v.as_i64() else {
+                            bail!("inodes_max field has incorrect type: {v:?}");
+                        };
+                        bpf.inodes_max = Some(inode_max as u32);
+                    }
+                    name => bail!("Invalid field 'bpf.{name}' with value: {v:?}"),
+                }
+
+                Ok(bpf)
+            })
+    }
+}
+
 #[derive(Debug, Parser)]
 #[clap(version = crate::version::FACT_VERSION, about)]
 pub struct FactCli {
@@ -449,6 +500,13 @@ pub struct FactCli {
     #[arg(long, short, env = "FACT_RINGBUF_SIZE")]
     ringbuf_size: Option<u32>,
 
+    /// Sets the maximum number of inodes that can be tracked
+    ///
+    /// Going over this limit will prevent fact from tracking and
+    /// filling in the host path correctly in events.
+    #[arg(long, short, env = "FACT_INODE_MAX")]
+    inodes_max: Option<u32>,
+
     /// Whether configuration should be hotreloaded
     #[arg(long, overrides_with = "no_hotreload", env = "FACT_HOTRELOAD")]
     hotreload: bool,
@@ -478,9 +536,12 @@ impl FactCli {
                 expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
                 health_check: resolve_bool_arg(self.health_check, self.no_health_check),
             },
+            bpf: BpfConfig {
+                ringbuf_size: self.ringbuf_size,
+                inodes_max: self.inodes_max,
+            },
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),
-            ringbuf_size: self.ringbuf_size,
             hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),
             scan_interval: self.scan_interval.map(Duration::from_secs_f64),
         }

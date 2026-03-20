@@ -183,9 +183,28 @@ fn parsing() {
             },
         ),
         (
-            "ringbuf_size: 64",
+            r#"
+            bpf:
+                ringbuf_size: 64
+            "#,
             FactConfig {
-                ringbuf_size: Some(64),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(64),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+                inodes_max: 64
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(64),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -230,7 +249,9 @@ fn parsing() {
               health_check: true
             skip_pre_flight: false
             json: false
-            ringbuf_size: 8192
+            bpf:
+                ringbuf_size: 8192
+                inodes_max: 64
             hotreload: false
             scan_interval: 60
             "#,
@@ -247,7 +268,10 @@ fn parsing() {
                 },
                 skip_pre_flight: Some(false),
                 json: Some(false),
-                ringbuf_size: Some(8192),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(8192),
+                    inodes_max: Some(64),
+                },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
             },
@@ -389,16 +413,50 @@ paths:
         ),
         ("json: 4", "json field has incorrect type: Integer(4)"),
         (
-            "ringbuf_size: true",
+            r#"
+            bpf:
+              ringbuf_size: true
+            "#,
             "ringbuf_size field has incorrect type: Boolean(true)",
         ),
-        ("ringbuf_size: 0", "ringbuf_size out of range: 0"),
-        ("ringbuf_size: -128", "ringbuf_size out of range: -128"),
         (
-            &format!("ringbuf_size: {}", u32::MAX),
+            r#"
+            bpf:
+              ringbuf_size: 0
+            "#,
+            "ringbuf_size out of range: 0",
+        ),
+        (
+            r#"
+            bpf:
+              ringbuf_size: -128
+            "#,
+            "ringbuf_size out of range: -128",
+        ),
+        (
+            &format!(
+                r#"
+                bpf:
+                  ringbuf_size: {}
+                "#,
+                u32::MAX
+            ),
             &format!("ringbuf_size out of range: {}", u32::MAX),
         ),
-        ("ringbuf_size: 65", "ringbuf_size is not a power of 2: 65"),
+        (
+            r#"
+            bpf:
+              ringbuf_size: 65
+          "#,
+            "ringbuf_size is not a power of 2: 65",
+        ),
+        (
+            r#"
+            bpf:
+              inodes_max: true
+            "#,
+            "inodes_max field has incorrect type: Boolean(true)",
+        ),
         (
             "hotreload: 4",
             "hotreload field has incorrect type: Integer(4)",
@@ -751,32 +809,110 @@ fn update() {
             },
         ),
         (
-            "ringbuf_size: 16384",
+            r#"
+            bpf:
+              ringbuf_size: 16384
+            "#,
             FactConfig::default(),
             FactConfig {
-                ringbuf_size: Some(16384),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(16384),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "ringbuf_size: 16384",
+            r#"
+            bpf:
+              ringbuf_size: 16384
+            "#,
             FactConfig {
-                ringbuf_size: Some(8192),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(8192),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                ringbuf_size: Some(16384),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(16384),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "ringbuf_size: 16384",
+            r#"
+            bpf:
+              ringbuf_size: 16384
+            "#,
             FactConfig {
-                ringbuf_size: Some(16384),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(16384),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                ringbuf_size: Some(16384),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+              inodes_max: 16384
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+              inodes_max: 16384
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(8192),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+              inodes_max: 16384
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(16384),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -872,7 +1008,9 @@ fn update() {
               health_check: true
             skip_pre_flight: false
             json: false
-            ringbuf_size: 16384
+            bpf:
+              ringbuf_size: 16384
+              inodes_max: 8192
             hotreload: false
             scan_interval: 60
             "#,
@@ -889,7 +1027,10 @@ fn update() {
                 },
                 skip_pre_flight: Some(true),
                 json: Some(true),
-                ringbuf_size: Some(64),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(64),
+                    inodes_max: Some(4096),
+                },
                 hotreload: Some(true),
                 scan_interval: Some(Duration::from_secs(30)),
             },
@@ -906,7 +1047,10 @@ fn update() {
                 },
                 skip_pre_flight: Some(false),
                 json: Some(false),
-                ringbuf_size: Some(16384),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(16384),
+                    inodes_max: Some(8192),
+                },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
             },
@@ -937,6 +1081,7 @@ fn defaults() {
     assert!(!config.endpoint.health_check());
     assert!(!config.skip_pre_flight());
     assert!(!config.json());
-    assert_eq!(config.ringbuf_size(), 8192);
+    assert_eq!(config.bpf.ringbuf_size(), 8192);
+    assert_eq!(config.bpf.inodes_max(), 65536);
     assert!(config.hotreload());
 }
