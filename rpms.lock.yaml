@@ -613,13 +613,13 @@ arches:
     name: libacl
     evr: 2.3.1-4.el9
     sourcerpm: acl-2.3.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libarchive-3.5.3-6.el9_6.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libarchive-3.5.3-7.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 393863
-    checksum: sha256:df450146cd73d948038aa4bc707fc5e1f8a763089de91d06d3bd77b9d64002e1
+    size: 400454
+    checksum: sha256:5b9508503bf6dcd57161bbde6d4da4eb4cf186a225c77de374436618076fce02
     name: libarchive
-    evr: 3.5.3-6.el9_6
-    sourcerpm: libarchive-3.5.3-6.el9_6.src.rpm
+    evr: 3.5.3-7.el9_7
+    sourcerpm: libarchive-3.5.3-7.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libatomic-11.5.0-11.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 25815
@@ -1926,13 +1926,13 @@ arches:
     name: libacl
     evr: 2.3.1-4.el9
     sourcerpm: acl-2.3.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libarchive-3.5.3-6.el9_6.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libarchive-3.5.3-7.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 395957
-    checksum: sha256:d6343b0a493a0d9cf513b7a9af31a89a5bffe1a9e3766fed088d20f611820537
+    size: 402587
+    checksum: sha256:609bfa9ffb43ecd00be7c8bac56f98f4a1861651d3ca9cfbcec647bfb9dcf612
     name: libarchive
-    evr: 3.5.3-6.el9_6
-    sourcerpm: libarchive-3.5.3-6.el9_6.src.rpm
+    evr: 3.5.3-7.el9_7
+    sourcerpm: libarchive-3.5.3-7.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libatomic-11.5.0-11.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 23219
