@@ -2,7 +2,7 @@ import re
 from event import Event, EventType, Process
 
 
-def test_sed(vi_container, server, ignored_dir):
+def test_sed(vi_container, server):
     # File Under Test
     fut = '/mounted/test.txt'
     create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""

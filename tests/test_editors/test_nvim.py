@@ -23,7 +23,7 @@ def test_new_file(editor_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file(editor_container, server, ignored_dir):
+def test_open_file(editor_container, server):
     fut = '/mounted/test.txt'
     fut_backup = f'{fut}~'
     cmd = f"nvim {fut} '+:normal iThis is a test<CR>' -c x"

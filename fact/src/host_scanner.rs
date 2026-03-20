@@ -206,14 +206,14 @@ impl HostScanner {
 
         if let Some(filename) = event.get_filename().file_name() {
             if let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) {
-            let host_path = parent_host_path.join(filename);
-            self.update_entry_with_inode(inode, host_path)
-                .with_context(|| {
-                    format!(
-                        "Failed to add creation event entry for {}",
-                        filename.display()
-                    )
-                })?;
+                let host_path = parent_host_path.join(filename);
+                self.update_entry_with_inode(inode, host_path)
+                    .with_context(|| {
+                        format!(
+                            "Failed to add creation event entry for {}",
+                            filename.display()
+                        )
+                    })?;
             }
         }
 

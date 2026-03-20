@@ -86,7 +86,7 @@ def test_new_file_ovfs(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file(vi_container, server, ignored_dir):
+def test_open_file(vi_container, server):
     fut = '/mounted/test.txt'
     fut_backup = f'{fut}~'
     swap_file = '/mounted/.test.txt.swp'

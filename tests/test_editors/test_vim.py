@@ -80,7 +80,7 @@ def test_new_file_ovfs(editor_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file(editor_container, server, ignored_dir):
+def test_open_file(editor_container, server):
     fut = '/mounted/test.txt'
     fut_backup = f'{fut}~'
     swap_file = '/mounted/.test.txt.swp'
