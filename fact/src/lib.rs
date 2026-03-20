@@ -2,12 +2,12 @@ use std::{borrow::BorrowMut, io::Write, str::FromStr};
 
 use anyhow::Context;
 use bpf::Bpf;
-use host_info::{get_distro, get_hostname, SystemInfo};
+use host_info::{SystemInfo, get_distro, get_hostname};
 use host_scanner::HostScanner;
-use log::{debug, info, warn, LevelFilter};
+use log::{LevelFilter, debug, info, warn};
 use metrics::exporter::Exporter;
 use tokio::{
-    signal::unix::{signal, SignalKind},
+    signal::unix::{SignalKind, signal},
     sync::{mpsc, watch},
 };
 

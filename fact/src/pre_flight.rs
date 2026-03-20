@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 
 use crate::host_info::get_host_mount;
 

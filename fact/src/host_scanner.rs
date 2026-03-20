@@ -26,12 +26,12 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use aya::maps::MapData;
 use fact_ebpf::{inode_key_t, inode_value_t};
 use log::{debug, info, warn};
 use tokio::{
-    sync::{broadcast, mpsc, watch, Notify},
+    sync::{Notify, broadcast, mpsc, watch},
     task::JoinHandle,
 };
 

@@ -4,12 +4,12 @@ use std::{
 
 use log::{debug, info, warn};
 use tokio::{
-    sync::{watch, Notify},
+    sync::{Notify, watch},
     task::JoinHandle,
     time::interval,
 };
 
-use super::{EndpointConfig, FactConfig, GrpcConfig, CONFIG_FILES};
+use super::{CONFIG_FILES, EndpointConfig, FactConfig, GrpcConfig};
 
 pub struct Reloader {
     config: FactConfig,

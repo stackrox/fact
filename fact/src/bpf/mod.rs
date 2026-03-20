@@ -1,10 +1,10 @@
 use std::{io, path::PathBuf};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use aya::{
-    maps::{HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::{lsm::LsmLink, Program},
     Btf, Ebpf,
+    maps::{HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
+    programs::{Program, lsm::LsmLink},
 };
 use checks::Checks;
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -18,7 +18,7 @@ use tokio::{
 
 use crate::{event::Event, host_info, metrics::EventCounter};
 
-use fact_ebpf::{event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t, LPM_SIZE_MAX};
+use fact_ebpf::{LPM_SIZE_MAX, event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t};
 
 mod checks;
 
@@ -273,8 +273,8 @@ mod bpf_tests {
     use tokio::{sync::watch, time::timeout};
 
     use crate::{
-        config::{reloader::Reloader, FactConfig},
-        event::{process::Process, EventTestData},
+        config::{FactConfig, reloader::Reloader},
+        event::{EventTestData, process::Process},
         host_info,
         metrics::exporter::Exporter,
     };

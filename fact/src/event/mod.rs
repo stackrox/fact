@@ -9,7 +9,7 @@ use std::{
 use globset::GlobSet;
 use serde::Serialize;
 
-use fact_ebpf::{event_t, file_activity_type_t, inode_key_t, PATH_MAX};
+use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t};
 
 use crate::host_info;
 use process::Process;
@@ -43,11 +43,11 @@ fn sanitize_d_path(s: &[c_char]) -> PathBuf {
 
     // Take the file name of the path and remove the " (deleted)" suffix
     // if present.
-    if let Some(file_name) = p.file_name() {
-        if let Some(file_name) = file_name.to_string_lossy().strip_suffix(" (deleted)") {
-            // The file name needed to be sanitized
-            return p.parent().map(|p| p.join(file_name)).unwrap_or_default();
-        }
+    if let Some(file_name) = p.file_name()
+        && let Some(file_name) = file_name.to_string_lossy().strip_suffix(" (deleted)")
+    {
+        // The file name needed to be sanitized
+        return p.parent().map(|p| p.join(file_name)).unwrap_or_default();
     }
 
     p.to_path_buf()
