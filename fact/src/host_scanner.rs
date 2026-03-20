@@ -199,58 +199,23 @@ impl HostScanner {
     /// path by appending the new file's name.
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
         let inode = event.get_inode();
-
-        if self.get_host_path(Some(inode)).is_some() {
-            return Ok(());
-        }
-
         let parent_inode = event.get_parent_inode();
-
-        if parent_inode.empty() {
-            debug!(
-                "Creation event has no parent inode: {}",
-                event.get_filename().display()
-            );
+        if self.get_host_path(Some(inode)).is_some() || parent_inode.empty() {
             return Ok(());
         }
 
-        let event_filename = event.get_filename();
-        let Some(filename) = event_filename.file_name() else {
-            debug!(
-                "Creation event has no filename component: {}",
-                event_filename.display()
-            );
-            return Ok(());
-        };
-
-        let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) else {
-            debug!(
-                "Parent inode not in map, cannot construct host path for: {}",
-                event_filename.display()
-            );
-            return Ok(());
-        };
-
-        let host_path = parent_host_path.join(filename);
-
-        debug!(
-            "Constructed host path for creation event: {} (from container path: {}, parent host path: {})",
-            host_path.display(),
-            event_filename.display(),
-            parent_host_path.display()
-        );
-
-        self.update_entry_with_inode(inode, host_path)
-            .with_context(|| {
-                format!(
-                    "Failed to add creation event entry for {}",
-                    event_filename.display()
-                )
-            })?;
-        debug!(
-            "Successfully added inode entry for newly created file: {}",
-            event_filename.display()
-        );
+        if let Some(filename) = event.get_filename().file_name() {
+            if let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) {
+            let host_path = parent_host_path.join(filename);
+            self.update_entry_with_inode(inode, host_path)
+                .with_context(|| {
+                    format!(
+                        "Failed to add creation event entry for {}",
+                        filename.display()
+                    )
+                })?;
+            }
+        }
 
         Ok(())
     }
