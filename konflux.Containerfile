@@ -3,7 +3,7 @@ FROM registry.access.redhat.com/ubi9/ubi@sha256:b8923f58ef6aebe2b8f543f8f6c5af15
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 
-RUN dnf install -y \
+RUN dnf install --allowerasing -y \
         clang \
         libbpf-devel \
         openssl-devel \
