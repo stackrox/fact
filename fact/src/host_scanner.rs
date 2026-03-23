@@ -262,11 +262,10 @@ impl HostScanner {
                         self.metrics.events.added();
 
                         // Handle file creation events by adding new inodes to the map
-                        if event.is_creation() {
-                            if let Err(e) = self.handle_creation_event(&event) {
+                        if event.is_creation() &&
+                            let Err(e) = self.handle_creation_event(&event) {
                                 warn!("Failed to handle creation event: {e}");
                             }
-                        }
 
                         if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
