@@ -48,8 +48,6 @@ def test_open_file(editor_container, server):
 
     vi_test_file = get_vi_test_file('/mounted')
 
-    # TODO: host_path is empty for creation events in bind-mounted directories
-    # because the host-side parent directory (ignored_dir) is not scanned
     events = [
         Event(process=touch, event_type=EventType.CREATION,
               file=fut, host_path=''),

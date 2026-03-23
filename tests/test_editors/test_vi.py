@@ -19,8 +19,6 @@ def test_new_file(vi_container, server):
         container_id=vi_container.id[:12],
     )
 
-    # TODO: host_path is empty for creation events in bind-mounted directories
-    # because the host-side parent directory (ignored_dir) is not scanned
     events = [
         Event(process=process, event_type=EventType.CREATION,
               file=swap_file, host_path=''),
@@ -114,8 +112,6 @@ def test_open_file(vi_container, server):
         container_id=container_id,
     )
 
-    # TODO: host_path is empty for creation events in bind-mounted directories
-    # because the host-side parent directory (ignored_dir) is not scanned
     events = [
         Event(process=touch_process, event_type=EventType.CREATION,
               file=fut, host_path=''),

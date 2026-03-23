@@ -107,8 +107,6 @@ def test_open_file(editor_container, server):
         container_id=container_id,
     )
 
-    # TODO: host_path is empty for creation events in bind-mounted directories
-    # because the host-side parent directory (ignored_dir) is not scanned
     events = [
         Event(process=touch_process, event_type=EventType.CREATION,
               file=fut, host_path=''),

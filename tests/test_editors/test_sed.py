@@ -27,8 +27,6 @@ def test_sed(vi_container, server):
 
     sed_tmp_file = re.compile(r'\/mounted\/sed[0-9a-zA-Z]{6}')
 
-    # TODO: host_path is empty for creation events in bind-mounted directories
-    # because the host-side parent directory (ignored_dir) is not scanned
     events = [
         Event(process=shell, event_type=EventType.CREATION,
               file=fut, host_path=''),
