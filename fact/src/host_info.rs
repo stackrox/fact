@@ -3,8 +3,8 @@ use log::{debug, warn};
 use std::{
     collections::HashMap,
     env,
-    ffi::{c_char, CStr, CString},
-    fs::{read_to_string, File},
+    ffi::{CStr, CString, c_char},
+    fs::{File, read_to_string},
     io::{BufRead, BufReader},
     mem,
     path::{Path, PathBuf},
@@ -12,8 +12,8 @@ use std::{
 };
 
 use libc::{
-    clockid_t, statx, timespec, uname, AT_FDCWD, AT_NO_AUTOMOUNT, AT_STATX_SYNC_AS_STAT,
-    CLOCK_BOOTTIME, CLOCK_REALTIME, STATX_INO,
+    AT_FDCWD, AT_NO_AUTOMOUNT, AT_STATX_SYNC_AS_STAT, CLOCK_BOOTTIME, CLOCK_REALTIME, STATX_INO,
+    clockid_t, statx, timespec, uname,
 };
 
 pub fn get_host_mount() -> &'static PathBuf {

@@ -6,7 +6,7 @@ use prometheus_client::{encoding::text::encode, registry::Registry};
 
 use fact_ebpf::metrics_t;
 
-use super::{kernel_metrics::KernelMetrics, Metrics};
+use super::{Metrics, kernel_metrics::KernelMetrics};
 
 #[derive(Clone)]
 pub struct Exporter {

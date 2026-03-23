@@ -2,10 +2,10 @@ use std::{future::Future, pin::Pin};
 
 use http_body_util::Full;
 use hyper::{
+    Method, Request, Response, StatusCode,
     body::{Bytes, Incoming},
     server::conn::http1,
     service::Service,
-    Method, Request, Response, StatusCode,
 };
 use hyper_util::rt::TokioIo;
 use log::{info, warn};

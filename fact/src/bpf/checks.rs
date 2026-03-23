@@ -1,5 +1,5 @@
 use anyhow::Context;
-use aya::{programs::Lsm, Btf};
+use aya::{Btf, programs::Lsm};
 use log::debug;
 
 pub(super) struct Checks {

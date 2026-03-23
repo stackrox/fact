@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use fact_api::file_activity_service_client::FileActivityServiceClient;
 use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
@@ -13,8 +13,8 @@ use tokio::{
     time::sleep,
 };
 use tokio_stream::{
-    wrappers::{errors::BroadcastStreamRecvError, BroadcastStream},
     StreamExt,
+    wrappers::{BroadcastStream, errors::BroadcastStreamRecvError},
 };
 use tonic::transport::Channel;
 

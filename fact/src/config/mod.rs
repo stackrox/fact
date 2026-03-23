@@ -7,10 +7,10 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use clap::Parser;
 use log::info;
-use yaml_rust2::{yaml, Yaml, YamlLoader};
+use yaml_rust2::{Yaml, YamlLoader, yaml};
 
 pub mod reloader;
 #[cfg(test)]
@@ -47,11 +47,7 @@ impl FactConfig {
             .iter()
             .filter_map(|p| {
                 let p = Path::new(p);
-                if p.exists() {
-                    Some(p)
-                } else {
-                    None
-                }
+                if p.exists() { Some(p) } else { None }
             })
             .map(|p| {
                 let content =

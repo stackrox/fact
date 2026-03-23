@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process::Command};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 
 fn main() -> anyhow::Result<()> {
     println!("cargo::rerun-if-changed=../.git/HEAD");
