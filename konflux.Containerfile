@@ -3,7 +3,7 @@ FROM registry.access.redhat.com/ubi8/ubi@sha256:87463a8cd4ea7b3e7d066f114b64a447
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
 
-RUN dnf install -y \
+RUN dnf install --allowerasing -y \
         clang \
         make \
         elfutils-libelf-devel \
