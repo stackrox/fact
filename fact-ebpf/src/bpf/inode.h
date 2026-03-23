@@ -58,7 +58,7 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
   return key;
 }
 
-__always_inline static inode_value_t* inode_get(struct inode_key_t* inode) {
+__always_inline static inode_value_t* inode_get(const struct inode_key_t* inode) {
   if (inode == NULL) {
     return NULL;
   }
@@ -83,6 +83,7 @@ __always_inline static long inode_remove(struct inode_key_t* inode) {
 typedef enum inode_monitored_t {
   NOT_MONITORED = 0,
   MONITORED,
+  PARENT_MONITORED,
 } inode_monitored_t;
 
 /**
