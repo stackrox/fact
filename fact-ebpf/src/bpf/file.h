@@ -27,18 +27,13 @@ __always_inline static bool path_is_monitored(struct bound_path_t* path) {
   return res;
 }
 
-__always_inline static inode_monitored_t is_monitored_with_parent(inode_key_t inode, struct bound_path_t* path, const inode_key_t* parent, inode_key_t** submit) {
+__always_inline static inode_monitored_t is_monitored(inode_key_t inode, struct bound_path_t* path, const inode_key_t* parent, inode_key_t** submit) {
   const inode_value_t* volatile inode_value = inode_get(&inode);
+  const inode_value_t* volatile parent_value = inode_get(parent);
 
-  if (inode_is_monitored(inode_value) == MONITORED) {
-    return MONITORED;
-  }
-
-  if (parent != NULL) {
-    const inode_value_t* volatile parent_value = inode_get(parent);
-    if (inode_is_monitored(parent_value) == MONITORED) {
-      return PARENT_MONITORED;
-    }
+  inode_monitored_t status = inode_is_monitored(inode_value, parent_value);
+  if (status != NOT_MONITORED) {
+    return status;
   }
 
   *submit = NULL;
@@ -47,8 +42,4 @@ __always_inline static inode_monitored_t is_monitored_with_parent(inode_key_t in
   }
 
   return NOT_MONITORED;
-}
-
-__always_inline static inode_monitored_t is_monitored(inode_key_t inode, struct bound_path_t* path, inode_key_t** submit) {
-  return is_monitored_with_parent(inode, path, NULL, submit);
 }
