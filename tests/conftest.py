@@ -107,9 +107,7 @@ def fact_config(request, monitored_dir, logs_dir):
         'paths': [
             f'{monitored_dir}',
             f'{monitored_dir}/**/*',
-            '/mounted',
             '/mounted/**/*',
-            '/container-dir',
             '/container-dir/**/*',
         ],
         'grpc': {
