@@ -160,21 +160,21 @@ impl HostScanner {
         };
 
         let host_path = host_info::remove_host_mount(path);
-        self.update_entry_with_inode(&inode, host_path)?;
+        self.update_entry_with_inode(inode, host_path)?;
 
         debug!("Added entry for {}: {inode:?}", path.display());
         Ok(())
     }
 
     /// Similar to update_entry except we are are directly using the inode instead of the path.
-    fn update_entry_with_inode(&self, inode: &inode_key_t, path: PathBuf) -> anyhow::Result<()> {
+    fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
         self.kernel_inode_map
             .borrow_mut()
-            .insert(*inode, 0, 0)
+            .insert(inode, 0, 0)
             .with_context(|| format!("Failed to insert kernel entry for {}", path.display()))?;
 
         let mut inode_map = self.inode_map.borrow_mut();
-        let entry = inode_map.entry(*inode).or_default();
+        let entry = inode_map.entry(inode).or_default();
         *entry = path;
 
         self.metrics.scan_inc(ScanLabels::FileUpdated);
@@ -208,7 +208,7 @@ impl HostScanner {
             && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
         {
             let host_path = parent_host_path.join(filename);
-            self.update_entry_with_inode(inode, host_path)
+            self.update_entry_with_inode(*inode, host_path)
                 .with_context(|| {
                     format!(
                         "Failed to add creation event entry for {}",
