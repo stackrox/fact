@@ -36,6 +36,8 @@ def test_extension_wildcard(wildcard_config, monitored_dir, server):
     with open(txt_file, 'w') as f:
         f.write('This should be captured')
 
+    # TODO: host_path is empty because wildcard patterns don't include the parent
+    # directory, so the parent inode isn't tracked for path construction
     e = Event(process=process, event_type=EventType.CREATION,
               file=txt_file, host_path='')
 
@@ -54,6 +56,8 @@ def test_prefix_wildcard(wildcard_config, monitored_dir, server):
     with open(test_log, 'w') as f:
         f.write('This should be captured')
 
+    # TODO: host_path is empty because wildcard patterns don't include the parent
+    # directory, so the parent inode isn't tracked for path construction
     e = Event(process=process, event_type=EventType.CREATION,
               file=test_log, host_path='')
 
@@ -79,6 +83,8 @@ def test_recursive_wildcard(wildcard_config, monitored_dir, server):
     with open(nested_txt, 'w') as f:
         f.write('Nested txt')
 
+    # TODO: host_path is empty because wildcard patterns don't include the parent
+    # directory, so the parent inode isn't tracked for path construction
     events = [
         Event(process=process, event_type=EventType.CREATION,
               file=root_txt, host_path=''),
@@ -96,6 +102,8 @@ def test_nonrecursive_wildcard(wildcard_config, monitored_dir, server):
     with open(fut, 'w') as f:
         f.write('This should be captured')
 
+    # TODO: host_path is empty because wildcard patterns don't include the parent
+    # directory, so the parent inode isn't tracked for path construction
     e = Event(process=process, event_type=EventType.CREATION,
               file=fut, host_path='')
 
@@ -118,6 +126,8 @@ def test_multiple_patterns(wildcard_config, monitored_dir, server):
     with open(log_file, 'w') as f:
         f.write('Log file')
 
+    # TODO: host_path is empty because wildcard patterns don't include the parent
+    # directory, so the parent inode isn't tracked for path construction
     events = [
         Event(process=process, event_type=EventType.CREATION,
               file=txt_file, host_path=''),

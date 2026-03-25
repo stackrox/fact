@@ -27,18 +27,19 @@ __always_inline static bool path_is_monitored(struct bound_path_t* path) {
   return res;
 }
 
-__always_inline static bool is_monitored(inode_key_t inode, struct bound_path_t* path, inode_key_t** submit) {
+__always_inline static inode_monitored_t is_monitored(inode_key_t inode, struct bound_path_t* path, const inode_key_t* parent, inode_key_t** submit) {
   const inode_value_t* volatile inode_value = inode_get(&inode);
+  const inode_value_t* volatile parent_value = inode_get(parent);
 
-  switch (inode_is_monitored(inode_value)) {
-    case NOT_MONITORED:
-      *submit = NULL;
-      if (path_is_monitored(path)) {
-        return true;
-      }
-      return false;
-    case MONITORED:
-      break;
+  inode_monitored_t status = inode_is_monitored(inode_value, parent_value);
+  if (status != NOT_MONITORED) {
+    return status;
   }
-  return true;
+
+  *submit = NULL;
+  if (path_is_monitored(path)) {
+    return MONITORED;
+  }
+
+  return NOT_MONITORED;
 }

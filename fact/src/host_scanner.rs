@@ -131,6 +131,11 @@ impl HostScanner {
                         self.update_entry(path.as_path()).with_context(|| {
                             format!("Failed to update entry for {}", path.display())
                         })?;
+                    } else if path.is_dir() {
+                        self.metrics.scan_inc(ScanLabels::DirectoryScanned);
+                        self.update_entry(path.as_path()).with_context(|| {
+                            format!("Failed to update entry for {}", path.display())
+                        })?;
                     } else {
                         self.metrics.scan_inc(ScanLabels::FsItemIgnored);
                     }
@@ -154,17 +159,26 @@ impl HostScanner {
             dev: metadata.st_dev(),
         };
 
+        let host_path = host_info::remove_host_mount(path);
+        self.update_entry_with_inode(inode, host_path)?;
+
+        debug!("Added entry for {}: {inode:?}", path.display());
+        Ok(())
+    }
+
+    /// Similar to update_entry except we are are directly using the inode instead of the path.
+    fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
         self.kernel_inode_map
             .borrow_mut()
             .insert(inode, 0, 0)
             .with_context(|| format!("Failed to insert kernel entry for {}", path.display()))?;
+
         let mut inode_map = self.inode_map.borrow_mut();
         let entry = inode_map.entry(inode).or_default();
-        *entry = host_info::remove_host_mount(path);
+        *entry = path;
 
         self.metrics.scan_inc(ScanLabels::FileUpdated);
 
-        debug!("Added entry for {}: {inode:?}", path.display());
         Ok(())
     }
 
@@ -176,6 +190,34 @@ impl HostScanner {
         // The path here needs to be cloned because we won't keep the
         // inode_map borrow long enough.
         self.inode_map.borrow().get(inode?).cloned()
+    }
+
+    /// Handle file creation events by adding new inodes to the map.
+    ///
+    /// We use the parent inode provided by the eBPF code
+    /// to look up the parent directory's host path, then construct the full
+    /// path by appending the new file's name.
+    fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
+        let inode = event.get_inode();
+        let parent_inode = event.get_parent_inode();
+        if self.get_host_path(Some(inode)).is_some() || parent_inode.empty() {
+            return Ok(());
+        }
+
+        if let Some(filename) = event.get_filename().file_name()
+            && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
+        {
+            let host_path = parent_host_path.join(filename);
+            self.update_entry_with_inode(*inode, host_path)
+                .with_context(|| {
+                    format!(
+                        "Failed to add creation event entry for {}",
+                        filename.display()
+                    )
+                })?;
+        }
+
+        Ok(())
     }
 
     /// Periodically notify the host scanner main task that a scan needs
@@ -218,6 +260,12 @@ impl HostScanner {
                             break;
                         };
                         self.metrics.events.added();
+
+                        // Handle file creation events by adding new inodes to the map
+                        if event.is_creation() &&
+                            let Err(e) = self.handle_creation_event(&event) {
+                                warn!("Failed to handle creation event: {e}");
+                            }
 
                         if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);

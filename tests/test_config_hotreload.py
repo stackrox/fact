@@ -99,7 +99,7 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
 
     process = Process.from_proc()
     e = Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path='')
+              file=fut, host_path=fut)
 
     server.wait_events([e])
 
@@ -112,7 +112,7 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
         f.write('This is another test')
 
     e = Event(process=process, event_type=EventType.OPEN,
-              file=fut, host_path='')
+              file=fut, host_path=fut)
 
     alternate_server.wait_events([e])
 
@@ -131,12 +131,12 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
         f.write('This is a test')
 
     e = Event(process=p, event_type=EventType.CREATION,
-              file=fut, host_path='')
+              file=fut, host_path=fut)
 
     server.wait_events([e])
 
     config, config_file = fact_config
-    config['paths'] = [f'{ignored_dir}/**/*']
+    config['paths'] = [f'{ignored_dir}', f'{ignored_dir}/**/*']
     reload_config(fact, config, config_file)
 
     # At this point, the event in the ignored directory should show up
@@ -202,7 +202,7 @@ def test_paths_then_remove(fact, fact_config, monitored_dir, server):
         f.write('This is a test')
 
     e = Event(process=p, event_type=EventType.CREATION,
-              file=fut, host_path='')
+              file=fut, host_path=fut)
 
     server.wait_events([e])
 
@@ -234,7 +234,7 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
         f.write('This is a test')
 
     e = Event(process=p, event_type=EventType.CREATION,
-              file=fut, host_path='')
+              file=fut, host_path=fut)
 
     server.wait_events([e])
 

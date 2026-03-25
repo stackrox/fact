@@ -33,12 +33,12 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
     return key;
   }
 
-  unsigned long magic = inode->i_sb->s_magic;
+  unsigned long magic = BPF_CORE_READ(inode, i_sb, s_magic);
   switch (magic) {
     case BTRFS_SUPER_MAGIC:
       if (bpf_core_type_exists(struct btrfs_inode)) {
         struct btrfs_inode* btrfs_inode = container_of(inode, struct btrfs_inode, vfs_inode);
-        key.inode = inode->i_ino;
+        key.inode = BPF_CORE_READ(inode, i_ino);
         key.dev = BPF_CORE_READ(btrfs_inode, root, anon_dev);
         break;
       }
@@ -46,8 +46,8 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
     // supported on the system. Fallback to the generic implementation
     // just in case.
     default:
-      key.inode = inode->i_ino;
-      key.dev = inode->i_sb->s_dev;
+      key.inode = BPF_CORE_READ(inode, i_ino);
+      key.dev = BPF_CORE_READ(inode, i_sb, s_dev);
       break;
   }
 
@@ -58,11 +58,19 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
   return key;
 }
 
-__always_inline static inode_value_t* inode_get(struct inode_key_t* inode) {
+__always_inline static inode_value_t* inode_get(const struct inode_key_t* inode) {
   if (inode == NULL) {
     return NULL;
   }
   return bpf_map_lookup_elem(&inode_map, inode);
+}
+
+__always_inline static long inode_add(struct inode_key_t* inode) {
+  if (inode == NULL) {
+    return -1;
+  }
+  inode_value_t value = 0;
+  return bpf_map_update_elem(&inode_map, inode, &value, BPF_ANY);
 }
 
 __always_inline static long inode_remove(struct inode_key_t* inode) {
@@ -75,19 +83,17 @@ __always_inline static long inode_remove(struct inode_key_t* inode) {
 typedef enum inode_monitored_t {
   NOT_MONITORED = 0,
   MONITORED,
+  PARENT_MONITORED,
 } inode_monitored_t;
 
-/**
- * Check if the provided inode is being monitored.
- *
- * The current implementation is very basic and might seem like
- * overkill, but in the near future this function will be extended to
- * check if the parent of the provided inode is monitored and provide
- * different results for handling more complicated scenarios.
- */
-__always_inline static inode_monitored_t inode_is_monitored(const inode_value_t* volatile inode) {
+// Check if the provided inode or its parent is being monitored.
+__always_inline static inode_monitored_t inode_is_monitored(const inode_value_t* volatile inode, const inode_value_t* volatile parent_inode) {
   if (inode != NULL) {
     return MONITORED;
+  }
+
+  if (parent_inode != NULL) {
+    return PARENT_MONITORED;
   }
 
   return NOT_MONITORED;

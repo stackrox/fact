@@ -35,7 +35,7 @@ def test_open(monitored_dir, server, filename):
     fut = path_to_string(fut)
 
     e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
-              file=fut, host_path='')
+              file=fut, host_path=fut)
 
     server.wait_events([e])
 
@@ -59,7 +59,7 @@ def test_multiple(monitored_dir, server):
             f.write('This is a test')
 
         events.append(
-            Event(process=process, event_type=EventType.CREATION, file=fut, host_path=''))
+            Event(process=process, event_type=EventType.CREATION, file=fut, host_path=fut))
 
     server.wait_events(events)
 
@@ -139,9 +139,9 @@ def test_external_process(monitored_dir, server):
     p = Process.from_proc(proc.pid)
 
     creation = Event(process=p, event_type=EventType.CREATION,
-                     file=fut, host_path='')
+                     file=fut, host_path=fut)
     write_access = Event(
-        process=p, event_type=EventType.OPEN, file=fut, host_path='')
+        process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
 
     try:
         server.wait_events([creation, write_access])
@@ -186,6 +186,7 @@ def test_mounted_dir(test_container, ignored_dir, server):
         name='touch',
         container_id=test_container.id[:12],
     )
+    # ignored_dir is not monitored, so host_path should be blank
     event = Event(process=process, event_type=EventType.CREATION,
                   file=fut, host_path='')
 

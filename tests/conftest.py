@@ -104,7 +104,12 @@ def dump_logs(container, file):
 def fact_config(request, monitored_dir, logs_dir):
     cwd = os.getcwd()
     config = {
-        'paths': [f'{monitored_dir}/**/*', '/mounted/**/*', '/container-dir/**/*'],
+        'paths': [
+            f'{monitored_dir}',
+            f'{monitored_dir}/**/*',
+            '/mounted/**/*',
+            '/container-dir/**/*',
+        ],
         'grpc': {
             'url': 'http://127.0.0.1:9999',
         },
