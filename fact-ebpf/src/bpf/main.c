@@ -94,6 +94,9 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
     return 0;
   }
 
+  // We only support files with one link for now
+  inode_remove(&inode_key);
+
   submit_unlink_event(&m->path_unlink,
                       path->path,
                       inode_to_submit,
