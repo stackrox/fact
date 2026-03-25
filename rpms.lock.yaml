@@ -1271,13 +1271,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-21.el9_7
     sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-23.el9_7.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-23.el9_7.1.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 13179
-    checksum: sha256:793710bbfc6627228c7811bdd3cbecb2c667a4581bd8b5fe9b9a2ebb20e57f79
+    size: 20544
+    checksum: sha256:cf19763151f587fbb5ecd77231f0e64c6a3328bbd2800c86fc0dcfce2058c506
     name: vim-filesystem
-    evr: 2:8.2.2637-23.el9_7
-    sourcerpm: vim-8.2.2637-23.el9_7.src.rpm
+    evr: 2:8.2.2637-23.el9_7.1
+    sourcerpm: vim-8.2.2637-23.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 94569
@@ -2584,13 +2584,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-21.el9_7
     sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-23.el9_7.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-23.el9_7.1.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 13179
-    checksum: sha256:793710bbfc6627228c7811bdd3cbecb2c667a4581bd8b5fe9b9a2ebb20e57f79
+    size: 20544
+    checksum: sha256:cf19763151f587fbb5ecd77231f0e64c6a3328bbd2800c86fc0dcfce2058c506
     name: vim-filesystem
-    evr: 2:8.2.2637-23.el9_7
-    sourcerpm: vim-8.2.2637-23.el9_7.src.rpm
+    evr: 2:8.2.2637-23.el9_7.1
+    sourcerpm: vim-8.2.2637-23.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 96649
