@@ -220,6 +220,18 @@ impl HostScanner {
         Ok(())
     }
 
+    /// Special handling for unlink events.
+    ///
+    /// This method removes the inode from the userland inode->path map.
+    /// The probe already cleared the kernel inode map.
+    fn handle_unlink_event(&self, event: &Event) {
+        let inode = event.get_inode();
+
+        if self.inode_map.borrow_mut().remove(inode).is_some() {
+            self.metrics.scan_inc(ScanLabels::InodeRemoved);
+        }
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -275,6 +287,11 @@ impl HostScanner {
                         if let Some(host_path) = self.get_host_path(event.get_old_inode()) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_old_host_path(host_path);
+                        }
+
+                        // Special handling for unlink events
+                        if event.is_unlink() {
+                            self.handle_unlink_event(&event);
                         }
 
                         let event = Arc::new(event);
