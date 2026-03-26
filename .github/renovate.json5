@@ -33,9 +33,7 @@
   "updateNotScheduled": false,
   "tekton": {
     "schedule": [
-      // Between 3a.m. and 7a.m. every day.
-      // We duplicate our desired schedule here because Konflux global config tends to have a special override for it.
-      "* 3-7 * * *",
+      "at any time",
     ],
     "packageRules": [
       // Note: the packageRules from the Konflux config (find URL in comments above) get merged with these.
