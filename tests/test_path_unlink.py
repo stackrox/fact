@@ -231,7 +231,7 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
 
 def test_probe_inode_map(monitored_dir, ignored_dir, server):
     """
-    TODO[ROX-33222]: This test won't work when hardlinks are handled properly. 
+    TODO[ROX-33222]: This test won't work when hardlinks are handled properly.
 
     This test demonstrates that the current implementation removes the inode
     from the kernel map correctly, as a second unmonitored hardlink deletion
@@ -258,6 +258,11 @@ def test_probe_inode_map(monitored_dir, ignored_dir, server):
     hardlink_file2 = os.path.join(ignored_dir, 'hardlink2.txt')
     os.link(original_file, hardlink_file2)
 
+    e = Event(process=process, event_type=EventType.CREATION,
+              file=original_file, host_path=original_file)
+
+    server.wait_events([e])
+
     os.remove(hardlink_file1)
     os.remove(hardlink_file2)
 
@@ -267,8 +272,6 @@ def test_probe_inode_map(monitored_dir, ignored_dir, server):
         f.write('guard')
 
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=original_file, host_path=original_file),
         Event(process=process, event_type=EventType.UNLINK,
               file=hardlink_file1, host_path=original_file),
         Event(process=process, event_type=EventType.CREATION,
