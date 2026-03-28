@@ -111,4 +111,5 @@ struct metrics_t {
   struct metrics_by_hook_t path_chmod;
   struct metrics_by_hook_t path_chown;
   struct metrics_by_hook_t path_rename;
+  struct metrics_by_hook_t path_mkdir;
 };

@@ -228,3 +228,70 @@ error:
   m->path_rename.error++;
   return 0;
 }
+
+SEC("lsm/inode_mkdir")
+int BPF_PROG(trace_inode_mkdir, struct inode* dir, struct dentry* dentry, umode_t mode) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_mkdir.total++;
+
+  // Get the new directory's inode (should be populated after creation)
+  inode_key_t inode_key = inode_to_key(dentry->d_inode);
+  bpf_printk("inode_mkdir: inode=%lu dev=%lu", inode_key.inode, inode_key.dev);
+  if (inode_key.inode == 0) {
+    // Inode not yet populated, ignore
+    bpf_printk("inode_mkdir: inode not populated, ignoring");
+    m->path_mkdir.ignored++;
+    return 0;
+  }
+
+  // Get the parent directory's inode
+  inode_key_t parent_key = inode_to_key(dir);
+
+  // Check if parent is monitored
+  const inode_value_t* parent_value = inode_get(&parent_key);
+  if (parent_value == NULL) {
+    // Parent not monitored, ignore this directory
+    m->path_mkdir.ignored++;
+    return 0;
+  }
+
+  // Parent is monitored, so add this new directory to tracking
+  inode_add(&inode_key);
+
+  // Get the directory name from dentry
+  struct bound_path_t* path = get_bound_path(BOUND_PATH_MAIN);
+  if (path == NULL) {
+    m->path_mkdir.error++;
+    return 0;
+  }
+
+  struct qstr d_name;
+  BPF_CORE_READ_INTO(&d_name, dentry, d_name);
+  int len = d_name.len;
+  if (len > PATH_MAX - 1) {
+    m->path_mkdir.error++;
+    return 0;
+  }
+
+  if (bpf_probe_read_kernel(path->path, PATH_LEN_CLAMP(len), d_name.name)) {
+    m->path_mkdir.error++;
+    return 0;
+  }
+  path->path[PATH_LEN_CLAMP(len)] = '\0';
+
+  // Use __submit_event directly with use_bpf_d_path=false because inode hooks
+  // don't support bpf_d_path (it's only allowed in path hooks)
+  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (event == NULL) {
+    m->path_mkdir.ringbuffer_full++;
+    return 0;
+  }
+
+  __submit_event(event, &m->path_mkdir, FILE_ACTIVITY_CREATION, path->path, &inode_key, &parent_key, false);
+
+  return 0;
+}

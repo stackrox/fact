@@ -21,7 +21,7 @@ __always_inline static void path_write_char(char* p, unsigned int offset, char c
   *path_safe_access(p, offset) = c;
 }
 
-__always_inline static struct bound_path_t* _path_read(struct path* path, bound_path_buffer_t key, bool use_bpf_d_path) {
+__always_inline static struct bound_path_t* _path_read(const struct path* path, bound_path_buffer_t key, bool use_bpf_d_path) {
   struct bound_path_t* bound_path = get_bound_path(key);
   if (bound_path == NULL) {
     return NULL;
@@ -38,15 +38,15 @@ __always_inline static struct bound_path_t* _path_read(struct path* path, bound_
   return bound_path;
 }
 
-__always_inline static struct bound_path_t* path_read_unchecked(struct path* path) {
+__always_inline static struct bound_path_t* path_read_unchecked(const struct path* path) {
   return _path_read(path, BOUND_PATH_MAIN, true);
 }
 
-__always_inline static struct bound_path_t* path_read(struct path* path) {
+__always_inline static struct bound_path_t* path_read(const struct path* path) {
   return _path_read(path, BOUND_PATH_MAIN, path_hooks_support_bpf_d_path);
 }
 
-__always_inline static struct bound_path_t* path_read_alt(struct path* path) {
+__always_inline static struct bound_path_t* path_read_alt(const struct path* path) {
   return _path_read(path, BOUND_PATH_ALTERNATE, path_hooks_support_bpf_d_path);
 }
 
@@ -76,7 +76,7 @@ __always_inline static enum path_append_status_t path_append_dentry(struct bound
   return 0;
 }
 
-__always_inline static struct bound_path_t* _path_read_append_d_entry(struct path* dir, struct dentry* dentry, bound_path_buffer_t key) {
+__always_inline static struct bound_path_t* _path_read_append_d_entry(const struct path* dir, struct dentry* dentry, bound_path_buffer_t key) {
   struct bound_path_t* path = _path_read(dir, key, path_hooks_support_bpf_d_path);
 
   if (path == NULL) {
@@ -105,7 +105,7 @@ __always_inline static struct bound_path_t* _path_read_append_d_entry(struct pat
  * directory and a dentry to an element in said directory, this helper
  * provides a short way of resolving the full path in one call.
  */
-__always_inline static struct bound_path_t* path_read_append_d_entry(struct path* dir, struct dentry* dentry) {
+__always_inline static struct bound_path_t* path_read_append_d_entry(const struct path* dir, struct dentry* dentry) {
   return _path_read_append_d_entry(dir, dentry, BOUND_PATH_MAIN);
 }
 
@@ -116,6 +116,6 @@ __always_inline static struct bound_path_t* path_read_append_d_entry(struct path
  * so in an alternate buffer. Useful for operations that take more than
  * one path, like path_rename.
  */
-__always_inline static struct bound_path_t* path_read_alt_append_d_entry(struct path* dir, struct dentry* dentry) {
+__always_inline static struct bound_path_t* path_read_alt_append_d_entry(const struct path* dir, struct dentry* dentry) {
   return _path_read_append_d_entry(dir, dentry, BOUND_PATH_ALTERNATE);
 }

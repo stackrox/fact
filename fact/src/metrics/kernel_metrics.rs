@@ -13,6 +13,7 @@ pub struct KernelMetrics {
     path_chmod: EventCounter,
     path_chown: EventCounter,
     path_rename: EventCounter,
+    path_mkdir: EventCounter,
     map: PerCpuArray<MapData, metrics_t>,
 }
 
@@ -43,12 +44,18 @@ impl KernelMetrics {
             "Events processed by the path_rename LSM hook",
             &[], // Labels are not needed since `collect` will add them all
         );
+        let path_mkdir = EventCounter::new(
+            "kernel_path_mkdir_events",
+            "Events processed by the path_mkdir LSM hook",
+            &[], // Labels are not needed since `collect` will add them all
+        );
 
         file_open.register(reg);
         path_unlink.register(reg);
         path_chmod.register(reg);
         path_chown.register(reg);
         path_rename.register(reg);
+        path_mkdir.register(reg);
 
         KernelMetrics {
             file_open,
@@ -56,6 +63,7 @@ impl KernelMetrics {
             path_chmod,
             path_chown,
             path_rename,
+            path_mkdir,
             map: kernel_metrics,
         }
     }
@@ -105,6 +113,7 @@ impl KernelMetrics {
         KernelMetrics::refresh_labels(&self.path_chmod, &metrics.path_chmod);
         KernelMetrics::refresh_labels(&self.path_chown, &metrics.path_chown);
         KernelMetrics::refresh_labels(&self.path_rename, &metrics.path_rename);
+        KernelMetrics::refresh_labels(&self.path_mkdir, &metrics.path_mkdir);
 
         Ok(())
     }

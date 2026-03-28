@@ -140,9 +140,10 @@ __always_inline static long __d_path(const struct path* path, char* buf, int buf
   return buflen - ctx.offset;
 }
 
-__always_inline static long d_path(struct path* path, char* buf, int buflen, bool use_bpf_helper) {
+__always_inline static long d_path(const struct path* path, char* buf, int buflen, bool use_bpf_helper) {
   if (use_bpf_helper) {
-    return bpf_d_path(path, buf, buflen);
+    // bpf_d_path is a kernel helper that doesn't take const, so we must cast here
+    return bpf_d_path((struct path*)path, buf, buflen);
   }
   return __d_path(path, buf, buflen);
 }

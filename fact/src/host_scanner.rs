@@ -200,21 +200,40 @@ impl HostScanner {
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
         let inode = event.get_inode();
         let parent_inode = event.get_parent_inode();
-        if self.get_host_path(Some(inode)).is_some() || parent_inode.empty() {
+
+        debug!("handle_creation_event: file={}, inode={:?}, parent_inode={:?}",
+               event.get_filename().display(), inode, parent_inode);
+
+        if self.get_host_path(Some(inode)).is_some() {
+            debug!("Inode already in map, skipping");
             return Ok(());
         }
 
-        if let Some(filename) = event.get_filename().file_name()
-            && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
-        {
-            let host_path = parent_host_path.join(filename);
-            self.update_entry_with_inode(*inode, host_path)
-                .with_context(|| {
-                    format!(
-                        "Failed to add creation event entry for {}",
-                        filename.display()
-                    )
-                })?;
+        if parent_inode.empty() {
+            debug!("Parent inode is empty, skipping");
+            return Ok(());
+        }
+
+        if let Some(filename) = event.get_filename().file_name() {
+            debug!("Filename component: {}", filename.display());
+
+            if let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) {
+                let host_path = parent_host_path.join(filename);
+                debug!("Constructed host_path: {} (parent: {})",
+                       host_path.display(), parent_host_path.display());
+
+                self.update_entry_with_inode(*inode, host_path)
+                    .with_context(|| {
+                        format!(
+                            "Failed to add creation event entry for {}",
+                            filename.display()
+                        )
+                    })?;
+            } else {
+                debug!("Parent inode {:?} not found in map", parent_inode);
+            }
+        } else {
+            debug!("Could not extract filename component from {}", event.get_filename().display());
         }
 
         Ok(())
