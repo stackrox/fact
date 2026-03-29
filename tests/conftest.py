@@ -182,6 +182,10 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
                 'bind': '/host',
                 'mode': 'ro',
             },
+            '/sys/kernel/tracing': {
+                'bind': '/sys/kernel/tracing',
+                'mode': 'rw',
+            },
             config_file: {
                 'bind': '/etc/stackrox/fact.yml',
                 'mode': 'ro',

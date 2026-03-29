@@ -61,7 +61,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
-  submit_open_event(&m->file_open, event_type, path->path, inode_to_submit, &parent_key);
+  submit_open_event(&m->file_open, event_type, path->path, inode_to_submit, &parent_key, true);
 
   return 0;
 
@@ -229,8 +229,81 @@ error:
   return 0;
 }
 
-SEC("lsm/inode_mkdir")
-int BPF_PROG(trace_inode_mkdir, struct inode* dir, struct dentry* dentry, umode_t mode) {
+// Tracepoint structures for mkdir syscalls
+struct trace_enter_mkdir {
+  unsigned short common_type;
+  unsigned char common_flags;
+  unsigned char common_preempt_count;
+  int common_pid;
+  long syscall_nr;
+  const char* pathname;
+  umode_t mode;
+};
+
+struct trace_enter_mkdirat {
+  unsigned short common_type;
+  unsigned char common_flags;
+  unsigned char common_preempt_count;
+  int common_pid;
+  long syscall_nr;
+  int dfd;
+  const char* pathname;
+  umode_t mode;
+};
+
+struct trace_exit_mkdir {
+  unsigned short common_type;
+  unsigned char common_flags;
+  unsigned char common_preempt_count;
+  int common_pid;
+  long syscall_nr;
+  long ret;
+};
+
+// Map to store pathname from entry to exit
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __uint(max_entries, 1024);
+  __type(key, u64);  // pid_tgid
+  __type(value, char[PATH_MAX]);
+} mkdir_paths SEC(".maps");
+
+SEC("tracepoint/syscalls/sys_enter_mkdir")
+int trace_mkdir_enter(struct trace_enter_mkdir* ctx) {
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+
+  struct helper_t* helper = get_helper();
+  if (helper == NULL) {
+    return 0;
+  }
+
+  long len = bpf_probe_read_user_str(helper->buf, PATH_MAX, ctx->pathname);
+  if (len > 0) {
+    bpf_map_update_elem(&mkdir_paths, &pid_tgid, helper->buf, BPF_ANY);
+  }
+
+  return 0;
+}
+
+SEC("tracepoint/syscalls/sys_enter_mkdirat")
+int trace_mkdirat_enter(struct trace_enter_mkdirat* ctx) {
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+
+  struct helper_t* helper = get_helper();
+  if (helper == NULL) {
+    return 0;
+  }
+
+  long len = bpf_probe_read_user_str(helper->buf, PATH_MAX, ctx->pathname);
+  if (len > 0) {
+    bpf_map_update_elem(&mkdir_paths, &pid_tgid, helper->buf, BPF_ANY);
+  }
+
+  return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_mkdir")
+int trace_mkdir_exit(struct trace_exit_mkdir* ctx) {
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
     return 0;
@@ -238,60 +311,62 @@ int BPF_PROG(trace_inode_mkdir, struct inode* dir, struct dentry* dentry, umode_
 
   m->path_mkdir.total++;
 
-  // Get the new directory's inode (should be populated after creation)
-  inode_key_t inode_key = inode_to_key(dentry->d_inode);
-  bpf_printk("inode_mkdir: inode=%lu dev=%lu", inode_key.inode, inode_key.dev);
-  if (inode_key.inode == 0) {
-    // Inode not yet populated, ignore
-    bpf_printk("inode_mkdir: inode not populated, ignoring");
+  // Check if mkdir succeeded
+  if (ctx->ret < 0) {
     m->path_mkdir.ignored++;
+    goto cleanup;
+  }
+
+  // Retrieve the pathname stored at entry
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  char* stored_path = bpf_map_lookup_elem(&mkdir_paths, &pid_tgid);
+  if (stored_path == NULL) {
+    m->path_mkdir.error++;
     return 0;
   }
 
-  // Get the parent directory's inode
-  inode_key_t parent_key = inode_to_key(dir);
+  // Send event with path. Userspace will stat() to get inode and add to map.
+  // We send empty inodes because we can't easily stat from BPF.
+  inode_key_t empty_inode = {0};
+  inode_key_t empty_parent = {0};
 
-  // Check if parent is monitored
-  const inode_value_t* parent_value = inode_get(&parent_key);
-  if (parent_value == NULL) {
-    // Parent not monitored, ignore this directory
+  submit_open_event(&m->path_mkdir, FILE_ACTIVITY_CREATION, stored_path, &empty_inode, &empty_parent, false);
+
+cleanup:
+  bpf_map_delete_elem(&mkdir_paths, &pid_tgid);
+  return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_mkdirat")
+int trace_mkdirat_exit(struct trace_exit_mkdir* ctx) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_mkdir.total++;
+
+  // Check if mkdirat succeeded
+  if (ctx->ret < 0) {
     m->path_mkdir.ignored++;
-    return 0;
+    goto cleanup;
   }
 
-  // Parent is monitored, so add this new directory to tracking
-  inode_add(&inode_key);
-
-  // Get the directory name from dentry
-  struct bound_path_t* path = get_bound_path(BOUND_PATH_MAIN);
-  if (path == NULL) {
+  // Retrieve the pathname stored at entry
+  u64 pid_tgid = bpf_get_current_pid_tgid();
+  char* stored_path = bpf_map_lookup_elem(&mkdir_paths, &pid_tgid);
+  if (stored_path == NULL) {
     m->path_mkdir.error++;
     return 0;
   }
 
-  struct qstr d_name;
-  BPF_CORE_READ_INTO(&d_name, dentry, d_name);
-  int len = d_name.len;
-  if (len > PATH_MAX - 1) {
-    m->path_mkdir.error++;
-    return 0;
-  }
+  // Send event with path. Userspace will stat() to get inode and add to map.
+  inode_key_t empty_inode = {0};
+  inode_key_t empty_parent = {0};
 
-  if (bpf_probe_read_kernel(path->path, PATH_LEN_CLAMP(len), d_name.name)) {
-    m->path_mkdir.error++;
-    return 0;
-  }
-  path->path[PATH_LEN_CLAMP(len)] = '\0';
+  submit_open_event(&m->path_mkdir, FILE_ACTIVITY_CREATION, stored_path, &empty_inode, &empty_parent, false);
 
-  // Use __submit_event directly with use_bpf_d_path=false because inode hooks
-  // don't support bpf_d_path (it's only allowed in path hooks)
-  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (event == NULL) {
-    m->path_mkdir.ringbuffer_full++;
-    return 0;
-  }
-
-  __submit_event(event, &m->path_mkdir, FILE_ACTIVITY_CREATION, path->path, &inode_key, &parent_key, false);
-
+cleanup:
+  bpf_map_delete_elem(&mkdir_paths, &pid_tgid);
   return 0;
 }

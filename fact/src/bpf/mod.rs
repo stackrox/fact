@@ -4,7 +4,7 @@ use anyhow::{Context, bail};
 use aya::{
     Btf, Ebpf,
     maps::{HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::{Program, lsm::LsmLink},
+    programs::{Program, lsm::LsmLink, trace_point::TracePointLink},
 };
 use checks::Checks;
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -24,6 +24,11 @@ mod checks;
 
 const RINGBUFFER_NAME: &str = "rb";
 
+enum Link {
+    Lsm(LsmLink),
+    TracePoint(TracePointLink),
+}
+
 pub struct Bpf {
     obj: Ebpf,
 
@@ -34,7 +39,7 @@ pub struct Bpf {
 
     paths_globset: GlobSet,
 
-    links: Vec<LsmLink>,
+    links: Vec<Link>,
 }
 
 impl Bpf {
@@ -178,6 +183,7 @@ impl Bpf {
             };
             match prog {
                 Program::Lsm(prog) => prog.load(hook, btf)?,
+                Program::TracePoint(prog) => prog.load()?,
                 u => unimplemented!("{u:?}"),
             }
         }
@@ -190,10 +196,26 @@ impl Bpf {
         self.links = self
             .obj
             .programs_mut()
-            .map(|(_, prog)| match prog {
+            .map(|(name, prog)| match prog {
                 Program::Lsm(prog) => {
                     let link_id = prog.attach()?;
-                    prog.take_link(link_id)
+                    Ok(Link::Lsm(prog.take_link(link_id)?))
+                }
+                Program::TracePoint(prog) => {
+                    // Map function names to tracepoint category/name
+                    // trace_mkdir_enter -> syscalls/sys_enter_mkdir
+                    // trace_mkdirat_enter -> syscalls/sys_enter_mkdirat
+                    // trace_mkdir_exit -> syscalls/sys_exit_mkdir
+                    // trace_mkdirat_exit -> syscalls/sys_exit_mkdirat
+                    let (category, tp_name) = match name {
+                        "trace_mkdir_enter" => ("syscalls", "sys_enter_mkdir"),
+                        "trace_mkdirat_enter" => ("syscalls", "sys_enter_mkdirat"),
+                        "trace_mkdir_exit" => ("syscalls", "sys_exit_mkdir"),
+                        "trace_mkdirat_exit" => ("syscalls", "sys_exit_mkdirat"),
+                        _ => bail!("Unknown tracepoint program: {name}"),
+                    };
+                    let link_id = prog.attach(category, tp_name)?;
+                    Ok(Link::TracePoint(prog.take_link(link_id)?))
                 }
                 u => unimplemented!("{u:?}"),
             })

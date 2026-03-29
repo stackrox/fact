@@ -49,14 +49,15 @@ __always_inline static void submit_open_event(struct metrics_by_hook_t* m,
                                               file_activity_type_t event_type,
                                               const char filename[PATH_MAX],
                                               inode_key_t* inode,
-                                              inode_key_t* parent_inode) {
+                                              inode_key_t* parent_inode,
+                                              bool use_bpf_d_path) {
   struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
   if (event == NULL) {
     m->ringbuffer_full++;
     return;
   }
 
-  __submit_event(event, m, event_type, filename, inode, parent_inode, true);
+  __submit_event(event, m, event_type, filename, inode, parent_inode, use_bpf_d_path);
 }
 
 __always_inline static void submit_unlink_event(struct metrics_by_hook_t* m,
