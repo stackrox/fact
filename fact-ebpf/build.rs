@@ -6,7 +6,23 @@ use std::{
 };
 
 fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
-    let target_arch = format!("-D__TARGET_ARCH_{}", env::var("CARGO_CFG_TARGET_ARCH")?);
+    // Get the target architecture from Cargo
+    let cargo_arch = env::var("CARGO_CFG_TARGET_ARCH")?;
+
+    // Map Cargo's architecture names to what bpf_tracing.h expects for PT_REGS macros:
+    // x86_64 -> x86, aarch64 -> arm64
+    let bpf_arch = match cargo_arch.as_str() {
+        "x86_64" => "x86",
+        "aarch64" => "arm64",
+        other => other,
+    };
+
+    // Define both:
+    // - __TARGET_ARCH_<bpf_arch> for PT_REGS macros (e.g., __TARGET_ARCH_x86)
+    // - __TARGET_ARCH_<cargo_arch> for vmlinux.h selection (e.g., __TARGET_ARCH_x86_64)
+    let target_arch_bpf = format!("-D__TARGET_ARCH_{}", bpf_arch);
+    let target_arch_full = format!("-D__TARGET_ARCH_{}", cargo_arch);
+
     let base_args = [
         "-target",
         "bpf",
@@ -15,7 +31,8 @@ fn compile_bpf(out_dir: &Path) -> anyhow::Result<()> {
         "-c",
         "-Wall",
         "-Werror",
-        &target_arch,
+        &target_arch_bpf,
+        &target_arch_full,
     ];
 
     for name in ["main", "checks"] {

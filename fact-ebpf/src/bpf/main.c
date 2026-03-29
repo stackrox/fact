@@ -1,5 +1,7 @@
 // clang-format off
-#define __TARGET_ARCH_x86
+// Architecture is auto-detected at build time via clang -D__TARGET_ARCH_*
+// Set by fact-ebpf/build.rs from CARGO_CFG_TARGET_ARCH (x86_64 or aarch64)
+// vmlinux.h conditionally includes the correct architecture-specific header
 #include "vmlinux.h"
 
 #include "file.h"
@@ -253,8 +255,8 @@ int trace_vfs_mkdir_entry(struct pt_regs* ctx) {
   // x86_64 calling convention: rdi, rsi, rdx, rcx, r8, r9
   // vfs_mkdir(idmap, dir, dentry, mode)
   //  args:    rdi,   rsi,  rdx,    rcx
-  args.dir = (struct inode*)PT_REGS_PARM2(ctx);     // rsi
-  args.dentry = (struct dentry*)PT_REGS_PARM3(ctx); // rdx
+  args.dir = (struct inode*)PT_REGS_PARM2_CORE(ctx);     // rsi
+  args.dentry = (struct dentry*)PT_REGS_PARM3_CORE(ctx); // rdx
 
   bpf_map_update_elem(&vfs_mkdir_args, &pid_tgid, &args, BPF_ANY);
 
@@ -271,8 +273,8 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
 
   m->path_mkdir.total++;
 
-  // Get return value - PT_REGS_RC returns long, but vfs_mkdir returns int
-  long ret_long = PT_REGS_RC(ctx);
+  // Get return value - PT_REGS_RC_CORE returns long, but vfs_mkdir returns int
+  long ret_long = PT_REGS_RC_CORE(ctx);
   int ret = (int)ret_long;
 
   bpf_printk("vfs_mkdir kretprobe: ret_long=%ld ret_int=%d", ret_long, ret);
