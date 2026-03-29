@@ -1,4 +1,5 @@
 // clang-format off
+#define __TARGET_ARCH_x86
 #include "vmlinux.h"
 
 #include "file.h"
@@ -229,81 +230,40 @@ error:
   return 0;
 }
 
-// Tracepoint structures for mkdir syscalls
-struct trace_enter_mkdir {
-  unsigned short common_type;
-  unsigned char common_flags;
-  unsigned char common_preempt_count;
-  int common_pid;
-  long syscall_nr;
-  const char* pathname;
-  umode_t mode;
+// Map to store vfs_mkdir parameters from entry to exit
+struct vfs_mkdir_args_t {
+  struct inode* dir;
+  struct dentry* dentry;
 };
 
-struct trace_enter_mkdirat {
-  unsigned short common_type;
-  unsigned char common_flags;
-  unsigned char common_preempt_count;
-  int common_pid;
-  long syscall_nr;
-  int dfd;
-  const char* pathname;
-  umode_t mode;
-};
-
-struct trace_exit_mkdir {
-  unsigned short common_type;
-  unsigned char common_flags;
-  unsigned char common_preempt_count;
-  int common_pid;
-  long syscall_nr;
-  long ret;
-};
-
-// Map to store pathname from entry to exit
 struct {
   __uint(type, BPF_MAP_TYPE_HASH);
   __uint(max_entries, 1024);
   __type(key, u64);  // pid_tgid
-  __type(value, char[PATH_MAX]);
-} mkdir_paths SEC(".maps");
+  __type(value, struct vfs_mkdir_args_t);
+} vfs_mkdir_args SEC(".maps");
 
-SEC("tracepoint/syscalls/sys_enter_mkdir")
-int trace_mkdir_enter(struct trace_enter_mkdir* ctx) {
+// Capture parameters at function entry
+SEC("kprobe/vfs_mkdir")
+int trace_vfs_mkdir_entry(struct pt_regs* ctx) {
   u64 pid_tgid = bpf_get_current_pid_tgid();
 
-  struct helper_t* helper = get_helper();
-  if (helper == NULL) {
-    return 0;
-  }
+  struct vfs_mkdir_args_t args = {0};
 
-  long len = bpf_probe_read_user_str(helper->buf, PATH_MAX, ctx->pathname);
-  if (len > 0) {
-    bpf_map_update_elem(&mkdir_paths, &pid_tgid, helper->buf, BPF_ANY);
-  }
+  // x86_64 calling convention: rdi, rsi, rdx, rcx, r8, r9
+  // vfs_mkdir(idmap, dir, dentry, mode)
+  //  args:    rdi,   rsi,  rdx,    rcx
+  args.dir = (struct inode*)PT_REGS_PARM2(ctx);     // rsi
+  args.dentry = (struct dentry*)PT_REGS_PARM3(ctx); // rdx
+
+  bpf_map_update_elem(&vfs_mkdir_args, &pid_tgid, &args, BPF_ANY);
 
   return 0;
 }
 
-SEC("tracepoint/syscalls/sys_enter_mkdirat")
-int trace_mkdirat_enter(struct trace_enter_mkdirat* ctx) {
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-
-  struct helper_t* helper = get_helper();
-  if (helper == NULL) {
-    return 0;
-  }
-
-  long len = bpf_probe_read_user_str(helper->buf, PATH_MAX, ctx->pathname);
-  if (len > 0) {
-    bpf_map_update_elem(&mkdir_paths, &pid_tgid, helper->buf, BPF_ANY);
-  }
-
-  return 0;
-}
-
-SEC("tracepoint/syscalls/sys_exit_mkdir")
-int trace_mkdir_exit(struct trace_exit_mkdir* ctx) {
+// Process at function exit with return value
+SEC("kretprobe/vfs_mkdir")
+int trace_vfs_mkdir(struct pt_regs* ctx) {
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
     return 0;
@@ -311,62 +271,94 @@ int trace_mkdir_exit(struct trace_exit_mkdir* ctx) {
 
   m->path_mkdir.total++;
 
-  // Check if mkdir succeeded
-  if (ctx->ret < 0) {
-    m->path_mkdir.ignored++;
-    goto cleanup;
-  }
+  // Get return value - PT_REGS_RC returns long, but vfs_mkdir returns int
+  long ret_long = PT_REGS_RC(ctx);
+  int ret = (int)ret_long;
 
-  // Retrieve the pathname stored at entry
+  bpf_printk("vfs_mkdir kretprobe: ret_long=%ld ret_int=%d", ret_long, ret);
+
+  // TEMPORARY: Skip return value check to debug path reading
+  // if (ret != 0) {
+  //   bpf_printk("vfs_mkdir failed with ret=%d, ignoring", ret);
+  //   m->path_mkdir.ignored++;
+  //   goto cleanup;
+  // }
+
+  // Retrieve stored parameters
   u64 pid_tgid = bpf_get_current_pid_tgid();
-  char* stored_path = bpf_map_lookup_elem(&mkdir_paths, &pid_tgid);
-  if (stored_path == NULL) {
+  struct vfs_mkdir_args_t* args = bpf_map_lookup_elem(&vfs_mkdir_args, &pid_tgid);
+  if (args == NULL) {
+    bpf_printk("vfs_mkdir: no args in map for pid_tgid=%llu", pid_tgid);
     m->path_mkdir.error++;
     return 0;
   }
 
-  // Send event with path. Userspace will stat() to get inode and add to map.
-  // We send empty inodes because we can't easily stat from BPF.
-  inode_key_t empty_inode = {0};
-  inode_key_t empty_parent = {0};
+  struct inode* dir = args->dir;
+  struct dentry* dentry = args->dentry;
 
-  submit_open_event(&m->path_mkdir, FILE_ACTIVITY_CREATION, stored_path, &empty_inode, &empty_parent, false);
+  bpf_printk("vfs_mkdir: retrieved args: dir=%p dentry=%p", dir, dentry);
 
-cleanup:
-  bpf_map_delete_elem(&mkdir_paths, &pid_tgid);
-  return 0;
-}
+  // Get parent inode (dir parameter)
+  inode_key_t parent_key = inode_to_key(dir);
 
-SEC("tracepoint/syscalls/sys_exit_mkdirat")
-int trace_mkdirat_exit(struct trace_exit_mkdir* ctx) {
-  struct metrics_t* m = get_metrics();
-  if (m == NULL) {
-    return 0;
-  }
+  // Get child inode from the created dentry
+  struct inode* child_inode;
+  bpf_probe_read_kernel(&child_inode, sizeof(child_inode), &dentry->d_inode);
+  inode_key_t child_key = inode_to_key(child_inode);
 
-  m->path_mkdir.total++;
+  bpf_printk("vfs_mkdir: parent_inode=(%llu,%llu) child_inode=(%llu,%llu)",
+             parent_key.dev, parent_key.inode, child_key.dev, child_key.inode);
 
-  // Check if mkdirat succeeded
-  if (ctx->ret < 0) {
+  // For kprobes, we can't use d_path/bpf_d_path since we don't have proper mount context.
+  // Instead, check if the parent is monitored by looking it up in the inode map.
+  // If the parent is monitored, we'll add the child and submit the event.
+
+  inode_value_t* parent_value = bpf_map_lookup_elem(&inode_map, &parent_key);
+  if (parent_value == NULL) {
+    bpf_printk("vfs_mkdir: parent inode not in map, not monitored");
     m->path_mkdir.ignored++;
     goto cleanup;
   }
 
-  // Retrieve the pathname stored at entry
-  u64 pid_tgid = bpf_get_current_pid_tgid();
-  char* stored_path = bpf_map_lookup_elem(&mkdir_paths, &pid_tgid);
-  if (stored_path == NULL) {
+  bpf_printk("vfs_mkdir: parent is monitored, adding child");
+
+  // Add the child directory to the inode map
+  inode_add(&child_key);
+
+  // For the event, construct a minimal path with just the directory name
+  // Userspace will use the parent inode to construct the full host_path
+  struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
+  if (bound_path == NULL) {
+    bpf_printk("Failed to get bound_path buffer");
     m->path_mkdir.error++;
-    return 0;
+    goto cleanup;
   }
 
-  // Send event with path. Userspace will stat() to get inode and add to map.
-  inode_key_t empty_inode = {0};
-  inode_key_t empty_parent = {0};
+  // Start with "/"
+  bound_path->path[0] = '/';
+  bound_path->len = 1;
 
-  submit_open_event(&m->path_mkdir, FILE_ACTIVITY_CREATION, stored_path, &empty_inode, &empty_parent, false);
+  switch (path_append_dentry(bound_path, dentry)) {
+    case PATH_APPEND_SUCCESS:
+      break;
+    case PATH_APPEND_INVALID_LENGTH:
+      bpf_printk("Invalid path length: %u", bound_path->len);
+      m->path_mkdir.error++;
+      goto cleanup;
+    case PATH_APPEND_READ_ERROR:
+      bpf_printk("Failed to read dentry name");
+      m->path_mkdir.error++;
+      goto cleanup;
+  }
+
+  bpf_printk("vfs_mkdir: dir_name=%s (len=%u)", bound_path->path, bound_path->len);
+
+  // Submit event with just the directory name
+  // Userspace handle_creation_event will use the parent inode to construct the full host_path
+  submit_open_event(&m->path_mkdir, FILE_ACTIVITY_CREATION, bound_path->path,
+                    &child_key, &parent_key, false);
 
 cleanup:
-  bpf_map_delete_elem(&mkdir_paths, &pid_tgid);
+  bpf_map_delete_elem(&vfs_mkdir_args, &pid_tgid);
   return 0;
 }

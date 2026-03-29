@@ -220,6 +220,21 @@ impl Event {
         }
     }
 
+    /// Set the `filename` field of the event to the one provided.
+    ///
+    /// In the case of operations that involve two paths, like rename,
+    /// the 'new' filename will be set.
+    pub fn set_filename(&mut self, filename: PathBuf) {
+        match &mut self.file {
+            FileData::Open(data) => data.filename = filename,
+            FileData::Creation(data) => data.filename = filename,
+            FileData::Unlink(data) => data.filename = filename,
+            FileData::Chmod(data) => data.inner.filename = filename,
+            FileData::Chown(data) => data.inner.filename = filename,
+            FileData::Rename(data) => data.new.filename = filename,
+        }
+    }
+
     /// Determine if the event should be ignored.
     ///
     /// With wildcards, the kernel can only match on the inode and

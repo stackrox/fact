@@ -4,7 +4,7 @@ use anyhow::{Context, bail};
 use aya::{
     Btf, Ebpf,
     maps::{HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::{Program, lsm::LsmLink, trace_point::TracePointLink},
+    programs::{Program, lsm::LsmLink, trace_point::TracePointLink, fexit::FExitLink, kprobe::KProbeLink},
 };
 use checks::Checks;
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -27,6 +27,8 @@ const RINGBUFFER_NAME: &str = "rb";
 enum Link {
     Lsm(LsmLink),
     TracePoint(TracePointLink),
+    FExit(FExitLink),
+    KProbe(KProbeLink),
 }
 
 pub struct Bpf {
@@ -184,6 +186,8 @@ impl Bpf {
             match prog {
                 Program::Lsm(prog) => prog.load(hook, btf)?,
                 Program::TracePoint(prog) => prog.load()?,
+                Program::FExit(prog) => prog.load(hook, btf)?,
+                Program::KProbe(prog) => prog.load()?,
                 u => unimplemented!("{u:?}"),
             }
         }
@@ -203,10 +207,6 @@ impl Bpf {
                 }
                 Program::TracePoint(prog) => {
                     // Map function names to tracepoint category/name
-                    // trace_mkdir_enter -> syscalls/sys_enter_mkdir
-                    // trace_mkdirat_enter -> syscalls/sys_enter_mkdirat
-                    // trace_mkdir_exit -> syscalls/sys_exit_mkdir
-                    // trace_mkdirat_exit -> syscalls/sys_exit_mkdirat
                     let (category, tp_name) = match name {
                         "trace_mkdir_enter" => ("syscalls", "sys_enter_mkdir"),
                         "trace_mkdirat_enter" => ("syscalls", "sys_enter_mkdirat"),
@@ -216,6 +216,25 @@ impl Bpf {
                     };
                     let link_id = prog.attach(category, tp_name)?;
                     Ok(Link::TracePoint(prog.take_link(link_id)?))
+                }
+                Program::FExit(prog) => {
+                    let link_id = prog.attach()?;
+                    Ok(Link::FExit(prog.take_link(link_id)?))
+                }
+                Program::KProbe(prog) => {
+                    // Extract function name from program name
+                    // trace_vfs_mkdir_entry -> vfs_mkdir
+                    // trace_vfs_mkdir -> vfs_mkdir (kretprobe)
+                    let func_name = if name.ends_with("_entry") {
+                        name.strip_suffix("_entry")
+                            .and_then(|s| s.strip_prefix("trace_"))
+                            .unwrap_or(name)
+                    } else {
+                        name.strip_prefix("trace_").unwrap_or(name)
+                    };
+
+                    let link_id = prog.attach(func_name, 0)?;
+                    Ok(Link::KProbe(prog.take_link(link_id)?))
                 }
                 u => unimplemented!("{u:?}"),
             })

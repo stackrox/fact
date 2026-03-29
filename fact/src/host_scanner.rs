@@ -197,14 +197,15 @@ impl HostScanner {
     /// We use the parent inode provided by the eBPF code
     /// to look up the parent directory's host path, then construct the full
     /// path by appending the new file's name.
-    fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
-        let inode = event.get_inode();
-        let parent_inode = event.get_parent_inode();
+    fn handle_creation_event(&self, event: &mut Event) -> anyhow::Result<()> {
+        // Copy inode values to avoid borrow checker issues
+        let inode = *event.get_inode();
+        let parent_inode = *event.get_parent_inode();
 
         debug!("handle_creation_event: file={}, inode={:?}, parent_inode={:?}",
                event.get_filename().display(), inode, parent_inode);
 
-        if self.get_host_path(Some(inode)).is_some() {
+        if self.get_host_path(Some(&inode)).is_some() {
             debug!("Inode already in map, skipping");
             return Ok(());
         }
@@ -215,18 +216,23 @@ impl HostScanner {
         }
 
         if let Some(filename) = event.get_filename().file_name() {
-            debug!("Filename component: {}", filename.display());
+            // Clone filename to avoid holding a reference to event
+            let filename = filename.to_os_string();
+            debug!("Filename component: {}", filename.to_string_lossy());
 
-            if let Some(parent_host_path) = self.get_host_path(Some(parent_inode)) {
-                let host_path = parent_host_path.join(filename);
+            if let Some(parent_host_path) = self.get_host_path(Some(&parent_inode)) {
+                let host_path = parent_host_path.join(&filename);
                 debug!("Constructed host_path: {} (parent: {})",
                        host_path.display(), parent_host_path.display());
 
-                self.update_entry_with_inode(*inode, host_path)
+                // Update the event's filename to the full path when it was constructed from parent
+                event.set_filename(host_path.clone());
+
+                self.update_entry_with_inode(inode, host_path)
                     .with_context(|| {
                         format!(
                             "Failed to add creation event entry for {}",
-                            filename.display()
+                            filename.to_string_lossy()
                         )
                     })?;
             } else {
@@ -282,7 +288,7 @@ impl HostScanner {
 
                         // Handle file creation events by adding new inodes to the map
                         if event.is_creation() &&
-                            let Err(e) = self.handle_creation_event(&event) {
+                            let Err(e) = self.handle_creation_event(&mut event) {
                                 warn!("Failed to handle creation event: {e}");
                             }
 
