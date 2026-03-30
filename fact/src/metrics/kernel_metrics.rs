@@ -46,7 +46,7 @@ impl KernelMetrics {
         );
         let path_mkdir = EventCounter::new(
             "kernel_path_mkdir_events",
-            "Events processed by the path_mkdir LSM hook",
+            "Events processed by the vfs_mkdir kprobe hook",
             &[], // Labels are not needed since `collect` will add them all
         );
 

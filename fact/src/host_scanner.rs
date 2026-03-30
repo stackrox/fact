@@ -198,32 +198,22 @@ impl HostScanner {
     /// to look up the parent directory's host path, then construct the full
     /// path by appending the new file's name.
     fn handle_creation_event(&self, event: &mut Event) -> anyhow::Result<()> {
-        // Copy inode values to avoid borrow checker issues
         let inode = *event.get_inode();
         let parent_inode = *event.get_parent_inode();
 
-        debug!("handle_creation_event: file={}, inode={:?}, parent_inode={:?}",
-               event.get_filename().display(), inode, parent_inode);
-
         if self.get_host_path(Some(&inode)).is_some() {
-            debug!("Inode already in map, skipping");
             return Ok(());
         }
 
         if parent_inode.empty() {
-            debug!("Parent inode is empty, skipping");
             return Ok(());
         }
 
         if let Some(filename) = event.get_filename().file_name() {
-            // Clone filename to avoid holding a reference to event
             let filename = filename.to_os_string();
-            debug!("Filename component: {}", filename.to_string_lossy());
 
             if let Some(parent_host_path) = self.get_host_path(Some(&parent_inode)) {
                 let host_path = parent_host_path.join(&filename);
-                debug!("Constructed host_path: {} (parent: {})",
-                       host_path.display(), parent_host_path.display());
 
                 // Update the event's filename to the full path when it was constructed from parent
                 event.set_filename(host_path.clone());
@@ -235,11 +225,7 @@ impl HostScanner {
                             filename.to_string_lossy()
                         )
                     })?;
-            } else {
-                debug!("Parent inode {:?} not found in map", parent_inode);
             }
-        } else {
-            debug!("Could not extract filename component from {}", event.get_filename().display());
         }
 
         Ok(())
