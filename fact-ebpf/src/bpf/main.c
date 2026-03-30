@@ -293,8 +293,7 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
   inode_key_t parent_key = inode_to_key(dir);
 
   // Get child inode from the created dentry
-  struct inode* child_inode;
-  bpf_probe_read_kernel(&child_inode, sizeof(child_inode), &dentry->d_inode);
+  struct inode* child_inode = BPF_CORE_READ(dentry, d_inode);
   inode_key_t child_key = inode_to_key(child_inode);
 
   // Construct path with just the directory name
