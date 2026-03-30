@@ -220,9 +220,8 @@ impl HostScanner {
         Ok(())
     }
 
-    /// Special handling for unlink events.
+    /// Handle unlink events by removing the inode from the inode->path map.
     ///
-    /// This method removes the inode from the userland inode->path map.
     /// The probe already cleared the kernel inode map.
     fn handle_unlink_event(&self, event: &Event) {
         let inode = event.get_inode();
@@ -289,7 +288,7 @@ impl HostScanner {
                             event.set_old_host_path(host_path);
                         }
 
-                        // Special handling for unlink events
+                        // Remove inode from the map
                         if event.is_unlink() {
                             self.handle_unlink_event(&event);
                         }
