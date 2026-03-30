@@ -218,12 +218,13 @@ impl HostScanner {
         let host_path = parent_host_path.join(&filename);
         event.set_filename(host_path.clone());
 
-        self.update_entry_with_inode(inode, host_path).with_context(|| {
-            format!(
-                "Failed to add creation event entry for {}",
-                filename.to_string_lossy()
-            )
-        })
+        self.update_entry_with_inode(inode, host_path)
+            .with_context(|| {
+                format!(
+                    "Failed to add creation event entry for {}",
+                    filename.to_string_lossy()
+                )
+            })
     }
 
     /// Periodically notify the host scanner main task that a scan needs
