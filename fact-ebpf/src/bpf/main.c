@@ -308,17 +308,9 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
   bound_path->path[0] = '/';
   bound_path->len = 1;
 
-  switch (path_append_dentry(bound_path, dentry)) {
-    case PATH_APPEND_SUCCESS:
-      break;
-    case PATH_APPEND_INVALID_LENGTH:
-      bpf_printk("Invalid path length: %u", bound_path->len);
-      m->path_mkdir.error++;
-      goto cleanup;
-    case PATH_APPEND_READ_ERROR:
-      bpf_printk("Failed to read dentry name");
-      m->path_mkdir.error++;
-      goto cleanup;
+  if (path_append_dentry(bound_path, dentry) != PATH_APPEND_SUCCESS) {
+    m->path_mkdir.error++;
+    goto cleanup;
   }
 
   // Check if parent is monitored using the standard is_monitored() function
