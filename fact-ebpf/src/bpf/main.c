@@ -297,16 +297,6 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
   bpf_probe_read_kernel(&child_inode, sizeof(child_inode), &dentry->d_inode);
   inode_key_t child_key = inode_to_key(child_inode);
 
-  // Check if the parent is monitored by looking it up in the inode map
-  inode_value_t* parent_value = bpf_map_lookup_elem(&inode_map, &parent_key);
-  if (parent_value == NULL) {
-    m->path_mkdir.ignored++;
-    goto cleanup;
-  }
-
-  // Add the child directory to the inode map
-  inode_add(&child_key);
-
   // Construct path with just the directory name
   // Userspace will use the parent inode to construct the full host_path
   struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
@@ -332,7 +322,21 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
       goto cleanup;
   }
 
-  submit_mkdir_event(&m->path_mkdir, bound_path->path, &child_key, &parent_key);
+  // Check if parent is monitored using the standard is_monitored() function
+  inode_key_t* child_to_submit = &child_key;
+  inode_monitored_t status = is_monitored(child_key, bound_path, &parent_key, &child_to_submit);
+
+  if (status == PARENT_MONITORED) {
+    // Parent is monitored, add the new child directory to tracking
+    inode_add(&child_key);
+  }
+
+  if (status == NOT_MONITORED) {
+    m->path_mkdir.ignored++;
+    goto cleanup;
+  }
+
+  submit_mkdir_event(&m->path_mkdir, bound_path->path, child_to_submit, &parent_key);
 
 cleanup:
   bpf_map_delete_elem(&vfs_mkdir_args, &pid_tgid);
