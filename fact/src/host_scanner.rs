@@ -201,34 +201,29 @@ impl HostScanner {
         let inode = *event.get_inode();
         let parent_inode = *event.get_parent_inode();
 
-        if self.get_host_path(Some(&inode)).is_some() {
+        if self.get_host_path(Some(&inode)).is_some() || parent_inode.empty() {
             return Ok(());
         }
 
-        if parent_inode.empty() {
+        let Some(filename) = event.get_filename().file_name() else {
             return Ok(());
-        }
+        };
+        let filename = filename.to_os_string();
 
-        if let Some(filename) = event.get_filename().file_name() {
-            let filename = filename.to_os_string();
+        let Some(parent_host_path) = self.get_host_path(Some(&parent_inode)) else {
+            return Ok(());
+        };
 
-            if let Some(parent_host_path) = self.get_host_path(Some(&parent_inode)) {
-                let host_path = parent_host_path.join(&filename);
+        // Construct full path and update tracking
+        let host_path = parent_host_path.join(&filename);
+        event.set_filename(host_path.clone());
 
-                // Update the event's filename to the full path when it was constructed from parent
-                event.set_filename(host_path.clone());
-
-                self.update_entry_with_inode(inode, host_path)
-                    .with_context(|| {
-                        format!(
-                            "Failed to add creation event entry for {}",
-                            filename.to_string_lossy()
-                        )
-                    })?;
-            }
-        }
-
-        Ok(())
+        self.update_entry_with_inode(inode, host_path).with_context(|| {
+            format!(
+                "Failed to add creation event entry for {}",
+                filename.to_string_lossy()
+            )
+        })
     }
 
     /// Periodically notify the host scanner main task that a scan needs
