@@ -313,12 +313,10 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
     goto cleanup;
   }
 
-  // Check if parent is monitored using the standard is_monitored() function
   inode_key_t* child_to_submit = &child_key;
   inode_monitored_t status = is_monitored(child_key, bound_path, &parent_key, &child_to_submit);
 
   if (status == PARENT_MONITORED) {
-    // Parent is monitored, add the new child directory to tracking
     inode_add(&child_key);
   }
 
