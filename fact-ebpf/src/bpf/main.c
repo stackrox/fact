@@ -249,14 +249,11 @@ struct {
 SEC("kprobe/vfs_mkdir")
 int trace_vfs_mkdir_entry(struct pt_regs* ctx) {
   u64 pid_tgid = bpf_get_current_pid_tgid();
-
   struct vfs_mkdir_args_t args = {0};
 
-  // x86_64 calling convention: rdi, rsi, rdx, rcx, r8, r9
-  // vfs_mkdir(idmap, dir, dentry, mode)
-  //  args:    rdi,   rsi,  rdx,    rcx
-  args.dir = (struct inode*)PT_REGS_PARM2_CORE(ctx);     // rsi
-  args.dentry = (struct dentry*)PT_REGS_PARM3_CORE(ctx); // rdx
+  // vfs_mkdir(mnt_idmap, dir, dentry, mode)
+  args.dir = (struct inode*)PT_REGS_PARM2_CORE(ctx);
+  args.dentry = (struct dentry*)PT_REGS_PARM3_CORE(ctx);
 
   bpf_map_update_elem(&vfs_mkdir_args, &pid_tgid, &args, BPF_ANY);
 
@@ -273,32 +270,16 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
 
   m->path_mkdir.total++;
 
-  // Get return value - PT_REGS_RC_CORE returns long, but vfs_mkdir returns int
-  long ret_long = PT_REGS_RC_CORE(ctx);
-  int ret = (int)ret_long;
-
-  bpf_printk("vfs_mkdir kretprobe: ret_long=%ld ret_int=%d", ret_long, ret);
-
-  // TEMPORARY: Skip return value check to debug path reading
-  // if (ret != 0) {
-  //   bpf_printk("vfs_mkdir failed with ret=%d, ignoring", ret);
-  //   m->path_mkdir.ignored++;
-  //   goto cleanup;
-  // }
-
   // Retrieve stored parameters
   u64 pid_tgid = bpf_get_current_pid_tgid();
   struct vfs_mkdir_args_t* args = bpf_map_lookup_elem(&vfs_mkdir_args, &pid_tgid);
   if (args == NULL) {
-    bpf_printk("vfs_mkdir: no args in map for pid_tgid=%llu", pid_tgid);
     m->path_mkdir.error++;
     return 0;
   }
 
   struct inode* dir = args->dir;
   struct dentry* dentry = args->dentry;
-
-  bpf_printk("vfs_mkdir: retrieved args: dir=%p dentry=%p", dir, dentry);
 
   // Get parent inode (dir parameter)
   inode_key_t parent_key = inode_to_key(dir);
@@ -308,26 +289,17 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
   bpf_probe_read_kernel(&child_inode, sizeof(child_inode), &dentry->d_inode);
   inode_key_t child_key = inode_to_key(child_inode);
 
-  bpf_printk("vfs_mkdir: parent_inode=(%llu,%llu) child_inode=(%llu,%llu)",
-             parent_key.dev, parent_key.inode, child_key.dev, child_key.inode);
-
-  // For kprobes, we can't use d_path/bpf_d_path since we don't have proper mount context.
-  // Instead, check if the parent is monitored by looking it up in the inode map.
-  // If the parent is monitored, we'll add the child and submit the event.
-
+  // Check if the parent is monitored by looking it up in the inode map
   inode_value_t* parent_value = bpf_map_lookup_elem(&inode_map, &parent_key);
   if (parent_value == NULL) {
-    bpf_printk("vfs_mkdir: parent inode not in map, not monitored");
     m->path_mkdir.ignored++;
     goto cleanup;
   }
 
-  bpf_printk("vfs_mkdir: parent is monitored, adding child");
-
   // Add the child directory to the inode map
   inode_add(&child_key);
 
-  // For the event, construct a minimal path with just the directory name
+  // Construct path with just the directory name
   // Userspace will use the parent inode to construct the full host_path
   struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
   if (bound_path == NULL) {
@@ -336,7 +308,6 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
     goto cleanup;
   }
 
-  // Start with "/"
   bound_path->path[0] = '/';
   bound_path->len = 1;
 
@@ -353,10 +324,6 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
       goto cleanup;
   }
 
-  bpf_printk("vfs_mkdir: dir_name=%s (len=%u)", bound_path->path, bound_path->len);
-
-  // Submit mkdir event with just the directory name
-  // Userspace handle_creation_event will use the parent inode to construct the full host_path
   submit_mkdir_event(&m->path_mkdir, bound_path->path, &child_key, &parent_key);
 
 cleanup:
