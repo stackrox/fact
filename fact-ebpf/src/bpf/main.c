@@ -1,7 +1,4 @@
 // clang-format off
-// Architecture is auto-detected at build time via clang -D__TARGET_ARCH_*
-// Set by fact-ebpf/build.rs from CARGO_CFG_TARGET_ARCH (x86_64 or aarch64)
-// vmlinux.h conditionally includes the correct architecture-specific header
 #include "vmlinux.h"
 
 #include "file.h"
