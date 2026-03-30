@@ -229,6 +229,8 @@ impl HostScanner {
         if self.inode_map.borrow_mut().remove(inode).is_some() {
             self.metrics.scan_inc(ScanLabels::InodeRemoved);
         }
+
+        self.metrics.scan_inc(ScanLabels::FileRemoved);
     }
 
     /// Periodically notify the host scanner main task that a scan needs
