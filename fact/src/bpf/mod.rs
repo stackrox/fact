@@ -4,7 +4,7 @@ use anyhow::{Context, bail};
 use aya::{
     Btf, Ebpf,
     maps::{HashMap, LpmTrie, MapData, PerCpuArray, RingBuf},
-    programs::{Program, lsm::LsmLink, kprobe::KProbeLink},
+    programs::{Program, kprobe::KProbeLink, lsm::LsmLink},
 };
 use checks::Checks;
 use globset::{Glob, GlobSet, GlobSetBuilder};
@@ -202,7 +202,9 @@ impl Bpf {
                 match prog {
                     Program::Lsm(prog) => {
                         let link_id = prog.attach()?;
-                        Ok(Link::Lsm { _link: prog.take_link(link_id)? })
+                        Ok(Link::Lsm {
+                            _link: prog.take_link(link_id)?,
+                        })
                     }
                     Program::KProbe(prog) => {
                         // Extract function name from program name
@@ -217,7 +219,9 @@ impl Bpf {
                         };
 
                         let link_id = prog.attach(func_name, 0)?;
-                        Ok(Link::KProbe { _link: prog.take_link(link_id)? })
+                        Ok(Link::KProbe {
+                            _link: prog.take_link(link_id)?,
+                        })
                     }
                     u => unimplemented!("{u:?}"),
                 }

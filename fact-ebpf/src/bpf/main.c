@@ -230,6 +230,14 @@ error:
 }
 
 // Map to store vfs_mkdir parameters from entry to exit
+// Map to store vfs_mkdir parameters from entry to exit
+// Key: pid_tgid from bpf_get_current_pid_tgid() to handle concurrent calls
+//
+// Limitation: This assumes vfs_mkdir doesn't recurse (same thread calling
+// vfs_mkdir before a previous call returns). If recursion occurs, nested
+// calls would overwrite each other's parameters. In practice, vfs_mkdir at
+// the VFS layer rarely recurses, making this acceptable for monitoring
+// typical container/host filesystem operations.
 struct vfs_mkdir_args_t {
   struct inode* dir;
   struct dentry* dentry;
@@ -243,6 +251,9 @@ struct {
 } vfs_mkdir_args SEC(".maps");
 
 // Capture parameters at function entry
+// We store dir and dentry in a map because they're in registers at entry
+// but won't be accessible at exit (kretprobe). The pid_tgid key ensures
+// each thread gets its own entry, allowing concurrent mkdir operations.
 SEC("kprobe/vfs_mkdir")
 int trace_vfs_mkdir_entry(struct pt_regs* ctx) {
   u64 pid_tgid = bpf_get_current_pid_tgid();
