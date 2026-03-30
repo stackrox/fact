@@ -24,9 +24,11 @@ mod checks;
 
 const RINGBUFFER_NAME: &str = "rb";
 
+// Links are stored to keep BPF programs attached - they auto-detach on drop.
+// Fields are prefixed with _ to indicate they're kept for Drop behavior, not direct access.
 enum Link {
-    Lsm(LsmLink),
-    KProbe(KProbeLink),
+    Lsm { _link: LsmLink },
+    KProbe { _link: KProbeLink },
 }
 
 pub struct Bpf {
@@ -200,7 +202,7 @@ impl Bpf {
                 match prog {
                     Program::Lsm(prog) => {
                         let link_id = prog.attach()?;
-                        Ok(Link::Lsm(prog.take_link(link_id)?))
+                        Ok(Link::Lsm { _link: prog.take_link(link_id)? })
                     }
                     Program::KProbe(prog) => {
                         // Extract function name from program name
@@ -215,7 +217,7 @@ impl Bpf {
                         };
 
                         let link_id = prog.attach(func_name, 0)?;
-                        Ok(Link::KProbe(prog.take_link(link_id)?))
+                        Ok(Link::KProbe { _link: prog.take_link(link_id)? })
                     }
                     u => unimplemented!("{u:?}"),
                 }
