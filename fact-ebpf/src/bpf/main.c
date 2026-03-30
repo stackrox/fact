@@ -355,10 +355,9 @@ int trace_vfs_mkdir(struct pt_regs* ctx) {
 
   bpf_printk("vfs_mkdir: dir_name=%s (len=%u)", bound_path->path, bound_path->len);
 
-  // Submit event with just the directory name
+  // Submit mkdir event with just the directory name
   // Userspace handle_creation_event will use the parent inode to construct the full host_path
-  submit_open_event(&m->path_mkdir, FILE_ACTIVITY_CREATION, bound_path->path,
-                    &child_key, &parent_key, false);
+  submit_mkdir_event(&m->path_mkdir, bound_path->path, &child_key, &parent_key);
 
 cleanup:
   bpf_map_delete_elem(&vfs_mkdir_args, &pid_tgid);
