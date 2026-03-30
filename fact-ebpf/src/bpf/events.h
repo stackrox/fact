@@ -60,6 +60,21 @@ __always_inline static void submit_open_event(struct metrics_by_hook_t* m,
   __submit_event(event, m, event_type, filename, inode, parent_inode, use_bpf_d_path);
 }
 
+__always_inline static void submit_mkdir_event(struct metrics_by_hook_t* m,
+                                               const char dirname[PATH_MAX],
+                                               inode_key_t* inode,
+                                               inode_key_t* parent_inode) {
+  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (event == NULL) {
+    m->ringbuffer_full++;
+    return;
+  }
+
+  // mkdir events from kprobes can't use bpf_d_path (no vfsmount context)
+  // and only send the directory name (userspace constructs full path from parent inode)
+  __submit_event(event, m, FILE_ACTIVITY_CREATION, dirname, inode, parent_inode, false);
+}
+
 __always_inline static void submit_unlink_event(struct metrics_by_hook_t* m,
                                                 const char filename[PATH_MAX],
                                                 inode_key_t* inode,
