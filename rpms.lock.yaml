@@ -172,20 +172,20 @@ arches:
     name: protobuf-compiler
     evr: 3.5.0-17.el8_10
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-3.12.12-3.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-3.12.12-4.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 31484
-    checksum: sha256:15a8c928360511b7207b08b030b31e47634730b9cd31855d5fef84d447c2c82c
+    size: 31600
+    checksum: sha256:30519b03200e75afc05d21ed53799f23c16fb7f55e2af77d445fd306c8872fcc
     name: python3.12
-    evr: 3.12.12-3.el8_10
-    sourcerpm: python3.12-3.12.12-3.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-libs-3.12.12-3.el8_10.aarch64.rpm
+    evr: 3.12.12-4.el8_10
+    sourcerpm: python3.12-3.12.12-4.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-libs-3.12.12-4.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 10270612
-    checksum: sha256:ce776ead5e9333a95850b978f20f07435b56fac652704a1beb2807640cb03d1d
+    size: 10270120
+    checksum: sha256:8eda9d7c272c72bb23db4d59529548f58a7b6b12b8927c9abed4fb310fc2e409
     name: python3.12-libs
-    evr: 3.12.12-3.el8_10
-    sourcerpm: python3.12-3.12.12-3.el8_10.src.rpm
+    evr: 3.12.12-4.el8_10
+    sourcerpm: python3.12-3.12.12-4.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-pip-wheel-23.2.1-4.el8.noarch.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 1539820
@@ -1637,10 +1637,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/d27b8bc9db0a3ff39d9177bab814aa2aca7469a27ec169c869a95a57fef6cc7b-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/14f84e9776d5e4156e4acc2462c70bb87e399cd1954e298c9cfff8c21e68fb4b-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 776254
-    checksum: sha256:d27b8bc9db0a3ff39d9177bab814aa2aca7469a27ec169c869a95a57fef6cc7b
+    checksum: sha256:14f84e9776d5e4156e4acc2462c70bb87e399cd1954e298c9cfff8c21e68fb4b
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.88.0-1.module+el8.10.0+23326+3c6ade25.x86_64.rpm
@@ -1811,20 +1811,20 @@ arches:
     name: protobuf-compiler
     evr: 3.5.0-17.el8_10
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-3.12.12-3.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-3.12.12-4.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 31272
-    checksum: sha256:5d2ffff6190781b9455eb314c912096143fc824f7666d742eb868bfc341077a0
+    size: 31384
+    checksum: sha256:e706d058e5a8af88672c26e0b29942499fb8758e02d7704c43b2e7b9b4a70073
     name: python3.12
-    evr: 3.12.12-3.el8_10
-    sourcerpm: python3.12-3.12.12-3.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-libs-3.12.12-3.el8_10.x86_64.rpm
+    evr: 3.12.12-4.el8_10
+    sourcerpm: python3.12-3.12.12-4.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-libs-3.12.12-4.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 10506364
-    checksum: sha256:5239e7b6e98bf5b11b6355fdbc175bf46b639c7f792a70da8154db8881af1b03
+    size: 10506628
+    checksum: sha256:d02870c30b7e105de14ebbdf6573b98af8cbdb2c482836d4f7b4dcef2c02d5c1
     name: python3.12-libs
-    evr: 3.12.12-3.el8_10
-    sourcerpm: python3.12-3.12.12-3.el8_10.src.rpm
+    evr: 3.12.12-4.el8_10
+    sourcerpm: python3.12-3.12.12-4.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-pip-wheel-23.2.1-4.el8.noarch.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 1539820
@@ -3262,7 +3262,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/812d976b6a6d76d24924d3ddd165641d3eecd4df60c48bcdeaf8a684bef7cc78-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/780c642aecae8b9b6cbb3d13ec1f482e318400d1ca39e72c8d5b2d89ceb00d8d-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 797488
-    checksum: sha256:812d976b6a6d76d24924d3ddd165641d3eecd4df60c48bcdeaf8a684bef7cc78
+    checksum: sha256:780c642aecae8b9b6cbb3d13ec1f482e318400d1ca39e72c8d5b2d89ceb00d8d
