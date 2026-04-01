@@ -19,6 +19,11 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 #define FMODE_PWRITE ((fmode_t)(1 << 4))
 #define FMODE_CREATED ((fmode_t)(1 << 20))
 
+// File type constants from linux/stat.h
+#define S_IFMT 00170000
+#define S_IFDIR 0040000
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
   struct metrics_t* m = get_metrics();
@@ -229,5 +234,107 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
 
 error:
   m->path_rename.error++;
+  return 0;
+}
+
+SEC("lsm/path_mkdir")
+int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t mode) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_mkdir.total++;
+
+  struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
+  if (path == NULL) {
+    bpf_printk("Failed to read path");
+    m->path_mkdir.error++;
+    return 0;
+  }
+
+  struct dentry* parent_dentry = BPF_CORE_READ(dir, dentry);
+  struct inode* parent_inode_ptr = BPF_CORE_READ(parent_dentry, d_inode);
+  inode_key_t parent_inode = inode_to_key(parent_inode_ptr);
+
+  if (should_track_mkdir(parent_inode, path) == NOT_MONITORED) {
+    m->path_mkdir.ignored++;
+    return 0;
+  }
+
+  // Stash mkdir context for security_d_instantiate
+  __u64 pid_tgid = bpf_get_current_pid_tgid();
+  struct mkdir_context_t* mkdir_ctx = get_mkdir_context();
+  if (mkdir_ctx == NULL) {
+    bpf_printk("Failed to get mkdir context buffer");
+    m->path_mkdir.error++;
+    return 0;
+  }
+
+  long path_copy_len = bpf_probe_read_str(mkdir_ctx->path, PATH_MAX, path->path);
+  if (path_copy_len < 0) {
+    bpf_printk("Failed to copy path string");
+    m->path_mkdir.error++;
+    return 0;
+  }
+  mkdir_ctx->parent_inode = parent_inode;
+
+  if (bpf_map_update_elem(&mkdir_context, &pid_tgid, mkdir_ctx, BPF_ANY) != 0) {
+    bpf_printk("Failed to stash mkdir context");
+    m->path_mkdir.error++;
+    return 0;
+  }
+
+  return 0;
+}
+
+SEC("lsm/d_instantiate")
+int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->d_instantiate.total++;
+
+  if (inode == NULL) {
+    m->d_instantiate.ignored++;
+    return 0;
+  }
+
+  __u64 pid_tgid = bpf_get_current_pid_tgid();
+  struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
+  if (mkdir_ctx == NULL) {
+    m->d_instantiate.ignored++;
+    return 0;
+  }
+
+  // Check if this is a directory
+  umode_t mode = BPF_CORE_READ(inode, i_mode);
+  if (!S_ISDIR(mode)) {
+    bpf_map_delete_elem(&mkdir_context, &pid_tgid);
+    m->d_instantiate.ignored++;
+    return 0;
+  }
+
+  // Get the inode key for the new directory
+  inode_key_t inode_key = inode_to_key(inode);
+
+  // Add the new directory inode to tracking
+  if (inode_add(&inode_key) == 0) {
+    m->d_instantiate.added++;
+  } else {
+    m->d_instantiate.error++;
+  }
+
+  // Submit creation event using the stashed path
+  submit_mkdir_event(&m->d_instantiate,
+                     mkdir_ctx->path,
+                     &inode_key,
+                     &mkdir_ctx->parent_inode);
+
+  // Clean up context
+  bpf_map_delete_elem(&mkdir_context, &pid_tgid);
+
   return 0;
 }

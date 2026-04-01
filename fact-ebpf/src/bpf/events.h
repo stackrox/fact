@@ -129,3 +129,17 @@ __always_inline static void submit_rename_event(struct metrics_by_hook_t* m,
 
   __submit_event(event, m, FILE_ACTIVITY_RENAME, new_filename, new_inode, new_parent_inode, path_hooks_support_bpf_d_path);
 }
+
+__always_inline static void submit_mkdir_event(struct metrics_by_hook_t* m,
+                                               const char filename[PATH_MAX],
+                                               inode_key_t* inode,
+                                               inode_key_t* parent_inode) {
+  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (event == NULL) {
+    m->ringbuffer_full++;
+    return;
+  }
+
+  // d_instantiate doesn't support bpf_d_path, so we use false and rely on the stashed path from path_mkdir
+  __submit_event(event, m, FILE_ACTIVITY_CREATION, filename, inode, parent_inode, false);
+}

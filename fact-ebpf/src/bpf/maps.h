@@ -86,6 +86,26 @@ struct {
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __type(key, __u32);
+  __type(value, struct mkdir_context_t);
+  __uint(max_entries, 1);
+} mkdir_context_heap SEC(".maps");
+
+__always_inline static struct mkdir_context_t* get_mkdir_context() {
+  unsigned int zero = 0;
+  return bpf_map_lookup_elem(&mkdir_context_heap, &zero);
+}
+
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __type(key, __u64);
+  __type(value, struct mkdir_context_t);
+  __uint(max_entries, 16384);
+  __uint(map_flags, BPF_F_NO_PREALLOC);
+} mkdir_context SEC(".maps");
+
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __type(key, __u32);
   __type(value, struct metrics_t);
   __uint(max_entries, 1);
 } metrics SEC(".maps");
