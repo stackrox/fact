@@ -309,7 +309,6 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
     return 0;
   }
 
-  // Check if this is a directory
   umode_t mode = BPF_CORE_READ(inode, i_mode);
   if (!S_ISDIR(mode)) {
     bpf_map_delete_elem(&mkdir_context, &pid_tgid);
@@ -317,23 +316,19 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
     return 0;
   }
 
-  // Get the inode key for the new directory
   inode_key_t inode_key = inode_to_key(inode);
 
-  // Add the new directory inode to tracking
   if (inode_add(&inode_key) == 0) {
     m->d_instantiate.added++;
   } else {
     m->d_instantiate.error++;
   }
 
-  // Submit creation event using the stashed path
   submit_mkdir_event(&m->d_instantiate,
                      mkdir_ctx->path,
                      &inode_key,
                      &mkdir_ctx->parent_inode);
 
-  // Clean up context
   bpf_map_delete_elem(&mkdir_context, &pid_tgid);
 
   return 0;
