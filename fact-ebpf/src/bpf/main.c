@@ -257,7 +257,7 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
   struct inode* parent_inode_ptr = BPF_CORE_READ(parent_dentry, d_inode);
   inode_key_t parent_inode = inode_to_key(parent_inode_ptr);
 
-  if (should_track_mkdir(parent_inode, path) == NOT_MONITORED) {
+  if (should_track_mkdir(parent_inode, path) != PARENT_MONITORED) {
     m->path_mkdir.ignored++;
     return 0;
   }
