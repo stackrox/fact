@@ -20,9 +20,7 @@ def test_mkdir_nested(monitored_dir, server):
     level2 = os.path.join(level1, 'level2')
     level3 = os.path.join(level2, 'level3')
 
-    os.mkdir(level1)
-    os.mkdir(level2)
-    os.mkdir(level3)
+    os.makedirs(level3, exist_ok=True)
 
     # Create a file in the deepest directory
     test_file = os.path.join(level3, 'deep_file.txt')
