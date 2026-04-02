@@ -141,5 +141,5 @@ __always_inline static void submit_mkdir_event(struct metrics_by_hook_t* m,
   }
 
   // d_instantiate doesn't support bpf_d_path, so we use false and rely on the stashed path from path_mkdir
-  __submit_event(event, m, FILE_ACTIVITY_CREATION, filename, inode, parent_inode, false);
+  __submit_event(event, m, DIR_ACTIVITY_CREATION, filename, inode, parent_inode, false);
 }

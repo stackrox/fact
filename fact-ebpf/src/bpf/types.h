@@ -55,6 +55,7 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_CHMOD,
   FILE_ACTIVITY_CHOWN,
   FILE_ACTIVITY_RENAME,
+  DIR_ACTIVITY_CREATION,
 } file_activity_type_t;
 
 struct event_t {
