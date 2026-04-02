@@ -309,11 +309,11 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
     return 0;
   }
 
+  // From this point on, we must clean up mkdir_context before returning
   umode_t mode = BPF_CORE_READ(inode, i_mode);
   if (!S_ISDIR(mode)) {
-    bpf_map_delete_elem(&mkdir_context, &pid_tgid);
     m->d_instantiate.ignored++;
-    return 0;
+    goto cleanup;
   }
 
   inode_key_t inode_key = inode_to_key(inode);
@@ -329,7 +329,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
                      &inode_key,
                      &mkdir_ctx->parent_inode);
 
+cleanup:
   bpf_map_delete_elem(&mkdir_context, &pid_tgid);
-
   return 0;
 }
