@@ -20,6 +20,7 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 #define FMODE_CREATED ((fmode_t)(1 << 20))
 
 // File type constants from linux/stat.h
+// https://github.com/torvalds/linux/blob/5619b098e2fbf3a23bf13d91897056a1fe238c6d/include/uapi/linux/stat.h
 #define S_IFMT 00170000
 #define S_IFDIR 0040000
 #define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
