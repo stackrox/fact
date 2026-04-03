@@ -297,19 +297,19 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
 
   m->d_instantiate.total++;
 
-  if (inode == NULL) {
-    m->d_instantiate.ignored++;
-    return 0;
-  }
-
   __u64 pid_tgid = bpf_get_current_pid_tgid();
   struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
+
   if (mkdir_ctx == NULL) {
     m->d_instantiate.ignored++;
     return 0;
   }
 
-  // From this point on, we must clean up mkdir_context before returning
+  if (inode == NULL) {
+    m->d_instantiate.ignored++;
+    goto cleanup;
+  }
+
   umode_t mode = BPF_CORE_READ(inode, i_mode);
   if (!S_ISDIR(mode)) {
     m->d_instantiate.ignored++;
