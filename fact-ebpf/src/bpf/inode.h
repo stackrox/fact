@@ -80,6 +80,11 @@ __always_inline static long inode_remove(struct inode_key_t* inode) {
   return bpf_map_delete_elem(&inode_map, inode);
 }
 
+__always_inline static void inode_reset(struct inode_key_t* inode) {
+  inode->inode = 0;
+  inode->dev = 0;
+}
+
 typedef enum inode_monitored_t {
   NOT_MONITORED = 0,
   MONITORED,
@@ -99,16 +104,11 @@ __always_inline static inode_monitored_t inode_is_monitored(const inode_value_t*
   return NOT_MONITORED;
 }
 
-__always_inline static void inode_copy_or_reset(inode_key_t* dst, const inode_key_t* src) {
+__always_inline static void inode_copy(inode_key_t* dst, const inode_key_t* src) {
   if (dst == NULL) {
     return;
   }
 
-  if (src != NULL) {
-    dst->inode = src->inode;
-    dst->dev = src->dev;
-  } else {
-    dst->inode = 0;
-    dst->dev = 0;
-  }
+  dst->inode = src->inode;
+  dst->dev = src->dev;
 }

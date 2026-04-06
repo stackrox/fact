@@ -16,7 +16,7 @@ struct submit_event_args_t {
   struct event_t* event;
   struct metrics_by_hook_t* metrics;
   const char* filename;
-  inode_key_t* inode;
+  inode_key_t inode;
   inode_key_t parent_inode;
   bool use_bpf_d_path;
 };
@@ -24,8 +24,8 @@ struct submit_event_args_t {
 __always_inline static void __submit_event(struct submit_event_args_t* args) {
   struct event_t* event = args->event;
   event->timestamp = bpf_ktime_get_boot_ns();
-  inode_copy_or_reset(&event->inode, args->inode);
-  inode_copy_or_reset(&event->parent_inode, &args->parent_inode);
+  inode_copy(&event->inode, &args->inode);
+  inode_copy(&event->parent_inode, &args->parent_inode);
   bpf_probe_read_str(event->filename, PATH_MAX, args->filename);
 
   struct helper_t* helper = get_helper();
@@ -118,7 +118,7 @@ __always_inline static void submit_rename_event(struct submit_event_args_t* args
 
   args->event->type = FILE_ACTIVITY_RENAME;
   bpf_probe_read_str(args->event->rename.old_filename, PATH_MAX, old_filename);
-  inode_copy_or_reset(&args->event->rename.old_inode, old_inode);
+  inode_copy(&args->event->rename.old_inode, old_inode);
 
   __submit_event(args);
 }

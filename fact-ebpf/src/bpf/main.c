@@ -49,17 +49,16 @@ int BPF_PROG(trace_file_open, struct file* file) {
   }
   args.filename = path->path;
 
-  inode_key_t inode_key = inode_to_key(file->f_inode);
-  args.inode = &inode_key;
+  args.inode = inode_to_key(file->f_inode);
 
   struct dentry* parent_dentry = BPF_CORE_READ(file, f_path.dentry, d_parent);
   struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
   args.parent_inode = inode_to_key(parent_inode_ptr);
 
-  inode_monitored_t status = is_monitored(inode_key, path, &args.parent_inode, &args.inode);
+  inode_monitored_t status = is_monitored(&args.inode, path, &args.parent_inode);
 
   if (status == PARENT_MONITORED && event_type == FILE_ACTIVITY_CREATION) {
-    inode_add(&inode_key);
+    inode_add(&args.inode);
   }
 
   if (status == NOT_MONITORED) {
@@ -96,16 +95,15 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   }
   args.filename = path->path;
 
-  inode_key_t inode_key = inode_to_key(dentry->d_inode);
-  args.inode = &inode_key;
+  args.inode = inode_to_key(dentry->d_inode);
 
-  if (is_monitored(inode_key, path, NULL, &args.inode) == NOT_MONITORED) {
+  if (is_monitored(&args.inode, path, NULL) == NOT_MONITORED) {
     m->path_unlink.ignored++;
     return 0;
   }
 
   // We only support files with one link for now
-  inode_remove(&inode_key);
+  inode_remove(&args.inode);
 
   submit_unlink_event(&args);
   return 0;
@@ -132,10 +130,9 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   }
   args.filename = bound_path->path;
 
-  inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
-  args.inode = &inode_key;
+  args.inode = inode_to_key(path->dentry->d_inode);
 
-  if (is_monitored(inode_key, bound_path, NULL, &args.inode) == NOT_MONITORED) {
+  if (is_monitored(&args.inode, bound_path, NULL) == NOT_MONITORED) {
     args.metrics->ignored++;
     return 0;
   }
@@ -170,10 +167,9 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   }
   args.filename = bound_path->path;
 
-  inode_key_t inode_key = inode_to_key(path->dentry->d_inode);
-  args.inode = &inode_key;
+  args.inode = inode_to_key(path->dentry->d_inode);
 
-  if (is_monitored(inode_key, bound_path, NULL, &args.inode) == NOT_MONITORED) {
+  if (is_monitored(&args.inode, bound_path, NULL) == NOT_MONITORED) {
     args.metrics->ignored++;
     return 0;
   }
@@ -215,21 +211,19 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
     goto error;
   }
 
+  args.inode = inode_to_key(new_dentry->d_inode);
+
   inode_key_t old_inode = inode_to_key(old_dentry->d_inode);
-  inode_key_t new_inode = inode_to_key(new_dentry->d_inode);
 
-  inode_key_t* old_inode_submit = &old_inode;
-  args.inode = &new_inode;
-
-  inode_monitored_t old_monitored = is_monitored(old_inode, old_path, NULL, &old_inode_submit);
-  inode_monitored_t new_monitored = is_monitored(new_inode, new_path, NULL, &args.inode);
+  inode_monitored_t old_monitored = is_monitored(&old_inode, old_path, NULL);
+  inode_monitored_t new_monitored = is_monitored(&args.inode, new_path, NULL);
 
   if (old_monitored == NOT_MONITORED && new_monitored == NOT_MONITORED) {
     args.metrics->ignored++;
     return 0;
   }
 
-  submit_rename_event(&args, old_path->path, old_inode_submit);
+  submit_rename_event(&args, old_path->path, &old_inode);
   return 0;
 
 error:
@@ -320,10 +314,9 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   args.filename = mkdir_ctx->path;
   args.parent_inode = mkdir_ctx->parent_inode;
 
-  inode_key_t inode_key = inode_to_key(inode);
-  args.inode = &inode_key;
+  args.inode = inode_to_key(inode);
 
-  if (inode_add(args.inode) == 0) {
+  if (inode_add(&args.inode) == 0) {
     args.metrics->added++;
   } else {
     args.metrics->error++;
