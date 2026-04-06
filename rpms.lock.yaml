@@ -697,13 +697,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.115.1.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.117.1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 12466360
-    checksum: sha256:428fdb88ada53719f2bde088760bc64b4b39fcee155b3bb497abd27501385467
+    size: 12470428
+    checksum: sha256:e90228dcaec1db9605eed1f5f0091833770ee8df8f58f5cabc1eac1e7d148d55
     name: kernel-headers
-    evr: 4.18.0-553.115.1.el8_10
-    sourcerpm: kernel-4.18.0-553.115.1.el8_10.src.rpm
+    evr: 4.18.0-553.117.1.el8_10
+    sourcerpm: kernel-4.18.0-553.117.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 34656
@@ -2336,13 +2336,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.115.1.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.117.1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 12498128
-    checksum: sha256:facb132e5b78d43a2cb5994f6013cd0e2a6955b3a8aec4d67ce204f627305490
+    size: 12502188
+    checksum: sha256:246dab1d89278d4748667e9d5f482367e06413a758d3e3317cae31af34ce1e49
     name: kernel-headers
-    evr: 4.18.0-553.115.1.el8_10
-    sourcerpm: kernel-4.18.0-553.115.1.el8_10.src.rpm
+    evr: 4.18.0-553.117.1.el8_10
+    sourcerpm: kernel-4.18.0-553.117.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 34816
