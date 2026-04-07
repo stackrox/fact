@@ -306,6 +306,15 @@ impl HostScanner {
                             self.metrics.events.dropped();
                             warn!("Failed to send event: {e}");
                         }
+
+                        // Skip directory creation events - we track them internally but don't send to sensor
+                        if !event.is_dir_creation() {
+                            let event = Arc::new(event);
+                            if let Err(e) = self.tx.send(event) {
+                                self.metrics.events.dropped();
+                                warn!("Failed to send event: {e}");
+                            }
+                        }
                     },
                     _ = scan_trigger.notified() => self.scan()?,
                     _ = self.paths.changed() => self.scan()?,

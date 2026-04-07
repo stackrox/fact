@@ -74,6 +74,8 @@ pub struct Event {
     hostname: &'static str,
     process: Process,
     file: FileData,
+    #[serde(skip)]
+    event_type: file_activity_type_t,
 }
 
 impl Event {
@@ -123,6 +125,7 @@ impl Event {
             hostname,
             process,
             file,
+            event_type: file_activity_type_t::FILE_ACTIVITY_CREATION,
         })
     }
 
@@ -132,6 +135,10 @@ impl Event {
 
     pub fn is_unlink(&self) -> bool {
         matches!(self.file, FileData::Unlink(_))
+    }
+        
+    pub fn is_dir_creation(&self) -> bool {
+        self.event_type == file_activity_type_t::DIR_ACTIVITY_CREATION
     }
 
     /// Unwrap the inner FileData and return the inode that triggered
@@ -263,6 +270,7 @@ impl TryFrom<&event_t> for Event {
             hostname: host_info::get_hostname(),
             process,
             file,
+            event_type: value.type_,
         })
     }
 }
