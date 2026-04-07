@@ -84,7 +84,7 @@ struct {
 } inode_map SEC(".maps");
 
 struct {
-  __uint(type, BPF_MAP_TYPE_HASH);
+  __uint(type, BPF_MAP_TYPE_LRU_HASH);
   __type(key, __u64);
   __type(value, struct mkdir_context_t);
   __uint(max_entries, 16384);
