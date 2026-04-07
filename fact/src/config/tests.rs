@@ -465,8 +465,6 @@ paths:
             "scan_interval: true",
             "scan_interval field has incorrect type: Boolean(true)",
         ),
-        ("scan_interval: 0", "invalid scan_interval: 0"),
-        ("scan_interval: 0.0", "invalid scan_interval: 0"),
         ("scan_interval: -128", "invalid scan_interval: -128"),
         ("scan_interval: -128.5", "invalid scan_interval: -128.5"),
         ("unknown:", "Invalid field 'unknown' with value: Null"),

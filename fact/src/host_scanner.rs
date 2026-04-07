@@ -259,8 +259,14 @@ impl HostScanner {
     }
 
     pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
+        let scan_interval_value = *self.scan_interval.borrow();
         let scan_trigger = Arc::new(Notify::new());
-        self.start_scan_notifier(scan_trigger.clone());
+
+        if scan_interval_value.is_zero() {
+            warn!("Host scanner periodic scans permanently disabled (scan_interval is 0)");
+        } else {
+            self.start_scan_notifier(scan_trigger.clone());
+        }
 
         tokio::spawn(async move {
             info!("Starting host scanner...");
