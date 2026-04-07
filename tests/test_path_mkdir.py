@@ -5,20 +5,27 @@ import pytest
 from event import Event, EventType, Process
 
 
-def test_mkdir_nested(monitored_dir, server):
+@pytest.mark.parametrize("dirname", [
+    pytest.param('level3', id='ASCII'),
+    pytest.param('café', id='French'),
+    pytest.param('файл', id='Cyrillic'),
+    pytest.param('日本語', id='Japanese'),
+])
+def test_mkdir_nested(monitored_dir, server, dirname):
     """
     Tests that creating nested directories tracks all inodes correctly.
 
     Args:
         monitored_dir: Temporary directory path for creating the test directory.
         server: The server instance to communicate with.
+        dirname: Final directory name to test (including UTF-8 variants).
     """
     process = Process.from_proc()
 
     # Create nested directories
     level1 = os.path.join(monitored_dir, 'level1')
     level2 = os.path.join(level1, 'level2')
-    level3 = os.path.join(level2, 'level3')
+    level3 = os.path.join(level2, dirname)
 
     os.makedirs(level3, exist_ok=True)
 
