@@ -264,9 +264,16 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
 
   // Stash mkdir context for security_d_instantiate
   __u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct mkdir_context_t* mkdir_ctx = get_mkdir_context();
+
+  if (bpf_map_update_elem(&mkdir_context, &pid_tgid, NULL, BPF_ANY) != 0) {
+    bpf_printk("Failed to create mkdir context entry");
+    m->path_mkdir.error++;
+    return 0;
+  }
+
+  struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
   if (mkdir_ctx == NULL) {
-    bpf_printk("Failed to get mkdir context buffer");
+    bpf_printk("Failed to lookup mkdir context after creation");
     m->path_mkdir.error++;
     return 0;
   }
@@ -275,15 +282,10 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
   if (path_copy_len < 0) {
     bpf_printk("Failed to copy path string");
     m->path_mkdir.error++;
+    bpf_map_delete_elem(&mkdir_context, &pid_tgid);
     return 0;
   }
   mkdir_ctx->parent_inode = parent_inode;
-
-  if (bpf_map_update_elem(&mkdir_context, &pid_tgid, mkdir_ctx, BPF_ANY) != 0) {
-    bpf_printk("Failed to stash mkdir context");
-    m->path_mkdir.error++;
-    return 0;
-  }
 
   return 0;
 }
