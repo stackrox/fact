@@ -310,7 +310,7 @@ impl FileData {
         let inner = BaseFileData::new(filename, inode, parent_inode)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
-            file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
+            file_activity_type_t::FILE_ACTIVITY_CREATION |
             file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::Creation(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
             file_activity_type_t::FILE_ACTIVITY_CHMOD => {
