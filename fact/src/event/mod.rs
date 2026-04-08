@@ -98,15 +98,24 @@ impl Event {
             parent_inode: Default::default(),
         };
         let (file, event_type) = match data {
-            EventTestData::Creation => (FileData::Creation(inner), file_activity_type_t::FILE_ACTIVITY_CREATION),
-            EventTestData::Unlink => (FileData::Unlink(inner), file_activity_type_t::FILE_ACTIVITY_UNLINK),
+            EventTestData::Creation => (
+                FileData::Creation(inner),
+                file_activity_type_t::FILE_ACTIVITY_CREATION,
+            ),
+            EventTestData::Unlink => (
+                FileData::Unlink(inner),
+                file_activity_type_t::FILE_ACTIVITY_UNLINK,
+            ),
             EventTestData::Chmod(new_mode, old_mode) => {
                 let data = ChmodFileData {
                     inner,
                     new_mode,
                     old_mode,
                 };
-                (FileData::Chmod(data), file_activity_type_t::FILE_ACTIVITY_CHMOD)
+                (
+                    FileData::Chmod(data),
+                    file_activity_type_t::FILE_ACTIVITY_CHMOD,
+                )
             }
             EventTestData::Rename(old_path) => {
                 let data = RenameFileData {
@@ -116,7 +125,10 @@ impl Event {
                         ..Default::default()
                     },
                 };
-                (FileData::Rename(data), file_activity_type_t::FILE_ACTIVITY_RENAME)
+                (
+                    FileData::Rename(data),
+                    file_activity_type_t::FILE_ACTIVITY_RENAME,
+                )
             }
         };
 
