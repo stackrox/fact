@@ -9,7 +9,7 @@ use std::{
 use globset::GlobSet;
 use serde::Serialize;
 
-use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t};
+use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t, monitored_t};
 
 use crate::host_info;
 use process::Process;
@@ -94,6 +94,7 @@ impl Event {
             host_file,
             inode: Default::default(),
             parent_inode: Default::default(),
+            monitored: Default::default(),
         };
         let file = match data {
             EventTestData::Creation => FileData::Creation(inner),
@@ -140,6 +141,10 @@ impl Event {
 
     pub fn is_deletion(&self) -> bool {
         matches!(self.file, FileData::Unlink(_) | FileData::RmDir(_))
+    }
+
+    pub fn is_rename(&self) -> bool {
+        matches!(self.file, FileData::Rename(_))
     }
 
     /// Unwrap the inner FileData and return the inode that triggered
@@ -197,7 +202,7 @@ impl Event {
         }
     }
 
-    fn get_old_filename(&self) -> Option<&PathBuf> {
+    pub fn get_old_filename(&self) -> Option<&PathBuf> {
         match &self.file {
             FileData::Rename(data) => Some(&data.old.filename),
             _ => None,
@@ -214,6 +219,13 @@ impl Event {
             FileData::Chmod(data) => &data.inner.host_file,
             FileData::Chown(data) => &data.inner.host_file,
             FileData::Rename(data) => &data.new.host_file,
+        }
+    }
+
+    pub fn get_old_host_path(&self) -> Option<&PathBuf> {
+        match &self.file {
+            FileData::Rename(data) => Some(&data.old.host_file),
+            _ => None,
         }
     }
 
@@ -242,6 +254,25 @@ impl Event {
         }
     }
 
+    pub fn get_monitored(&self) -> monitored_t {
+        match &self.file {
+            FileData::Open(data) => data.monitored,
+            FileData::Creation(data) => data.monitored,
+            FileData::MkDir(data) => data.monitored,
+            FileData::Unlink(data) => data.monitored,
+            FileData::Chmod(data) => data.inner.monitored,
+            FileData::Chown(data) => data.inner.monitored,
+            FileData::Rename(data) => data.new.monitored,
+        }
+    }
+
+    pub fn get_old_monitored(&self) -> Option<monitored_t> {
+        match &self.file {
+            FileData::Rename(data) => Some(data.old.monitored),
+            _ => None,
+        }
+    }
+
     /// Determine if the event should be ignored.
     ///
     /// With wildcards, the kernel can only match on the inode and
@@ -253,12 +284,18 @@ impl Event {
     ///
     /// We also need to check the old values for rename events.
     pub fn is_ignored(&self, globset: &GlobSet) -> bool {
-        self.get_inode().empty()
-            && self.get_old_inode().is_none_or(|inode| inode.empty())
+        self.get_monitored() != monitored_t::MONITORED_BY_INODE
+            && self
+                .get_old_monitored()
+                .is_none_or(|m| m != monitored_t::MONITORED_BY_INODE)
             && !globset.is_match(self.get_filename())
             && self
                 .get_old_filename()
                 .is_none_or(|path| !globset.is_match(path))
+    }
+
+    pub fn is_monitored_by_parent(&self) -> bool {
+        self.get_monitored() == monitored_t::MONITORED_BY_PARENT
     }
 }
 
@@ -273,6 +310,7 @@ impl TryFrom<&event_t> for Event {
             value.filename,
             value.inode,
             value.parent_inode,
+            value.monitored,
             value.__bindgen_anon_1,
         )?;
 
@@ -325,9 +363,10 @@ impl FileData {
         filename: [c_char; PATH_MAX as usize],
         inode: inode_key_t,
         parent_inode: inode_key_t,
+        monitored: monitored_t,
         extra_data: fact_ebpf::event_t__bindgen_ty_1,
     ) -> anyhow::Result<Self> {
-        let inner = BaseFileData::new(filename, inode, parent_inode)?;
+        let inner = BaseFileData::new(filename, inode, parent_inode, monitored)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
@@ -353,11 +392,17 @@ impl FileData {
                 FileData::Chown(data)
             }
             file_activity_type_t::FILE_ACTIVITY_RENAME => {
-                let old_filename = unsafe { extra_data.rename.old_filename };
-                let old_inode = unsafe { extra_data.rename.old_inode };
+                let old_filename = unsafe { extra_data.rename.filename };
+                let old_inode = unsafe { extra_data.rename.inode };
+                let old_monitored = unsafe { extra_data.rename.monitored };
                 let data = RenameFileData {
                     new: inner,
-                    old: BaseFileData::new(old_filename, old_inode, Default::default())?,
+                    old: BaseFileData::new(
+                        old_filename,
+                        old_inode,
+                        Default::default(),
+                        old_monitored,
+                    )?,
                 };
                 FileData::Rename(data)
             }
@@ -430,6 +475,7 @@ pub struct BaseFileData {
     host_file: PathBuf,
     inode: inode_key_t,
     parent_inode: inode_key_t,
+    monitored: monitored_t,
 }
 
 impl BaseFileData {
@@ -437,12 +483,14 @@ impl BaseFileData {
         filename: [c_char; PATH_MAX as usize],
         inode: inode_key_t,
         parent_inode: inode_key_t,
+        monitored: monitored_t,
     ) -> anyhow::Result<Self> {
         Ok(BaseFileData {
             filename: sanitize_d_path(&filename),
             host_file: PathBuf::new(), // this field is set by HostScanner
             inode,
             parent_inode,
+            monitored,
         })
     }
 }

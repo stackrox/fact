@@ -28,7 +28,6 @@ def test_rename(monitored_dir, server, filename):
     fut = join_path_with_filename(monitored_dir, filename)
     old_fut = os.path.join(monitored_dir, 'file.txt')
 
-    # Create a new file, it will have an empty host_path.
     with open(old_fut, 'w') as f:
         f.write('This is a test')
     os.rename(old_fut, fut)
@@ -37,23 +36,15 @@ def test_rename(monitored_dir, server, filename):
     # Convert fut to string for the Event, replacing invalid UTF-8 with U+FFFD
     fut = path_to_string(fut)
 
-    # TODO: Current behavior is incorrect. The inode map should be updated
-    # during rename events so that host_path reflects the new path.
-    # Expected correct behavior:
-    #   - First rename: host_path should be `fut` (new path), old_host_path should be `old_fut`
-    #   - Second rename: host_path should be `old_fut`, old_host_path should be `fut`
-    # Current behavior: host_path remains the original path (old_fut) because
-    # the inode map is not updated on rename events. old_host_path is empty.
-    events = [
-        Event(process=Process.from_proc(), event_type=EventType.CREATION,
+    p = Process.from_proc()
+    server.wait_events([
+        Event(process=p, event_type=EventType.CREATION,
               file=old_fut, host_path=old_fut),
-        Event(process=Process.from_proc(), event_type=EventType.RENAME,
-              file=fut, host_path='', old_file=old_fut, old_host_path=old_fut),
-        Event(process=Process.from_proc(), event_type=EventType.RENAME,
-              file=old_fut, host_path='', old_file=fut, old_host_path=old_fut),
-    ]
-
-    server.wait_events(events)
+        Event(process=p, event_type=EventType.RENAME, file=fut,
+              host_path=fut, old_file=old_fut, old_host_path=old_fut),
+        Event(process=p, event_type=EventType.RENAME, file=old_fut,
+              host_path=old_fut, old_file=fut, old_host_path=fut),
+    ])
 
 
 def test_ignored(monitored_dir, ignored_dir, server):
@@ -67,6 +58,7 @@ def test_ignored(monitored_dir, ignored_dir, server):
         server: The server instance to communicate with.
     """
     ignored_path = os.path.join(ignored_dir, 'test.txt')
+    p = Process.from_proc()
 
     with open(ignored_path, 'w') as f:
         f.write('This is to be ignored')
@@ -75,26 +67,22 @@ def test_ignored(monitored_dir, ignored_dir, server):
     # Renaming in between ignored paths should not generate events
     os.rename(ignored_path, new_ignored_path)
 
-    # Renaming to a monitored path generates an event
+    # Renaming to a monitored path requires a scan, we need to wait for
+    # it before we can continue modifying the FS
     new_path = os.path.join(monitored_dir, 'rename.txt')
     os.rename(new_ignored_path, new_path)
+    server.wait_events([
+        Event(process=p, event_type=EventType.RENAME,
+              file=new_path, host_path=new_path, old_file=new_ignored_path, old_host_path=''),
+    ])
 
     # Renaming from a monitored path generates an event too
     os.rename(new_path, ignored_path)
 
-    p = Process.from_proc()
-    # TODO: Current behavior is incorrect for rename events.
-    # Expected: When renaming from ignored to monitored, host_path should be new_path.
-    #           When renaming from monitored to ignored, old_host_path should be new_path.
-    # Current: The inode map is not updated on renames, and old_host_path is not populated.
-    events = [
+    server.wait_events([
         Event(process=p, event_type=EventType.RENAME,
-              file=new_path, host_path='', old_file=new_ignored_path, old_host_path=''),
-        Event(process=p, event_type=EventType.RENAME,
-              file=ignored_path, host_path='', old_file=new_path, old_host_path=''),
-    ]
-
-    server.wait_events(events)
+              file=ignored_path, host_path='', old_file=new_path, old_host_path=new_path),
+    ])
 
 
 def test_rename_dir(monitored_dir, ignored_dir, server):
@@ -127,24 +115,26 @@ def test_rename_dir(monitored_dir, ignored_dir, server):
     # This rename should generate no events
     os.rename(ignored_dut, new_ignored_dut)
 
-    # The next three renames need to generate one event each
+    # Going from a non-monitored directory to a monitored one requires a scan of
+    # the filesystem to add any subdirectories and files, so we need to wait for
+    # it to end before we can continue modifying the FS.
     os.rename(new_ignored_dut, dut)
+
+    p = Process.from_proc()
+    server.wait_events([
+        Event(process=p, event_type=EventType.RENAME, file=dut,
+              host_path=dut, old_file=new_ignored_dut, old_host_path=''),
+    ])
+
+    # The following two event should produce full events without scanning the FS.
     os.rename(dut, new_dut)
     os.rename(new_dut, ignored_dut)
 
-    p = Process.from_proc()
-    # TODO: Current behavior is incorrect for rename events.
-    # Expected: host_path should reflect the new path after rename,
-    #           old_host_path should reflect the old path if it was monitored.
-    # Current: The inode map is not updated on renames, so host_path remains empty
-    #          or shows the wrong path. old_host_path is not populated.
     events = [
-        Event(process=p, event_type=EventType.RENAME, file=dut,
-              host_path='', old_file=new_ignored_dut, old_host_path=''),
         Event(process=p, event_type=EventType.RENAME,
-              file=new_dut, host_path='', old_file=dut, old_host_path=''),
+              file=new_dut, host_path=new_dut, old_file=dut, old_host_path=dut),
         Event(process=p, event_type=EventType.RENAME,
-              file=ignored_dut, host_path='', old_file=new_dut, old_host_path=''),
+              file=ignored_dut, host_path='', old_file=new_dut, old_host_path=new_dut),
     ]
 
     server.wait_events(events)

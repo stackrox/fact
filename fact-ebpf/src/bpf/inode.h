@@ -102,20 +102,21 @@ __always_inline static void inode_reset(struct inode_key_t* inode) {
   inode->dev = 0;
 }
 
-typedef enum inode_monitored_t {
-  NOT_MONITORED = 0,
-  MONITORED,
-  PARENT_MONITORED,
-} inode_monitored_t;
+/*
+ * Check if the supplied inode is empty
+ */
+__always_inline static bool inode_is_empty(struct inode_key_t* inode) {
+  return inode->inode == 0 && inode->dev == 0;
+}
 
 // Check if the provided inode or its parent is being monitored.
-__always_inline static inode_monitored_t inode_is_monitored(const inode_value_t* volatile inode, const inode_value_t* volatile parent_inode) {
+__always_inline static monitored_t inode_is_monitored(const inode_value_t* volatile inode, const inode_value_t* volatile parent_inode) {
   if (inode != NULL) {
-    return MONITORED;
+    return MONITORED_BY_INODE;
   }
 
   if (parent_inode != NULL) {
-    return PARENT_MONITORED;
+    return MONITORED_BY_PARENT;
   }
 
   return NOT_MONITORED;

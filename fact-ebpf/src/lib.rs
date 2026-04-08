@@ -103,6 +103,27 @@ impl Serialize for inode_key_t {
 
 unsafe impl Pod for inode_key_t {}
 
+impl Default for monitored_t {
+    fn default() -> Self {
+        monitored_t::NOT_MONITORED
+    }
+}
+
+impl Serialize for monitored_t {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match *self {
+            monitored_t::NOT_MONITORED => "not monitored".serialize(serializer),
+            monitored_t::MONITORED_BY_INODE => "by inode".serialize(serializer),
+            monitored_t::MONITORED_BY_PATH => "by path".serialize(serializer),
+            monitored_t::MONITORED_BY_PARENT => "by parent".serialize(serializer),
+            _ => unreachable!("Invalid monitored_t value: {self:?}"),
+        }
+    }
+}
+
 impl metrics_by_hook_t {
     fn accumulate(&self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
         let mut m = metrics_by_hook_t { ..*self };

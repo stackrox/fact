@@ -42,6 +42,13 @@ typedef struct inode_key_t {
   unsigned long dev;
 } inode_key_t;
 
+typedef enum monitored_t {
+  NOT_MONITORED = 0,
+  MONITORED_BY_INODE,
+  MONITORED_BY_PATH,
+  MONITORED_BY_PARENT,
+} monitored_t;
+
 // We can't use bool here because it is not a standard C type, we would
 // need to include vmlinux.h but that would explode our Rust bindings.
 // For the time being we just keep a char.
@@ -65,6 +72,7 @@ struct event_t {
   char filename[PATH_MAX];
   inode_key_t inode;
   inode_key_t parent_inode;
+  monitored_t monitored;
   file_activity_type_t type;
   union {
     struct {
@@ -78,8 +86,9 @@ struct event_t {
       } old, new;
     } chown;
     struct {
-      char old_filename[PATH_MAX];
-      inode_key_t old_inode;
+      char filename[PATH_MAX];
+      inode_key_t inode;
+      monitored_t monitored;
     } rename;
   };
 };
@@ -102,6 +111,7 @@ struct path_prefix_t {
 struct mkdir_context_t {
   char path[PATH_MAX];
   inode_key_t parent_inode;
+  monitored_t monitored;
 };
 
 // Metrics types

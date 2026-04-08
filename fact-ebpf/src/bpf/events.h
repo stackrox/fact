@@ -18,6 +18,7 @@ struct submit_event_args_t {
   const char* filename;
   inode_key_t inode;
   inode_key_t parent_inode;
+  monitored_t monitored;
 };
 
 __always_inline static bool reserve_event(struct submit_event_args_t* args) {
@@ -33,6 +34,7 @@ __always_inline static void __submit_event(struct submit_event_args_t* args,
                                            bool use_bpf_d_path) {
   struct event_t* event = args->event;
   event->timestamp = bpf_ktime_get_boot_ns();
+  event->monitored = args->monitored;
   inode_copy(&event->inode, &args->inode);
   inode_copy(&event->parent_inode, &args->parent_inode);
   bpf_probe_read_str(event->filename, PATH_MAX, args->filename);
@@ -110,14 +112,16 @@ __always_inline static void submit_ownership_event(struct submit_event_args_t* a
 
 __always_inline static void submit_rename_event(struct submit_event_args_t* args,
                                                 const char old_filename[PATH_MAX],
-                                                inode_key_t* old_inode) {
+                                                inode_key_t* old_inode,
+                                                monitored_t old_monitored) {
   if (!reserve_event(args)) {
     return;
   }
 
   args->event->type = FILE_ACTIVITY_RENAME;
-  bpf_probe_read_str(args->event->rename.old_filename, PATH_MAX, old_filename);
-  inode_copy(&args->event->rename.old_inode, old_inode);
+  bpf_probe_read_str(args->event->rename.filename, PATH_MAX, old_filename);
+  inode_copy(&args->event->rename.inode, old_inode);
+  args->event->rename.monitored = old_monitored;
 
   __submit_event(args, path_hooks_support_bpf_d_path);
 }

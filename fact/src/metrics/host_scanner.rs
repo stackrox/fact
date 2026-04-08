@@ -33,7 +33,12 @@ pub struct HostScannerMetrics {
 
 impl HostScannerMetrics {
     pub(super) fn new() -> Self {
-        let labels = [EventLabels::Total, EventLabels::Added, EventLabels::Dropped];
+        let labels = [
+            EventLabels::Total,
+            EventLabels::Added,
+            EventLabels::Dropped,
+            EventLabels::Ignored,
+        ];
         let events = EventCounter::new(
             "host_scanner_events",
             "Events processed by the host scanner component",
