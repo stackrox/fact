@@ -19,12 +19,6 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 #define FMODE_PWRITE ((fmode_t)(1 << 4))
 #define FMODE_CREATED ((fmode_t)(1 << 20))
 
-// File type constants from linux/stat.h
-// https://github.com/torvalds/linux/blob/5619b098e2fbf3a23bf13d91897056a1fe238c6d/include/uapi/linux/stat.h
-#define S_IFMT 00170000
-#define S_IFDIR 0040000
-#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
-
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
   struct metrics_t* m = get_metrics();
@@ -310,12 +304,6 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   }
 
   if (inode == NULL) {
-    m->d_instantiate.ignored++;
-    goto cleanup;
-  }
-
-  umode_t mode = BPF_CORE_READ(inode, i_mode);
-  if (!S_ISDIR(mode)) {
     m->d_instantiate.ignored++;
     goto cleanup;
   }
