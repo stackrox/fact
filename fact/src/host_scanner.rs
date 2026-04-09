@@ -280,7 +280,7 @@ impl HostScanner {
                         };
                         self.metrics.events.added();
 
-                        // Handle file creation events by adding new inodes to the map
+                        // Handle file and directory creation events by adding new inodes to the map
                         if event.is_creation() &&
                             let Err(e) = self.handle_creation_event(&event) {
                                 warn!("Failed to handle creation event: {e}");
@@ -302,7 +302,7 @@ impl HostScanner {
                         }
 
                         // Skip directory creation events - we track them internally but don't send to sensor
-                        if event.event_type() != fact_ebpf::file_activity_type_t::DIR_ACTIVITY_CREATION {
+                        if !event.is_mkdir() {
                             let event = Arc::new(event);
                             if let Err(e) = self.tx.send(event) {
                                 self.metrics.events.dropped();

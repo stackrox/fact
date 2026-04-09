@@ -7,6 +7,7 @@ use std::{
 };
 
 use globset::GlobSet;
+use log::warn;
 use serde::Serialize;
 
 use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t};
@@ -74,8 +75,6 @@ pub struct Event {
     hostname: &'static str,
     process: Process,
     file: FileData,
-    #[serde(skip)]
-    event_type: file_activity_type_t,
 }
 
 impl Event {
@@ -97,25 +96,16 @@ impl Event {
             inode: Default::default(),
             parent_inode: Default::default(),
         };
-        let (file, event_type) = match data {
-            EventTestData::Creation => (
-                FileData::Creation(inner),
-                file_activity_type_t::FILE_ACTIVITY_CREATION,
-            ),
-            EventTestData::Unlink => (
-                FileData::Unlink(inner),
-                file_activity_type_t::FILE_ACTIVITY_UNLINK,
-            ),
+        let file = match data {
+            EventTestData::Creation => FileData::Creation(inner),
+            EventTestData::Unlink => FileData::Unlink(inner),
             EventTestData::Chmod(new_mode, old_mode) => {
                 let data = ChmodFileData {
                     inner,
                     new_mode,
                     old_mode,
                 };
-                (
-                    FileData::Chmod(data),
-                    file_activity_type_t::FILE_ACTIVITY_CHMOD,
-                )
+                FileData::Chmod(data)
             }
             EventTestData::Rename(old_path) => {
                 let data = RenameFileData {
@@ -125,10 +115,7 @@ impl Event {
                         ..Default::default()
                     },
                 };
-                (
-                    FileData::Rename(data),
-                    file_activity_type_t::FILE_ACTIVITY_RENAME,
-                )
+                FileData::Rename(data)
             }
         };
 
@@ -137,24 +124,23 @@ impl Event {
             hostname,
             process,
             file,
-            event_type,
         })
     }
 
     pub fn is_creation(&self) -> bool {
+        matches!(self.file, FileData::Creation(_) | FileData::MkDir(_))
+    }
+
+    pub fn is_file_creation(&self) -> bool {
         matches!(self.file, FileData::Creation(_))
     }
 
-    pub(crate) fn event_type(&self) -> file_activity_type_t {
-        self.event_type
+    pub fn is_mkdir(&self) -> bool {
+        matches!(self.file, FileData::MkDir(_))
     }
 
     pub fn is_unlink(&self) -> bool {
         matches!(self.file, FileData::Unlink(_))
-    }
-        
-    pub fn is_dir_creation(&self) -> bool {
-        self.event_type == file_activity_type_t::DIR_ACTIVITY_CREATION
     }
 
     /// Unwrap the inner FileData and return the inode that triggered
@@ -166,6 +152,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.inode,
             FileData::Creation(data) => &data.inode,
+            FileData::MkDir(data) => &data.inode,
             FileData::Unlink(data) => &data.inode,
             FileData::Chmod(data) => &data.inner.inode,
             FileData::Chown(data) => &data.inner.inode,
@@ -178,6 +165,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.parent_inode,
             FileData::Creation(data) => &data.parent_inode,
+            FileData::MkDir(data) => &data.parent_inode,
             FileData::Unlink(data) => &data.parent_inode,
             FileData::Chmod(data) => &data.inner.parent_inode,
             FileData::Chown(data) => &data.inner.parent_inode,
@@ -199,6 +187,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.filename,
             FileData::Creation(data) => &data.filename,
+            FileData::MkDir(data) => &data.filename,
             FileData::Unlink(data) => &data.filename,
             FileData::Chmod(data) => &data.inner.filename,
             FileData::Chown(data) => &data.inner.filename,
@@ -217,6 +206,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.host_file,
             FileData::Creation(data) => &data.host_file,
+            FileData::MkDir(data) => &data.host_file,
             FileData::Unlink(data) => &data.host_file,
             FileData::Chmod(data) => &data.inner.host_file,
             FileData::Chown(data) => &data.inner.host_file,
@@ -232,6 +222,7 @@ impl Event {
         match &mut self.file {
             FileData::Open(data) => data.host_file = host_path,
             FileData::Creation(data) => data.host_file = host_path,
+            FileData::MkDir(data) => data.host_file = host_path,
             FileData::Unlink(data) => data.host_file = host_path,
             FileData::Chmod(data) => data.inner.host_file = host_path,
             FileData::Chown(data) => data.inner.host_file = host_path,
@@ -286,7 +277,6 @@ impl TryFrom<&event_t> for Event {
             hostname: host_info::get_hostname(),
             process,
             file,
-            event_type: value.type_,
         })
     }
 }
@@ -317,6 +307,7 @@ impl PartialEq for Event {
 pub enum FileData {
     Open(BaseFileData),
     Creation(BaseFileData),
+    MkDir(BaseFileData),
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
     Chown(ChownFileData),
@@ -334,8 +325,8 @@ impl FileData {
         let inner = BaseFileData::new(filename, inode, parent_inode)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
-            file_activity_type_t::FILE_ACTIVITY_CREATION
-            | file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::Creation(inner),
+            file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
+            file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::MkDir(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
             file_activity_type_t::FILE_ACTIVITY_CHMOD => {
                 let data = ChmodFileData {
@@ -384,6 +375,12 @@ impl From<FileData> for fact_api::file_activity::File {
                 let f_act = fact_api::FileCreation { activity };
                 fact_api::file_activity::File::Creation(f_act)
             }
+            FileData::MkDir(event) => {
+                warn!("MkDir event reached protobuf conversion - converting to Creation (filtering may have failed)");
+                let activity = Some(fact_api::FileActivityBase::from(event));
+                let f_act = fact_api::FileCreation { activity };
+                fact_api::file_activity::File::Creation(f_act)
+            }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileUnlink { activity };
@@ -411,6 +408,7 @@ impl PartialEq for FileData {
         match (self, other) {
             (FileData::Open(this), FileData::Open(other)) => this == other,
             (FileData::Creation(this), FileData::Creation(other)) => this == other,
+            (FileData::MkDir(this), FileData::MkDir(other)) => this == other,
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
             (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
             (FileData::Rename(this), FileData::Rename(other)) => this == other,
