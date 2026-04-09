@@ -23,14 +23,11 @@ def test_mkdir_nested(monitored_dir, server, dirname):
     process = Process.from_proc()
 
     # Create nested directories
-    level1 = os.path.join(monitored_dir, 'level1')
-    level2 = os.path.join(level1, 'level2')
-    level3 = os.path.join(level2, dirname)
-
-    os.makedirs(level3, exist_ok=True)
+    test_dir = os.path.join(monitored_dir, 'level1', 'level2', dirname)
+    os.makedirs(test_dir, exist_ok=True)
 
     # Create a file in the deepest directory
-    test_file = os.path.join(level3, 'deep_file.txt')
+    test_file = os.path.join(test_dir, 'deep_file.txt')
     with open(test_file, 'w') as f:
         f.write('nested content')
 
