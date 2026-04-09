@@ -220,6 +220,19 @@ impl HostScanner {
         Ok(())
     }
 
+    /// Handle unlink events by removing the inode from the inode->path map.
+    ///
+    /// The probe already cleared the kernel inode map.
+    fn handle_unlink_event(&self, event: &Event) {
+        let inode = event.get_inode();
+
+        if self.inode_map.borrow_mut().remove(inode).is_some() {
+            self.metrics.scan_inc(ScanLabels::InodeRemoved);
+        }
+
+        self.metrics.scan_inc(ScanLabels::FileRemoved);
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -246,8 +259,14 @@ impl HostScanner {
     }
 
     pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
+        let scan_interval_value = *self.scan_interval.borrow();
         let scan_trigger = Arc::new(Notify::new());
-        self.start_scan_notifier(scan_trigger.clone());
+
+        if scan_interval_value.is_zero() {
+            warn!("Host scanner periodic scans permanently disabled (scan_interval is 0)");
+        } else {
+            self.start_scan_notifier(scan_trigger.clone());
+        }
 
         tokio::spawn(async move {
             info!("Starting host scanner...");
@@ -275,6 +294,11 @@ impl HostScanner {
                         if let Some(host_path) = self.get_host_path(event.get_old_inode()) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_old_host_path(host_path);
+                        }
+
+                        // Remove inode from the map
+                        if event.is_unlink() {
+                            self.handle_unlink_event(&event);
                         }
 
                         let event = Arc::new(event);

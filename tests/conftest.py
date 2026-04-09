@@ -119,6 +119,7 @@ def fact_config(request, monitored_dir, logs_dir):
             'health_check': True,
         },
         'json': True,
+        'scan_interval': 0,
     }
     config_file = NamedTemporaryFile(
         prefix='fact-config-', suffix='.yml', dir=cwd, mode='w')

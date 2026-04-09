@@ -209,13 +209,14 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     config.hotreload = Some(hotreload);
                 }
                 "scan_interval" => {
+                    // scan_internal == 0 disables the scanner
                     if let Some(scan_interval) = v.as_f64() {
-                        if scan_interval <= 0.0 {
+                        if scan_interval < 0.0 {
                             bail!("invalid scan_interval: {scan_interval}");
                         }
                         config.scan_interval = Some(Duration::from_secs_f64(scan_interval));
                     } else if let Some(scan_interval) = v.as_i64() {
-                        if scan_interval <= 0 {
+                        if scan_interval < 0 {
                             bail!("invalid scan_interval: {scan_interval}");
                         }
                         config.scan_interval = Some(Duration::from_secs(scan_interval as u64))

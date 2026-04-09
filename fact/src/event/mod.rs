@@ -130,6 +130,10 @@ impl Event {
         matches!(self.file, FileData::Creation(_))
     }
 
+    pub fn is_unlink(&self) -> bool {
+        matches!(self.file, FileData::Unlink(_))
+    }
+
     /// Unwrap the inner FileData and return the inode that triggered
     /// the event.
     ///
