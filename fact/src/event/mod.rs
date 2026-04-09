@@ -376,7 +376,9 @@ impl From<FileData> for fact_api::file_activity::File {
                 fact_api::file_activity::File::Creation(f_act)
             }
             FileData::MkDir(event) => {
-                warn!("MkDir event reached protobuf conversion - converting to Creation (filtering may have failed)");
+                warn!(
+                    "MkDir event reached protobuf conversion - converting to Creation (filtering may have failed)"
+                );
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileCreation { activity };
                 fact_api::file_activity::File::Creation(f_act)
