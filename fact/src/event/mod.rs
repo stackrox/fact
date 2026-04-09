@@ -145,6 +145,10 @@ impl Event {
         matches!(self.file, FileData::Creation(_))
     }
 
+    pub(crate) fn event_type(&self) -> file_activity_type_t {
+        self.event_type
+    }
+
     pub fn is_unlink(&self) -> bool {
         matches!(self.file, FileData::Unlink(_))
     }

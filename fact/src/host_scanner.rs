@@ -301,12 +301,6 @@ impl HostScanner {
                             self.handle_unlink_event(&event);
                         }
 
-                        let event = Arc::new(event);
-                        if let Err(e) = self.tx.send(event) {
-                            self.metrics.events.dropped();
-                            warn!("Failed to send event: {e}");
-                        }
-
                         // Skip directory creation events - we track them internally but don't send to sensor
                         if event.event_type() != fact_ebpf::file_activity_type_t::DIR_ACTIVITY_CREATION {
                             let event = Arc::new(event);
