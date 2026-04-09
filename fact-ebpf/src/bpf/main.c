@@ -296,16 +296,17 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   m->d_instantiate.total++;
 
   __u64 pid_tgid = bpf_get_current_pid_tgid();
+
+  if (inode == NULL) {
+    m->d_instantiate.ignored++;
+    goto cleanup;
+  }
+
   struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
 
   if (mkdir_ctx == NULL) {
     m->d_instantiate.ignored++;
     return 0;
-  }
-
-  if (inode == NULL) {
-    m->d_instantiate.ignored++;
-    goto cleanup;
   }
 
   inode_key_t inode_key = inode_to_key(inode);
