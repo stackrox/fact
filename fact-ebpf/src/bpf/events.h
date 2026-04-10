@@ -21,6 +21,15 @@ struct submit_event_args_t {
   bool use_bpf_d_path;
 };
 
+__always_inline static bool reserve_event(struct submit_event_args_t* args) {
+  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
+  if (args->event == NULL) {
+    args->metrics->ringbuffer_full++;
+    return false;
+  }
+  return true;
+}
+
 __always_inline static void __submit_event(struct submit_event_args_t* args) {
   struct event_t* event = args->event;
   event->timestamp = bpf_ktime_get_boot_ns();
@@ -50,9 +59,7 @@ error:
 
 __always_inline static void submit_open_event(struct submit_event_args_t* args,
                                               file_activity_type_t event_type) {
-  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (args->event == NULL) {
-    args->metrics->ringbuffer_full++;
+  if (!reserve_event(args)) {
     return;
   }
   args->event->type = event_type;
@@ -61,9 +68,7 @@ __always_inline static void submit_open_event(struct submit_event_args_t* args,
 }
 
 __always_inline static void submit_unlink_event(struct submit_event_args_t* args) {
-  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (args->event == NULL) {
-    args->metrics->ringbuffer_full++;
+  if (!reserve_event(args)) {
     return;
   }
   args->event->type = FILE_ACTIVITY_UNLINK;
@@ -74,9 +79,7 @@ __always_inline static void submit_unlink_event(struct submit_event_args_t* args
 __always_inline static void submit_mode_event(struct submit_event_args_t* args,
                                               umode_t mode,
                                               umode_t old_mode) {
-  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (args->event == NULL) {
-    args->metrics->ringbuffer_full++;
+  if (!reserve_event(args)) {
     return;
   }
 
@@ -92,9 +95,7 @@ __always_inline static void submit_ownership_event(struct submit_event_args_t* a
                                                    unsigned long long gid,
                                                    unsigned long long old_uid,
                                                    unsigned long long old_gid) {
-  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (args->event == NULL) {
-    args->metrics->ringbuffer_full++;
+  if (!reserve_event(args)) {
     return;
   }
 
@@ -110,9 +111,7 @@ __always_inline static void submit_ownership_event(struct submit_event_args_t* a
 __always_inline static void submit_rename_event(struct submit_event_args_t* args,
                                                 const char old_filename[PATH_MAX],
                                                 inode_key_t* old_inode) {
-  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (args->event == NULL) {
-    args->metrics->ringbuffer_full++;
+  if (!reserve_event(args)) {
     return;
   }
 
@@ -124,9 +123,7 @@ __always_inline static void submit_rename_event(struct submit_event_args_t* args
 }
 
 __always_inline static void submit_mkdir_event(struct submit_event_args_t* args) {
-  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (args->event == NULL) {
-    args->metrics->ringbuffer_full++;
+  if (!reserve_event(args)) {
     return;
   }
   args->event->type = DIR_ACTIVITY_CREATION;
