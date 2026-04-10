@@ -164,7 +164,7 @@ def test_no_paths_then_add(fact, fact_config, monitored_dir, server):
     # Remove all paths
     config, config_file = fact_config
     config['paths'] = []
-    reload_config(fact, config, config_file)
+    reload_config(fact, config, config_file, 1)
 
     # Write to a file — should NOT produce events
     fut = os.path.join(monitored_dir, 'test2.txt')
@@ -180,7 +180,7 @@ def test_no_paths_then_add(fact, fact_config, monitored_dir, server):
 
     # Add paths back
     config['paths'] = [f'{monitored_dir}/**/*']
-    reload_config(fact, config, config_file)
+    reload_config(fact, config, config_file, 1)
 
     # Write to a file — should produce events
     with open(fut, 'w') as f:
@@ -209,7 +209,7 @@ def test_paths_then_remove(fact, fact_config, monitored_dir, server):
     # Remove all paths
     config, config_file = fact_config
     config['paths'] = []
-    reload_config(fact, config, config_file)
+    reload_config(fact, config, config_file, 1)
 
     # Write to a file — should NOT produce events
     with open(fut, 'w') as f:
