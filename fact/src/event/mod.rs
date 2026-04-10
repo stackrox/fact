@@ -7,7 +7,6 @@ use std::{
 };
 
 use globset::GlobSet;
-use log::warn;
 use serde::Serialize;
 
 use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t};
@@ -371,7 +370,7 @@ impl From<FileData> for fact_api::file_activity::File {
                 let f_act = fact_api::FileCreation { activity };
                 fact_api::file_activity::File::Creation(f_act)
             }
-            FileData::MkDir(event) => {
+            FileData::MkDir(_) => {
                 unreachable!("MkDir event reached protobuf conversion");
             }
             FileData::Unlink(event) => {
