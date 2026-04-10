@@ -55,6 +55,7 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_CHMOD,
   FILE_ACTIVITY_CHOWN,
   FILE_ACTIVITY_RENAME,
+  DIR_ACTIVITY_CREATION,
 } file_activity_type_t;
 
 struct event_t {
@@ -96,6 +97,12 @@ struct path_prefix_t {
   const char path[LPM_SIZE_MAX];
 };
 
+// Context for correlating mkdir operations
+struct mkdir_context_t {
+  char path[PATH_MAX];
+  inode_key_t parent_inode;
+};
+
 // Metrics types
 struct metrics_by_hook_t {
   unsigned long long total;
@@ -111,4 +118,6 @@ struct metrics_t {
   struct metrics_by_hook_t path_chmod;
   struct metrics_by_hook_t path_chown;
   struct metrics_by_hook_t path_rename;
+  struct metrics_by_hook_t path_mkdir;
+  struct metrics_by_hook_t d_instantiate;
 };

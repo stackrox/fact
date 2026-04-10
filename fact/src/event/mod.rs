@@ -127,7 +127,11 @@ impl Event {
     }
 
     pub fn is_creation(&self) -> bool {
-        matches!(self.file, FileData::Creation(_))
+        matches!(self.file, FileData::Creation(_) | FileData::MkDir(_))
+    }
+
+    pub fn is_mkdir(&self) -> bool {
+        matches!(self.file, FileData::MkDir(_))
     }
 
     pub fn is_unlink(&self) -> bool {
@@ -143,6 +147,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.inode,
             FileData::Creation(data) => &data.inode,
+            FileData::MkDir(data) => &data.inode,
             FileData::Unlink(data) => &data.inode,
             FileData::Chmod(data) => &data.inner.inode,
             FileData::Chown(data) => &data.inner.inode,
@@ -155,6 +160,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.parent_inode,
             FileData::Creation(data) => &data.parent_inode,
+            FileData::MkDir(data) => &data.parent_inode,
             FileData::Unlink(data) => &data.parent_inode,
             FileData::Chmod(data) => &data.inner.parent_inode,
             FileData::Chown(data) => &data.inner.parent_inode,
@@ -176,6 +182,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.filename,
             FileData::Creation(data) => &data.filename,
+            FileData::MkDir(data) => &data.filename,
             FileData::Unlink(data) => &data.filename,
             FileData::Chmod(data) => &data.inner.filename,
             FileData::Chown(data) => &data.inner.filename,
@@ -194,6 +201,7 @@ impl Event {
         match &self.file {
             FileData::Open(data) => &data.host_file,
             FileData::Creation(data) => &data.host_file,
+            FileData::MkDir(data) => &data.host_file,
             FileData::Unlink(data) => &data.host_file,
             FileData::Chmod(data) => &data.inner.host_file,
             FileData::Chown(data) => &data.inner.host_file,
@@ -209,6 +217,7 @@ impl Event {
         match &mut self.file {
             FileData::Open(data) => data.host_file = host_path,
             FileData::Creation(data) => data.host_file = host_path,
+            FileData::MkDir(data) => data.host_file = host_path,
             FileData::Unlink(data) => data.host_file = host_path,
             FileData::Chmod(data) => data.inner.host_file = host_path,
             FileData::Chown(data) => data.inner.host_file = host_path,
@@ -293,6 +302,7 @@ impl PartialEq for Event {
 pub enum FileData {
     Open(BaseFileData),
     Creation(BaseFileData),
+    MkDir(BaseFileData),
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
     Chown(ChownFileData),
@@ -311,6 +321,7 @@ impl FileData {
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
+            file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::MkDir(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
             file_activity_type_t::FILE_ACTIVITY_CHMOD => {
                 let data = ChmodFileData {
@@ -359,6 +370,9 @@ impl From<FileData> for fact_api::file_activity::File {
                 let f_act = fact_api::FileCreation { activity };
                 fact_api::file_activity::File::Creation(f_act)
             }
+            FileData::MkDir(_) => {
+                unreachable!("MkDir event reached protobuf conversion");
+            }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileUnlink { activity };
@@ -386,6 +400,7 @@ impl PartialEq for FileData {
         match (self, other) {
             (FileData::Open(this), FileData::Open(other)) => this == other,
             (FileData::Creation(this), FileData::Creation(other)) => this == other,
+            (FileData::MkDir(this), FileData::MkDir(other)) => this == other,
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
             (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
             (FileData::Rename(this), FileData::Rename(other)) => this == other,

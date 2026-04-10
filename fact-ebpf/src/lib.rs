@@ -125,6 +125,8 @@ impl metrics_t {
         m.path_chmod = m.path_chmod.accumulate(&other.path_chmod);
         m.path_chown = m.path_chown.accumulate(&other.path_chown);
         m.path_rename = m.path_rename.accumulate(&other.path_rename);
+        m.path_mkdir = m.path_mkdir.accumulate(&other.path_mkdir);
+        m.d_instantiate = m.d_instantiate.accumulate(&other.d_instantiate);
         m
     }
 }

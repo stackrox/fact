@@ -280,7 +280,7 @@ impl HostScanner {
                         };
                         self.metrics.events.added();
 
-                        // Handle file creation events by adding new inodes to the map
+                        // Handle file and directory creation events by adding new inodes to the map
                         if event.is_creation() &&
                             let Err(e) = self.handle_creation_event(&event) {
                                 warn!("Failed to handle creation event: {e}");
@@ -299,6 +299,11 @@ impl HostScanner {
                         // Remove inode from the map
                         if event.is_unlink() {
                             self.handle_unlink_event(&event);
+                        }
+
+                        // Skip directory creation events - we track them internally but don't send to sensor
+                        if event.is_mkdir() {
+                            continue;
                         }
 
                         let event = Arc::new(event);

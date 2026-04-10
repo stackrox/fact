@@ -231,3 +231,98 @@ error:
   m->path_rename.error++;
   return 0;
 }
+
+SEC("lsm/path_mkdir")
+int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t mode) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->path_mkdir.total++;
+
+  struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
+  if (path == NULL) {
+    bpf_printk("Failed to read path");
+    m->path_mkdir.error++;
+    return 0;
+  }
+
+  struct inode* parent_inode_ptr = BPF_CORE_READ(dir, dentry, d_inode);
+  inode_key_t parent_inode = inode_to_key(parent_inode_ptr);
+
+  if (should_track_mkdir(parent_inode, path) != PARENT_MONITORED) {
+    m->path_mkdir.ignored++;
+    return 0;
+  }
+
+  // Stash mkdir context for security_d_instantiate
+  __u64 pid_tgid = bpf_get_current_pid_tgid();
+  struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
+  if (mkdir_ctx == NULL) {
+    static const struct mkdir_context_t empty_ctx = {0};
+    if (bpf_map_update_elem(&mkdir_context, &pid_tgid, &empty_ctx, BPF_NOEXIST) != 0) {
+      bpf_printk("Failed to create mkdir context entry");
+      m->path_mkdir.error++;
+      return 0;
+    }
+    mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
+    if (mkdir_ctx == NULL) {
+      bpf_printk("Failed to lookup mkdir context after creation");
+      m->path_mkdir.error++;
+      return 0;
+    }
+  }
+
+  long path_copy_len = bpf_probe_read_str(mkdir_ctx->path, PATH_MAX, path->path);
+  if (path_copy_len < 0) {
+    bpf_printk("Failed to copy path string");
+    m->path_mkdir.error++;
+    bpf_map_delete_elem(&mkdir_context, &pid_tgid);
+    return 0;
+  }
+  mkdir_ctx->parent_inode = parent_inode;
+
+  return 0;
+}
+
+SEC("lsm/d_instantiate")
+int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+
+  m->d_instantiate.total++;
+
+  __u64 pid_tgid = bpf_get_current_pid_tgid();
+
+  if (inode == NULL) {
+    m->d_instantiate.ignored++;
+    goto cleanup;
+  }
+
+  struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
+
+  if (mkdir_ctx == NULL) {
+    m->d_instantiate.ignored++;
+    return 0;
+  }
+
+  inode_key_t inode_key = inode_to_key(inode);
+
+  if (inode_add(&inode_key) == 0) {
+    m->d_instantiate.added++;
+  } else {
+    m->d_instantiate.error++;
+  }
+
+  submit_mkdir_event(&m->d_instantiate,
+                     mkdir_ctx->path,
+                     &inode_key,
+                     &mkdir_ctx->parent_inode);
+
+cleanup:
+  bpf_map_delete_elem(&mkdir_context, &pid_tgid);
+  return 0;
+}
