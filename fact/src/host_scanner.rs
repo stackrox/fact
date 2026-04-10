@@ -311,7 +311,6 @@ impl HostScanner {
                             self.metrics.events.dropped();
                             warn!("Failed to send event: {e}");
                         }
-                        }
                     },
                     _ = scan_trigger.notified() => self.scan()?,
                     _ = self.paths.changed() => self.scan()?,
