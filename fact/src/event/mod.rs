@@ -131,9 +131,6 @@ impl Event {
         matches!(self.file, FileData::Creation(_) | FileData::MkDir(_))
     }
 
-    pub fn is_file_creation(&self) -> bool {
-        matches!(self.file, FileData::Creation(_))
-    }
 
     pub fn is_mkdir(&self) -> bool {
         matches!(self.file, FileData::MkDir(_))
@@ -376,12 +373,7 @@ impl From<FileData> for fact_api::file_activity::File {
                 fact_api::file_activity::File::Creation(f_act)
             }
             FileData::MkDir(event) => {
-                warn!(
-                    "MkDir event reached protobuf conversion - converting to Creation (filtering may have failed)"
-                );
-                let activity = Some(fact_api::FileActivityBase::from(event));
-                let f_act = fact_api::FileCreation { activity };
-                fact_api::file_activity::File::Creation(f_act)
+                unreachable!("MkDir event reached protobuf conversion");
             }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));

@@ -302,12 +302,15 @@ impl HostScanner {
                         }
 
                         // Skip directory creation events - we track them internally but don't send to sensor
-                        if !event.is_mkdir() {
-                            let event = Arc::new(event);
-                            if let Err(e) = self.tx.send(event) {
-                                self.metrics.events.dropped();
-                                warn!("Failed to send event: {e}");
-                            }
+                        if event.is_mkdir() {
+                            continue;
+                        }
+
+                        let event = Arc::new(event);
+                        if let Err(e) = self.tx.send(event) {
+                            self.metrics.events.dropped();
+                            warn!("Failed to send event: {e}");
+                        }
                         }
                     },
                     _ = scan_trigger.notified() => self.scan()?,
