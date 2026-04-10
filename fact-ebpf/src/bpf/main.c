@@ -25,10 +25,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {
-      .metrics = &m->file_open,
-      .use_bpf_d_path = true,
-  };
+  struct submit_event_args_t args = {.metrics = &m->file_open};
 
   args.metrics->total++;
 
@@ -80,10 +77,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {
-      .metrics = &m->path_unlink,
-      .use_bpf_d_path = path_hooks_support_bpf_d_path,
-  };
+  struct submit_event_args_t args = {.metrics = &m->path_unlink};
 
   args.metrics->total++;
 
@@ -115,10 +109,7 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {
-      .metrics = &m->path_chmod,
-      .use_bpf_d_path = path_hooks_support_bpf_d_path,
-  };
+  struct submit_event_args_t args = {.metrics = &m->path_chmod};
 
   args.metrics->total++;
 
@@ -152,10 +143,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {
-      .metrics = &m->path_chown,
-      .use_bpf_d_path = path_hooks_support_bpf_d_path,
-  };
+  struct submit_event_args_t args = {.metrics = &m->path_chown};
 
   args.metrics->total++;
 
@@ -191,10 +179,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {
-      .metrics = &m->path_rename,
-      .use_bpf_d_path = path_hooks_support_bpf_d_path,
-  };
+  struct submit_event_args_t args = {.metrics = &m->path_rename};
 
   args.metrics->total++;
 
@@ -291,10 +276,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {
-      .metrics = &m->d_instantiate,
-      .use_bpf_d_path = false,
-  };
+  struct submit_event_args_t args = {.metrics = &m->d_instantiate};
 
   args.metrics->total++;
 

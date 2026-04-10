@@ -18,7 +18,6 @@ struct submit_event_args_t {
   const char* filename;
   inode_key_t inode;
   inode_key_t parent_inode;
-  bool use_bpf_d_path;
 };
 
 __always_inline static bool reserve_event(struct submit_event_args_t* args) {
@@ -30,7 +29,8 @@ __always_inline static bool reserve_event(struct submit_event_args_t* args) {
   return true;
 }
 
-__always_inline static void __submit_event(struct submit_event_args_t* args) {
+__always_inline static void __submit_event(struct submit_event_args_t* args,
+                                           bool use_bpf_d_path) {
   struct event_t* event = args->event;
   event->timestamp = bpf_ktime_get_boot_ns();
   inode_copy(&event->inode, &args->inode);
@@ -42,7 +42,7 @@ __always_inline static void __submit_event(struct submit_event_args_t* args) {
     goto error;
   }
 
-  int64_t err = process_fill(&event->process, args->use_bpf_d_path);
+  int64_t err = process_fill(&event->process, use_bpf_d_path);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
     goto error;
@@ -64,7 +64,7 @@ __always_inline static void submit_open_event(struct submit_event_args_t* args,
   }
   args->event->type = event_type;
 
-  __submit_event(args);
+  __submit_event(args, true);
 }
 
 __always_inline static void submit_unlink_event(struct submit_event_args_t* args) {
@@ -73,7 +73,7 @@ __always_inline static void submit_unlink_event(struct submit_event_args_t* args
   }
   args->event->type = FILE_ACTIVITY_UNLINK;
 
-  __submit_event(args);
+  __submit_event(args, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static void submit_mode_event(struct submit_event_args_t* args,
@@ -87,7 +87,7 @@ __always_inline static void submit_mode_event(struct submit_event_args_t* args,
   args->event->chmod.new = mode;
   args->event->chmod.old = old_mode;
 
-  __submit_event(args);
+  __submit_event(args, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static void submit_ownership_event(struct submit_event_args_t* args,
@@ -105,7 +105,7 @@ __always_inline static void submit_ownership_event(struct submit_event_args_t* a
   args->event->chown.old.uid = old_uid;
   args->event->chown.old.gid = old_gid;
 
-  __submit_event(args);
+  __submit_event(args, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static void submit_rename_event(struct submit_event_args_t* args,
@@ -119,7 +119,7 @@ __always_inline static void submit_rename_event(struct submit_event_args_t* args
   bpf_probe_read_str(args->event->rename.old_filename, PATH_MAX, old_filename);
   inode_copy(&args->event->rename.old_inode, old_inode);
 
-  __submit_event(args);
+  __submit_event(args, path_hooks_support_bpf_d_path);
 }
 
 __always_inline static void submit_mkdir_event(struct submit_event_args_t* args) {
@@ -129,5 +129,5 @@ __always_inline static void submit_mkdir_event(struct submit_event_args_t* args)
   args->event->type = DIR_ACTIVITY_CREATION;
 
   // d_instantiate doesn't support bpf_d_path, so we use false and rely on the stashed path from path_mkdir
-  __submit_event(args);
+  __submit_event(args, false);
 }
