@@ -131,7 +131,6 @@ impl Event {
         matches!(self.file, FileData::Creation(_) | FileData::MkDir(_))
     }
 
-
     pub fn is_mkdir(&self) -> bool {
         matches!(self.file, FileData::MkDir(_))
     }
