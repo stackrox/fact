@@ -37,6 +37,22 @@ int BPF_PROG(trace_file_open, struct file* file) {
     goto ignored;
   }
 
+  // Overlayfs deduplication: overlayfs triggers file_open twice — once
+  // on the overlay inode (with richer semantics like FMODE_CREATED) and
+  // once on the underlying filesystem inode. We keep the overlayfs
+  // event and skip the underlying duplicate.
+  __u64 pid_tgid = bpf_get_current_pid_tgid();
+  if (inode_is_overlayfs(file->f_inode)) {
+    char flag = 1;
+    bpf_map_update_elem(&overlayfs_dedup, &pid_tgid, &flag, BPF_ANY);
+  } else {
+    char* flag = bpf_map_lookup_elem(&overlayfs_dedup, &pid_tgid);
+    if (flag != NULL) {
+      bpf_map_delete_elem(&overlayfs_dedup, &pid_tgid);
+      goto ignored;
+    }
+  }
+
   struct bound_path_t* path = path_read_unchecked(&file->f_path);
   if (path == NULL) {
     bpf_printk("Failed to read path");
