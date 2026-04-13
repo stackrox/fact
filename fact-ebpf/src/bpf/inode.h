@@ -11,6 +11,7 @@
 #include <bpf/bpf_helpers.h>
 // clang-format on
 
+// From: man(2) statfs
 #define BTRFS_SUPER_MAGIC 0x9123683E
 #define OVERLAYFS_SUPER_MAGIC 0x794c7630
 
@@ -63,8 +64,8 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
  * Check if the given inode belongs to an overlayfs filesystem.
  *
  * Overlayfs triggers LSM hooks for both the merged view and the
- * underlying filesystem. The underlying event carries the same
- * path and process data, so we can safely skip the overlayfs one.
+ * underlying filesystem. This can be used to distinguish between
+ * them.
  */
 __always_inline static bool inode_is_overlayfs(struct inode* inode) {
   if (inode == NULL) {
