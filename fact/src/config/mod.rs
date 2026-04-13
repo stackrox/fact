@@ -544,7 +544,7 @@ pub struct FactCli {
     /// means unlimited (no throttling).
     ///
     /// Default value is 0 (unlimited)
-    #[arg(long, short = 't', env = "FACT_RATE_LIMIT")]
+    #[arg(long, short = 'l', env = "FACT_RATE_LIMIT")]
     rate_limit: Option<u64>,
 }
 

@@ -75,7 +75,10 @@ impl RateLimiter {
                     event = self.rx.recv() => {
                         let event = match event {
                             Ok(e) => e,
-                            Err(RecvError::Lagged(_)) => continue,
+                            Err(RecvError::Lagged(n)) => {
+                                self.metrics.dropped_n(n);
+                                continue;
+                            }
                             Err(RecvError::Closed) => break,
                         };
 

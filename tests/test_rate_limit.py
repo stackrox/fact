@@ -69,8 +69,7 @@ def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
 
     total_accounted = received_count + dropped_count
 
-    assert total_accounted >= num_files - 5, \
-        f'Too many unaccounted events: received={received_count}, dropped={dropped_count}, created={num_files}'
+    assert total_accounted == num_files, 'Expected rate limiter to see all events'
 
 def test_rate_limit_unlimited(monitored_dir, server, fact_config):
     """
