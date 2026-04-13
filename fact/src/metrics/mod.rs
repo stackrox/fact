@@ -137,6 +137,7 @@ impl OutputMetrics {
 
 pub struct Metrics {
     pub bpf_worker: EventCounter,
+    pub rate_limiter: EventCounter,
     pub output: OutputMetrics,
     pub host_scanner: HostScannerMetrics,
 }
@@ -154,6 +155,13 @@ impl Metrics {
         );
         bpf_worker.register(registry);
 
+        let rate_limiter = EventCounter::new(
+            "rate_limiter_events",
+            "Events processed by the rate limiter",
+            &[LabelValues::Added, LabelValues::Dropped],
+        );
+        rate_limiter.register(registry);
+
         let output_metrics = OutputMetrics::new();
         output_metrics.register(registry);
 
@@ -162,6 +170,7 @@ impl Metrics {
 
         Metrics {
             bpf_worker,
+            rate_limiter,
             output: output_metrics,
             host_scanner,
         }

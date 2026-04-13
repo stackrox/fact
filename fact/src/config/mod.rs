@@ -33,6 +33,7 @@ pub struct FactConfig {
     json: Option<bool>,
     hotreload: Option<bool>,
     scan_interval: Option<Duration>,
+    rate_limit: Option<u64>,
 }
 
 impl FactConfig {
@@ -94,6 +95,10 @@ impl FactConfig {
         if let Some(scan_interval) = from.scan_interval {
             self.scan_interval = Some(scan_interval);
         }
+
+        if let Some(rate_limit) = from.rate_limit {
+            self.rate_limit = Some(rate_limit);
+        }
     }
 
     pub fn paths(&self) -> &[PathBuf] {
@@ -114,6 +119,10 @@ impl FactConfig {
 
     pub fn scan_interval(&self) -> Duration {
         self.scan_interval.unwrap_or(Duration::from_secs(30))
+    }
+
+    pub fn rate_limit(&self) -> u64 {
+        self.rate_limit.unwrap_or(0)
     }
 
     #[cfg(test)]
@@ -223,6 +232,16 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     } else {
                         bail!("scan_interval field has incorrect type: {v:?}");
                     }
+                }
+                "rate_limit" => {
+                    // rate_limit == 0 means unlimited (no throttling)
+                    let Some(rate_limit) = v.as_i64() else {
+                        bail!("rate_limit field has incorrect type: {v:?}");
+                    };
+                    if rate_limit < 0 {
+                        bail!("invalid rate_limit: {rate_limit}");
+                    }
+                    config.rate_limit = Some(rate_limit as u64);
                 }
                 name => bail!("Invalid field '{name}' with value: {v:?}"),
             }
@@ -518,6 +537,15 @@ pub struct FactCli {
     /// Default value is 30 seconds
     #[arg(long, short, env = "FACT_SCAN_INTERVAL")]
     scan_interval: Option<f64>,
+
+    /// Maximum number of file events to allow per second
+    ///
+    /// Events exceeding this rate will be dropped. A value of 0
+    /// means unlimited (no throttling).
+    ///
+    /// Default value is 0 (unlimited)
+    #[arg(long, short = 't', env = "FACT_RATE_LIMIT")]
+    rate_limit: Option<u64>,
 }
 
 impl FactCli {
@@ -541,6 +569,7 @@ impl FactCli {
             json: resolve_bool_arg(self.json, self.no_json),
             hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),
             scan_interval: self.scan_interval.map(Duration::from_secs_f64),
+            rate_limit: self.rate_limit,
         }
     }
 }

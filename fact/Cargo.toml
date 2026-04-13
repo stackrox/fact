@@ -12,6 +12,7 @@ clap = { workspace = true }
 env_logger = { workspace = true }
 glob = { workspace = true }
 globset = { workspace = true }
+governor = { workspace = true}
 http-body-util = { workspace = true }
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
