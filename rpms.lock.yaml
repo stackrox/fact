@@ -767,13 +767,13 @@ arches:
     name: libmount
     evr: 2.37.4-21.el9_7
     sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libnghttp2-1.43.0-6.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libnghttp2-1.43.0-6.el9_7.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 75928
-    checksum: sha256:049f00edc1895a2091d81a0dfb9c55c586d8f3f658bf8d19a834a20860c9edb1
+    size: 79593
+    checksum: sha256:60e82df5c22ff2aa0c093b6c3992a13e32e1c0998e27020be724c3d9cc4892f2
     name: libnghttp2
-    evr: 1.43.0-6.el9
-    sourcerpm: nghttp2-1.43.0-6.el9.src.rpm
+    evr: 1.43.0-6.el9_7.1
+    sourcerpm: nghttp2-1.43.0-6.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libpipeline-1.5.3-4.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 52161
@@ -2080,13 +2080,13 @@ arches:
     name: libmount
     evr: 2.37.4-21.el9_7
     sourcerpm: util-linux-2.37.4-21.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libnghttp2-1.43.0-6.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libnghttp2-1.43.0-6.el9_7.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 76742
-    checksum: sha256:ebc37f2252164962b03dd3a4b5e53ab5e1e9234a8657219e8c8e9064dcb98b2e
+    size: 80370
+    checksum: sha256:a3df6142080db5d53d1a50cdc64ab7fef0b3cf6bfeb7100a6ffee10d1b9664da
     name: libnghttp2
-    evr: 1.43.0-6.el9
-    sourcerpm: nghttp2-1.43.0-6.el9.src.rpm
+    evr: 1.43.0-6.el9_7.1
+    sourcerpm: nghttp2-1.43.0-6.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libpipeline-1.5.3-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 52912
