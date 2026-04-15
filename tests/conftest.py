@@ -8,6 +8,7 @@ import pytest
 import requests
 import yaml
 
+from metrics import MetricsClient
 from server import FileActivityService
 
 
@@ -130,6 +131,13 @@ def fact_config(request, monitored_dir, logs_dir):
         with open(config_file.name, 'r') as r:
             f.write(r.read())
     config_file.close()
+
+
+@pytest.fixture
+def metrics(fact_config):
+    """Client for taking metrics snapshots from the FACT endpoint."""
+    config, _ = fact_config
+    return MetricsClient(config['endpoint']['address'])
 
 
 @pytest.fixture
