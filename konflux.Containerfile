@@ -33,7 +33,7 @@ COPY . .
 
 RUN cargo build --release
 
-FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:cf6d4fe800e3a6b9af0eb4dccb95c33289939cae9893c4338d51c5ae326d0c3e
+FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:a2b9823a9883ca2d6de30079da84afce32cd1f3777905aca1a46d4383ff096f9
 
 ARG FACT_TAG
 
