@@ -732,13 +732,13 @@ arches:
     name: kmod-libs
     evr: 25-20.el8
     sourcerpm: kmod-25-20.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kpartx-0.8.4-42.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kpartx-0.8.4-43.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 121808
-    checksum: sha256:297dafaaee9697082bdb4446b775fa78b8160502d7ebf55f8845b9e46d4622a2
+    size: 120828
+    checksum: sha256:6dad50ef5c4a63d47fd56ba89ac789408eceed60fcdffa77179f449e522cd2c1
     name: kpartx
-    evr: 0.8.4-42.el8_10
-    sourcerpm: device-mapper-multipath-0.8.4-42.el8_10.src.rpm
+    evr: 0.8.4-43.el8_10
+    sourcerpm: device-mapper-multipath-0.8.4-43.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/krb5-devel-1.18.2-32.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 575248
@@ -1495,13 +1495,13 @@ arches:
     name: rpm-libs
     evr: 4.14.3-32.el8_10
     sourcerpm: rpm-4.14.3-32.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/s/sed-4.5-5.el8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/s/sed-4.5-5.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 301656
-    checksum: sha256:bccf0490e856bfe56c526c54e2bca9865642dcaaf2608f5c1303e4590f6d6214
+    size: 301152
+    checksum: sha256:58af3c439e2f68ec5455875bef463333393dc0e8a609fad5f7639e86237c63a2
     name: sed
-    evr: 4.5-5.el8
-    sourcerpm: sed-4.5-5.el8.src.rpm
+    evr: 4.5-5.el8_10
+    sourcerpm: sed-4.5-5.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/s/setup-2.12.2-9.el8.noarch.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 185300
@@ -1637,10 +1637,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/44c2558efeca88f278204dc510f3264c63d4e4cfec6321ad064cae3e9ba05b74-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/6365b6dae22eda054e8b89df3f603657e9e1f16cb9a751d5f9a5356eedbbed5f-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 779767
-    checksum: sha256:44c2558efeca88f278204dc510f3264c63d4e4cfec6321ad064cae3e9ba05b74
+    size: 786281
+    checksum: sha256:6365b6dae22eda054e8b89df3f603657e9e1f16cb9a751d5f9a5356eedbbed5f
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.88.0-1.module+el8.10.0+23326+3c6ade25.x86_64.rpm
@@ -2371,13 +2371,13 @@ arches:
     name: kmod-libs
     evr: 25-20.el8
     sourcerpm: kmod-25-20.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kpartx-0.8.4-42.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kpartx-0.8.4-43.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 122604
-    checksum: sha256:8f9e7887ed1942d744c4efe67cb2ffa093166520d3947e114c7b93f60cb1b97a
+    size: 121836
+    checksum: sha256:65ffc7e817d46fe64760e8d31a4c0b0292b4737aa7e145e264c455ca62722d26
     name: kpartx
-    evr: 0.8.4-42.el8_10
-    sourcerpm: device-mapper-multipath-0.8.4-42.el8_10.src.rpm
+    evr: 0.8.4-43.el8_10
+    sourcerpm: device-mapper-multipath-0.8.4-43.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/krb5-devel-1.18.2-32.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 576680
@@ -3120,13 +3120,13 @@ arches:
     name: rpm-libs
     evr: 4.14.3-32.el8_10
     sourcerpm: rpm-4.14.3-32.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/s/sed-4.5-5.el8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/s/sed-4.5-5.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 305372
-    checksum: sha256:a9ece4c02cb38584287a36c11f506f0c8a8f278724742531b9e2b0ace6585bbe
+    size: 304788
+    checksum: sha256:bec127aea8204d95029c32893e0cde55c9b5d5372b52c4ebbf714deb74baf302
     name: sed
-    evr: 4.5-5.el8
-    sourcerpm: sed-4.5-5.el8.src.rpm
+    evr: 4.5-5.el8_10
+    sourcerpm: sed-4.5-5.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/s/setup-2.12.2-9.el8.noarch.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 185300
@@ -3262,7 +3262,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/1bb64fe6d4afd4c2bf4c989854b001ee555300c2bad4dfb63633ee0545b1b8fb-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/84c4211d6c8a9a2e884d83943795bb09a9bdf34e17e87455d3057af2e26ba81d-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 800730
-    checksum: sha256:1bb64fe6d4afd4c2bf4c989854b001ee555300c2bad4dfb63633ee0545b1b8fb
+    size: 808654
+    checksum: sha256:84c4211d6c8a9a2e884d83943795bb09a9bdf34e17e87455d3057af2e26ba81d
