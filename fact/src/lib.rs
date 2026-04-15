@@ -6,6 +6,7 @@ use host_info::{SystemInfo, get_distro, get_hostname};
 use host_scanner::HostScanner;
 use log::{LevelFilter, debug, info, warn};
 use metrics::exporter::Exporter;
+use rate_limiter::RateLimiter;
 use tokio::{
     signal::unix::{SignalKind, signal},
     sync::{mpsc, watch},
@@ -20,6 +21,7 @@ mod host_scanner;
 mod metrics;
 mod output;
 mod pre_flight;
+mod rate_limiter;
 
 use config::FactConfig;
 use pre_flight::pre_flight;
@@ -92,14 +94,22 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         exporter.metrics.host_scanner.clone(),
     )?;
 
-    output::start(
+    let rate_limiter = RateLimiter::new(
         host_scanner.subscribe(),
+        reloader.rate_limit(),
+        running.subscribe(),
+        exporter.metrics.rate_limiter.clone(),
+    )?;
+
+    output::start(
+        rate_limiter.subscribe(),
         running.subscribe(),
         exporter.metrics.output.clone(),
         reloader.grpc(),
         reloader.config().json(),
     )?;
     let mut host_scanner_handle = host_scanner.start();
+    let mut rate_limiter_handle = rate_limiter.start();
     endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
     let mut bpf_handle = bpf.start(running.subscribe(), exporter.metrics.bpf_worker.clone());
     reloader.start(running.subscribe());
@@ -126,6 +136,15 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
                         warn!("HostScanner worker errored out: {e:?}");
                     }
                     Err(e) => warn!("HostScanner task errored out: {e:?}"),
+                }
+                break;
+            }
+            res = rate_limiter_handle.borrow_mut() => {
+                match res {
+                    Ok(res) => if let Err(e) = res {
+                        warn!("Rate limiter worker errored out: {e:?}");
+                    }
+                    Err(e) => warn!("Rate limiter task errored out: {e:?}"),
                 }
                 break;
             }

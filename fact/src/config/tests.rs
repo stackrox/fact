@@ -237,6 +237,20 @@ fn parsing() {
             },
         ),
         (
+            "rate_limit: 0",
+            FactConfig {
+                rate_limit: Some(0),
+                ..Default::default()
+            },
+        ),
+        (
+            "rate_limit: 1000",
+            FactConfig {
+                rate_limit: Some(1000),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
@@ -274,6 +288,7 @@ fn parsing() {
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
+                rate_limit: None,
             },
         ),
     ];
@@ -1031,6 +1046,7 @@ fn update() {
                 },
                 hotreload: Some(true),
                 scan_interval: Some(Duration::from_secs(30)),
+                rate_limit: None,
             },
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -1051,6 +1067,7 @@ fn update() {
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
+                rate_limit: None,
             },
         ),
     ];
