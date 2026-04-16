@@ -56,6 +56,7 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_CHOWN,
   FILE_ACTIVITY_RENAME,
   DIR_ACTIVITY_CREATION,
+  DIR_ACTIVITY_UNLINK,
 } file_activity_type_t;
 
 struct event_t {
@@ -120,4 +121,5 @@ struct metrics_t {
   struct metrics_by_hook_t path_rename;
   struct metrics_by_hook_t path_mkdir;
   struct metrics_by_hook_t d_instantiate;
+  struct metrics_by_hook_t path_rmdir;
 };

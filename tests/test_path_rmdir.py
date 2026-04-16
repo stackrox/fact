@@ -15,16 +15,18 @@ def get_inode_removed_count(fact_config):
         fact_config: The fact configuration tuple (config dict, config file path).
 
     Returns:
-        The current value of host_scanner_scan{label="inode_removed"} metric.
+        The current value of host_scanner_scan{label="InodeRemoved"} metric.
     """
     config, _ = fact_config
     response = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
     assert response.status_code == 200
 
     for line in response.text.split('\n'):
-        if 'host_scanner_scan{label="inode_removed"}' in line:
-            # Format: host_scanner_scan{label="inode_removed"} 42
-            return int(line.split()[-1])
+        if 'host_scanner_scan' in line and 'label="InodeRemoved"' in line:
+            # Format: host_scanner_scan{label="InodeRemoved"} 42
+            parts = line.split()
+            if len(parts) >= 2:
+                return int(parts[-1])
 
     return 0
 
@@ -158,10 +160,11 @@ def test_rmdir_tree(monitored_dir, server, fact_config):
 
     # Remove the entire tree recursively (like rm -rf)
     # This will generate events for all files and directories
+    # Order: deepest files/dirs first, then work up to the root
     shutil.rmtree(level1)
 
     # All deletions should be tracked: 3 files + 3 directories
-    # (level1, level2, level3)
+    # shutil.rmtree deletes depth-first: file1, file2, file3, level3, level2, level1
     unlink_events = [
         Event(process=process, event_type=EventType.UNLINK,
               file=file1, host_path=file1),
@@ -170,11 +173,11 @@ def test_rmdir_tree(monitored_dir, server, fact_config):
         Event(process=process, event_type=EventType.UNLINK,
               file=file3, host_path=file3),
         Event(process=process, event_type=EventType.UNLINK,
-              file=level1, host_path=level1),
+              file=level3, host_path=level3),
         Event(process=process, event_type=EventType.UNLINK,
               file=level2, host_path=level2),
         Event(process=process, event_type=EventType.UNLINK,
-              file=level3, host_path=level3),
+              file=level1, host_path=level1),
     ]
 
     server.wait_events(unlink_events)
