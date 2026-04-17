@@ -338,7 +338,7 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
 
   struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
   if (path == NULL) {
-    bpf_printk("Failed to read path");
+    bpf_printk("Failed to directory read path");
     m->path_rmdir.error++;
     return 0;
   }
