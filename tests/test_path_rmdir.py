@@ -2,9 +2,9 @@ import os
 import shutil
 
 import pytest
-import requests
 
 from event import Event, EventType, Process
+from utils import get_metric_value
 
 
 def get_inode_removed_count(fact_config):
@@ -17,18 +17,8 @@ def get_inode_removed_count(fact_config):
     Returns:
         The current value of host_scanner_scan{label="InodeRemoved"} metric.
     """
-    config, _ = fact_config
-    response = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
-    assert response.status_code == 200
-
-    for line in response.text.split('\n'):
-        if 'host_scanner_scan' in line and 'label="InodeRemoved"' in line:
-            # Format: host_scanner_scan{label="InodeRemoved"} 42
-            parts = line.split()
-            if len(parts) >= 2:
-                return int(parts[-1])
-
-    return 0
+    value = get_metric_value(fact_config, "host_scanner_scan", {"label": "InodeRemoved"})
+    return int(value) if value is not None else 0
 
 
 @pytest.mark.parametrize("dirname", [
