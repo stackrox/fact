@@ -53,9 +53,6 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
 
     Scenario: File is removed first, leaving an empty directory, then rmdir is called.
 
-    For now, directory deletion events are reported (like file unlink).
-    Later, these events will be filtered out but inode cleanup will still happen.
-
     We use exact delta matching because:
     - Each test has an isolated monitored_dir
     - Periodic scans are disabled (scan_interval: 0)
@@ -104,10 +101,9 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
         f"Expected exactly 1 inode removed for file deletion, got {file_delta}"
 
     # Now remove the empty directory with rmdir
-    # Note: Directory deletions are tracked internally but not sent as events to sensors
     os.rmdir(test_dir)
 
-    # Check that directory deletion incremented both metrics by exactly 1
+    # Check metrics after directory deletion
     final_inode_removed = get_inode_removed_count(fact_config)
     final_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
 
@@ -186,9 +182,7 @@ def test_rmdir_recursive_with_rm(monitored_dir, server, fact_config):
     if proc.returncode != 0:
         raise RuntimeError(f"rm command failed with exit code {proc.returncode}")
 
-    # Only file deletions are reported as events
-    # Directory deletions are tracked internally but not sent to sensors
-    # rm -rf deletes depth-first: file3, file2, file1
+    # Wait for file deletion events (rm -rf deletes depth-first)
     unlink_events = [
         Event(process=rm_process, event_type=EventType.UNLINK,
               file=file3, host_path=file3),
@@ -267,8 +261,6 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     os.remove(monitored_file)
     os.rmdir(monitored_subdir)
 
-    # Only file deletion is reported as an event
-    # Directory deletions are tracked internally but not sent to sensors
     deletion_events = [
         Event(process=process, event_type=EventType.UNLINK,
               file=monitored_file, host_path=monitored_file),
@@ -335,7 +327,6 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
     os.rmdir(subdir)
 
     # Verify file deletion is tracked
-    # Directory deletions are tracked internally but not sent to sensors
     deletion_events = [
         Event(process=process, event_type=EventType.UNLINK,
               file=test_file, host_path=test_file),
