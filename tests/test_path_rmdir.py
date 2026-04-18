@@ -1,5 +1,6 @@
 import os
 import shutil
+import subprocess
 
 import pytest
 
@@ -124,15 +125,17 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
         f"Expected exactly 1 kernel rmdir event processed, got {kernel_delta}"
 
 
-def test_rmdir_tree(monitored_dir, server, fact_config):
+def test_rmdir_recursive_with_rm(monitored_dir, server, fact_config):
     """
     Tests that removing a directory tree recursively cleans up all inode tracking.
 
     Scenario: Directory with nested subdirectories and files is removed recursively
-    using shutil.rmtree (similar to rm -rf).
+    using the rm -rf command via subprocess.
 
     This tests that all inodes (both files and directories) are properly removed
-    from tracking when a tree is deleted.
+    from tracking when a tree is deleted by an external process. The rm command
+    deletes directories eagerly (immediately after they become empty), creating
+    an interleaved deletion pattern.
 
     Args:
         monitored_dir: Temporary directory path for creating test directories.
@@ -175,25 +178,34 @@ def test_rmdir_tree(monitored_dir, server, fact_config):
 
     server.wait_events(creation_events)
 
-    # Remove the entire tree recursively (like rm -rf)
+    # Remove the entire tree recursively using subprocess (like running rm -rf)
     # This will generate events for all files and directories
     # Order: deepest files/dirs first, then work up to the root
-    shutil.rmtree(level1)
+    proc = subprocess.Popen(["rm", "-rf", level1])
+
+    # Capture process info while subprocess is running
+    rm_process = Process.from_proc(proc.pid)
+
+    # Wait for completion
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(f"rm command failed with exit code {proc.returncode}")
 
     # All deletions should be tracked: 3 files + 3 directories
-    # shutil.rmtree deletes depth-first: file1, file2, file3, level3, level2, level1
+    # rm -rf deletes each directory immediately after it empties (interleaved):
+    # file3, level3 (now empty), file2, level2 (now empty), file1, level1 (now empty)
     unlink_events = [
-        Event(process=process, event_type=EventType.UNLINK,
-              file=file1, host_path=file1),
-        Event(process=process, event_type=EventType.UNLINK,
-              file=file2, host_path=file2),
-        Event(process=process, event_type=EventType.UNLINK,
+        Event(process=rm_process, event_type=EventType.UNLINK,
               file=file3, host_path=file3),
-        Event(process=process, event_type=EventType.UNLINK,
+        Event(process=rm_process, event_type=EventType.UNLINK,
               file=level3, host_path=level3),
-        Event(process=process, event_type=EventType.UNLINK,
+        Event(process=rm_process, event_type=EventType.UNLINK,
+              file=file2, host_path=file2),
+        Event(process=rm_process, event_type=EventType.UNLINK,
               file=level2, host_path=level2),
-        Event(process=process, event_type=EventType.UNLINK,
+        Event(process=rm_process, event_type=EventType.UNLINK,
+              file=file1, host_path=file1),
+        Event(process=rm_process, event_type=EventType.UNLINK,
               file=level1, host_path=level1),
     ]
 
