@@ -384,12 +384,8 @@ impl From<FileData> for fact_api::file_activity::File {
             FileData::MkDir(_) => {
                 unreachable!("MkDir event reached protobuf conversion");
             }
-            FileData::RmDir(event) => {
-                // For now, report directory deletion as unlink
-                // TODO: Filter this out like MkDir once inode tracking is stable
-                let activity = Some(fact_api::FileActivityBase::from(event));
-                let f_act = fact_api::FileUnlink { activity };
-                fact_api::file_activity::File::Unlink(f_act)
+            FileData::RmDir(_) => {
+                unreachable!("RmDir event reached protobuf conversion");
             }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
