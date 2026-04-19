@@ -351,7 +351,6 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
     return 0;
   }
 
-  // Remove directory inode from tracking
   inode_remove(&inode_key);
 
   submit_rmdir_event(&m->path_rmdir,
