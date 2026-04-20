@@ -124,23 +124,19 @@ impl HostScanner {
         };
 
         for entry in glob::glob(glob_str)? {
-            match entry {
-                Ok(path) => {
-                    if path.is_file() {
-                        self.metrics.scan_inc(ScanLabels::FileScanned);
-                        self.update_entry(path.as_path()).with_context(|| {
-                            format!("Failed to update entry for {}", path.display())
-                        })?;
-                    } else if path.is_dir() {
-                        self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                        self.update_entry(path.as_path()).with_context(|| {
-                            format!("Failed to update entry for {}", path.display())
-                        })?;
-                    } else {
-                        self.metrics.scan_inc(ScanLabels::FsItemIgnored);
-                    }
-                }
-                Err(e) => return Err(e.into()),
+            let path = entry?;
+            if path.is_file() {
+                self.metrics.scan_inc(ScanLabels::FileScanned);
+                self.update_entry(path.as_path()).with_context(|| {
+                    format!("Failed to update entry for {}", path.display())
+                })?;
+            } else if path.is_dir() {
+                self.metrics.scan_inc(ScanLabels::DirectoryScanned);
+                self.update_entry(path.as_path()).with_context(|| {
+                    format!("Failed to update entry for {}", path.display())
+                })?;
+            } else {
+                self.metrics.scan_inc(ScanLabels::FsItemIgnored);
             }
         }
         Ok(())
