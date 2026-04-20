@@ -127,14 +127,12 @@ impl HostScanner {
             let path = entry?;
             if path.is_file() {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
-                self.update_entry(path.as_path()).with_context(|| {
-                    format!("Failed to update entry for {}", path.display())
-                })?;
+                self.update_entry(path.as_path())
+                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
             } else if path.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                self.update_entry(path.as_path()).with_context(|| {
-                    format!("Failed to update entry for {}", path.display())
-                })?;
+                self.update_entry(path.as_path())
+                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
             } else {
                 self.metrics.scan_inc(ScanLabels::FsItemIgnored);
             }
