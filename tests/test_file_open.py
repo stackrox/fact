@@ -166,8 +166,6 @@ def test_overlay(test_container, server):
     events = [
         Event(process=process, event_type=EventType.CREATION,
               file=fut, host_path=''),
-        Event(process=process, event_type=EventType.OPEN,
-              file=fut, host_path='')
     ]
 
     server.wait_events(events)

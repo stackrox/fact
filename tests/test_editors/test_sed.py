@@ -69,11 +69,7 @@ def test_sed_ovfs(vi_container, server):
     events = [
         Event(process=shell, event_type=EventType.CREATION,
               file=fut, host_path=''),
-        Event(process=shell, event_type=EventType.OPEN,
-              file=fut, host_path=''),
         Event(process=sed, event_type=EventType.CREATION,
-              file=sed_tmp_file, host_path=''),
-        Event(process=sed, event_type=EventType.OPEN,
               file=sed_tmp_file, host_path=''),
         Event(process=sed, event_type=EventType.OWNERSHIP,
               file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),

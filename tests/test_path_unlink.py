@@ -170,8 +170,6 @@ def test_overlay(test_container, server):
     events = [
         Event(process=touch, event_type=EventType.CREATION,
               file=fut, host_path=''),
-        Event(process=touch, event_type=EventType.OPEN,
-              file=fut, host_path=''),
         Event(process=rm, event_type=EventType.UNLINK,
               file=fut, host_path=''),
     ]

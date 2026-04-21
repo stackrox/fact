@@ -60,8 +60,6 @@ def test_chown(test_container, server, filename):
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
               host_path=''),
-        Event(process=touch, event_type=EventType.OPEN, file=fut,
-              host_path=''),
         Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
               host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
     ]
@@ -103,8 +101,6 @@ def test_multiple(test_container, server):
 
         events.extend([
             Event(process=touch, event_type=EventType.CREATION, file=fut,
-                  host_path=''),
-            Event(process=touch, event_type=EventType.OPEN, file=fut,
                   host_path=''),
             Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
                   host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
@@ -149,8 +145,6 @@ def test_ignored(test_container, server):
     )
     events = [
         Event(process=reported_touch, event_type=EventType.CREATION,
-              file=monitored_file, host_path=''),
-        Event(process=reported_touch, event_type=EventType.OPEN,
               file=monitored_file, host_path=''),
         Event(process=reported_chown, event_type=EventType.OWNERSHIP,
               file=monitored_file, host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
@@ -200,8 +194,6 @@ def test_no_change(test_container, server):
     # Expect both chown events (all calls to chown trigger events)
     events = [
         Event(process=touch, event_type=EventType.CREATION, file=fut,
-              host_path=''),
-        Event(process=touch, event_type=EventType.OPEN, file=fut,
               host_path=''),
         chown_event,
         chown_event,

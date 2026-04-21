@@ -11,7 +11,9 @@
 #include <bpf/bpf_helpers.h>
 // clang-format on
 
+// From: man(2) statfs
 #define BTRFS_SUPER_MAGIC 0x9123683E
+#define OVERLAYFS_SUPER_MAGIC 0x794c7630
 
 /**
  * Retrieve the inode and device numbers and return them as a new key.
@@ -56,6 +58,21 @@ __always_inline static inode_key_t inode_to_key(struct inode* inode) {
   key.dev = new_encode_dev(key.dev);
 
   return key;
+}
+
+/**
+ * Check if the given inode belongs to an overlayfs filesystem.
+ *
+ * Overlayfs triggers LSM hooks for both the merged view and the
+ * underlying filesystem. This can be used to distinguish between
+ * them.
+ */
+__always_inline static bool inode_is_overlayfs(struct inode* inode) {
+  if (inode == NULL) {
+    return false;
+  }
+  unsigned long magic = BPF_CORE_READ(inode, i_sb, s_magic);
+  return magic == OVERLAYFS_SUPER_MAGIC;
 }
 
 __always_inline static inode_value_t* inode_get(const struct inode_key_t* inode) {

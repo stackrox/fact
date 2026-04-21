@@ -97,6 +97,15 @@ struct {
   __uint(max_entries, 1);
 } metrics SEC(".maps");
 
+// Track pid_tgid of overlayfs file_open events so we can skip the
+// duplicate underlying filesystem event that follows immediately.
+struct {
+  __uint(type, BPF_MAP_TYPE_LRU_PERCPU_HASH);
+  __type(key, __u64);
+  __type(value, char);
+  __uint(max_entries, 1);
+} overlayfs_dedup SEC(".maps");
+
 __always_inline static struct metrics_t* get_metrics() {
   unsigned int zero = 0;
   return bpf_map_lookup_elem(&metrics, &zero);
