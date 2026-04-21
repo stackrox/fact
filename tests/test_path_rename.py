@@ -48,9 +48,9 @@ def test_rename(monitored_dir, server, filename):
         Event(process=Process.from_proc(), event_type=EventType.CREATION,
               file=old_fut, host_path=old_fut),
         Event(process=Process.from_proc(), event_type=EventType.RENAME,
-              file=fut, host_path=old_fut, old_file=old_fut, old_host_path=''),
+              file=fut, host_path='', old_file=old_fut, old_host_path=old_fut),
         Event(process=Process.from_proc(), event_type=EventType.RENAME,
-              file=old_fut, host_path=old_fut, old_file=fut, old_host_path=''),
+              file=old_fut, host_path='', old_file=fut, old_host_path=old_fut),
     ]
 
     server.wait_events(events)
