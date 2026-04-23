@@ -333,8 +333,9 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
   if (m == NULL) {
     return 0;
   }
+  struct submit_event_args_t args = {.metrics = &m->path_rmdir};
 
-  m->path_rmdir.total++;
+  args.metrics->total++;
 
   struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
   if (path == NULL) {
@@ -342,20 +343,17 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
     m->path_rmdir.error++;
     return 0;
   }
+  args.filename = path->path;
 
-  inode_key_t inode_key = inode_to_key(dentry->d_inode);
-  inode_key_t* inode_to_submit = &inode_key;
+  args.inode = inode_to_key(dentry->d_inode);
 
-  if (is_monitored(inode_key, path, NULL, &inode_to_submit) == NOT_MONITORED) {
+  if (is_monitored(&args.inode, path, NULL) == NOT_MONITORED) {
     m->path_rmdir.ignored++;
     return 0;
   }
 
-  inode_remove(&inode_key);
+  inode_remove(&args.inode);
 
-  submit_rmdir_event(&m->path_rmdir,
-                     path->path,
-                     inode_to_submit,
-                     NULL);
+  submit_rmdir_event(&args);
   return 0;
 }
