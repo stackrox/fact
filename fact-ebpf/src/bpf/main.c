@@ -326,3 +326,34 @@ cleanup:
   bpf_map_delete_elem(&mkdir_context, &pid_tgid);
   return 0;
 }
+
+SEC("lsm/path_rmdir")
+int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->path_rmdir};
+
+  args.metrics->total++;
+
+  struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
+  if (path == NULL) {
+    bpf_printk("Failed to read directory path");
+    m->path_rmdir.error++;
+    return 0;
+  }
+  args.filename = path->path;
+
+  args.inode = inode_to_key(dentry->d_inode);
+
+  if (is_monitored(&args.inode, path, NULL) == NOT_MONITORED) {
+    m->path_rmdir.ignored++;
+    return 0;
+  }
+
+  inode_remove(&args.inode);
+
+  submit_rmdir_event(&args);
+  return 0;
+}

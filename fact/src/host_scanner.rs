@@ -291,12 +291,12 @@ impl HostScanner {
                         }
 
                         // Remove inode from the map
-                        if event.is_unlink() {
+                        if event.is_deletion() {
                             self.handle_unlink_event(&event);
                         }
 
-                        // Skip directory creation events - we track them internally but don't send to sensor
-                        if event.is_mkdir() {
+                        // Skip directory creation and deletion events - we track them internally but don't send to sensor
+                        if event.is_mkdir() || event.is_rmdir() {
                             continue;
                         }
 

@@ -134,8 +134,12 @@ impl Event {
         matches!(self.file, FileData::MkDir(_))
     }
 
-    pub fn is_unlink(&self) -> bool {
-        matches!(self.file, FileData::Unlink(_))
+    pub fn is_rmdir(&self) -> bool {
+        matches!(self.file, FileData::RmDir(_))
+    }
+
+    pub fn is_deletion(&self) -> bool {
+        matches!(self.file, FileData::Unlink(_) | FileData::RmDir(_))
     }
 
     /// Unwrap the inner FileData and return the inode that triggered
@@ -148,6 +152,7 @@ impl Event {
             FileData::Open(data) => &data.inode,
             FileData::Creation(data) => &data.inode,
             FileData::MkDir(data) => &data.inode,
+            FileData::RmDir(data) => &data.inode,
             FileData::Unlink(data) => &data.inode,
             FileData::Chmod(data) => &data.inner.inode,
             FileData::Chown(data) => &data.inner.inode,
@@ -161,6 +166,7 @@ impl Event {
             FileData::Open(data) => &data.parent_inode,
             FileData::Creation(data) => &data.parent_inode,
             FileData::MkDir(data) => &data.parent_inode,
+            FileData::RmDir(data) => &data.parent_inode,
             FileData::Unlink(data) => &data.parent_inode,
             FileData::Chmod(data) => &data.inner.parent_inode,
             FileData::Chown(data) => &data.inner.parent_inode,
@@ -183,6 +189,7 @@ impl Event {
             FileData::Open(data) => &data.filename,
             FileData::Creation(data) => &data.filename,
             FileData::MkDir(data) => &data.filename,
+            FileData::RmDir(data) => &data.filename,
             FileData::Unlink(data) => &data.filename,
             FileData::Chmod(data) => &data.inner.filename,
             FileData::Chown(data) => &data.inner.filename,
@@ -202,6 +209,7 @@ impl Event {
             FileData::Open(data) => &data.host_file,
             FileData::Creation(data) => &data.host_file,
             FileData::MkDir(data) => &data.host_file,
+            FileData::RmDir(data) => &data.host_file,
             FileData::Unlink(data) => &data.host_file,
             FileData::Chmod(data) => &data.inner.host_file,
             FileData::Chown(data) => &data.inner.host_file,
@@ -218,6 +226,7 @@ impl Event {
             FileData::Open(data) => data.host_file = host_path,
             FileData::Creation(data) => data.host_file = host_path,
             FileData::MkDir(data) => data.host_file = host_path,
+            FileData::RmDir(data) => data.host_file = host_path,
             FileData::Unlink(data) => data.host_file = host_path,
             FileData::Chmod(data) => data.inner.host_file = host_path,
             FileData::Chown(data) => data.inner.host_file = host_path,
@@ -303,6 +312,7 @@ pub enum FileData {
     Open(BaseFileData),
     Creation(BaseFileData),
     MkDir(BaseFileData),
+    RmDir(BaseFileData),
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
     Chown(ChownFileData),
@@ -322,6 +332,7 @@ impl FileData {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
             file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::MkDir(inner),
+            file_activity_type_t::DIR_ACTIVITY_UNLINK => FileData::RmDir(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
             file_activity_type_t::FILE_ACTIVITY_CHMOD => {
                 let data = ChmodFileData {
@@ -373,6 +384,9 @@ impl From<FileData> for fact_api::file_activity::File {
             FileData::MkDir(_) => {
                 unreachable!("MkDir event reached protobuf conversion");
             }
+            FileData::RmDir(_) => {
+                unreachable!("RmDir event reached protobuf conversion");
+            }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileUnlink { activity };
@@ -401,6 +415,7 @@ impl PartialEq for FileData {
             (FileData::Open(this), FileData::Open(other)) => this == other,
             (FileData::Creation(this), FileData::Creation(other)) => this == other,
             (FileData::MkDir(this), FileData::MkDir(other)) => this == other,
+            (FileData::RmDir(this), FileData::RmDir(other)) => this == other,
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
             (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
             (FileData::Rename(this), FileData::Rename(other)) => this == other,

@@ -131,3 +131,12 @@ __always_inline static void submit_mkdir_event(struct submit_event_args_t* args)
   // d_instantiate doesn't support bpf_d_path, so we use false and rely on the stashed path from path_mkdir
   __submit_event(args, false);
 }
+
+__always_inline static void submit_rmdir_event(struct submit_event_args_t* args) {
+  if (!reserve_event(args)) {
+    return;
+  }
+  args->event->type = DIR_ACTIVITY_UNLINK;
+
+  __submit_event(args, path_hooks_support_bpf_d_path);
+}

@@ -14,6 +14,7 @@ pub struct KernelMetrics {
     path_chown: EventCounter,
     path_rename: EventCounter,
     path_mkdir: EventCounter,
+    path_rmdir: EventCounter,
     d_instantiate: EventCounter,
     map: PerCpuArray<MapData, metrics_t>,
 }
@@ -50,6 +51,11 @@ impl KernelMetrics {
             "Events processed by the path_mkdir LSM hook",
             &[], // Labels are not needed since `collect` will add them all
         );
+        let path_rmdir = EventCounter::new(
+            "kernel_path_rmdir_events",
+            "Events processed by the path_rmdir LSM hook",
+            &[], // Labels are not needed since `collect` will add them all
+        );
         let d_instantiate = EventCounter::new(
             "kernel_d_instantiate_events",
             "Events processed by the d_instantiate LSM hook",
@@ -62,6 +68,7 @@ impl KernelMetrics {
         path_chown.register(reg);
         path_rename.register(reg);
         path_mkdir.register(reg);
+        path_rmdir.register(reg);
         d_instantiate.register(reg);
 
         KernelMetrics {
@@ -71,6 +78,7 @@ impl KernelMetrics {
             path_chown,
             path_rename,
             path_mkdir,
+            path_rmdir,
             d_instantiate,
             map: kernel_metrics,
         }
@@ -122,6 +130,7 @@ impl KernelMetrics {
         KernelMetrics::refresh_labels(&self.path_chown, &metrics.path_chown);
         KernelMetrics::refresh_labels(&self.path_rename, &metrics.path_rename);
         KernelMetrics::refresh_labels(&self.path_mkdir, &metrics.path_mkdir);
+        KernelMetrics::refresh_labels(&self.path_rmdir, &metrics.path_rmdir);
         KernelMetrics::refresh_labels(&self.d_instantiate, &metrics.d_instantiate);
 
         Ok(())
