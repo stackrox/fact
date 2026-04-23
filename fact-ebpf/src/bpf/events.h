@@ -132,15 +132,11 @@ __always_inline static void submit_mkdir_event(struct submit_event_args_t* args)
   __submit_event(args, false);
 }
 
-__always_inline static void submit_rmdir_event(struct metrics_by_hook_t* m,
-                                               const char filename[PATH_MAX],
-                                               inode_key_t* inode,
-                                               inode_key_t* parent_inode) {
-  struct event_t* event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (event == NULL) {
-    m->ringbuffer_full++;
+__always_inline static void submit_rmdir_event(struct submit_event_args_t* args) {
+  if (!reserve_event(args)) {
     return;
   }
+  args->event->type = DIR_ACTIVITY_UNLINK;
 
-  __submit_event(event, m, DIR_ACTIVITY_UNLINK, filename, inode, parent_inode, path_hooks_support_bpf_d_path);
+  __submit_event(args, path_hooks_support_bpf_d_path);
 }
