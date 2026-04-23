@@ -291,7 +291,7 @@ impl HostScanner {
                         }
 
                         // Remove inode from the map
-                        if event.is_unlink() {
+                        if event.is_deletion() {
                             self.handle_unlink_event(&event);
                         }
 

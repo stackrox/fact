@@ -138,7 +138,7 @@ impl Event {
         matches!(self.file, FileData::RmDir(_))
     }
 
-    pub fn is_unlink(&self) -> bool {
+    pub fn is_deletion(&self) -> bool {
         matches!(self.file, FileData::Unlink(_) | FileData::RmDir(_))
     }
 
