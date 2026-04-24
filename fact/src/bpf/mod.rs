@@ -9,7 +9,7 @@ use aya::{
 use checks::Checks;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use libc::c_char;
-use log::{error, info};
+use log::{error, info, warn};
 use tokio::{
     io::unix::AsyncFd,
     sync::{mpsc, watch},
@@ -160,7 +160,9 @@ impl Bpf {
 
         // Remove old prefixes
         for p in self.paths.iter().filter(|p| !new_paths.contains(p)) {
-            path_prefix.remove(&(*p).into())?;
+            if let Err(e) = path_prefix.remove(&(*p).into()) {
+                warn!("Failed to remove path prefix: {e:#?}");
+            }
         }
 
         self.paths = new_paths;
@@ -228,7 +230,12 @@ impl Bpf {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
                                 Ok(event) => {
-                                    if event.is_ignored(&self.paths_globset) {
+                                    // If the event is monitored by parent, we need to check
+                                    // its host path, but we don't have that context here,
+                                    // so we let the event go into HostScanner and make the
+                                    // decision there.
+                                    if !event.is_monitored_by_parent() &&
+                                            event.is_ignored(&self.paths_globset) {
                                         event_counter.dropped();
                                         continue;
                                     }

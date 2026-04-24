@@ -68,14 +68,13 @@ int BPF_PROG(trace_file_open, struct file* file) {
   struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
   args.parent_inode = inode_to_key(parent_inode_ptr);
 
-  inode_monitored_t status = is_monitored(&args.inode, path, &args.parent_inode);
-
-  if (status == PARENT_MONITORED && event_type == FILE_ACTIVITY_CREATION) {
-    inode_add(&args.inode);
+  args.monitored = is_monitored(&args.inode, path, &args.parent_inode);
+  if (args.monitored == NOT_MONITORED) {
+    goto ignored;
   }
 
-  if (status == NOT_MONITORED) {
-    goto ignored;
+  if (args.monitored == MONITORED_BY_PARENT && event_type == FILE_ACTIVITY_CREATION) {
+    inode_add(&args.inode);
   }
 
   submit_open_event(&args, event_type);
@@ -106,8 +105,9 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   args.filename = path->path;
 
   args.inode = inode_to_key(dentry->d_inode);
+  args.monitored = is_monitored(&args.inode, path, NULL);
 
-  if (is_monitored(&args.inode, path, NULL) == NOT_MONITORED) {
+  if (args.monitored == NOT_MONITORED) {
     m->path_unlink.ignored++;
     return 0;
   }
@@ -138,8 +138,9 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   args.filename = bound_path->path;
 
   args.inode = inode_to_key(path->dentry->d_inode);
+  args.monitored = is_monitored(&args.inode, bound_path, NULL);
 
-  if (is_monitored(&args.inode, bound_path, NULL) == NOT_MONITORED) {
+  if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
     return 0;
   }
@@ -172,8 +173,9 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   args.filename = bound_path->path;
 
   args.inode = inode_to_key(path->dentry->d_inode);
+  args.monitored = is_monitored(&args.inode, bound_path, NULL);
 
-  if (is_monitored(&args.inode, bound_path, NULL) == NOT_MONITORED) {
+  if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
     return 0;
   }
@@ -213,18 +215,75 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
   }
 
   args.inode = inode_to_key(new_dentry->d_inode);
+  args.parent_inode = inode_to_key(new_dir->dentry->d_inode);
+  args.monitored = is_monitored(&args.inode, new_path, &args.parent_inode);
 
   inode_key_t old_inode = inode_to_key(old_dentry->d_inode);
+  monitored_t old_monitored = is_monitored(&old_inode, old_path, NULL);
 
-  inode_monitored_t old_monitored = is_monitored(&old_inode, old_path, NULL);
-  inode_monitored_t new_monitored = is_monitored(&args.inode, new_path, NULL);
+  // From this point on we need to handle inode tracking.
+  //
+  // The result will be a combination of whether we are already tracking
+  // the old inode or not and whether the target path has an existing
+  // object that is about to be overwritten and if said object is
+  // tracked by inode or not.
+  switch (args.monitored) {
+    case NOT_MONITORED:
+      if (old_monitored == NOT_MONITORED) {
+        m->path_rename.ignored++;
+        return 0;
+      }
 
-  if (old_monitored == NOT_MONITORED && new_monitored == NOT_MONITORED) {
-    args.metrics->ignored++;
-    return 0;
+      if (old_monitored == MONITORED_BY_INODE) {
+        // Old inode is monitored, new path is not.
+        // If the old path is a directory userspace will remove any
+        // subdirectories and files too.
+        inode_remove(&old_inode);
+      }
+      break;
+
+    case MONITORED_BY_PATH:
+      if (old_monitored == MONITORED_BY_INODE) {
+        // New path is not inode tracked, old path is.
+        //
+        // This implies the inode will be crossing a FS mountpoint,
+        // which should never happen. When the inode crosses into a new
+        // mount, a new inode is created altogether. Still, we can cover
+        // our bases.
+        inode_remove(&old_inode);
+      }
+      break;
+
+    case MONITORED_BY_PARENT:
+      if (old_monitored != MONITORED_BY_INODE) {
+        // Old inode is not monitored, new parent is.
+        if (inode_is_empty(&args.inode)) {
+          // Landing on an empty path, we track the inode in case we
+          // need to, userspace will double check in detail.
+          inode_add(&old_inode);
+        }
+      } else if (!inode_is_empty(&args.inode)) {
+        // Old inode is monitored and will land on a path that has a
+        // monitored parent but the path itself is not monitored, we
+        // stop tracking the inode
+        inode_remove(&old_inode);
+      }
+      break;
+
+    case MONITORED_BY_INODE:
+      // If we landed here, the new path already has an inode that is
+      // being tracked and is about to be overwritten, we need to remove
+      // it from the map
+      inode_remove(&args.inode);
+      if (old_monitored != MONITORED_BY_INODE) {
+        // Old inode is not monitored, but is landing in a monitored
+        // path that uses inode tracking.
+        inode_add(&old_inode);
+      }
+      break;
   }
 
-  submit_rename_event(&args, old_path->path, &old_inode);
+  submit_rename_event(&args, old_path->path, &old_inode, old_monitored);
   return 0;
 
 error:
@@ -251,7 +310,8 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
   struct inode* parent_inode_ptr = BPF_CORE_READ(dir, dentry, d_inode);
   inode_key_t parent_inode = inode_to_key(parent_inode_ptr);
 
-  if (should_track_mkdir(parent_inode, path) != PARENT_MONITORED) {
+  monitored_t monitored = should_track_mkdir(parent_inode, path);
+  if (monitored != MONITORED_BY_PARENT) {
     m->path_mkdir.ignored++;
     return 0;
   }
@@ -282,6 +342,7 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
     return 0;
   }
   mkdir_ctx->parent_inode = parent_inode;
+  mkdir_ctx->monitored = monitored;
 
   return 0;
 }
@@ -311,6 +372,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   }
   args.filename = mkdir_ctx->path;
   args.parent_inode = mkdir_ctx->parent_inode;
+  args.monitored = mkdir_ctx->monitored;
 
   args.inode = inode_to_key(inode);
 

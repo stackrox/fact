@@ -28,7 +28,8 @@ use std::{
 
 use anyhow::{Context, bail};
 use aya::maps::MapData;
-use fact_ebpf::{inode_key_t, inode_value_t};
+use fact_ebpf::{inode_key_t, inode_value_t, monitored_t};
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
 use tokio::{
     sync::{Notify, broadcast, mpsc, watch},
@@ -54,6 +55,8 @@ pub struct HostScanner {
     tx: broadcast::Sender<Arc<Event>>,
 
     metrics: HostScannerMetrics,
+
+    paths_globset: GlobSet,
 }
 
 impl HostScanner {
@@ -68,6 +71,7 @@ impl HostScanner {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(std::collections::HashMap::new());
         let (tx, _) = broadcast::channel(100);
+        let paths_globset = HostScanner::build_globset(paths.borrow().as_slice())?;
 
         let host_scanner = HostScanner {
             kernel_inode_map,
@@ -78,12 +82,29 @@ impl HostScanner {
             rx,
             tx,
             metrics,
+            paths_globset,
         };
 
         // Run an initial scan to fill in the inode map
         host_scanner.scan()?;
 
         Ok(host_scanner)
+    }
+
+    fn build_globset(paths: &[PathBuf]) -> anyhow::Result<GlobSet> {
+        let mut builder = GlobSetBuilder::new();
+        for p in paths.iter() {
+            let Some(glob_str) = p.to_str() else {
+                bail!("failed to convert path {} to string", p.display());
+            };
+
+            builder.add(
+                Glob::new(glob_str)
+                    .with_context(|| format!("invalid glob {}", glob_str))
+                    .unwrap(),
+            );
+        }
+        Ok(builder.build()?)
     }
 
     fn scan(&self) -> anyhow::Result<()> {
@@ -227,6 +248,127 @@ impl HostScanner {
         self.metrics.scan_inc(ScanLabels::FileRemoved);
     }
 
+    fn handle_rename_event(&self, event: &mut Event) {
+        match event.get_monitored() {
+            monitored_t::MONITORED_BY_INODE => {
+                // This condition means a file is being renamed and taking the
+                // place of an existing, tracked file. We need to remove the
+                // inode we are landing on and put the associated host path in
+                // the old inode.
+                let mut inode_map = self.inode_map.borrow_mut();
+                let Some(path) = inode_map.remove(event.get_inode()) else {
+                    warn!("Old path was not found for inode tracked event");
+                    return;
+                };
+                let Some(old_inode) = event.get_old_inode() else {
+                    unreachable!("old inode not found for rename event");
+                };
+                inode_map.insert(*old_inode, path);
+            }
+            monitored_t::NOT_MONITORED
+                if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
+            {
+                // We are landing on a path that is not tracked at all, remove
+                // the entries for the old path from the map
+                let Some(old_host_path) = event.get_old_host_path() else {
+                    warn!("Rename event did not have old host path for inode tracked item");
+                    return;
+                };
+                self.inode_map.borrow_mut().retain(|inode, path| {
+                    if !path.starts_with(old_host_path) {
+                        return true;
+                    }
+
+                    let _ = self.kernel_inode_map.borrow_mut().remove(inode);
+                    false
+                });
+            }
+            monitored_t::NOT_MONITORED => {
+                // The new path is not monitored and the old path is most likely
+                // matching by path, we don't need to do anything in this case.
+            }
+            monitored_t::MONITORED_BY_PARENT if !event.get_inode().empty() => {
+                // The parent for the target is monitored, but the file itself
+                // is not. Remove the entry for the old file from the map.
+                self.inode_map.borrow_mut().remove(
+                    event
+                        .get_old_inode()
+                        .expect("rename event did not have old inode"),
+                );
+            }
+            monitored_t::MONITORED_BY_PARENT
+                if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
+            {
+                // The target is monitored by parent and we are landing on a
+                // path that didn't hold anything, we need to figure out the
+                // host path and check if we should track it.
+                let mut inode_map = self.inode_map.borrow_mut();
+                let Some(new_host_parent) = inode_map.get(event.get_parent_inode()) else {
+                    warn!("Failed to get parent host path");
+                    return;
+                };
+                let Some(filename) = event.get_filename().file_name() else {
+                    warn!("Failed to get last component from event: {event:#?}");
+                    return;
+                };
+                let new_host_path = new_host_parent.join(filename);
+                let Some(old_host_path) = event.get_old_host_path() else {
+                    unreachable!("Rename event did not have an old host path");
+                };
+
+                if self.paths_globset.is_match(&new_host_path) {
+                    // New path needs to be tracked.
+                    // Move all entries for the old host path to the new one
+                    for (_, path) in inode_map.iter_mut() {
+                        if let Ok(suffix) = path.strip_prefix(old_host_path) {
+                            if suffix == Path::new("") {
+                                *path = new_host_path.clone();
+                            } else {
+                                *path = new_host_path.join(suffix);
+                            }
+                        }
+                    }
+
+                    // Add the new host path to the event
+                    event.set_host_path(new_host_path);
+                } else {
+                    // New path is not tracked, remove old entries
+                    inode_map.retain(|inode, path| {
+                        if !path.starts_with(old_host_path) {
+                            return true;
+                        }
+                        if let Err(e) = self.kernel_inode_map.borrow_mut().remove(inode) {
+                            warn!("Failed to remove inode kernel entry: {e:?}");
+                        }
+                        false
+                    });
+                }
+            }
+            monitored_t::MONITORED_BY_PARENT => {
+                // In this case, the target location might be monitored, but we
+                // don't have any information of the host path for the old path,
+                // best we can do is attempt to scan the file system and fix the
+                // inode maps that way.
+                if let Err(e) = self.scan() {
+                    warn!("Scan failed: {e:?}");
+                }
+
+                // Attempt to update the host path with the old inode
+                if let Some(old_inode) = event.get_old_inode()
+                    && let Some(path) = self.inode_map.borrow().get(old_inode)
+                {
+                    event.set_host_path(path.clone());
+                }
+            }
+            monitored_t::MONITORED_BY_PATH => {
+                // Nothing to do here, having one side of the rename monitored
+                // by path means at best the other side is also monitored by
+                // path, no inode tracking is involved.
+            }
+            _ => unreachable!("Invalid monitored value"),
+        }
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -300,6 +442,20 @@ impl HostScanner {
                             continue;
                         }
 
+                        if event.is_rename() { self.handle_rename_event(&mut event); }
+
+                        if event.is_monitored_by_parent() &&
+                            !self.paths_globset.is_match(event.get_host_path()) {
+                            // The event was monitored by parent, but the host
+                            // path is not to be monitored, so we ignore the
+                            // event and attempt to remove the inode from the
+                            // maps to prevent it from sending more events.
+                            self.inode_map.borrow_mut().remove(event.get_inode());
+                            let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
+                            self.metrics.events.ignored();
+                            continue;
+                        }
+
                         let event = Arc::new(event);
                         if let Err(e) = self.tx.send(event) {
                             self.metrics.events.dropped();
@@ -307,7 +463,10 @@ impl HostScanner {
                         }
                     },
                     _ = scan_trigger.notified() => self.scan()?,
-                    _ = self.paths.changed() => self.scan()?,
+                    _ = self.paths.changed() => {
+                            self.paths_globset = HostScanner::build_globset(self.paths.borrow().as_slice())?;
+                            self.scan()?;
+                        }
                     _ = self.running.changed() => {
                         if !*self.running.borrow() {
                             break;
