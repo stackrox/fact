@@ -259,6 +259,7 @@ impl Event {
             FileData::Open(data) => data.monitored,
             FileData::Creation(data) => data.monitored,
             FileData::MkDir(data) => data.monitored,
+            FileData::RmDir(data) => data.monitored,
             FileData::Unlink(data) => data.monitored,
             FileData::Chmod(data) => data.inner.monitored,
             FileData::Chown(data) => data.inner.monitored,
