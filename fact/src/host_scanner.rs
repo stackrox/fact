@@ -422,11 +422,6 @@ impl HostScanner {
                                 warn!("Failed to handle creation event: {e}");
                             }
 
-                        // Skip directory creation events - we track them internally but don't send to sensor
-                        if event.is_mkdir() || event.is_rmdir() {
-                            continue;
-                        }
-
                         if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_host_path(host_path);
@@ -440,6 +435,11 @@ impl HostScanner {
                         // Remove inode from the map
                         if event.is_deletion() {
                             self.handle_unlink_event(&event);
+                        }
+
+                        // Skip directory creation and deletion events - we track them internally but don't send to sensor
+                        if event.is_mkdir() || event.is_rmdir() {
+                            continue;
                         }
 
                         if event.is_rename() { self.handle_rename_event(&mut event); }
