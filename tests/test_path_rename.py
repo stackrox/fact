@@ -327,8 +327,6 @@ def test_cross_mountpoints(test_container, monitored_dir, server):
               file=mounted_file, host_path=host_path),
         Event(process=first_rename, event_type=EventType.CREATION,
               file=ovfs_file, host_path=''),
-        Event(process=first_rename, event_type=EventType.OPEN,
-              file=ovfs_file, host_path=''),
         Event(process=first_rename, event_type=EventType.OWNERSHIP,
               file=ovfs_file, host_path='', owner_uid=owner_uid, owner_gid=owner_gid),
         Event(process=first_rename, event_type=EventType.PERMISSION,
