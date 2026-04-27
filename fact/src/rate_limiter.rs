@@ -3,12 +3,9 @@ use governor::{
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
+use log::warn;
 use std::num::NonZeroU32;
-use std::sync::Arc;
-use tokio::sync::{
-    broadcast::{self, error::RecvError},
-    watch,
-};
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 
 use crate::event::Event;
@@ -20,8 +17,8 @@ pub struct RateLimiter {
     // but in the future we could introduce a key to limit in more flexible ways
     // (using a String; process name, container id, whatever)
     limiter: Option<governor::RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
-    rx: broadcast::Receiver<Arc<Event>>,
-    tx: broadcast::Sender<Arc<Event>>,
+    rx: mpsc::Receiver<Event>,
+    tx: mpsc::Sender<Event>,
     rate_config: watch::Receiver<u64>,
     running: watch::Receiver<bool>,
     metrics: EventCounter,
@@ -29,22 +26,24 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new(
-        rx: broadcast::Receiver<Arc<Event>>,
+        rx: mpsc::Receiver<Event>,
         rate_config: watch::Receiver<u64>,
         running: watch::Receiver<bool>,
         metrics: EventCounter,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let limiter = Self::build_limiter(*rate_config.borrow());
-        let (tx, _) = broadcast::channel(100);
+        let (tx, output) = mpsc::channel(100);
 
-        Ok(RateLimiter {
+        let limiter = RateLimiter {
             limiter,
             rx,
             tx,
             rate_config,
             running,
             metrics,
-        })
+        };
+
+        Ok((limiter, output))
     }
 
     fn build_limiter(
@@ -64,23 +63,12 @@ impl RateLimiter {
         Ok(())
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<Event>> {
-        self.tx.subscribe()
-    }
-
     pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     event = self.rx.recv() => {
-                        let event = match event {
-                            Ok(e) => e,
-                            Err(RecvError::Lagged(n)) => {
-                                self.metrics.dropped_n(n);
-                                continue;
-                            }
-                            Err(RecvError::Closed) => break,
-                        };
+                        let Some(event) = event else { break;};
 
                         if let Some(limiter) = &self.limiter && limiter.check().is_err() {
                             self.metrics.dropped();
@@ -88,7 +76,10 @@ impl RateLimiter {
                         }
 
                         self.metrics.added();
-                        let _ = self.tx.send(event);
+                        if let Err(e) = self.tx.send(event).await {
+                            warn!("RateLimiter failed to forward event: {e:?}");
+                            self.metrics.errored();
+                        }
                     },
                     _ = self.rate_config.changed() => {
                         self.reload_limiter()?;
