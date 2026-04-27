@@ -113,6 +113,15 @@ impl EventCounter {
             .expect("Ignored label not found")
             .inc();
     }
+
+    pub fn errored(&self) {
+        self.counter
+            .get(&MetricEvents {
+                label: LabelValues::Error,
+            })
+            .expect("Error label not found")
+            .inc();
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -171,7 +180,7 @@ impl Metrics {
         let rate_limiter = EventCounter::new(
             "rate_limiter_events",
             "Events processed by the rate limiter",
-            &[LabelValues::Added, LabelValues::Dropped],
+            &[LabelValues::Added, LabelValues::Dropped, LabelValues::Error],
         );
         rate_limiter.register(registry);
 

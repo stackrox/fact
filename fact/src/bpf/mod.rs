@@ -41,8 +41,7 @@ impl Bpf {
     pub fn new(
         paths_config: watch::Receiver<Vec<PathBuf>>,
         bpf_config: &BpfConfig,
-        tx: mpsc::Sender<Event>,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         Bpf::bump_memlock_rlimit()?;
 
         let btf = Btf::from_sys_fs()?;
@@ -61,6 +60,7 @@ impl Bpf {
             .set_max_entries("inode_map", bpf_config.inodes_max())
             .load(fact_ebpf::EBPF_OBJ)?;
 
+        let (tx, rx) = mpsc::channel(100);
         let paths = Vec::new();
         let mut bpf = Bpf {
             obj,
@@ -74,7 +74,7 @@ impl Bpf {
         bpf.load_progs(&btf)?;
         bpf.load_paths()?;
 
-        Ok(bpf)
+        Ok((bpf, rx))
     }
 
     fn bump_memlock_rlimit() -> anyhow::Result<()> {
@@ -304,9 +304,8 @@ mod bpf_tests {
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let reloader = Reloader::from(config);
-        let (tx, mut rx) = mpsc::channel(100);
-        let mut bpf = Bpf::new(reloader.paths(), &reloader.config().bpf, tx)
-            .expect("Failed to load BPF code");
+        let (mut bpf, mut rx) =
+            Bpf::new(reloader.paths(), &reloader.config().bpf).expect("Failed to load BPF code");
         let (run_tx, run_rx) = watch::channel(true);
         // Create a metrics exporter, but don't start it
         let exporter = Exporter::new(bpf.take_metrics().unwrap());

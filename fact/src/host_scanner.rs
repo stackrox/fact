@@ -32,7 +32,7 @@ use fact_ebpf::{inode_key_t, inode_value_t, monitored_t};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
 use tokio::{
-    sync::{Notify, broadcast, mpsc, watch},
+    sync::{Notify, mpsc, watch},
     task::JoinHandle,
 };
 
@@ -52,7 +52,7 @@ pub struct HostScanner {
     running: watch::Receiver<bool>,
 
     rx: mpsc::Receiver<Event>,
-    tx: broadcast::Sender<Arc<Event>>,
+    tx: mpsc::Sender<Event>,
 
     metrics: HostScannerMetrics,
 
@@ -67,10 +67,10 @@ impl HostScanner {
         scan_interval: watch::Receiver<Duration>,
         running: watch::Receiver<bool>,
         metrics: HostScannerMetrics,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(std::collections::HashMap::new());
-        let (tx, _) = broadcast::channel(100);
+        let (tx, output) = mpsc::channel(100);
         let paths_globset = HostScanner::build_globset(paths.borrow().as_slice())?;
 
         let host_scanner = HostScanner {
@@ -88,7 +88,7 @@ impl HostScanner {
         // Run an initial scan to fill in the inode map
         host_scanner.scan()?;
 
-        Ok(host_scanner)
+        Ok((host_scanner, output))
     }
 
     fn build_globset(paths: &[PathBuf]) -> anyhow::Result<GlobSet> {
@@ -195,10 +195,6 @@ impl HostScanner {
         self.metrics.scan_inc(ScanLabels::FileUpdated);
 
         Ok(())
-    }
-
-    pub fn subscribe(&self) -> broadcast::Receiver<Arc<Event>> {
-        self.tx.subscribe()
     }
 
     fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
@@ -456,8 +452,7 @@ impl HostScanner {
                             continue;
                         }
 
-                        let event = Arc::new(event);
-                        if let Err(e) = self.tx.send(event) {
+                        if let Err(e) = self.tx.send(event).await {
                             self.metrics.events.dropped();
                             warn!("Failed to send event: {e}");
                         }
