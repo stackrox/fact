@@ -100,7 +100,7 @@ struct {
 // Track pid_tgid of overlayfs file_open events so we can skip the
 // duplicate underlying filesystem event that follows immediately.
 struct {
-  __uint(type, BPF_MAP_TYPE_LRU_PERCPU_HASH);
+  __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
   __type(key, __u64);
   __type(value, char);
   __uint(max_entries, 1);
