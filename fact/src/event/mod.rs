@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(test, feature = "bpf-test"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     ffi::{CStr, OsStr},
@@ -59,7 +59,7 @@ fn timestamp_to_proto(ts: u64) -> prost_types::Timestamp {
     prost_types::Timestamp { seconds, nanos }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "bpf-test"))]
 #[derive(Debug)]
 pub(crate) enum EventTestData {
     Creation,
@@ -77,7 +77,7 @@ pub struct Event {
 }
 
 impl Event {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "bpf-test"))]
     pub(crate) fn new(
         data: EventTestData,
         hostname: &'static str,
