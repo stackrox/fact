@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi@sha256:ac1eee4b85ab5feed38bf0f743b9278ceb1f9105e33260d37dbe53dc218128ad AS builder
+FROM registry.access.redhat.com/ubi9/ubi@sha256:0879eaf704bf508379bdb0f465b8ea184c1ec9f1f40a413422fc17f6d3fb2389 AS builder
 
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
