@@ -1,6 +1,5 @@
-import re
-
 import requests
+from prometheus_client.parser import text_string_to_metric_families
 
 
 class MetricsSnapshot:
@@ -20,35 +19,16 @@ class MetricsSnapshot:
 
     _PREFIX = "stackrox_fact_"
     _TOTAL_SUFFIX = "_total"
-    _LINE_RE = re.compile(
-        r'^(?P<name>\S+?)(?:\{(?P<labels>[^}]*)\})?\s+(?P<value>\S+)$'
-    )
-    _LABEL_RE = re.compile(r'(\w+)="([^"]*)"')
 
     def __init__(self, text):
         self._entries = []
-        for line in text.splitlines():
-            if line.startswith('#') or not line.strip():
-                continue
-
-            m = self._LINE_RE.match(line)
-            if not m:
-                continue
-
-            name, raw, labels = m.group('name', 'value', 'labels')
-
-            value = float(raw) if '.' in raw else int(raw)
-            labels = dict(self._LABEL_RE.findall(labels or ''))
-
-            self._entries.append((name, labels, value))
+        for family in text_string_to_metric_families(text):
+            for sample in family.samples:
+                self._entries.append((sample.name, sample.labels, sample.value))
 
     @classmethod
     def _normalize(cls, name):
-        if name.startswith(cls._PREFIX):
-            name = name[len(cls._PREFIX):]
-        if name.endswith(cls._TOTAL_SUFFIX):
-            name = name[:-len(cls._TOTAL_SUFFIX)]
-        return name
+        return name.removeprefix(cls._PREFIX).removesuffix(cls._TOTAL_SUFFIX)
 
     def get(self, metric, **labels):
         """
