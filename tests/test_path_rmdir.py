@@ -4,39 +4,16 @@ import shutil
 import pytest
 
 from event import Event, EventType, Process
-from utils import get_metric_value
 
 
-def get_inode_removed_count(fact_config):
-    """
-    Query Prometheus metrics to get the count of removed inodes.
-
-    Args:
-        fact_config: The fact configuration tuple (config dict, config file path).
-
-    Returns:
-        The current value of host_scanner_scan{label="InodeRemoved"} metric.
-    """
-    value = get_metric_value(fact_config, "host_scanner_scan", {"label": "InodeRemoved"})
-    return int(value) if value is not None else 0
+def get_inode_removed_count(metrics):
+    return metrics.snapshot().get("host_scanner_scan", label="InodeRemoved")
 
 
-def get_kernel_rmdir_processed(fact_config):
-    """
-    Query Prometheus metrics to get the count of processed (non-ignored) rmdir events.
-
-    Args:
-        fact_config: The fact configuration tuple (config dict, config file path).
-
-    Returns:
-        The difference between Total and Ignored kernel_path_rmdir_events.
-    """
-    total_str = get_metric_value(fact_config, "kernel_path_rmdir_events", {"label": "Total"})
-    ignored_str = get_metric_value(fact_config, "kernel_path_rmdir_events", {"label": "Ignored"})
-
-    total = int(total_str) if total_str is not None else 0
-    ignored = int(ignored_str) if ignored_str is not None else 0
-
+def get_kernel_rmdir_processed(metrics):
+    ss = metrics.snapshot()
+    total = ss.get("kernel_path_rmdir_events", label="Total")
+    ignored = ss.get("kernel_path_rmdir_events", label="Ignored")
     return total - ignored
 
 
@@ -46,7 +23,7 @@ def get_kernel_rmdir_processed(fact_config):
     pytest.param('файл', id='Cyrillic'),
     pytest.param('日本語', id='Japanese'),
 ])
-def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
+def test_rmdir_empty(monitored_dir, server, metrics, dirname):
     """
     Tests that removing an empty directory properly cleans up inode tracking.
 
@@ -60,14 +37,14 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
     Args:
         monitored_dir: Temporary directory path for creating the test directory.
         server: The server instance to communicate with.
-        fact_config: The fact configuration.
+        metrics: The metrics client fixture.
         dirname: Directory name to test (including UTF-8 variants).
     """
     process = Process.from_proc()
 
     # Get baseline metric counts
-    initial_inode_removed = get_inode_removed_count(fact_config)
-    initial_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    initial_inode_removed = get_inode_removed_count(metrics)
+    initial_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     # Create a directory
     test_dir = os.path.join(monitored_dir, dirname)
@@ -94,7 +71,7 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
     server.wait_events([e2])
 
     # Check that file deletion incremented the metric by exactly 1
-    count_after_file = get_inode_removed_count(fact_config)
+    count_after_file = get_inode_removed_count(metrics)
     file_delta = count_after_file - initial_inode_removed
     assert file_delta == 1, \
         f"Expected exactly 1 inode removed for file deletion, got {file_delta}"
@@ -103,8 +80,8 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
     os.rmdir(test_dir)
 
     # Check metrics after directory deletion
-    final_inode_removed = get_inode_removed_count(fact_config)
-    final_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    final_inode_removed = get_inode_removed_count(metrics)
+    final_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     inode_delta = final_inode_removed - initial_inode_removed
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
@@ -115,7 +92,7 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
         f"Expected exactly 1 kernel rmdir event processed, got {kernel_delta}"
 
 
-def test_rmdir_recursive(monitored_dir, server, fact_config):
+def test_rmdir_recursive(monitored_dir, server, metrics):
     """
     Tests that removing a directory tree recursively cleans up all inode tracking.
 
@@ -130,13 +107,13 @@ def test_rmdir_recursive(monitored_dir, server, fact_config):
     Args:
         monitored_dir: Temporary directory path for creating test directories.
         server: The server instance to communicate with.
-        fact_config: The fact configuration.
+        metrics: The metrics client fixture.
     """
     process = Process.from_proc()
 
     # Get baseline metric counts
-    initial_inode_removed = get_inode_removed_count(fact_config)
-    initial_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    initial_inode_removed = get_inode_removed_count(metrics)
+    initial_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     # Create nested directories
     level1 = os.path.join(monitored_dir, 'level1')
@@ -186,8 +163,8 @@ def test_rmdir_recursive(monitored_dir, server, fact_config):
     server.wait_events(unlink_events)
 
     # Check that all inodes and kernel events were tracked
-    final_inode_removed = get_inode_removed_count(fact_config)
-    final_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    final_inode_removed = get_inode_removed_count(metrics)
+    final_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     inode_delta = final_inode_removed - initial_inode_removed
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
@@ -198,7 +175,7 @@ def test_rmdir_recursive(monitored_dir, server, fact_config):
         f"Expected exactly 3 kernel rmdir events processed, got {kernel_delta}"
 
 
-def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
+def test_rmdir_ignored(monitored_dir, ignored_dir, server, metrics):
     """
     Tests that directories removed outside monitored paths don't affect tracking.
 
@@ -208,13 +185,13 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
         monitored_dir: Temporary directory path that is monitored.
         ignored_dir: Temporary directory path that is not monitored.
         server: The server instance to communicate with.
-        fact_config: The fact configuration.
+        metrics: The metrics client fixture.
     """
     process = Process.from_proc()
 
     # Get baseline metric counts
-    initial_inode_removed = get_inode_removed_count(fact_config)
-    initial_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    initial_inode_removed = get_inode_removed_count(metrics)
+    initial_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     # Create directory in ignored path
     ignored_subdir = os.path.join(ignored_dir, 'ignored_subdir')
@@ -228,8 +205,8 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     os.rmdir(ignored_subdir)
 
     # Metrics should not have changed
-    inode_after_ignored = get_inode_removed_count(fact_config)
-    kernel_after_ignored = get_kernel_rmdir_processed(fact_config)
+    inode_after_ignored = get_inode_removed_count(metrics)
+    kernel_after_ignored = get_kernel_rmdir_processed(metrics)
     assert inode_after_ignored == initial_inode_removed, \
         f"Ignored path operations should not increment inode_removed metric"
     assert kernel_after_ignored == initial_kernel_rmdir, \
@@ -260,8 +237,8 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     server.wait_events(deletion_events)
 
     # Metrics should have incremented by exactly 2 inodes and 1 kernel rmdir
-    final_inode_removed = get_inode_removed_count(fact_config)
-    final_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    final_inode_removed = get_inode_removed_count(metrics)
+    final_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     inode_delta = final_inode_removed - initial_inode_removed
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
@@ -272,7 +249,7 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
         f"Expected exactly 1 kernel rmdir event processed, got {kernel_delta}"
 
 
-def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
+def test_rmdir_with_parent_inode(monitored_dir, server, metrics):
     """
     Tests that directory deletion properly handles parent inode relationships.
 
@@ -282,13 +259,13 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
     Args:
         monitored_dir: Temporary directory path for creating test directories.
         server: The server instance to communicate with.
-        fact_config: The fact configuration.
+        metrics: The metrics client fixture.
     """
     process = Process.from_proc()
 
     # Get baseline metric counts
-    initial_inode_removed = get_inode_removed_count(fact_config)
-    initial_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    initial_inode_removed = get_inode_removed_count(metrics)
+    initial_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     # Create a subdirectory
     subdir = os.path.join(monitored_dir, 'subdir')
@@ -325,8 +302,8 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
     server.wait_events(deletion_events)
 
     # Check metrics incremented (file + subdir)
-    inode_after_subdir = get_inode_removed_count(fact_config)
-    kernel_after_subdir = get_kernel_rmdir_processed(fact_config)
+    inode_after_subdir = get_inode_removed_count(metrics)
+    kernel_after_subdir = get_kernel_rmdir_processed(metrics)
 
     inode_delta_subdir = inode_after_subdir - initial_inode_removed
     kernel_delta_subdir = kernel_after_subdir - initial_kernel_rmdir
@@ -356,8 +333,8 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
 
     # Final metric check: should be 3 total inodes (test_file, subdir, new_file)
     # and 1 total kernel rmdir (subdir)
-    final_inode_removed = get_inode_removed_count(fact_config)
-    final_kernel_rmdir = get_kernel_rmdir_processed(fact_config)
+    final_inode_removed = get_inode_removed_count(metrics)
+    final_kernel_rmdir = get_kernel_rmdir_processed(metrics)
 
     inode_total_delta = final_inode_removed - initial_inode_removed
     kernel_total_delta = final_kernel_rmdir - initial_kernel_rmdir
