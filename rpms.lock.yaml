@@ -655,13 +655,13 @@ arches:
     name: libbrotli
     evr: 1.0.9-9.el9_7
     sourcerpm: brotli-1.0.9-9.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libcap-2.48-10.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libcap-2.48-10.el9_7.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 71186
-    checksum: sha256:d6323aa2737cb8e19ea4566a9fa14839d553bd81ff4f04d7d69aec679a8d3ceb
+    size: 78022
+    checksum: sha256:3ea8b606ad8357faca4e134858c09ee824bc5c625caf1214a8f85412c997c007
     name: libcap
-    evr: 2.48-10.el9
-    sourcerpm: libcap-2.48-10.el9.src.rpm
+    evr: 2.48-10.el9_7.1
+    sourcerpm: libcap-2.48-10.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libcap-ng-0.8.2-7.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 36033
@@ -1968,13 +1968,13 @@ arches:
     name: libbrotli
     evr: 1.0.9-9.el9_7
     sourcerpm: brotli-1.0.9-9.el9_7.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libcap-2.48-10.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libcap-2.48-10.el9_7.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 71887
-    checksum: sha256:2bb46ce572661112552e403f86480af37a2b6c0a4566a36d8e931d3c310047b9
+    size: 78926
+    checksum: sha256:47a89779b20db77b425aa7cafc4c9af3912d197e2abd07ab74cf540cc123357d
     name: libcap
-    evr: 2.48-10.el9
-    sourcerpm: libcap-2.48-10.el9.src.rpm
+    evr: 2.48-10.el9_7.1
+    sourcerpm: libcap-2.48-10.el9_7.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libcap-ng-0.8.2-7.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 36752
