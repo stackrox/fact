@@ -23,7 +23,7 @@ image:
 licenses:THIRD_PARTY_LICENSES.html
 
 THIRD_PARTY_LICENSES.html:Cargo.lock
-	cargo install cargo-about
+	$(if $(shell command -v cargo-about),,$(error cargo-about not found, you can install it with 'cargo install cargo-about --features=cli'))
 	cargo about generate --format handlebars -o THIRD_PARTY_LICENSES.html about_html.hbs
 
 integration-tests:
@@ -34,6 +34,7 @@ performance-tests:
 
 clean:
 	make -C tests clean
+	rm -f THIRD_PARTY_LICENSES.html
 
 format-check:
 	cargo fmt --check
