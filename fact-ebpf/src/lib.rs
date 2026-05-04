@@ -125,31 +125,27 @@ impl Serialize for monitored_t {
 }
 
 impl metrics_by_hook_t {
-    fn accumulate(&self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
-        let mut m = metrics_by_hook_t { ..*self };
-
-        m.total += other.total;
-        m.added += other.added;
-        m.error += other.error;
-        m.ignored += other.ignored;
-        m.ringbuffer_full += other.ringbuffer_full;
-
-        m
+    fn accumulate(mut self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
+        self.total += other.total;
+        self.added += other.added;
+        self.error += other.error;
+        self.ignored += other.ignored;
+        self.ringbuffer_full += other.ringbuffer_full;
+        self
     }
 }
 
 impl metrics_t {
-    pub fn accumulate(&self, other: &metrics_t) -> metrics_t {
-        let mut m = metrics_t { ..*self };
-        m.file_open = m.file_open.accumulate(&other.file_open);
-        m.path_unlink = m.path_unlink.accumulate(&other.path_unlink);
-        m.path_chmod = m.path_chmod.accumulate(&other.path_chmod);
-        m.path_chown = m.path_chown.accumulate(&other.path_chown);
-        m.path_rename = m.path_rename.accumulate(&other.path_rename);
-        m.path_mkdir = m.path_mkdir.accumulate(&other.path_mkdir);
-        m.path_rmdir = m.path_rmdir.accumulate(&other.path_rmdir);
-        m.d_instantiate = m.d_instantiate.accumulate(&other.d_instantiate);
-        m
+    pub fn accumulate(mut self, other: &metrics_t) -> metrics_t {
+        self.file_open = self.file_open.accumulate(&other.file_open);
+        self.path_unlink = self.path_unlink.accumulate(&other.path_unlink);
+        self.path_chmod = self.path_chmod.accumulate(&other.path_chmod);
+        self.path_chown = self.path_chown.accumulate(&other.path_chown);
+        self.path_rename = self.path_rename.accumulate(&other.path_rename);
+        self.path_mkdir = self.path_mkdir.accumulate(&other.path_mkdir);
+        self.path_rmdir = self.path_rmdir.accumulate(&other.path_rmdir);
+        self.d_instantiate = self.d_instantiate.accumulate(&other.d_instantiate);
+        self
     }
 }
 
