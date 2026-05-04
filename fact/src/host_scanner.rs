@@ -315,7 +315,7 @@ impl HostScanner {
                 if self.paths_globset.is_match(&new_host_path) {
                     // New path needs to be tracked.
                     // Move all entries for the old host path to the new one
-                    for (_, path) in inode_map.iter_mut() {
+                    for path in inode_map.values_mut() {
                         if let Ok(suffix) = path.strip_prefix(old_host_path) {
                             if suffix == Path::new("") {
                                 *path = new_host_path.clone();
