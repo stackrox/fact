@@ -802,13 +802,13 @@ arches:
     name: libblkid
     evr: 2.32.1-48.el8_10
     sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libcap-2.48-6.el8_9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libcap-2.48-6.el8_10.1.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 75344
-    checksum: sha256:f07e8f86419435b9b22cbbec364a248e560c5c330cf86a8ea8be3fa828c7fd08
+    size: 74600
+    checksum: sha256:5914a5b8a6411e50bc3ad284ec36e3c268c7135f03ec645e498b462610a18df3
     name: libcap
-    evr: 2.48-6.el8_9
-    sourcerpm: libcap-2.48-6.el8_9.src.rpm
+    evr: 2.48-6.el8_10.1
+    sourcerpm: libcap-2.48-6.el8_10.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libcap-ng-0.7.11-1.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 33600
@@ -1637,10 +1637,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/9545c0dc80f256dd43579e332316b9ffe0ca83c0aceaf66057c008d61803808e-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/50a06d569080f585056e7bdeff589960f473b10a22047cbc15f6a3d35252bcda-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 787386
-    checksum: sha256:9545c0dc80f256dd43579e332316b9ffe0ca83c0aceaf66057c008d61803808e
+    checksum: sha256:50a06d569080f585056e7bdeff589960f473b10a22047cbc15f6a3d35252bcda
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.88.0-1.module+el8.10.0+23326+3c6ade25.x86_64.rpm
@@ -2434,13 +2434,13 @@ arches:
     name: libblkid
     evr: 2.32.1-48.el8_10
     sourcerpm: util-linux-2.32.1-48.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libcap-2.48-6.el8_9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libcap-2.48-6.el8_10.1.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 76264
-    checksum: sha256:53d1d3b3387e8fea15d204b277a6b47e07f8d53bc5e48de84db5242ae3391569
+    size: 75408
+    checksum: sha256:c3ac35bc53a12af3ebb92d74b815078c36ba6f855442769e1260c6a4b2626f35
     name: libcap
-    evr: 2.48-6.el8_9
-    sourcerpm: libcap-2.48-6.el8_9.src.rpm
+    evr: 2.48-6.el8_10.1
+    sourcerpm: libcap-2.48-6.el8_10.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libcap-ng-0.7.11-1.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 34228
@@ -3262,7 +3262,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/3a0d99aaf3f53c73a6f7175303528a1094a3b029ffc66a2592d8d9eb9b395da0-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/b9c6c8edafa33aca633aab36236e6f71f73e74f259c7da8c02d646f62193d1e4-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 809617
-    checksum: sha256:3a0d99aaf3f53c73a6f7175303528a1094a3b029ffc66a2592d8d9eb9b395da0
+    checksum: sha256:b9c6c8edafa33aca633aab36236e6f71f73e74f259c7da8c02d646f62193d1e4
