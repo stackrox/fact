@@ -28,7 +28,7 @@ jobs:
     name: Check licenses
     needs:
     - licenses-need-reevaluation
-    #if: needs.licenses-need-reevaluation.outputs.need-reevaluation == 'true'
+    if: needs.licenses-need-reevaluation.outputs.need-reevaluation == 'true'
     runs-on: 'ubuntu-24.04'
 
     steps:
