@@ -46,7 +46,7 @@ jobs:
         key: check-license-${{ runner.os }}
 
     - name: Install cargo-about
-      run: cargo install cargo-about
+      run: cargo install cargo-about --features=cli
 
     - name: Generate licenses
       run: make licenses
