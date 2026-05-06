@@ -409,12 +409,10 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
 
   args.inode = inode_to_key(dentry->d_inode);
 
-  if (is_monitored(&args.inode, path, NULL) == NOT_MONITORED) {
+  if (inode_remove(&args.inode) < 0) {
     m->path_rmdir.ignored++;
     return 0;
   }
-
-  inode_remove(&args.inode);
 
   submit_rmdir_event(&args);
   return 0;
