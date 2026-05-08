@@ -83,7 +83,7 @@ which the release is forked.
 1.  On the release branch, run the following commands.
 
     ```sh
-    sed -i -e "/^RUST_VERSION / s/stable/${RUST_VERSION}/" \
+    sed -i -e "s/^RUST_VERSION .*/RUST_VERSION ?= ${RUST_VERSION}/" \
         constants.mk
 
     sed -i \
