@@ -31,15 +31,42 @@ which the release is forked.
     git push --set-upstream origin "release-${FACT_RELEASE}"
     ```
 
-At this point you will need to wait for the downstream release engineers
-to create the git resources for Konflux before proceeding.
+## Update CHANGELOG.md and version on main
 
-## Update Konflux resources and application version
+1.  Set the following environment variable:
+
+    *   `FACT_RELEASE`: The next version of fact to be released.
+
+    ```sh
+    export FACT_RELEASE=0.2
+    ```
+
+1.  On the `main` branch, run the following commands.
+
+    ```sh
+    sed -i \
+        -e "s/^## Next/&\n\n## ${FACT_RELEASE}.0/" \
+        CHANGELOG.md
+
+    sed -i \
+        -e "/^version = / s/\".*\"/\"${FACT_RELEASE}.0-dev\"/" \
+        fact/Cargo.toml
+    ```
+
+1. Create a new branch for these changes and push it to the repository.
+    ```sh
+    git checkout -b "release/update-versions-${FACT_RELEASE}"
+    git add .
+    git commit -m "chore: update change log and application version for ${FACT_RELEASE}"
+    git push --set-upstream origin "release/update-versions-${FACT_RELEASE}"
+    ```
+
+1. Create a PR pointing to the main branch and get it merged.
+
+## Pin compiler version and update the application version
 
 1.  Set the following environment variables:
 
-    *   `STACKROX_SUFFIX`: The major and minor versions of ACS that will
-        use this `fact` version (e.g., `4-10`).
     *   `FACT_RELEASE`: The release version you set in the previous
         section.
     *   `FACT_PATCH`: The patch version for this release (e.g., `0`).
@@ -48,52 +75,36 @@ to create the git resources for Konflux before proceeding.
         (e.g., `1.88`).
 
     ```sh
-    export STACKROX_SUFFIX=4-10
     export FACT_RELEASE=0.2
     export FACT_PATCH=0
     export RUST_VERSION=1.88
     ```
 
-1.  On the release branch, run the following commands to update the
-Konflux build configuration and the application version.
+1.  On the release branch, run the following commands.
 
     ```sh
-    sed -i \
-        -e "/appstudio.openshift.io\/application: / s/$/-${STACKROX_SUFFIX}/" \
-        -e "/appstudio.openshift.io\/component: / s/$/-${STACKROX_SUFFIX}/" \
-        -e "/serviceAccountName: / s/$/-${STACKROX_SUFFIX}/" \
-        .tekton/fact-build.yaml
+    sed -i -e "/^RUST_VERSION / s/stable/${RUST_VERSION}/" \
+        constants.mk
 
     sed -i \
         -e "/^version = / s/\".*\"/\"${FACT_RELEASE}.0\"/" \
         fact/Cargo.toml
     ```
 
-1.  Run the following command to pin the Rust version to be used.
-
-    ```sh
-    sed -i -e "/^RUST_VERSION / s/stable/${RUST_VERSION}/" \
-        constants.mk
-    ```
-
-1.  Run the following command to stop mintmaker from attempting to
-    update our crate dependencies.
-
-    ```sh
-    sed -i -e "/\"cargo\",/d" .github/renovate.json5
-    ```
-
 1. Create a new branch for these changes and push it to the repository.
     ```sh
-    git checkout -b "release/konflux-resources-${FACT_RELEASE}"
+    git checkout -b "release/prepare-${FACT_RELEASE}"
     git add .
-    git commit -m "Update Konflux resources for release ${FACT_RELEASE}"
-    git push --set-upstream origin "release/konflux-resources-${FACT_RELEASE}"
+    git commit -m "chore: prepare release branch for ${FACT_RELEASE}"
+    git push --set-upstream origin "release/prepare-${FACT_RELEASE}"
     ```
 
 1. Create a PR pointing to the release branch and get it merged.
-1. Once the PR is in, you can go ahead and tag the fact release.
 
+1. Since the release of artifacts via Konflux require some additional
+configuration, you will need to wait for the release engineer to make
+these and request a tag for fact. Once this happens, you can create a
+new tag with the following commands:
     ```sh
     git checkout "release-${FACT_RELEASE}"
     git pull --ff-only
