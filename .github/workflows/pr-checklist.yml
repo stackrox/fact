@@ -1,0 +1,34 @@
+name: "Enforce PR Checklist"
+
+on:
+  pull_request:
+   types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+jobs:
+  validate-checklist:
+    runs-on: ubuntu-24.04
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Verify PR Checklist is Complete
+        if: github.actor != 'red-hat-konflux[bot]'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if ! (echo "$PR_BODY" | grep  "\- \[x\] Patch has a change log entry \*\*OR\*\* does not need one"); then
+            echo "Missing change log check"
+            exit 1
+          fi
+
+          if ! (echo "$PR_BODY" | grep  "\- \[x\] Investigated and inspected CI test results"); then
+            echo "Missing CI test check"
+            exit 1
+          fi
+
+      - name: Skip check for MintMaker
+        if: github.actor == 'red-hat-konflux[bot]'
+        run: |
+          echo "MintMaker PRs are exempted from this check"
