@@ -18,12 +18,12 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          if ! (echo "$PR_BODY" | grep  "\- \[x\] Patch has a change log entry \*\*OR\*\* does not need one"); then
+          if ! (echo "$PR_BODY" | grep -q "\- \[x\] Patch has a change log entry \*\*OR\*\* does not need one"); then
             echo "Missing change log check"
             exit 1
           fi
 
-          if ! (echo "$PR_BODY" | grep  "\- \[x\] Investigated and inspected CI test results"); then
+          if ! (echo "$PR_BODY" | grep -q "\- \[x\] Investigated and inspected CI test results"); then
             echo "Missing CI test check"
             exit 1
           fi
