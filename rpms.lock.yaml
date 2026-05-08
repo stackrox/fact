@@ -1159,20 +1159,20 @@ arches:
     name: readline
     evr: 8.1-4.el9
     sourcerpm: readline-8.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/r/redhat-release-9.7-0.7.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/r/redhat-release-9.7-0.10.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 54139
-    checksum: sha256:2c182267c4269dd1a11542cc17a261e2a9526fd5b478f2d404bc52842b42aaa3
+    size: 61433
+    checksum: sha256:a5f015edd53d58d84ace0515e7192fc57be46233b046613cebd4eb6df0143c30
     name: redhat-release
-    evr: 9.7-0.7.el9
-    sourcerpm: redhat-release-9.7-0.7.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/r/redhat-release-eula-9.7-0.7.el9.aarch64.rpm
+    evr: 9.7-0.10.el9
+    sourcerpm: redhat-release-9.7-0.10.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/r/redhat-release-eula-9.7-0.10.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 11612
-    checksum: sha256:4a8ca8fd738b8f73c51114d2f798702227c2e58f331922ae83cf95ab063cd505
+    size: 18154
+    checksum: sha256:58cb6818608b21260fd38c7e093adc9f3e2ad6f0567d4729f40c510c318c3c64
     name: redhat-release-eula
-    evr: 9.7-0.7.el9
-    sourcerpm: redhat-release-9.7-0.7.el9.src.rpm
+    evr: 9.7-0.10.el9
+    sourcerpm: redhat-release-9.7-0.10.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/r/rpm-4.16.1.3-39.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 544141
@@ -2472,20 +2472,20 @@ arches:
     name: readline
     evr: 8.1-4.el9
     sourcerpm: readline-8.1-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/r/redhat-release-9.7-0.7.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/r/redhat-release-9.7-0.10.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 54160
-    checksum: sha256:3327891678227a80a87f10b3e0da11cac2991311660113822008b353b8a3335f
+    size: 61504
+    checksum: sha256:62d5509e34cb0be6e1195a8c7e91915e0372526e1c98530e551eb92e8d435c3f
     name: redhat-release
-    evr: 9.7-0.7.el9
-    sourcerpm: redhat-release-9.7-0.7.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/r/redhat-release-eula-9.7-0.7.el9.x86_64.rpm
+    evr: 9.7-0.10.el9
+    sourcerpm: redhat-release-9.7-0.10.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/r/redhat-release-eula-9.7-0.10.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 11644
-    checksum: sha256:cdf5e44d5f4b242914d9b2dba9bf4c0d140c1401cfd8541726bb45497ae3f540
+    size: 18181
+    checksum: sha256:48489fa7aee1d5aa884b72c43bc252fea82dd8778302fb46318f60629346400a
     name: redhat-release-eula
-    evr: 9.7-0.7.el9
-    sourcerpm: redhat-release-9.7-0.7.el9.src.rpm
+    evr: 9.7-0.10.el9
+    sourcerpm: redhat-release-9.7-0.10.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/r/rpm-4.16.1.3-39.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 547965
