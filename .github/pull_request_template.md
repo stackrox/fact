@@ -5,6 +5,7 @@ A detailed explanation of the changes in your PR.
 Feel free to remove this section if it is overkill for your PR, and the title of your PR is sufficiently descriptive.
 
 ## Checklist
+- [ ] Patch has a change log entry **OR** does not need one.
 - [ ] Investigated and inspected CI test results
 - [ ] Updated documentation accordingly
 
