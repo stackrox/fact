@@ -174,8 +174,8 @@ impl HostScanner {
 
         let metadata = path.metadata()?;
         let inode = inode_key_t {
-            inode: metadata.st_ino(),
-            dev: metadata.st_dev(),
+            inode: metadata.st_ino() as u32,
+            dev: metadata.st_dev() as u32,
         };
 
         let host_path = host_info::remove_host_mount(path);

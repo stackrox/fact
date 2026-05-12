@@ -54,13 +54,12 @@ int BPF_PROG(trace_file_open, struct file* file) {
     }
   }
 
-  struct bound_path_t* path = path_read_unchecked(&file->f_path);
-  if (path == NULL) {
+  args.filename = path_read_unchecked(&file->f_path);
+  if (args.filename == NULL) {
     bpf_printk("Failed to read path");
     m->file_open.error++;
     return 0;
   }
-  args.filename = path->path;
 
   args.inode = inode_to_key(file->f_inode);
 
@@ -68,7 +67,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
   struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
   args.parent_inode = inode_to_key(parent_inode_ptr);
 
-  args.monitored = is_monitored(&args.inode, path, &args.parent_inode);
+  args.monitored = is_monitored(&args.inode, args.filename, &args.parent_inode);
   if (args.monitored == NOT_MONITORED) {
     goto ignored;
   }
@@ -96,16 +95,15 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
   args.metrics->total++;
 
-  struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
-  if (path == NULL) {
+  args.filename = path_read_append_d_entry(dir, dentry);
+  if (args.filename == NULL) {
     bpf_printk("Failed to read path");
     m->path_unlink.error++;
     return 0;
   }
-  args.filename = path->path;
 
   args.inode = inode_to_key(dentry->d_inode);
-  args.monitored = is_monitored(&args.inode, path, NULL);
+  args.monitored = is_monitored(&args.inode, args.filename, NULL);
 
   if (args.monitored == NOT_MONITORED) {
     m->path_unlink.ignored++;
@@ -129,16 +127,15 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
 
   args.metrics->total++;
 
-  struct bound_path_t* bound_path = path_read(path);
-  if (bound_path == NULL) {
+  args.filename = path_read(path);
+  if (args.filename == NULL) {
     bpf_printk("Failed to read path");
     args.metrics->error++;
     return 0;
   }
-  args.filename = bound_path->path;
 
   args.inode = inode_to_key(path->dentry->d_inode);
-  args.monitored = is_monitored(&args.inode, bound_path, NULL);
+  args.monitored = is_monitored(&args.inode, args.filename, NULL);
 
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
@@ -164,16 +161,15 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
 
   args.metrics->total++;
 
-  struct bound_path_t* bound_path = path_read(path);
-  if (bound_path == NULL) {
+  args.filename = path_read(path);
+  if (args.filename == NULL) {
     bpf_printk("Failed to read path");
     args.metrics->error++;
     return 0;
   }
-  args.filename = bound_path->path;
 
   args.inode = inode_to_key(path->dentry->d_inode);
-  args.monitored = is_monitored(&args.inode, bound_path, NULL);
+  args.monitored = is_monitored(&args.inode, args.filename, NULL);
 
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
@@ -201,12 +197,11 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
 
   args.metrics->total++;
 
-  struct bound_path_t* new_path = path_read_append_d_entry(new_dir, new_dentry);
-  if (new_path == NULL) {
+  args.filename = path_read_append_d_entry(new_dir, new_dentry);
+  if (args.filename == NULL) {
     bpf_printk("Failed to read path");
     goto error;
   }
-  args.filename = new_path->path;
 
   struct bound_path_t* old_path = path_read_alt_append_d_entry(old_dir, old_dentry);
   if (old_path == NULL) {
@@ -216,7 +211,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
 
   args.inode = inode_to_key(new_dentry->d_inode);
   args.parent_inode = inode_to_key(new_dir->dentry->d_inode);
-  args.monitored = is_monitored(&args.inode, new_path, &args.parent_inode);
+  args.monitored = is_monitored(&args.inode, args.filename, &args.parent_inode);
 
   inode_key_t old_inode = inode_to_key(old_dentry->d_inode);
   monitored_t old_monitored = is_monitored(&old_inode, old_path, NULL);
@@ -283,7 +278,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
       break;
   }
 
-  submit_rename_event(&args, old_path->path, &old_inode, old_monitored);
+  submit_rename_event(&args, old_path, &old_inode, old_monitored);
   return 0;
 
 error:
@@ -334,13 +329,14 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
     }
   }
 
-  long path_copy_len = bpf_probe_read_str(mkdir_ctx->path, PATH_MAX, path->path);
-  if (path_copy_len < 0) {
+  long res = bpf_probe_read(mkdir_ctx->path.path, PATH_LEN_CLAMP(path->len), path->path);
+  if (res < 0) {
     bpf_printk("Failed to copy path string");
     m->path_mkdir.error++;
     bpf_map_delete_elem(&mkdir_context, &pid_tgid);
     return 0;
   }
+  mkdir_ctx->path.len = path->len;
   mkdir_ctx->parent_inode = parent_inode;
   mkdir_ctx->monitored = monitored;
 
@@ -370,7 +366,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
     args.metrics->ignored++;
     return 0;
   }
-  args.filename = mkdir_ctx->path;
+  args.filename = &mkdir_ctx->path;
   args.parent_inode = mkdir_ctx->parent_inode;
   args.monitored = mkdir_ctx->monitored;
 
@@ -399,13 +395,12 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
 
   args.metrics->total++;
 
-  struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
-  if (path == NULL) {
+  args.filename = path_read_append_d_entry(dir, dentry);
+  if (args.filename == NULL) {
     bpf_printk("Failed to read directory path");
     m->path_rmdir.error++;
     return 0;
   }
-  args.filename = path->path;
 
   args.inode = inode_to_key(dentry->d_inode);
 

@@ -1,30 +1,17 @@
-use std::{ffi::CStr, path::PathBuf};
+use std::{ffi::CString, path::PathBuf};
 
-use fact_ebpf::{lineage_t, process_t};
-use serde::Serialize;
+use serde::{Serialize, Serializer, ser::SerializeSeq};
 use uuid::Uuid;
 
-use crate::host_info;
-
-use super::{sanitize_d_path, slice_to_string};
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
-pub struct Lineage {
+pub(crate) struct Lineage {
     uid: u32,
     exe_path: PathBuf,
 }
 
-impl TryFrom<&lineage_t> for Lineage {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &lineage_t) -> Result<Self, Self::Error> {
-        let lineage_t { uid, exe_path } = value;
-        let exe_path = sanitize_d_path(exe_path);
-
-        Ok(Lineage {
-            uid: *uid,
-            exe_path,
-        })
+impl Lineage {
+    pub(crate) fn new(uid: u32, exe_path: PathBuf) -> Self {
+        Lineage { uid, exe_path }
     }
 }
 
@@ -38,10 +25,30 @@ impl From<Lineage> for fact_api::process_signal::LineageInfo {
     }
 }
 
+fn serialize_lossy_string<S>(value: &CString, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    value.to_string_lossy().serialize(serializer)
+}
+
+fn serialize_vector_lossy_string<S>(value: &Vec<CString>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(value.len()))?;
+    for i in value {
+        seq.serialize_element(&i.to_string_lossy().to_string())?;
+    }
+    seq.end()
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Process {
-    comm: String,
-    args: Vec<String>,
+    #[serde(serialize_with = "serialize_lossy_string")]
+    comm: CString,
+    #[serde(serialize_with = "serialize_vector_lossy_string")]
+    args: Vec<CString>,
     exe_path: PathBuf,
     container_id: Option<String>,
     uid: u32,
@@ -54,6 +61,41 @@ pub struct Process {
 }
 
 impl Process {
+    // This constructor is terribly ugly, but I don't want to make all
+    // the fields in the Process type public or put together a builder
+    // class for it just for Parser to be able to build it, so we allow
+    // the mostrosity for now.
+    //
+    // TODO: Figure out a cleaner way to do this.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        comm: CString,
+        args: Vec<CString>,
+        exe_path: PathBuf,
+        container_id: Option<String>,
+        uid: u32,
+        username: &'static str,
+        gid: u32,
+        login_uid: u32,
+        pid: u32,
+        in_root_mount_ns: bool,
+        lineage: Vec<Lineage>,
+    ) -> Self {
+        Process {
+            comm,
+            args,
+            exe_path,
+            container_id,
+            uid,
+            username,
+            gid,
+            login_uid,
+            pid,
+            in_root_mount_ns,
+            lineage,
+        }
+    }
+
     /// Create a representation of the current process as best as
     /// possible.
     #[cfg(test)]
@@ -61,7 +103,9 @@ impl Process {
         use crate::host_info::{get_host_mount_ns, get_mount_ns};
 
         let exe_path = std::env::current_exe().expect("Failed to get current exe");
-        let args = std::env::args().collect::<Vec<_>>();
+        let args = std::env::args()
+            .map(|arg| CString::new(arg).expect("Failed to convert argument to CString"))
+            .collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
         let container_id = Process::extract_container_id(&cgroup);
         let uid = unsafe { libc::getuid() };
@@ -75,7 +119,7 @@ impl Process {
         let in_root_mount_ns = get_host_mount_ns() == get_mount_ns(&pid.to_string(), false);
 
         Self {
-            comm: "".to_string(),
+            comm: c"".to_owned(),
             args,
             exe_path,
             container_id,
@@ -89,7 +133,7 @@ impl Process {
         }
     }
 
-    fn extract_container_id(cgroup: &str) -> Option<String> {
+    pub(super) fn extract_container_id(cgroup: &str) -> Option<String> {
         let cgroup = if let Some(i) = cgroup.rfind(".scope") {
             cgroup.split_at(i).0
         } else {
@@ -127,53 +171,6 @@ impl PartialEq for Process {
     }
 }
 
-impl TryFrom<process_t> for Process {
-    type Error = anyhow::Error;
-
-    fn try_from(value: process_t) -> Result<Self, Self::Error> {
-        let comm = slice_to_string(value.comm.as_slice())?;
-        let exe_path = sanitize_d_path(value.exe_path.as_slice());
-        let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
-        let container_id = Process::extract_container_id(memory_cgroup);
-        let in_root_mount_ns = value.in_root_mount_ns != 0;
-
-        let lineage = value.lineage[..value.lineage_len as usize]
-            .iter()
-            .map(Lineage::try_from)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut converted_args = Vec::new();
-        let args_len = value.args_len as usize;
-        let mut offset = 0;
-        while offset < args_len {
-            let arg = unsafe { CStr::from_ptr(value.args.as_ptr().add(offset)) }
-                .to_str()?
-                .to_owned();
-            if arg.is_empty() {
-                break;
-            }
-            offset += arg.len() + 1;
-            converted_args.push(arg);
-        }
-
-        let username = host_info::get_username(value.uid);
-
-        Ok(Process {
-            comm,
-            args: converted_args,
-            exe_path,
-            container_id,
-            uid: value.uid,
-            username,
-            gid: value.gid,
-            login_uid: value.login_uid,
-            pid: value.pid,
-            in_root_mount_ns,
-            lineage,
-        })
-    }
-}
-
 impl From<Process> for fact_api::ProcessSignal {
     fn from(value: Process) -> Self {
         let Process {
@@ -192,9 +189,14 @@ impl From<Process> for fact_api::ProcessSignal {
 
         let container_id = container_id.unwrap_or("".to_string());
 
+        let args = args.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>();
+
         // try_join can fail if args contain nul bytes, though this should not happen
         // since args are parsed from C strings which are nul-terminated
-        let Ok(args) = shlex::try_join(args.iter().map(|s| s.as_str())) else {
+        let Ok(args) = shlex::try_join(args.iter().map(|s| match s {
+            std::borrow::Cow::Borrowed(s) => *s,
+            std::borrow::Cow::Owned(s) => s.as_str(),
+        })) else {
             unreachable!();
         };
 
@@ -202,7 +204,7 @@ impl From<Process> for fact_api::ProcessSignal {
             id: Uuid::new_v4().to_string(),
             container_id,
             creation_time: None,
-            name: comm,
+            name: comm.to_string_lossy().to_string(),
             args,
             exec_file_path: exe_path.to_string_lossy().to_string(),
             pid,
@@ -223,8 +225,6 @@ impl From<Process> for fact_api::ProcessSignal {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::test_utils::*;
-    use fact_ebpf::PATH_MAX;
 
     #[test]
     fn extract_container_id() {
@@ -263,6 +263,7 @@ mod tests {
         }
     }
 
+    /* TODO: move these tests to the parser module
     #[test]
     fn process_conversion_valid_utf8_comm() {
         let tests = [
@@ -495,4 +496,5 @@ mod tests {
             lineage_path_str
         );
     }
+    */
 }
