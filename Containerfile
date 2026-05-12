@@ -1,3 +1,23 @@
+FROM registry.access.redhat.com/ubi9/ubi-micro:latest AS ubi-micro-base
+
+FROM registry.access.redhat.com/ubi9/ubi:latest AS package_installer
+
+COPY --from=ubi-micro-base / /out/
+
+RUN dnf install -y \
+    --installroot=/out/ \
+    --releasever=9 \
+    --setopt=install_weak_deps=False \
+    --nodocs \
+    ca-certificates \
+    crypto-policies-scripts \
+    gzip \
+    less \
+    openssl-libs \
+    tar && \
+    dnf clean all --installroot=/out/ && \
+    rm -rf /out/var/cache/dnf /out/var/cache/yum
+
 FROM quay.io/centos/centos:stream9 AS builder
 
 ARG RUST_VERSION=stable
@@ -25,7 +45,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     cargo build --release && \
     cp target/release/fact fact
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM ubi-micro-base
 
 ARG FACT_VERSION
 LABEL name="fact" \
@@ -35,17 +55,12 @@ LABEL name="fact" \
       description="This image supports file activity data collection in the StackRox Kubernetes Security Platform." \
       io.stackrox.fact.version="${FACT_VERSION}"
 
-RUN microdnf install -y openssl-libs crypto-policies-scripts && \
-    # Enable post-quantum cryptography key exchange for TLS.
-    update-crypto-policies --set DEFAULT:PQ && \
-    microdnf clean all && \
-    rpm --verbose -e --nodeps $( \
-        rpm -qa 'curl' '*rpm*' '*dnf*' '*libsolv*' '*hawkey*' 'yum*' 'libyaml*' 'libarchive*' \
-    ) && \
-    rm -rf /var/cache/yum
+COPY --from=package_installer /out/ /
 
 COPY --from=build /app/fact /usr/local/bin
 
 COPY LICENSE-APACHE LICENSE-MIT LICENSE-GPL2 /licenses/
+
+RUN update-crypto-policies --set DEFAULT:PQ
 
 ENTRYPOINT ["fact"]
