@@ -2,15 +2,19 @@
 # See our docs here: https://spaces.redhat.com/display/StackRox/How+to+prefetch+RPMs+for+ACS+Konflux+builds
 
 packages:
+- ca-certificates
 - cargo
 - clang
 - crypto-policies-scripts
+- gzip
+- less
 - libbpf-devel
 - openssl-libs
 - openssl-devel
 - protobuf-compiler
 - protobuf-devel
 - rust
+- tar
 contentOrigin:
   repofiles: ["rpms.rhel.repo"]
 context:

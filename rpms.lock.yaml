@@ -123,13 +123,13 @@ arches:
     name: glibc-devel
     evr: 2.34-231.el9_7.10
     sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-611.54.1.el9_7.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-611.55.1.el9_7.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 2991249
-    checksum: sha256:1ce921e3e289e6459751b3e74006b3d47732abdc0f1f59536f02f05d81e119ab
+    size: 2991565
+    checksum: sha256:ae3257c03d08536eeeb0b00fe49e6c929a357202f543ab70343a2bcf16689a21
     name: kernel-headers
-    evr: 5.14.0-611.54.1.el9_7
-    sourcerpm: kernel-5.14.0-611.54.1.el9_7.src.rpm
+    evr: 5.14.0-611.55.1.el9_7
+    sourcerpm: kernel-5.14.0-611.55.1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-11.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 408716
@@ -1243,6 +1243,13 @@ arches:
     name: systemd-rpm-macros
     evr: 252-55.el9_7.9
     sourcerpm: systemd-252-55.el9_7.9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/t/tar-1.34-9.el9_7.aarch64.rpm
+    repoid: rhel-9-for-aarch64-baseos-rpms
+    size: 898317
+    checksum: sha256:2d0bd44116c3f5c229d25fdc6458f6ce24a7ad4fdb463767eea48dcab78c5062
+    name: tar
+    evr: 2:1.34-9.el9_7
+    sourcerpm: tar-1.34-9.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/t/tcl-8.6.10-7.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 1137015
@@ -1443,13 +1450,13 @@ arches:
     name: glibc-headers
     evr: 2.34-231.el9_7.10
     sourcerpm: glibc-2.34-231.el9_7.10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-611.54.1.el9_7.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-611.55.1.el9_7.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 3030285
-    checksum: sha256:0b0cac1f70c953850798b2430e8918e231d93e58d5ed03c6d92cb0b45a33915f
+    size: 3030561
+    checksum: sha256:5791683d2358facf7330677530af09cd0b310c71ed92b151b30a9c11eeafab2a
     name: kernel-headers
-    evr: 5.14.0-611.54.1.el9_7
-    sourcerpm: kernel-5.14.0-611.54.1.el9_7.src.rpm
+    evr: 5.14.0-611.55.1.el9_7
+    sourcerpm: kernel-5.14.0-611.55.1.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
@@ -2556,6 +2563,13 @@ arches:
     name: systemd-rpm-macros
     evr: 252-55.el9_7.9
     sourcerpm: systemd-252-55.el9_7.9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/t/tar-1.34-9.el9_7.x86_64.rpm
+    repoid: rhel-9-for-x86_64-baseos-rpms
+    size: 906521
+    checksum: sha256:4c0beb933074a5254c297e8968b3f41ec5a02b23056997ddcf526fe7e6166482
+    name: tar
+    evr: 2:1.34-9.el9_7
+    sourcerpm: tar-1.34-9.el9_7.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/t/tcl-8.6.10-7.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 1152092
