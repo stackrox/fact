@@ -1,6 +1,6 @@
-FROM registry.access.redhat.com/ubi9/ubi-micro@sha256:093a704be0eaef9bb52d9bc0219c67ee9db13c2e797da400ddb5d5ae6849fa10 AS ubi-micro-base
+FROM registry.access.redhat.com/ubi9/ubi-micro@sha256:1ef916d40ff7f1a4882a31ad5ab37f9572baa7bd182c3519d5e0cb557ffc04f3 AS ubi-micro-base
 
-FROM registry.access.redhat.com/ubi9/ubi@sha256:6ed9f6f637fe731d93ec60c065dbced79273f1e0b5f512951f2c0b0baedb16ad AS package_installer
+FROM registry.access.redhat.com/ubi9/ubi@sha256:8ca59004c1c505bdabadd5202bd3363986f5bf873fcfb36f60561d7362fe52a7 AS package_installer
 
 COPY --from=ubi-micro-base / /out/
 
