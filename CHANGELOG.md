@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* ROX-34663: Migrate from ubi-minimal to ubi-micro (#653)
 * ROX-30256: track files and directories being renamed (#308)
 * ROX-33198: Instrument inode tracking on file open lsm hook (#391)
 * ROX-33217: Instrument inode tracking on directory being created path mkdir (#465)

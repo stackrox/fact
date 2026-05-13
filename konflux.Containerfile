@@ -1,3 +1,24 @@
+FROM registry.access.redhat.com/ubi9/ubi-micro@sha256:093a704be0eaef9bb52d9bc0219c67ee9db13c2e797da400ddb5d5ae6849fa10 AS ubi-micro-base
+
+FROM registry.access.redhat.com/ubi9/ubi@sha256:6ed9f6f637fe731d93ec60c065dbced79273f1e0b5f512951f2c0b0baedb16ad AS package_installer
+
+COPY --from=ubi-micro-base / /out/
+
+RUN dnf install -y \
+    --installroot=/out/ \
+    --releasever=9 \
+    --setopt=install_weak_deps=False \
+    --setopt=reposdir=/etc/yum.repos.d \
+    --nodocs \
+    ca-certificates \
+    crypto-policies-scripts \
+    gzip \
+    less \
+    openssl-libs \
+    tar && \
+    dnf clean all --installroot=/out/ && \
+    rm -rf /out/var/cache/dnf /out/var/cache/yum
+
 FROM registry.access.redhat.com/ubi9/ubi@sha256:8ca59004c1c505bdabadd5202bd3363986f5bf873fcfb36f60561d7362fe52a7 AS builder
 
 ARG FACT_TAG
@@ -18,7 +39,7 @@ COPY . .
 
 RUN cargo build --release
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:12db9874bd753eb98b1ab3d840e75de5d6842ac0604fbd68c012adefe97140be
+FROM ubi-micro-base
 
 ARG FACT_TAG
 
@@ -43,19 +64,12 @@ LABEL \
     # We also set it to not inherit one from a base stage in case it's RHEL or UBI.
     release="1"
 
-RUN microdnf install -y \
-        crypto-policies-scripts \
-        openssl-libs && \
-    # Enable post-quantum cryptography key exchange for TLS.
-    update-crypto-policies --set DEFAULT:PQ && \
-    microdnf clean all && \
-    rpm --verbose -e --nodeps $( \
-        rpm -qa 'curl' '*rpm*' '*dnf*' '*libsolv*' '*hawkey*' 'yum*' 'libyaml*' 'libarchive*' \
-    ) && \
-    rm -rf /var/cache/yum
+COPY --from=package_installer /out/ /
 
 COPY --from=builder /app/target/release/fact /usr/local/bin
 
 COPY LICENSE-APACHE LICENSE-MIT LICENSE-GPL2 /licenses/
+
+RUN update-crypto-policies --set DEFAULT:PQ
 
 ENTRYPOINT ["fact"]
