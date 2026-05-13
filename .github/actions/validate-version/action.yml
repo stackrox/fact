@@ -1,0 +1,23 @@
+name: Validate <Major>.<minor> version
+description: |
+  This is a pretty common format used during our release process, this
+  action can be used to uniformly validate such version format.
+
+inputs:
+  version:
+    description: |
+      The release version in <Major>.<minor> format.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      name: Validate version
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        if [[ ! "$VERSION" =~ ^([[:digit:]]+)\.([[:digit:]]+)$ ]] ; then
+          echo >&2 "Invalid version '$VERSION'. The expected format is <Major>.<minor>"
+          exit 1
+        fi
