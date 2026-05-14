@@ -1,6 +1,32 @@
 # Managing a `fact` release
 
-## Create the release branch
+## Automated release
+
+There are two GHA workflows available to prepare a new release stream
+and properly releasing a new version, they are aptly named:
+- Prepare Release Branch
+- Release New Version
+
+When a release cycle is coming to an end and a new X.Y stream is needed,
+running the `Prepare Release Branch` will do all the heavy lifting,
+creating the new `release-X.Y` branch, a new internal `X.Y.x` tag and
+opening PRs for updating the cargo toml and lock files, pinning Rust
+version to use and updating the CHANGELOG.
+
+Once a release engineer signals a new tag for fact is needed, the
+`Release New Version` workflow can be used to push this tag
+automatically. It will work for both the initial version of a new X.Y
+stream, as well as for any future patch releases needed for that same
+stream.
+
+## Manual release
+
+**Note**: This is a fallback method, only intended to be used if the
+automated method fails for some reason. Stick to the automated method
+whenever possible
+---
+
+### Create the release branch
 
 1. Navigate to your local `stackrox/fact` git repository and ensure your
 `main` branch is up to date.
@@ -31,14 +57,16 @@ which the release is forked.
     git push --set-upstream origin "release-${FACT_RELEASE}"
     ```
 
-## Update CHANGELOG.md and version on main
+### Update CHANGELOG.md and version on main
 
 1.  Set the following environment variable:
 
     *   `FACT_RELEASE`: The next version of fact to be released.
+    *   `FACT_DEV`: The version of fact that will enter the dev phase.
 
     ```sh
     export FACT_RELEASE=0.2
+    export FACT_DEV=0.3
     ```
 
 1.  On the `main` branch, run the following commands.
@@ -49,8 +77,9 @@ which the release is forked.
         CHANGELOG.md
 
     sed -i \
-        -e "/^version = / s/\".*\"/\"${FACT_RELEASE}.0-dev\"/" \
+        -e "/^version = / s/\".*\"/\"${FACT_DEV}.0-dev\"/" \
         fact/Cargo.toml
+    cargo update -p fact
     ```
 
 1. Create a new branch for these changes and push it to the repository.
@@ -63,7 +92,7 @@ which the release is forked.
 
 1. Create a PR pointing to the main branch and get it merged.
 
-## Pin compiler version and update the application version
+### Pin compiler version and update the application version
 
 1.  Set the following environment variables:
 
@@ -89,6 +118,7 @@ which the release is forked.
     sed -i \
         -e "/^version = / s/\".*\"/\"${FACT_RELEASE}.0\"/" \
         fact/Cargo.toml
+    cargo update -p fact
     ```
 
 1. Create a new branch for these changes and push it to the repository.
@@ -115,7 +145,7 @@ new tag with the following commands:
 1. Ensure the Konflux and GitHub Actions builds succeed and the
 corresponding container images are pushed.
 
-## Handling patch releases
+### Handling patch releases
 
 1. Merge any backport PRs you need into the desired release branch.
 1. Figure out the patch version to be released.
