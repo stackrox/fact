@@ -1,0 +1,71 @@
+name: Release New Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: |
+          The release version in <Major>.<minor> format.
+        required: true
+        type: string
+      dry-run:
+        description: Do not push anything
+        default: true
+        type: boolean
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+          fetch-depth: 0
+          ref: release-${{ inputs.version }}
+          token: ${{ secrets.RHACS_BOT_GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/validate-version
+        name: Validate version
+        with:
+          version: ${{ inputs.version }}
+
+      - name: Determine patch version
+        id: patch
+        run: |
+          last_tag="$(git describe --tags --abbrev=0)"
+
+          if [[ "$last_tag" =~ ^"${VERSION}"\.x$ ]]; then
+            patch=0
+          elif [[ "$last_tag" =~ ^"${VERSION}"\.([[:digit:]]+)$ ]]; then
+            patch=$((BASH_REMATCH[1] + 1))
+          else
+            echo >&2 "Failed to determine patch version for ${VERSION}"
+            echo >&2 "Last tag found: $last_tag"
+            exit 1
+          fi
+
+          echo "patch=$patch" >> "$GITHUB_OUTPUT"
+
+      - name: Initialize mandatory git config
+        run: |
+          git config user.name '${{ github.event.sender.login }}'
+          git config user.email noreply@github.com
+
+      - name: Create release tag
+        env:
+          PATCH: ${{ steps.patch.outputs.patch }}
+        run: |
+          git tag -a -m "fact v${VERSION}.${PATCH} release" "${VERSION}.${PATCH}"
+
+      - name: Push tag
+        if: ${{ ! inputs.dry-run }}
+        env:
+          PATCH: ${{ steps.patch.outputs.patch }}
+        run: |
+          git push origin "${VERSION}.${PATCH}"

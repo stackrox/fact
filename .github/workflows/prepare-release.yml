@@ -1,0 +1,180 @@
+name: Prepare Release Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: |
+          The release version in <Major>.<minor> format.
+        required: true
+        type: string
+      next-version:
+        description: |
+          The <Major>.<minor> version that will be used for the next
+          release.
+        required:  true
+        type: string
+      rust-version:
+        description: |
+          The Rust version that will be used for the new release branch.
+        required: true
+        type: string
+      dry-run:
+        description: Do not push anything
+        default: true
+        type: boolean
+
+jobs:
+  validate-version:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+
+      - uses: ./.github/actions/validate-version
+        name: Validate version
+        with:
+          version: ${{ inputs.version }}
+
+      - uses: ./.github/actions/validate-version
+        name: Validate next-version
+        with:
+          version: ${{ inputs.next-version }}
+
+      - uses: ./.github/actions/validate-version
+        name: Validate Rust version
+        with:
+          version: ${{ inputs.rust-version }}
+
+  prepare-release-branch:
+    runs-on: ubuntu-24.04
+    needs:
+    - validate-version
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+          ref: main
+          token: ${{ secrets.RHACS_BOT_GITHUB_TOKEN }}
+
+      - name: Initialize mandatory git config
+        run: |
+          git config user.name '${{ github.event.sender.login }}'
+          git config user.email noreply@github.com
+
+      - name: Create internal tag and release-${{ inputs.version }} branch
+        run: |
+          git checkout main
+          git pull --ff-only
+          git tag '${{ inputs.version }}.x'
+          git checkout -b 'release-${{ inputs.version }}'
+
+      - name: Push internal tag and release-${{ inputs.version }} branch
+        if: ${{ ! inputs.dry-run }}
+        run: |
+          git push origin '${{ inputs.version }}.x'
+          git push --set-upstream origin 'release-${{ inputs.version }}'
+
+  pin-rust-version:
+    runs-on: ubuntu-24.04
+    needs:
+    - validate-version
+    - prepare-release-branch
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+          token: ${{ secrets.RHACS_BOT_GITHUB_TOKEN }}
+
+      - name: Switch to release branch
+        run: |
+          if [[ '${{ inputs.dry-run }}' == "true" ]]; then
+            git checkout -b 'release-${{ inputs.version }}'
+          else
+            git fetch origin 'release-${{ inputs.version }}:release-${{ inputs.version }}'
+            git checkout 'release-${{ inputs.version }}'
+          fi
+
+      - name: Pin Rust version
+        run: |
+          sed -i -e 's/^RUST_VERSION .*/RUST_VERSION ?= ${{ inputs.rust-version }}/' \
+              constants.mk
+
+      - name: Update fact version
+        run: |
+          sed -i \
+              -e '/^version = / s/".*"/"${{ inputs.version }}.0"/' \
+              fact/Cargo.toml
+
+          cargo update -p fact
+
+      - name: Print git diff for validation
+        run: |
+          git diff
+
+      - name: Create Pull Request
+        if: ${{ ! inputs.dry-run }}
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: '${{ secrets.RHACS_BOT_GITHUB_TOKEN }}'
+          commit-message: 'chore: pin Rust version and update fact version'
+          committer: '${{ secrets.RHACS_BOT_GITHUB_USERNAME }} <${{ secrets.RHACS_BOT_GITHUB_EMAIL }}>'
+          author: '${{ secrets.RHACS_BOT_GITHUB_USERNAME }} <${{ secrets.RHACS_BOT_GITHUB_EMAIL }}>'
+          branch: chore/pin-rust-update-version-${{ inputs.version }}
+          signoff: false
+          delete-branch: true
+          title: 'chore: pin Rust version and update fact version'
+          body: |
+            Pin Rust version to ${{ inputs.rust-version }} and update fact to version ${{ inputs.version }}
+          team-reviewers: |
+            collector-team
+          draft: false
+
+  update-version:
+    runs-on: ubuntu-24.04
+    needs:
+    - validate-version
+    - prepare-release-branch
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+          ref: main
+          token: ${{ secrets.RHACS_BOT_GITHUB_TOKEN }}
+
+      - name: Update CHANGELOG.md
+        run: |
+          sed -i \
+              -e 's/^## Next/&\n\n## ${{ inputs.version }}.0/' \
+              CHANGELOG.md
+
+      - name: Update fact version
+        run: |
+          sed -i \
+              -e '/^version = / s/".*"/"${{ inputs.next-version }}.0-dev"/' \
+              fact/Cargo.toml
+
+          cargo update -p fact
+
+      - name: Print git diff for validation
+        run: |
+          git diff
+
+      - name: Create Pull Request
+        if: ${{ ! inputs.dry-run }}
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: '${{ secrets.RHACS_BOT_GITHUB_TOKEN }}'
+          commit-message: 'chore: update CHANGELOG.md and fact version'
+          committer: '${{ secrets.RHACS_BOT_GITHUB_USERNAME }} <${{ secrets.RHACS_BOT_GITHUB_EMAIL }}>'
+          author: '${{ secrets.RHACS_BOT_GITHUB_USERNAME }} <${{ secrets.RHACS_BOT_GITHUB_EMAIL }}>'
+          branch: chore/update-changelog-fact-${{ inputs.next-version }}-dev
+          signoff: false
+          delete-branch: true
+          title: 'chore(docs): Update CHANGELOG.md and fact version'
+          body: |
+            Cut the CHANGELOG.md changes and update fact to version ${{ inputs.next-version }}-dev
+          team-reviewers: |
+            collector-team
+          draft: false
