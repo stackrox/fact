@@ -3,10 +3,10 @@ import time
 from time import sleep
 
 import pytest
-import requests
 import yaml
 
 from event import Event, EventType, Process
+
 
 @pytest.fixture
 def rate_limited_config(fact, fact_config, monitored_dir):
@@ -23,11 +23,10 @@ def rate_limited_config(fact, fact_config, monitored_dir):
     sleep(0.1)
     return config, config_file
 
-def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
+def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server, metrics):
     """
     Test that the rate limiter drops events when the rate limit is exceeded.
     """
-    config, _ = rate_limited_config
     num_files = 100
     start_time = time.time()
 
@@ -51,19 +50,8 @@ def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
     assert received_count < num_files, \
         f'Expected rate limiting to drop some events, but received all {received_count}'
 
-    metrics_response = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
-    assert metrics_response.status_code == 200
-
-    metrics_text = metrics_response.text
-    assert 'rate_limiter_events' in metrics_text, 'rate_limiter_events metric not found'
-
-    dropped_count = 0
-    for line in metrics_text.split('\n'):
-        if 'rate_limiter_events' in line and 'label="Dropped"' in line:
-            parts = line.split()
-            if len(parts) >= 2:
-                dropped_count = int(parts[1])
-                break
+    ss = metrics.snapshot()
+    dropped_count = ss.get("rate_limiter_events", label="Dropped")
 
     assert dropped_count > 0, 'Expected rate limiter to report dropped events in metrics'
 
@@ -71,11 +59,10 @@ def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
 
     assert total_accounted == num_files, 'Expected rate limiter to see all events'
 
-def test_rate_limit_unlimited(monitored_dir, server, fact_config):
+def test_rate_limit_unlimited(monitored_dir, server, metrics):
     """
     Test that the default config (rate_limit=0) allows all events through.
     """
-    config, _ = fact_config
     num_files = 20
     events = []
     process = Process.from_proc()
@@ -90,18 +77,8 @@ def test_rate_limit_unlimited(monitored_dir, server, fact_config):
 
     server.wait_events(events)
 
-    metrics_response = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
-    assert metrics_response.status_code == 200
-
-    metrics_text = metrics_response.text
-
-    dropped_count = 0
-    for line in metrics_text.split('\n'):
-        if 'rate_limiter_events' in line and 'label="Dropped"' in line:
-            parts = line.split()
-            if len(parts) >= 2:
-                dropped_count = int(parts[1])
-                break
+    ss = metrics.snapshot()
+    dropped_count = ss.get("rate_limiter_events", label="Dropped")
 
     assert dropped_count == 0, \
         f'Expected no dropped events with unlimited rate limiting, but got {dropped_count}'
