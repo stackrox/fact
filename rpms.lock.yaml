@@ -1586,13 +1586,13 @@ arches:
     name: trousers-lib
     evr: 0.3.15-2.el8
     sourcerpm: trousers-0.3.15-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/t/tzdata-2026a-1.el8.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/t/tzdata-2026b-1.el8.noarch.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 562212
-    checksum: sha256:4e9b64a18650ea6a7ff540aef7947b9f493d15919662dd067e42b9276acaceb8
+    size: 562980
+    checksum: sha256:1fcff97620f44dd9750407def200e16d073285a2576a6581932822318d4788e9
     name: tzdata
-    evr: 2026a-1.el8
-    sourcerpm: tzdata-2026a-1.el8.src.rpm
+    evr: 2026b-1.el8
+    sourcerpm: tzdata-2026b-1.el8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/u/util-linux-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 2587976
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/2c6f6681c42d00ea7d5ea9e1d6e192e31bceceb9d7abb15f299aa4b50d3e12e4-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/4106f5cad1c6d915d297f71d61e752d2d6646d03c2a846350e99bf0959067beb-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 789123
-    checksum: sha256:2c6f6681c42d00ea7d5ea9e1d6e192e31bceceb9d7abb15f299aa4b50d3e12e4
+    checksum: sha256:4106f5cad1c6d915d297f71d61e752d2d6646d03c2a846350e99bf0959067beb
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -3218,13 +3218,13 @@ arches:
     name: trousers-lib
     evr: 0.3.15-2.el8
     sourcerpm: trousers-0.3.15-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/t/tzdata-2026a-1.el8.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/t/tzdata-2026b-1.el8.noarch.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 562212
-    checksum: sha256:4e9b64a18650ea6a7ff540aef7947b9f493d15919662dd067e42b9276acaceb8
+    size: 562980
+    checksum: sha256:1fcff97620f44dd9750407def200e16d073285a2576a6581932822318d4788e9
     name: tzdata
-    evr: 2026a-1.el8
-    sourcerpm: tzdata-2026a-1.el8.src.rpm
+    evr: 2026b-1.el8
+    sourcerpm: tzdata-2026b-1.el8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/u/util-linux-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 2597936
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/44a738552d0057450cfffe34c0d2907684084245a43c8160ac70e03a1edae6c6-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/62ecddf03093536014aecc4371ba41181b8699a5a4f96e2e4f1cdb999a7357c1-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 811331
-    checksum: sha256:44a738552d0057450cfffe34c0d2907684084245a43c8160ac70e03a1edae6c6
+    checksum: sha256:62ecddf03093536014aecc4371ba41181b8699a5a4f96e2e4f1cdb999a7357c1
