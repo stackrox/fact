@@ -20,27 +20,36 @@ This is a Cargo workspace with three main crates:
 
 - **fact**: Main binary that loads BPF programs, processes events, and handles output
   - `src/bpf/`: Rust code for loading and managing BPF programs (uses aya library)
+    - `checks.rs`: Kernel capability detection (e.g., `bpf_d_path` support)
   - `src/event/`: Event processing and enrichment logic
   - `src/config/`: Configuration parsing and hot-reload via `Reloader`
   - `src/output/`: gRPC and JSON output handlers
-  - `src/metrics/`: Prometheus metrics exporter
-  - `src/host_scanner.rs`: Scans host for existing files on startup
+  - `src/metrics/`: Prometheus metrics subsystem
+    - `exporter.rs`: HTTP metrics exposition (prefix `stackrox_fact`)
+    - `kernel_metrics.rs`: Per-hook LSM event counters
+    - `host_scanner.rs`: HostScanner-specific metrics (scans, inodes, files)
+  - `src/host_scanner.rs`: Periodic host filesystem scanning and userspace inode tracking
+  - `src/endpoints.rs`: HTTP server for Prometheus metrics endpoint
+  - `src/rate_limiter.rs`: Event rate limiting via `governor` crate
+  - `src/pre_flight.rs`: Pre-flight checks (verifies LSM BPF capability)
+  - `src/host_info.rs`: Host mount handling, distro detection, kernel/arch info
 
 - **fact-api**: gRPC API definitions generated from protobuf files in `third_party/stackrox/proto`
 
 - **fact-ebpf**: BPF program implementation
-  - `src/bpf/*.c`: C code for BPF programs that attach to LSM hooks
+  - `src/bpf/*.{c,h}`: C code for BPF programs (`main.c`, `checks.c`) and headers (event definitions, maps, types, vmlinux)
   - `src/lib.rs`: Rust bindings and types for BPF maps/events
-  - Build script compiles C code to BPF bytecode
+  - Build script compiles C code to BPF bytecode and generates Rust bindings via bindgen
 
 ## Key Architecture Patterns
 
 ### Event Flow
-1. Kernel LSM hooks trigger BPF programs (in `fact-ebpf/src/bpf/main.c`)
+1. Kernel LSM hooks trigger BPF programs (in `fact-ebpf/src/bpf/main.c`); `checks.c` runs kernel capability probes at startup
 2. BPF programs write events to ring buffer
 3. `Bpf` worker (in `fact/src/bpf/mod.rs`) reads from ring buffer, sends to channel
-4. `HostScanner` (in `fact/src/host_scanner.rs`) enriches events with process info
-5. Output handlers (in `fact/src/output/`) send to gRPC or stdout as JSON
+4. `HostScanner` (in `fact/src/host_scanner.rs`) periodically scans monitored paths and handles userspace inode tracking
+5. Events pass through rate limiting (`fact/src/rate_limiter.rs`)
+6. Output handlers (in `fact/src/output/`) send to gRPC or stdout as JSON
 
 ### Build Integration
 - Cargo build scripts (`build.rs` files) automatically compile BPF C code
@@ -172,3 +181,4 @@ For arm64, use `-D__TARGET_ARCH_aarch64` instead.
 - Pytest integration tests require a built container image (use `make image` first)
 - The project uses `sudo -E` to preserve environment variables when running with elevated privileges
 - SIGHUP triggers configuration reload without restarting the process
+- Proto files live in a git submodule (`third_party/stackrox`); run `git submodule update --init` after a fresh clone to build `fact-api`
