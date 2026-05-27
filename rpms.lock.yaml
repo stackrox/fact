@@ -550,48 +550,48 @@ arches:
     name: glib2
     evr: 2.56.4-169.el8_10
     sourcerpm: glib2-2.56.4-169.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-2.28-251.el8_10.34.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-2.28-251.el8_10.37.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 1884004
-    checksum: sha256:e5d10462f4169c053229c7ec537882c2a1017c06be3a0bd1bbb33383807970f4
+    size: 1885516
+    checksum: sha256:6b386a1007d6c0bf52d9bbde62cb523a91f09dceeb105a0b37e761257c2d07c6
     name: glibc
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-all-langpacks-2.28-251.el8_10.34.aarch64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-all-langpacks-2.28-251.el8_10.37.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 26705504
-    checksum: sha256:4a5f6de6c2248e10c9e6da967ad4465ac2eb543d427fbc7d2428748b3ddc937f
+    size: 26705948
+    checksum: sha256:28bc9f7727976d166d10ddbd93994077a78545b34fdb118b20862828d651ee7a
     name: glibc-all-langpacks
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-common-2.28-251.el8_10.34.aarch64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-common-2.28-251.el8_10.37.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 1041336
-    checksum: sha256:897445d3b1e3373b6ca26e3468062f71a1bab230c470b69b6d5f0fd33862551f
+    size: 1041740
+    checksum: sha256:0c0a2360479188457b82bcc3d73685441d8bda76e328772d923319f823a56bc6
     name: glibc-common
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-devel-2.28-251.el8_10.34.aarch64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-devel-2.28-251.el8_10.37.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 90740
-    checksum: sha256:9727cbc3c9778a0d289fb6980a2c617917d9b541ae4c5ed0c978e4364632d736
+    size: 91152
+    checksum: sha256:67b0630435ac83202db4bdefd2b07017c2a91594ff2f213dff917858d12d5b73
     name: glibc-devel
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-gconv-extra-2.28-251.el8_10.34.aarch64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-gconv-extra-2.28-251.el8_10.37.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 1850424
-    checksum: sha256:85920925c3907a95a05d85e4ce018d7c0ecaf5fe39694c354da5abbdeae4391a
+    size: 1847088
+    checksum: sha256:7bba99cd3b82ab9d916c79de91d301999dab21927e5d38da0e61df8cf8bdeb78
     name: glibc-gconv-extra
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-headers-2.28-251.el8_10.34.aarch64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/glibc-headers-2.28-251.el8_10.37.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 497816
-    checksum: sha256:d6ce26f12b56260b4129e7bc8588f438b3706c711ea17b8b756a24d8c445d46e
+    size: 498168
+    checksum: sha256:4ec0ffd6e5ed5fd796169b68d257ac203efb70940c8088cc96bdfed9c3326675
     name: glibc-headers
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/gmp-6.1.2-11.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 269880
@@ -599,13 +599,13 @@ arches:
     name: gmp
     evr: 1:6.1.2-11.el8
     sourcerpm: gmp-6.1.2-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/gnutls-3.6.16-8.el8_10.5.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/gnutls-3.6.16-8.el8_10.6.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 964248
-    checksum: sha256:4304e39c9255e03aff6be04f4fb53de2f4de6276407a7b3316a36a7abf4932d3
+    size: 966356
+    checksum: sha256:a2f9da1bedcb1723264dfa9ff3ee80c1655404c992565aadd96fa0ae14635b8c
     name: gnutls
-    evr: 3.6.16-8.el8_10.5
-    sourcerpm: gnutls-3.6.16-8.el8_10.5.src.rpm
+    evr: 3.6.16-8.el8_10.6
+    sourcerpm: gnutls-3.6.16-8.el8_10.6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/grep-3.1-6.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 274592
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/4106f5cad1c6d915d297f71d61e752d2d6646d03c2a846350e99bf0959067beb-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/13fc050e209194b4532145803a09e5c3e334f7166bd7cba7e6e88bcc1f931443-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 789123
-    checksum: sha256:4106f5cad1c6d915d297f71d61e752d2d6646d03c2a846350e99bf0959067beb
+    size: 790241
+    checksum: sha256:13fc050e209194b4532145803a09e5c3e334f7166bd7cba7e6e88bcc1f931443
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -2196,48 +2196,48 @@ arches:
     name: glib2
     evr: 2.56.4-169.el8_10
     sourcerpm: glib2-2.56.4-169.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-2.28-251.el8_10.34.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-2.28-251.el8_10.37.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 2308196
-    checksum: sha256:87a3155aa1f1b6db93ea3a2ed64336504b83478a0db8855aef0448a1d55fa1b9
+    size: 2308552
+    checksum: sha256:aa0b054802b4839b7ab6b1fbd42e3523e2cc717069ecf12b17e6bb620c8f918c
     name: glibc
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-all-langpacks-2.28-251.el8_10.34.x86_64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-all-langpacks-2.28-251.el8_10.37.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 26777964
-    checksum: sha256:63daaa52b970e533b60c9737559ed0003967756d2d1db87876584fb0e679c0ac
+    size: 26778400
+    checksum: sha256:60f029d2e72d2e6614d2636a741eece48bd65dc127217204cdba7d735c865f3b
     name: glibc-all-langpacks
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-common-2.28-251.el8_10.34.x86_64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-common-2.28-251.el8_10.37.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 1053488
-    checksum: sha256:770d67f9ce645049fbb33c7b862f0c6a50b4eef2216631399ec3ed257b9bb737
+    size: 1053824
+    checksum: sha256:8a6f9956304185025130b6d3ec684f97227eef50faad2deeb276c670aa0e92e1
     name: glibc-common
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-devel-2.28-251.el8_10.34.x86_64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-devel-2.28-251.el8_10.37.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 92384
-    checksum: sha256:ac08bbfef068dfc3b48fe0930fe23080a9c738d492849d56d06d4eb4927adb1d
+    size: 92780
+    checksum: sha256:048073a2f3a9a29e73d425a91d119044eed7016b4df88cc783335e09f821d7fd
     name: glibc-devel
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-gconv-extra-2.28-251.el8_10.34.x86_64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-gconv-extra-2.28-251.el8_10.37.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 1628332
-    checksum: sha256:ce63ce0011a0acb64dce45b8e769bab8b32e50c04504af426cd986bcc024829b
+    size: 1627048
+    checksum: sha256:b452a1e9f71d9fecf49214fb6dad45099f126056ee5ed0987e76ebd0284724b4
     name: glibc-gconv-extra
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-headers-2.28-251.el8_10.34.x86_64.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/glibc-headers-2.28-251.el8_10.37.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 507104
-    checksum: sha256:cae586094a690f1f2966e5070f5fb78b6daa07de9dd856d7aea9074988870d53
+    size: 507432
+    checksum: sha256:7a779bd16f6944fd13af87efe5a42e188cd3d4e40d7e088edd219cd0cea24c2f
     name: glibc-headers
-    evr: 2.28-251.el8_10.34
-    sourcerpm: glibc-2.28-251.el8_10.34.src.rpm
+    evr: 2.28-251.el8_10.37
+    sourcerpm: glibc-2.28-251.el8_10.37.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/gmp-6.1.2-11.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 325760
@@ -2245,13 +2245,13 @@ arches:
     name: gmp
     evr: 1:6.1.2-11.el8
     sourcerpm: gmp-6.1.2-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/gnutls-3.6.16-8.el8_10.5.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/gnutls-3.6.16-8.el8_10.6.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 1043972
-    checksum: sha256:06aa3faa2720ea359c67ae25cd5eacdcaada9e3af6d752045d050483c4043a06
+    size: 1045760
+    checksum: sha256:22fd4296ebae0ea5f5e9af875c0095fcd6a2d33e6dd434a3fe21f1e17958e748
     name: gnutls
-    evr: 3.6.16-8.el8_10.5
-    sourcerpm: gnutls-3.6.16-8.el8_10.5.src.rpm
+    evr: 3.6.16-8.el8_10.6
+    sourcerpm: gnutls-3.6.16-8.el8_10.6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/grep-3.1-6.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 280356
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/62ecddf03093536014aecc4371ba41181b8699a5a4f96e2e4f1cdb999a7357c1-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/ec3fe23acc2b5219824aaf94cdbbfd9b34d13456e9911305ce5da7b7d3faf41f-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 811331
-    checksum: sha256:62ecddf03093536014aecc4371ba41181b8699a5a4f96e2e4f1cdb999a7357c1
+    size: 812499
+    checksum: sha256:ec3fe23acc2b5219824aaf94cdbbfd9b34d13456e9911305ce5da7b7d3faf41f
