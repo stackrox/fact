@@ -11,7 +11,7 @@ metadata:
     pipelinesascode.tekton.dev/on-comment: "/konflux-retest fact-on-push"
     pipelinesascode.tekton.dev/on-cel-expression: |
       (event == "pull_request" && body.action != "ready_for_review") || (
-        event == "push" && target_branch.matches("^(main|release-.*|refs/tags/.*|konflux/.*)$")
+        event == "push" && target_branch.matches("^(main|release-.*|refs/tags/.*)$")
       )
   labels:
     appstudio.openshift.io/application: acs-4-10

@@ -1,11 +1,12 @@
-FROM rust:1.84-alpine AS builder
+FROM quay.io/centos/centos:stream9 AS builder
 
 WORKDIR /app
 
 COPY . .
-RUN cargo build --release
+RUN dnf install -y rust cargo && \
+        cargo build --release
 
-FROM alpine:3.23
+FROM quay.io/centos/centos:stream9-minimal
 
 COPY --from=builder /app/target/release/self-deleter /usr/local/bin
 
