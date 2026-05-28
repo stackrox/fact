@@ -20,6 +20,7 @@
 
 use std::{
     cell::RefCell,
+    io,
     os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::Arc,
@@ -27,7 +28,10 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use aya::maps::MapData;
+use aya::{
+    maps::{MapData, MapError},
+    sys::SyscallError,
+};
 use fact_ebpf::{inode_key_t, inode_value_t, monitored_t};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
@@ -183,10 +187,25 @@ impl HostScanner {
 
     /// Similar to update_entry except we are are directly using the inode instead of the path.
     fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
-        self.kernel_inode_map
-            .borrow_mut()
-            .insert(inode, 0, 0)
-            .with_context(|| format!("Failed to insert kernel entry for {}", path.display()))?;
+        match self.kernel_inode_map.borrow_mut().insert(inode, 0, 0) {
+            Ok(_) => {}
+            Err(MapError::SyscallError(SyscallError { io_error, .. }))
+                if io_error.kind() == io::ErrorKind::ArgumentListTooLong =>
+            {
+                bail!(
+                    r#"Reached maximum number of inodes to track.
+You can increase this limit with:
+* The bpf.inodes_max configuration value.
+* The FACT_INODES_MAX environment variable.
+* The --inodes-max argument."#,
+                )
+            }
+            e => {
+                return e.with_context(|| {
+                    format!("Failed to insert kernel entry for {}", path.display())
+                });
+            }
+        }
 
         let mut inode_map = self.inode_map.borrow_mut();
         let entry = inode_map.entry(inode).or_default();

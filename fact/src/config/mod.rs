@@ -520,7 +520,7 @@ pub struct FactCli {
     ///
     /// Going over this limit will prevent fact from tracking and
     /// filling in the host path correctly in events.
-    #[arg(long, short, env = "FACT_INODE_MAX")]
+    #[arg(long, short, env = "FACT_INODES_MAX")]
     inodes_max: Option<u32>,
 
     /// Whether configuration should be hotreloaded
