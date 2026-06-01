@@ -61,6 +61,44 @@ jobs:
       run: cargo +${{ matrix.rust-version }} test
 
 
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libbpf-dev \
+          protobuf-compiler
+
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install cargo-llvm-cov
+      run: |
+        rustup component add llvm-tools-preview
+        cargo install cargo-llvm-cov
+
+    - name: Generate coverage
+      run: make coverage
+
+    - name: Upload to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        files: codecov.json
+        token: ${{ secrets.CODECOV_TOKEN }}
+
   format-check:
     runs-on: ubuntu-24.04
     env:

@@ -19,6 +19,7 @@ internalapi/
 results.xml
 logs/
 THIRD_PARTY_LICENSES.html
+codecov.json
 
 # clangd and compilation database
 .cache/
