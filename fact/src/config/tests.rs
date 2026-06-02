@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     fmt::Display,
     sync::{Mutex, MutexGuard},
 };
@@ -1417,6 +1416,84 @@ fn env_vars_override_yaml() {
                 ..Default::default()
             },
         ),
+        (
+            EnvVar {
+                name: "FACT_CERTS",
+                value: "/etc/override/certs",
+            },
+            "grpc:\n  certs: /etc/original/certs",
+            FactConfig {
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/override/certs")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_ADDRESS",
+                value: "127.0.0.1:9090",
+            },
+            "endpoint:\n  address: 0.0.0.0:8080",
+            FactConfig {
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([127, 0, 0, 1], 9090))),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_EXPOSE_METRICS",
+                value: "true",
+            },
+            "endpoint:\n  expose_metrics: false",
+            FactConfig {
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_HEALTH_CHECK",
+                value: "true",
+            },
+            "endpoint:\n  health_check: false",
+            FactConfig {
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_SKIP_PRE_FLIGHT",
+                value: "true",
+            },
+            "skip_pre_flight: false",
+            FactConfig {
+                skip_pre_flight: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_HOTRELOAD",
+                value: "true",
+            },
+            "hotreload: false",
+            FactConfig {
+                hotreload: Some(true),
+                ..Default::default()
+            },
+        ),
     ];
     for (env, yaml, expected) in tests {
         let mut config = match FactConfig::try_from(yaml) {
@@ -1430,50 +1507,92 @@ fn env_vars_override_yaml() {
 
 #[test]
 fn env_vars_invalid_values() {
+    fn first_line(err: clap::Error) -> String {
+        let err = err.to_string();
+        let Some((line, _)) = err.split_once('\n') else {
+            panic!("Error did not have a newline: {err}");
+        };
+
+        line.to_string()
+    }
+
     let tests = [
         (
             EnvVar {
                 name: "FACT_INODES_MAX",
                 value: "not_a_number",
             },
-            "invalid digit found in string",
+            "error: invalid value 'not_a_number' for '--inodes-max <INODES_MAX>': invalid digit found in string",
         ),
         (
             EnvVar {
                 name: "FACT_RINGBUF_SIZE",
                 value: "not_a_number",
             },
-            "invalid digit found in string",
+            "error: invalid value 'not_a_number' for '--ringbuf-size <RINGBUF_SIZE>': invalid digit found in string",
         ),
         (
             EnvVar {
                 name: "FACT_ENDPOINT_ADDRESS",
                 value: "not_an_address",
             },
-            "invalid socket address syntax",
+            "error: invalid value 'not_an_address' for '--address <ADDRESS>': invalid socket address syntax",
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_EXPOSE_METRICS",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--expose-metrics'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_HEALTH_CHECK",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--health-check'",
         ),
         (
             EnvVar {
                 name: "FACT_SCAN_INTERVAL",
                 value: "not_a_float",
             },
-            "invalid float literal",
+            "error: invalid value 'not_a_float' for '--scan-interval <SCAN_INTERVAL>': invalid float literal",
         ),
         (
             EnvVar {
                 name: "FACT_RATE_LIMIT",
                 value: "not_a_number",
             },
-            "invalid digit found in string",
+            "error: invalid value 'not_a_number' for '--rate-limit <RATE_LIMIT>': invalid digit found in string",
+        ),
+        (
+            EnvVar {
+                name: "FACT_JSON",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--json'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_SKIP_PRE_FLIGHT",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--skip-pre-flight'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_HOTRELOAD",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--hotreload'",
         ),
     ];
     for (env, expected) in tests {
         let Err(err) = with_env_var(env) else {
             panic!("Expected Error was not caught - expected: {expected}");
         };
-        assert_eq!(
-            err.source().map(|e| e.to_string()).unwrap_or_default(),
-            expected,
-        );
+        let err = first_line(err);
+        assert_eq!(err, expected);
     }
 }
