@@ -85,6 +85,11 @@ jobs:
           target/
         key: ${{ runner.os }}-${{ runner.arch }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
 
+    - name: Install cargo-llvm-cov
+      run: |
+        rustup component add llvm-tools
+        cargo install cargo-llvm-cov
+
     - name: Generate coverage
       run: make coverage
 
