@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from time import sleep
 
 import docker.models.containers
@@ -219,7 +220,7 @@ def test_no_paths_then_add(
 
     e = Event(process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises((TimeoutError, FuturesTimeoutError)):
         server.wait_events([e])
 
     # Add paths back
@@ -264,7 +265,7 @@ def test_paths_then_remove(
         f.write('This should be ignored')
     sleep(1)
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises((TimeoutError, FuturesTimeoutError)):
         server.wait_events([e])
 
 
