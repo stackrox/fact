@@ -32,9 +32,13 @@ integration-tests:
 performance-tests:
 	make -C performance-tests
 
+coverage:
+	cargo llvm-cov --workspace --codecov --output-path codecov.json
+
 clean:
 	make -C tests clean
 	rm -f THIRD_PARTY_LICENSES.html
+	rm -f codecov.json
 
 format-check:
 	cargo fmt --check
@@ -44,4 +48,4 @@ format:
 	cargo fmt
 	make -C fact-ebpf format
 
-.PHONY: tag mock-server integration-tests image image-name licenses clean
+.PHONY: tag mock-server integration-tests image image-name licenses coverage clean

@@ -6,6 +6,8 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* feat: add code coverage with cargo-llvm-cov and Codecov upload (#745)
+
 ## 0.3.0
 
 * ROX-34663: Migrate from ubi-minimal to ubi-micro (#653)
