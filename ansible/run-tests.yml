@@ -5,57 +5,90 @@
     FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
 
   tasks:
-    - name: Install dependencies
-      become: true
-      community.general.rpm_ostree_pkg:
-        apply_live: true
-        name:
-          - make
-          - python3-packaging
-          - python3-requests
-        state: present
-
-    - name: Login to quay.io
-      community.docker.docker_login:
-        registry_url: quay.io
-        username: "{{ quay.username }}"
-        password: "{{ quay.password }}"
-
     - name: Clone the repo
       ansible.builtin.git:
         repo: https://github.com/stackrox/fact
-        dest: ./fact
+        dest: /tmp/fact
         version: "{{ fact.version }}"
         update: false
 
-    - name: Install python packages
-      ansible.builtin.pip:
-        requirements: ./fact/tests/requirements.txt
-        chdir: "{{ ansible_env.HOME }}"
-        virtualenv: ./fact/.venv
-        virtualenv_command: python3 -m venv
+    - name: Log into quay.io
+      become: true
+      shell:
+        cmd: "{{ runtime_command }} login -u {{ quay.username }} --password-stdin quay.io"
+        stdin: "{{ quay.password }}"
+
+    - name: Copy podman auth
+      become: true
+      shell:
+        cmd: |
+          mkdir -p ~/.docker/
+          if [[ -f "${XDG_RUNTIME_DIR:-}/containers/auth.json" ]]; then
+              AUTH_FILE="${XDG_RUNTIME_DIR:-}/containers/auth.json"
+          elif [[ -f "/run/containers/0/auth.json" ]]; then
+              AUTH_FILE="/run/containers/0/auth.json"
+          else
+              echo &>2 "No valid auth.json file found"
+              exit 1
+          fi
+          cp "${AUTH_FILE}" ~/.docker/config.json
+        creates: ~/.docker/config.json
+      when: runtime_command == "podman"
 
     - block:
+      # There are some ansible modules that we could use to modularize
+      # this next task, however they required some Python modules to be
+      # installed on the managed VM that may not be available (like
+      # python3-packaging), so we stick to a shell as ugly as it is.
       - name: Run tests
+        become: true
+        environment:
+          DOCKER_HOST: "{{ runtime_host }}"
         ansible.builtin.shell:
           cmd: |
-            cd "${HOME}/fact"
-            source ".venv/bin/activate"
-            make integration-tests
+            set -euo pipefail
+            cd "/tmp/fact/tests"
+
+            # Setup the virtual environment
+            python3 -m venv .venv
+            source .venv/bin/activate
+            pip install -r requirements.txt
+
+            # Generate gRPC files
+            python3 -m grpc_tools.protoc \
+                -I../third_party/stackrox/proto \
+                --python_out=. \
+                --pyi_out=. \
+                --grpc_python_out=. \
+                ../third_party/stackrox/proto/internalapi/sensor/collector.proto \
+                ../third_party/stackrox/proto/internalapi/sensor/sfa.proto \
+                ../third_party/stackrox/proto/internalapi/sensor/sfa_iservice.proto
+
+            # Run the tests
+            pytest --image="${FACT_IMAGE_NAME}" --junit-xml=results.xml
+
       always:
+      - name: Make logs directories
+        ansible.builtin.file:
+          state: directory
+          path: /tmp/fact/tests/logs
+          recurse: true
+        delegate_to: localhost
+
       - name: Retrieve results
         ansible.builtin.fetch:
-          src: "{{ ansible_env.HOME }}/fact/tests/results.xml"
-          dest: ../tests/
+          src: /tmp/fact/tests/results.xml
+          dest: "/tmp/fact/tests/{{ vm_config }}-results.xml"
           flat: true
 
       - name: Compress log files
         community.general.archive:
-          path: "{{ ansible_env.HOME }}/fact/tests/logs"
-          dest: "{{ ansible_env.HOME }}/fact/tests/logs.tar.gz"
+          path: /tmp/fact/tests/logs
+          dest: "/tmp/fact/tests/{{ vm_config }}.tar.gz"
 
       - name: Fetch log files
         ansible.builtin.fetch:
-          src: "{{ ansible_env.HOME }}/fact/tests/logs.tar.gz"
-          dest: ../tests/logs.tar.gz
+          src: "/tmp/fact/tests/{{ vm_config }}.tar.gz"
+          dest: /tmp/fact/tests/logs/
+          validate_checksum: false
           flat: true
