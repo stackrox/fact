@@ -697,13 +697,13 @@ arches:
     name: libdb
     evr: 5.3.28-57.el9_6
     sourcerpm: libdb-5.3.28-57.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libeconf-0.4.1-5.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libeconf-0.4.1-7.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 25806
-    checksum: sha256:e1a899e85549254117622b7e6bf58a8fb8f4d0484773d1bf3fc7753b559f82d8
+    size: 32324
+    checksum: sha256:8a5e117c2690c82835c6013f1fbac37b026f3e953fbffbd84c2f5ef6cf8df571
     name: libeconf
-    evr: 0.4.1-5.el9
-    sourcerpm: libeconf-0.4.1-5.el9.src.rpm
+    evr: 0.4.1-7.el9_8
+    sourcerpm: libeconf-0.4.1-7.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libedit-3.1-39.20210216cvs.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 110092
@@ -1285,13 +1285,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-25.el9
     sourcerpm: util-linux-2.37.4-25.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.4.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.5.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 21472
-    checksum: sha256:402d968594669b71bd69bb5495b3b2156d6d1b2dd5326bb181d8c27e94a724ed
+    size: 21544
+    checksum: sha256:9d003446811c32e02b50a11b6f1bfb237ab35a649ec685c1670e576e254036d5
     name: vim-filesystem
-    evr: 2:8.2.2637-26.el9_8.4
-    sourcerpm: vim-8.2.2637-26.el9_8.4.src.rpm
+    evr: 2:8.2.2637-26.el9_8.5
+    sourcerpm: vim-8.2.2637-26.el9_8.5.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 94569
@@ -2024,13 +2024,13 @@ arches:
     name: libdb
     evr: 5.3.28-57.el9_6
     sourcerpm: libdb-5.3.28-57.el9_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libeconf-0.4.1-5.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libeconf-0.4.1-7.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 26622
-    checksum: sha256:7fe6bfb72cd91d17d64d5dab0a8914532403a33236676fb7c948692fb5128632
+    size: 33179
+    checksum: sha256:a570c5baaedeb1445bc2e4f3930b0a709411bbefbdbf463c3e006cbfc7018894
     name: libeconf
-    evr: 0.4.1-5.el9
-    sourcerpm: libeconf-0.4.1-5.el9.src.rpm
+    evr: 0.4.1-7.el9_8
+    sourcerpm: libeconf-0.4.1-7.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libedit-3.1-39.20210216cvs.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 112056
@@ -2612,13 +2612,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-25.el9
     sourcerpm: util-linux-2.37.4-25.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.4.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.5.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 21472
-    checksum: sha256:402d968594669b71bd69bb5495b3b2156d6d1b2dd5326bb181d8c27e94a724ed
+    size: 21544
+    checksum: sha256:9d003446811c32e02b50a11b6f1bfb237ab35a649ec685c1670e576e254036d5
     name: vim-filesystem
-    evr: 2:8.2.2637-26.el9_8.4
-    sourcerpm: vim-8.2.2637-26.el9_8.4.src.rpm
+    evr: 2:8.2.2637-26.el9_8.5
+    sourcerpm: vim-8.2.2637-26.el9_8.5.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 96649
