@@ -1,0 +1,6 @@
+{
+    "include": ["."],
+    "exclude": ["internalapi"],
+    "reportMissingModuleSource": false,
+    "reportMissingParameterType": "error"
+}
