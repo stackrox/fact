@@ -1,3 +1,8 @@
+use std::{
+    fmt::Display,
+    sync::{Mutex, MutexGuard},
+};
+
 use super::*;
 
 #[test]
@@ -1099,4 +1104,495 @@ fn defaults() {
     assert_eq!(config.bpf.ringbuf_size(), 8192);
     assert_eq!(config.bpf.inodes_max(), 65536);
     assert!(config.hotreload());
+}
+
+static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+/// RAII guard that holds the `ENV_MUTEX` lock and removes the named environment
+/// variable when dropped, ensuring both are released even if the test panics
+/// after calling [`EnvVar::set`].
+///
+/// The mutex is released after the variable is removed, so no other test can
+/// observe the env var in a partially-cleaned-up state.
+struct EnvVarGuard {
+    name: &'static str,
+    _guard: MutexGuard<'static, ()>,
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        unsafe { std::env::remove_var(self.name) };
+    }
+}
+
+/// An environment variable key-value pair used in tests to exercise env-var
+/// bindings in [`FactCli`].
+///
+/// `std::env::set_var` is not safe to call from multi-threaded programs, as
+/// other threads may be reading the environment concurrently. There is no
+/// better alternative at the moment: the test binary is multi-threaded by
+/// default, and the only truly sound options would be forcing
+/// `RUST_TEST_THREADS=1` or switching to a single-threaded runtime, both of
+/// which are more invasive than the mutex approach used here. [`EnvVar::set`]
+/// acquires `ENV_MUTEX` to at least serialise all env-var mutations within our
+/// own test suite.
+#[derive(Clone, Copy)]
+struct EnvVar {
+    name: &'static str,
+    value: &'static str,
+}
+
+impl EnvVar {
+    /// Acquires `ENV_MUTEX`, sets the environment variable, and returns an
+    /// [`EnvVarGuard`] that holds the lock and removes the variable on drop.
+    fn set(self) -> EnvVarGuard {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        unsafe { std::env::set_var(self.name, self.value) };
+        EnvVarGuard {
+            name: self.name,
+            _guard,
+        }
+    }
+}
+
+impl Display for EnvVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}={}", self.name, self.value)
+    }
+}
+
+fn with_env_var(env: EnvVar) -> Result<FactConfig, clap::Error> {
+    let _guard = env.set();
+    FactCli::try_parse_from(["fact"]).map(|cli| cli.to_config())
+}
+
+#[test]
+fn env_vars() {
+    let tests = [
+        (
+            EnvVar {
+                name: "FACT_INODES_MAX",
+                value: "1024",
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(1024),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_RINGBUF_SIZE",
+                value: "128",
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    ringbuf_size: Some(128),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_PATHS",
+                value: "/etc:/var/log",
+            },
+            FactConfig {
+                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/var/log")]),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_JSON",
+                value: "true",
+            },
+            FactConfig {
+                json: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_SCAN_INTERVAL",
+                value: "45.5",
+            },
+            FactConfig {
+                scan_interval: Some(Duration::from_secs_f64(45.5)),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_RATE_LIMIT",
+                value: "500",
+            },
+            FactConfig {
+                rate_limit: Some(500),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_URL",
+                value: "https://svc.sensor.stackrox:9090",
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    url: Some(String::from("https://svc.sensor.stackrox:9090")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_CERTS",
+                value: "/etc/stackrox/certs",
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_ADDRESS",
+                value: "0.0.0.0:8080",
+            },
+            FactConfig {
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_EXPOSE_METRICS",
+                value: "true",
+            },
+            FactConfig {
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_HEALTH_CHECK",
+                value: "true",
+            },
+            FactConfig {
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_SKIP_PRE_FLIGHT",
+                value: "true",
+            },
+            FactConfig {
+                skip_pre_flight: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_HOTRELOAD",
+                value: "true",
+            },
+            FactConfig {
+                hotreload: Some(true),
+                ..Default::default()
+            },
+        ),
+    ];
+    for (env, expected) in tests {
+        let config = with_env_var(env).expect("env-var CLI parse failed");
+        assert_eq!(config, expected, "env var {env}");
+    }
+}
+
+#[test]
+fn env_vars_override_yaml() {
+    let tests = [
+        (
+            EnvVar {
+                name: "FACT_INODES_MAX",
+                value: "2048",
+            },
+            "bpf:\n  inodes_max: 1024",
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(2048),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_RINGBUF_SIZE",
+                value: "256",
+            },
+            "bpf:\n  ringbuf_size: 128",
+            FactConfig {
+                bpf: BpfConfig {
+                    ringbuf_size: Some(256),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_URL",
+                value: "https://override:9090",
+            },
+            "grpc:\n  url: 'https://original:9090'",
+            FactConfig {
+                grpc: GrpcConfig {
+                    url: Some(String::from("https://override:9090")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_PATHS",
+                value: "/var/log",
+            },
+            "paths:\n- /etc",
+            FactConfig {
+                paths: Some(vec![PathBuf::from("/var/log")]),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_JSON",
+                value: "true",
+            },
+            "json: false",
+            FactConfig {
+                json: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_SCAN_INTERVAL",
+                value: "60",
+            },
+            "scan_interval: 30",
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(60)),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_RATE_LIMIT",
+                value: "1000",
+            },
+            "rate_limit: 500",
+            FactConfig {
+                rate_limit: Some(1000),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_CERTS",
+                value: "/etc/override/certs",
+            },
+            "grpc:\n  certs: /etc/original/certs",
+            FactConfig {
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/override/certs")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_ADDRESS",
+                value: "127.0.0.1:9090",
+            },
+            "endpoint:\n  address: 0.0.0.0:8080",
+            FactConfig {
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([127, 0, 0, 1], 9090))),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_EXPOSE_METRICS",
+                value: "true",
+            },
+            "endpoint:\n  expose_metrics: false",
+            FactConfig {
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_HEALTH_CHECK",
+                value: "true",
+            },
+            "endpoint:\n  health_check: false",
+            FactConfig {
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_SKIP_PRE_FLIGHT",
+                value: "true",
+            },
+            "skip_pre_flight: false",
+            FactConfig {
+                skip_pre_flight: Some(true),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_HOTRELOAD",
+                value: "true",
+            },
+            "hotreload: false",
+            FactConfig {
+                hotreload: Some(true),
+                ..Default::default()
+            },
+        ),
+    ];
+    for (env, yaml, expected) in tests {
+        let mut config = match FactConfig::try_from(yaml) {
+            Ok(c) => c,
+            Err(e) => panic!("Failed to parse YAML\n\tError: {e}\n\tyaml: {yaml}"),
+        };
+        config.update(&with_env_var(env).expect("env-var CLI parse failed"));
+        assert_eq!(config, expected, "env var {env} should override yaml",);
+    }
+}
+
+#[test]
+fn env_vars_invalid_values() {
+    fn first_line(err: clap::Error) -> String {
+        let err = err.to_string();
+        let Some((line, _)) = err.split_once('\n') else {
+            panic!("Error did not have a newline: {err}");
+        };
+
+        line.to_string()
+    }
+
+    let tests = [
+        (
+            EnvVar {
+                name: "FACT_INODES_MAX",
+                value: "not_a_number",
+            },
+            "error: invalid value 'not_a_number' for '--inodes-max <INODES_MAX>': invalid digit found in string",
+        ),
+        (
+            EnvVar {
+                name: "FACT_RINGBUF_SIZE",
+                value: "not_a_number",
+            },
+            "error: invalid value 'not_a_number' for '--ringbuf-size <RINGBUF_SIZE>': invalid digit found in string",
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_ADDRESS",
+                value: "not_an_address",
+            },
+            "error: invalid value 'not_an_address' for '--address <ADDRESS>': invalid socket address syntax",
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_EXPOSE_METRICS",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--expose-metrics'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_HEALTH_CHECK",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--health-check'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_SCAN_INTERVAL",
+                value: "not_a_float",
+            },
+            "error: invalid value 'not_a_float' for '--scan-interval <SCAN_INTERVAL>': invalid float literal",
+        ),
+        (
+            EnvVar {
+                name: "FACT_RATE_LIMIT",
+                value: "not_a_number",
+            },
+            "error: invalid value 'not_a_number' for '--rate-limit <RATE_LIMIT>': invalid digit found in string",
+        ),
+        (
+            EnvVar {
+                name: "FACT_JSON",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--json'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_SKIP_PRE_FLIGHT",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--skip-pre-flight'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_HOTRELOAD",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--hotreload'",
+        ),
+    ];
+    for (env, expected) in tests {
+        let Err(err) = with_env_var(env) else {
+            panic!("Expected Error was not caught - expected: {expected}");
+        };
+        let err = first_line(err);
+        assert_eq!(err, expected);
+    }
 }
