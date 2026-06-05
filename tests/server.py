@@ -1,12 +1,18 @@
-from concurrent import futures
-from collections import deque
+from __future__ import annotations
+
 import json
+from collections import deque
+from concurrent import futures
 from threading import Event as ThreadingEvent
 from time import sleep
+from typing import TYPE_CHECKING, Any
 
 import grpc
 
 from internalapi.sensor import sfa_iservice_pb2_grpc
+
+if TYPE_CHECKING:
+    from event import Event
 
 
 class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
@@ -21,13 +27,13 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         Sets up the GRPC server, a queue for incoming requests, and an
         event for other threads to know when the server stops.
         """
-        sfa_iservice_pb2_grpc.FileActivityService.__init__(self)
+        super().__init__()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
         self.queue = deque()
         self.running = ThreadingEvent()
         self.executor = futures.ThreadPoolExecutor(max_workers=2)
 
-    def Communicate(self, request_iterator, context):
+    def Communicate(self, request_iterator: Any, context: Any):
         """
         GRPC method to receive a stream of file activity requests.
         Appends each incoming request to an internal queue.
@@ -84,7 +90,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
 
     def _wait_events(
         self,
-        events: list['Event'],
+        events: list[Event],
         strict: bool,
         cancel: ThreadingEvent,
     ):
@@ -105,7 +111,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
             elif strict:
                 raise ValueError(json.dumps(diff, indent=4))
 
-    def wait_events(self, events: list['Event'], strict: bool = True):
+    def wait_events(self, events: list[Event], strict: bool = True):
         """
         Continuously checks the server for incoming events until the
         specified events are found.

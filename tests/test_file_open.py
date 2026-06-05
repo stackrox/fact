@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import multiprocessing as mp
 import os
+from multiprocessing.synchronize import Event as MpEvent
 
+import docker.models.containers
 import pytest
 
-from utils import join_path_with_filename, path_to_string, rust_style_quote
 from event import Event, EventType, Process
+from server import FileActivityService
+from utils import join_path_with_filename, path_to_string
 
 
 @pytest.mark.parametrize(
@@ -18,7 +23,11 @@ from event import Event, EventType, Process
         pytest.param(b'test\xff\xfe.txt', id='Invalid'),
     ],
 )
-def test_open(monitored_dir, server, filename):
+def test_open(
+    monitored_dir: str,
+    server: FileActivityService,
+    filename: str | bytes,
+):
     """
     Tests the opening of a file and verifies that the corresponding
     event is captured by the server.
@@ -47,7 +56,7 @@ def test_open(monitored_dir, server, filename):
     server.wait_events([e])
 
 
-def test_multiple(monitored_dir, server):
+def test_multiple(monitored_dir: str, server: FileActivityService):
     """
     Tests the opening of multiple files and verifies that the
     corresponding events are captured by the server.
@@ -77,7 +86,7 @@ def test_multiple(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_multiple_access(test_file, server):
+def test_multiple_access(test_file: str, server: FileActivityService):
     """
     Tests multiple opening of a file and verifies that the
     corresponding events are captured by the server.
@@ -87,7 +96,7 @@ def test_multiple_access(test_file, server):
         server: The server instance to communicate with.
     """
     events = []
-    for i in range(3):
+    for _i in range(3):
         with open(test_file, 'a+') as f:
             f.write('This is a test')
 
@@ -103,7 +112,7 @@ def test_multiple_access(test_file, server):
     server.wait_events(events)
 
 
-def test_ignored(test_file, ignored_dir, server):
+def test_ignored(test_file: str, ignored_dir: str, server: FileActivityService):
     """
     Tests that open events on ignored files are not captured by the
     server.
@@ -134,7 +143,7 @@ def test_ignored(test_file, ignored_dir, server):
     server.wait_events([e])
 
 
-def do_test(fut: str, stop_event: mp.Event):
+def do_test(fut: str, stop_event: MpEvent):
     with open(fut, 'w') as f:
         f.write('This is a test')
     with open(fut, 'a') as f:
@@ -144,7 +153,7 @@ def do_test(fut: str, stop_event: mp.Event):
     stop_event.wait()
 
 
-def test_external_process(monitored_dir, server):
+def test_external_process(monitored_dir: str, server: FileActivityService):
     """
     Tests the opening of a file by an external process and verifies that
     the corresponding event is captured by the server.
@@ -181,7 +190,11 @@ def test_external_process(monitored_dir, server):
         proc.join(1)
 
 
-def test_overlay(test_container, server):
+def test_overlay(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
 
@@ -206,7 +219,12 @@ def test_overlay(test_container, server):
     server.wait_events(events)
 
 
-def test_mounted_dir(test_container, ignored_dir, server):
+def test_mounted_dir(
+    test_container: docker.models.containers.Container,
+    ignored_dir: str,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/mounted/test.txt'
 
@@ -230,7 +248,12 @@ def test_mounted_dir(test_container, ignored_dir, server):
     server.wait_events([event])
 
 
-def test_unmonitored_mounted_dir(test_container, test_file, server):
+def test_unmonitored_mounted_dir(
+    test_container: docker.models.containers.Container,
+    test_file: str,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/unmonitored/test.txt'
 

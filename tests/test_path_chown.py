@@ -1,10 +1,11 @@
-import os
-import shlex
+from __future__ import annotations
 
+import docker.models.containers
 import pytest
 
-from utils import path_to_string, rust_style_quote
 from event import Event, EventType, Process
+from server import FileActivityService
+from utils import path_to_string, rust_style_quote
 
 # Tests here have to use a container to do 'chown',
 # otherwise they would require to run as root.
@@ -25,7 +26,11 @@ TEST_GID = 2345
         b'own\xff\xfe.txt',
     ],
 )
-def test_chown(test_container, server, filename):
+def test_chown(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+    filename: str | bytes,
+):
     """
     Execute a chown operation on a file and verifies the corresponding event is
     captured by the server.
@@ -35,6 +40,7 @@ def test_chown(test_container, server, filename):
         server: The server instance to communicate with.
         filename: Name of the file to create (includes UTF-8 test cases).
     """
+    assert test_container.id is not None
 
     # File Under Test
     fut = f'/container-dir/{path_to_string(filename)}'
@@ -80,7 +86,10 @@ def test_chown(test_container, server, filename):
     server.wait_events(events)
 
 
-def test_multiple(test_container, server):
+def test_multiple(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
     """
     Tests ownership operations on multiple files and verifies the corresponding
     events are captured by the server.
@@ -89,6 +98,7 @@ def test_multiple(test_container, server):
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
+    assert test_container.id is not None
     events = []
 
     # File Under Test
@@ -134,7 +144,10 @@ def test_multiple(test_container, server):
     server.wait_events(events)
 
 
-def test_ignored(test_container, server):
+def test_ignored(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
     """
     Tests that ownership events on ignored files are not captured by the
     server.
@@ -143,6 +156,7 @@ def test_ignored(test_container, server):
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
+    assert test_container.id is not None
     ignored_file = '/test.txt'
     monitored_file = '/container-dir/test.txt'
 
@@ -188,7 +202,10 @@ def test_ignored(test_container, server):
     server.wait_events(events=events)
 
 
-def test_no_change(test_container, server):
+def test_no_change(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
     """
     Tests that chown to the same UID/GID triggers events for all calls.
 
@@ -196,6 +213,7 @@ def test_no_change(test_container, server):
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
+    assert test_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
 

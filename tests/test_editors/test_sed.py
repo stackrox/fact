@@ -1,8 +1,18 @@
+from __future__ import annotations
+
 import re
+
+import docker.models.containers
+
 from event import Event, EventType, Process
+from server import FileActivityService
 
 
-def test_sed(vi_container, server):
+def test_sed(
+    vi_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert vi_container.id is not None
     # File Under Test
     fut = '/mounted/test.txt'
     create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'
@@ -61,7 +71,11 @@ def test_sed(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_sed_ovfs(vi_container, server):
+def test_sed_ovfs(
+    vi_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert vi_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
     create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'

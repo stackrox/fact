@@ -1,16 +1,24 @@
+from __future__ import annotations
+
 import os
 import time
 from time import sleep
 
+import docker.models.containers
 import pytest
 import requests
 import yaml
 
 from event import Event, EventType, Process
+from server import FileActivityService
 
 
 @pytest.fixture
-def rate_limited_config(fact, fact_config, monitored_dir):
+def rate_limited_config(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+):
     """
     Configure rate limiting after fact has started, then hot-reload.
     Sets rate_limit to 10 events/second.
@@ -25,7 +33,11 @@ def rate_limited_config(fact, fact_config, monitored_dir):
     return config, config_file
 
 
-def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
+def test_rate_limit_drops_events(
+    rate_limited_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     """
     Test that the rate limiter drops events when the rate limit is exceeded.
     """
@@ -51,7 +63,8 @@ def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
     print(f'Received {received_count} events out of {num_files}')
 
     assert received_count < num_files, (
-        f'Expected rate limiting to drop some events, but received all {received_count}'
+        'Expected rate limiting to drop some events, '
+        f'but received all {received_count}'
     )
 
     metrics_response = requests.get(
@@ -83,7 +96,11 @@ def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
     )
 
 
-def test_rate_limit_unlimited(monitored_dir, server, fact_config):
+def test_rate_limit_unlimited(
+    monitored_dir: str,
+    server: FileActivityService,
+    fact_config: tuple[dict, str],
+):
     """
     Test that the default config (rate_limit=0) allows all events through.
     """
@@ -124,5 +141,6 @@ def test_rate_limit_unlimited(monitored_dir, server, fact_config):
                 break
 
     assert dropped_count == 0, (
-        f'Expected no dropped events with unlimited rate limiting, but got {dropped_count}'
+        'Expected no dropped events with unlimited '
+        f'rate limiting, but got {dropped_count}'
     )

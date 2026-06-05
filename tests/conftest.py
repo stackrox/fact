@@ -1,15 +1,18 @@
+from __future__ import annotations
+
 import os
 from shutil import rmtree
 from tempfile import NamedTemporaryFile, mkdtemp
 from time import sleep
 
 import docker
+import docker.errors
+import docker.models.containers
 import pytest
 import requests
 import yaml
 
 from server import FileActivityService
-
 
 # Declare files holding fixtures
 pytest_plugins = ['test_editors.commons']
@@ -27,7 +30,7 @@ def monitored_dir():
 
 
 @pytest.fixture
-def test_file(monitored_dir):
+def test_file(monitored_dir: str):
     """
     Create a temporary file for tests
 
@@ -37,7 +40,7 @@ def test_file(monitored_dir):
     fut = os.path.join(monitored_dir, 'test.txt')
     with open(fut, 'w') as f:
         f.write('test')
-    yield fut
+    return fut
 
 
 @pytest.fixture
@@ -76,7 +79,7 @@ def server():
 
 
 @pytest.fixture
-def logs_dir(request):
+def logs_dir(request: pytest.FixtureRequest):
     logs = os.path.join(
         os.getcwd(),
         'logs',
@@ -88,22 +91,30 @@ def logs_dir(request):
 
 
 @pytest.fixture(scope='session', autouse=True)
-def get_image(request, docker_client):
+def get_image(
+    request: pytest.FixtureRequest,
+    docker_client: docker.DockerClient,
+):
     image = request.config.getoption('--image')
+    assert isinstance(image, str)
     try:
         docker_client.images.get(image)
     except docker.errors.ImageNotFound:
         docker_client.images.pull(image)
 
 
-def dump_logs(container, file):
+def dump_logs(container: docker.models.containers.Container, file: str):
     logs = container.logs().decode('utf-8')
     with open(file, 'w') as f:
         f.write(logs)
 
 
 @pytest.fixture
-def fact_config(request, monitored_dir, logs_dir):
+def fact_config(
+    request: pytest.FixtureRequest,
+    monitored_dir: str,
+    logs_dir: str,
+):
     cwd = os.getcwd()
     config = {
         'paths': [
@@ -123,7 +134,7 @@ def fact_config(request, monitored_dir, logs_dir):
         'json': True,
         'scan_interval': 0,
     }
-    config_file = NamedTemporaryFile(
+    config_file = NamedTemporaryFile(  # noqa: SIM115
         prefix='fact-config-',
         suffix='.yml',
         dir=cwd,
@@ -132,14 +143,21 @@ def fact_config(request, monitored_dir, logs_dir):
     yaml.dump(config, config_file)
 
     yield config, config_file.name
-    with open(os.path.join(logs_dir, 'fact.yml'), 'w') as f:
-        with open(config_file.name, 'r') as r:
-            f.write(r.read())
+    with (
+        open(os.path.join(logs_dir, 'fact.yml'), 'w') as f,
+        open(config_file.name) as r,
+    ):
+        f.write(r.read())
     config_file.close()
 
 
 @pytest.fixture
-def test_container(request, docker_client, monitored_dir, ignored_dir):
+def test_container(
+    request: pytest.FixtureRequest,
+    docker_client: docker.DockerClient,
+    monitored_dir: str,
+    ignored_dir: str,
+):
     """
     Run a container for triggering events in.
     """
@@ -168,12 +186,20 @@ def test_container(request, docker_client, monitored_dir, ignored_dir):
 
 
 @pytest.fixture(autouse=True)
-def fact(request, docker_client, fact_config, server, logs_dir, test_file):
+def fact(
+    request: pytest.FixtureRequest,
+    docker_client: docker.DockerClient,
+    fact_config: tuple[dict, str],
+    server: FileActivityService,
+    logs_dir: str,
+    test_file: str,
+):
     """
     Run the fact docker container for integration tests.
     """
     config, config_file = fact_config
     image = request.config.getoption('--image')
+    assert isinstance(image, str)
     container = docker_client.containers.run(
         image,
         detach=True,
@@ -231,7 +257,7 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
     assert exit_status['StatusCode'] == 0
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser: pytest.Parser):
     parser.addoption(
         '--image',
         action='store',

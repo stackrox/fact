@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import os
 
 import pytest
 
 from event import Event, EventType, Process
+from server import FileActivityService
 
 
 @pytest.mark.parametrize(
@@ -14,7 +17,11 @@ from event import Event, EventType, Process
         pytest.param('日本語', id='Japanese'),
     ],
 )
-def test_mkdir_nested(monitored_dir, server, dirname):
+def test_mkdir_nested(
+    monitored_dir: str,
+    server: FileActivityService,
+    dirname: str,
+):
     """
     Tests that creating nested directories tracks all inodes correctly.
 
@@ -48,7 +55,11 @@ def test_mkdir_nested(monitored_dir, server, dirname):
     server.wait_events(events)
 
 
-def test_mkdir_ignored(monitored_dir, ignored_dir, server):
+def test_mkdir_ignored(
+    monitored_dir: str,
+    ignored_dir: str,
+    server: FileActivityService,
+):
     """
     Tests that directories created outside monitored paths are ignored.
 
@@ -73,7 +84,8 @@ def test_mkdir_ignored(monitored_dir, ignored_dir, server):
     with open(monitored_file, 'w') as f:
         f.write('monitored')
 
-    # Only the monitored file should generate an event (directories are tracked internally)
+    # Only the monitored file should generate an event
+    # (directories are tracked internally)
     e = Event(
         process=process,
         event_type=EventType.CREATION,

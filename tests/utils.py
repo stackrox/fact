@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import os
 import re
 
 import requests
 
 
-def join_path_with_filename(directory, filename):
+def join_path_with_filename(directory: str, filename: str | bytes):
     """
     Join a directory path with a filename, handling bytes filenames properly.
 
@@ -24,7 +26,7 @@ def join_path_with_filename(directory, filename):
         return os.path.join(directory, filename)
 
 
-def path_to_string(path):
+def path_to_string(path: str | bytes):
     """
     Convert a filesystem path to string, replacing invalid UTF-8 with U+FFFD.
 
@@ -35,7 +37,8 @@ def path_to_string(path):
         path: Filesystem path (str or bytes)
 
     Returns:
-        String representation with invalid UTF-8 replaced by replacement character
+        String representation with invalid UTF-8
+        replaced by replacement character
     """
     if isinstance(path, bytes):
         return path.decode('utf-8', errors='replace')
@@ -43,7 +46,7 @@ def path_to_string(path):
         return path
 
 
-def rust_style_quote(s):
+def rust_style_quote(s: str):
     """
     Quote a string in the manner of shlex::try_join() rust function.
 
@@ -57,14 +60,14 @@ def rust_style_quote(s):
         return "''"
     if re.search(r'[^a-zA-Z0-9_.:/-]', s):
         # Try to match the behavior of shlex.try_join()
-        if "'" in s and not '"' in s:
+        if "'" in s and '"' not in s:
             return f'"{s}"'
         escaped = s.replace("'", "\\'")
         return f"'{escaped}'"
     return s
 
 
-def rust_style_join(args):
+def rust_style_join(args: list[str]):
     """
     Concatenate arguments after quoting them. Each argument is separated
     by a single space.
@@ -75,14 +78,21 @@ def rust_style_join(args):
     return ' '.join(rust_style_quote(arg) for arg in args)
 
 
-def get_metric_value(fact_config, metric_name, labels=None):
+def get_metric_value(
+    fact_config: tuple[dict, str],
+    metric_name: str,
+    labels: dict[str, str] | None = None,
+):
     """
     Query Prometheus metrics endpoint to get the value of a metric.
 
     Args:
-        fact_config: The fact configuration tuple (config dict, config file path).
-        metric_name: Name of the metric to query (e.g., "host_scanner_scan").
-        labels: Optional dict of label filters (e.g., {"label": "InodeRemoved"}).
+        fact_config: The fact configuration tuple
+            (config dict, config file path).
+        metric_name: Name of the metric to query
+            (e.g., "host_scanner_scan").
+        labels: Optional dict of label filters
+            (e.g., {"label": "InodeRemoved"}).
 
     Returns:
         The metric value as a string if found, None otherwise.

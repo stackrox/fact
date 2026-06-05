@@ -1,8 +1,17 @@
+from __future__ import annotations
+
+import docker.models.containers
+
 from event import Event, EventType, Process
+from server import FileActivityService
 from test_editors.commons import get_vi_test_file
 
 
-def test_new_file(vi_container, server):
+def test_new_file(
+    vi_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert vi_container.id is not None
     fut = '/mounted/test.txt'
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
@@ -67,7 +76,11 @@ def test_new_file(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_new_file_ovfs(vi_container, server):
+def test_new_file_ovfs(
+    vi_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert vi_container.id is not None
     fut = '/container-dir/test.txt'
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
@@ -132,7 +145,11 @@ def test_new_file_ovfs(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file(vi_container, server):
+def test_open_file(
+    vi_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert vi_container.id is not None
     fut = '/mounted/test.txt'
     fut_backup = f'{fut}~'
     swap_file = '/mounted/.test.txt.swp'
@@ -262,7 +279,11 @@ def test_open_file(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file_ovfs(vi_container, server):
+def test_open_file_ovfs(
+    vi_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert vi_container.id is not None
     fut = '/container-dir/test.txt'
     fut_backup = f'{fut}~'
     swap_file = '/container-dir/.test.txt.swp'

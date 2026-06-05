@@ -1,23 +1,30 @@
+from __future__ import annotations
+
 import os
 from time import sleep
 
-from event import Event, EventType, Process
-
+import docker.models.containers
 import pytest
 import requests
 import yaml
 
+from event import Event, EventType, Process
 from server import FileActivityService
 
 DEFAULT_URL = 'http://127.0.0.1:9000'
 
 
-def assert_endpoint(endpoint, status_code=200):
+def assert_endpoint(endpoint: str, status_code: int = 200):
     resp = requests.get(f'{DEFAULT_URL}/{endpoint}')
     assert resp.status_code == status_code
 
 
-def reload_config(fact, config, file, delay=0.5):
+def reload_config(
+    fact: docker.models.containers.Container,
+    config: dict,
+    file: str,
+    delay: float = 0.5,
+):
     with open(file, 'w') as f:
         yaml.dump(config, f)
     fact.kill('SIGHUP')
@@ -28,7 +35,11 @@ cases = [('metrics', 'expose_metrics'), ('health_check', 'health_check')]
 
 
 @pytest.mark.parametrize('case', cases, ids=['metrics', 'health_check'])
-def test_endpoint(fact, fact_config, case):
+def test_endpoint(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    case: tuple[str, str],
+):
     """
     Test the endpoints configurability
     """
@@ -45,7 +56,10 @@ def test_endpoint(fact, fact_config, case):
     assert_endpoint(endpoint, 503)
 
 
-def test_endpoint_disable_all(fact, fact_config):
+def test_endpoint_disable_all(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+):
     """
     Disable all endpoints and check the default port is not bound
     """
@@ -60,7 +74,10 @@ def test_endpoint_disable_all(fact, fact_config):
         requests.get(f'{DEFAULT_URL}/metrics')
 
 
-def test_endpoint_address_change(fact, fact_config):
+def test_endpoint_address_change(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+):
     config, config_file = fact_config
     config['endpoint']['address'] = '127.0.0.1:9001'
     reload_config(fact, config, config_file)
@@ -88,11 +105,11 @@ def alternate_server():
 
 
 def test_output_grpc_address_change(
-    fact,
-    fact_config,
-    monitored_dir,
-    server,
-    alternate_server,
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+    alternate_server: FileActivityService,
 ):
     """
     Tests we can receive events on a new endpoint after a configuration
@@ -131,7 +148,13 @@ def test_output_grpc_address_change(
     alternate_server.wait_events([e])
 
 
-def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
+def test_paths(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+    ignored_dir: str,
+    server: FileActivityService,
+):
     p = Process.from_proc()
 
     # Ignored file, must not show up in the server
@@ -171,7 +194,12 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     server.wait_events([e])
 
 
-def test_no_paths_then_add(fact, fact_config, monitored_dir, server):
+def test_no_paths_then_add(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     """
     Start with no paths configured, verify no events are produced,
     then add paths via hot-reload and verify events appear.
@@ -205,7 +233,12 @@ def test_no_paths_then_add(fact, fact_config, monitored_dir, server):
     server.wait_events([e])
 
 
-def test_paths_then_remove(fact, fact_config, monitored_dir, server):
+def test_paths_then_remove(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     """
     Start with paths configured, verify events are produced,
     then remove all paths via hot-reload and verify events stop.
@@ -235,7 +268,13 @@ def test_paths_then_remove(fact, fact_config, monitored_dir, server):
         server.wait_events([e])
 
 
-def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
+def test_paths_addition(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+    ignored_dir: str,
+    server: FileActivityService,
+):
     p = Process.from_proc()
 
     # Ignored file, must not show up in the server
