@@ -7,14 +7,17 @@ from utils import join_path_with_filename, path_to_string, rust_style_quote
 from event import Event, EventType, Process
 
 
-@pytest.mark.parametrize("filename", [
-    pytest.param('create.txt', id='ASCII'),
-    pytest.param('café.txt', id='French'),
-    pytest.param('файл.txt', id='Cyrillic'),
-    pytest.param('测试.txt', id='Chinese'),
-    pytest.param('🚀rocket.txt', id='Emoji'),
-    pytest.param(b'test\xff\xfe.txt', id='Invalid'),
-])
+@pytest.mark.parametrize(
+    'filename',
+    [
+        pytest.param('create.txt', id='ASCII'),
+        pytest.param('café.txt', id='French'),
+        pytest.param('файл.txt', id='Cyrillic'),
+        pytest.param('测试.txt', id='Chinese'),
+        pytest.param('🚀rocket.txt', id='Emoji'),
+        pytest.param(b'test\xff\xfe.txt', id='Invalid'),
+    ],
+)
 def test_open(monitored_dir, server, filename):
     """
     Tests the opening of a file and verifies that the corresponding
@@ -34,8 +37,12 @@ def test_open(monitored_dir, server, filename):
     # Convert fut to string for the Event, replacing invalid UTF-8 with U+FFFD
     fut = path_to_string(fut)
 
-    e = Event(process=Process.from_proc(), event_type=EventType.CREATION,
-              file=fut, host_path=fut)
+    e = Event(
+        process=Process.from_proc(),
+        event_type=EventType.CREATION,
+        file=fut,
+        host_path=fut,
+    )
 
     server.wait_events([e])
 
@@ -59,7 +66,13 @@ def test_multiple(monitored_dir, server):
             f.write('This is a test')
 
         events.append(
-            Event(process=process, event_type=EventType.CREATION, file=fut, host_path=fut))
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=fut,
+                host_path=fut,
+            ),
+        )
 
     server.wait_events(events)
 
@@ -78,8 +91,14 @@ def test_multiple_access(test_file, server):
         with open(test_file, 'a+') as f:
             f.write('This is a test')
 
-        events.append(Event(process=Process.from_proc(), file=test_file,
-                      host_path=test_file, event_type=EventType.OPEN))
+        events.append(
+            Event(
+                process=Process.from_proc(),
+                file=test_file,
+                host_path=test_file,
+                event_type=EventType.OPEN,
+            ),
+        )
 
     server.wait_events(events)
 
@@ -105,8 +124,12 @@ def test_ignored(test_file, ignored_dir, server):
     with open(test_file, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, event_type=EventType.OPEN,
-              file=test_file, host_path=test_file)
+    e = Event(
+        process=p,
+        event_type=EventType.OPEN,
+        file=test_file,
+        host_path=test_file,
+    )
 
     server.wait_events([e])
 
@@ -138,10 +161,18 @@ def test_external_process(monitored_dir, server):
     proc.start()
     p = Process.from_proc(proc.pid)
 
-    creation = Event(process=p, event_type=EventType.CREATION,
-                     file=fut, host_path=fut)
+    creation = Event(
+        process=p,
+        event_type=EventType.CREATION,
+        file=fut,
+        host_path=fut,
+    )
     write_access = Event(
-        process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
+        process=p,
+        event_type=EventType.OPEN,
+        file=fut,
+        host_path=fut,
+    )
 
     try:
         server.wait_events([creation, write_access])
@@ -164,8 +195,12 @@ def test_overlay(test_container, server):
         container_id=test_container.id[:12],
     )
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=''),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
     ]
 
     server.wait_events(events)
@@ -185,8 +220,12 @@ def test_mounted_dir(test_container, ignored_dir, server):
         container_id=test_container.id[:12],
     )
     # ignored_dir is not monitored, so host_path should be blank
-    event = Event(process=process, event_type=EventType.CREATION,
-                  file=fut, host_path='')
+    event = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=fut,
+        host_path='',
+    )
 
     server.wait_events([event])
 
@@ -204,7 +243,11 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
         name='touch',
         container_id=test_container.id[:12],
     )
-    event = Event(process=process, event_type=EventType.OPEN,
-                  file=fut, host_path=test_file)
+    event = Event(
+        process=process,
+        event_type=EventType.OPEN,
+        file=fut,
+        host_path=test_file,
+    )
 
     server.wait_events([event])

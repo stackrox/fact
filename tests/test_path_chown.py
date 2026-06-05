@@ -14,14 +14,17 @@ TEST_UID = 1234
 TEST_GID = 2345
 
 
-@pytest.mark.parametrize("filename", [
-    'chown.txt',
-    'café.txt',
-    'файл.txt',
-    '测试.txt',
-    '👤owner.txt',
-    b'own\xff\xfe.txt',
-])
+@pytest.mark.parametrize(
+    'filename',
+    [
+        'chown.txt',
+        'café.txt',
+        'файл.txt',
+        '测试.txt',
+        '👤owner.txt',
+        b'own\xff\xfe.txt',
+    ],
+)
 def test_chown(test_container, server, filename):
     """
     Execute a chown operation on a file and verifies the corresponding event is
@@ -58,10 +61,20 @@ def test_chown(test_container, server, filename):
         container_id=test_container.id[:12],
     )
     events = [
-        Event(process=touch, event_type=EventType.CREATION, file=fut,
-              host_path=''),
-        Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
-              host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
+        Event(
+            process=touch,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
+        Event(
+            process=chown,
+            event_type=EventType.OWNERSHIP,
+            file=fut,
+            host_path='',
+            owner_uid=TEST_UID,
+            owner_gid=TEST_GID,
+        ),
     ]
 
     server.wait_events(events)
@@ -99,12 +112,24 @@ def test_multiple(test_container, server):
             container_id=test_container.id[:12],
         )
 
-        events.extend([
-            Event(process=touch, event_type=EventType.CREATION, file=fut,
-                  host_path=''),
-            Event(process=chown, event_type=EventType.OWNERSHIP, file=fut,
-                  host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
-        ])
+        events.extend(
+            [
+                Event(
+                    process=touch,
+                    event_type=EventType.CREATION,
+                    file=fut,
+                    host_path='',
+                ),
+                Event(
+                    process=chown,
+                    event_type=EventType.OWNERSHIP,
+                    file=fut,
+                    host_path='',
+                    owner_uid=TEST_UID,
+                    owner_gid=TEST_GID,
+                ),
+            ],
+        )
 
     server.wait_events(events)
 
@@ -144,10 +169,20 @@ def test_ignored(test_container, server):
         container_id=test_container.id[:12],
     )
     events = [
-        Event(process=reported_touch, event_type=EventType.CREATION,
-              file=monitored_file, host_path=''),
-        Event(process=reported_chown, event_type=EventType.OWNERSHIP,
-              file=monitored_file, host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID),
+        Event(
+            process=reported_touch,
+            event_type=EventType.CREATION,
+            file=monitored_file,
+            host_path='',
+        ),
+        Event(
+            process=reported_chown,
+            event_type=EventType.OWNERSHIP,
+            file=monitored_file,
+            host_path='',
+            owner_uid=TEST_UID,
+            owner_gid=TEST_GID,
+        ),
     ]
 
     server.wait_events(events=events)
@@ -188,13 +223,23 @@ def test_no_change(test_container, server):
         name='chown',
         container_id=test_container.id[:12],
     )
-    chown_event = Event(process=chown, event_type=EventType.OWNERSHIP,
-                        file=fut, host_path='', owner_uid=TEST_UID, owner_gid=TEST_GID)
+    chown_event = Event(
+        process=chown,
+        event_type=EventType.OWNERSHIP,
+        file=fut,
+        host_path='',
+        owner_uid=TEST_UID,
+        owner_gid=TEST_GID,
+    )
 
     # Expect both chown events (all calls to chown trigger events)
     events = [
-        Event(process=touch, event_type=EventType.CREATION, file=fut,
-              host_path=''),
+        Event(
+            process=touch,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
         chown_event,
         chown_event,
     ]

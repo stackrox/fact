@@ -8,6 +8,7 @@ import yaml
 
 from event import Event, EventType, Process
 
+
 @pytest.fixture
 def rate_limited_config(fact, fact_config, monitored_dir):
     """
@@ -22,6 +23,7 @@ def rate_limited_config(fact, fact_config, monitored_dir):
     fact.kill('SIGHUP')
     sleep(0.1)
     return config, config_file
+
 
 def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
     """
@@ -48,14 +50,19 @@ def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
 
     print(f'Received {received_count} events out of {num_files}')
 
-    assert received_count < num_files, \
+    assert received_count < num_files, (
         f'Expected rate limiting to drop some events, but received all {received_count}'
+    )
 
-    metrics_response = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
+    metrics_response = requests.get(
+        f'http://{config["endpoint"]["address"]}/metrics',
+    )
     assert metrics_response.status_code == 200
 
     metrics_text = metrics_response.text
-    assert 'rate_limiter_events' in metrics_text, 'rate_limiter_events metric not found'
+    assert 'rate_limiter_events' in metrics_text, (
+        'rate_limiter_events metric not found'
+    )
 
     dropped_count = 0
     for line in metrics_text.split('\n'):
@@ -65,11 +72,16 @@ def test_rate_limit_drops_events(rate_limited_config, monitored_dir, server):
                 dropped_count = int(parts[1])
                 break
 
-    assert dropped_count > 0, 'Expected rate limiter to report dropped events in metrics'
+    assert dropped_count > 0, (
+        'Expected rate limiter to report dropped events in metrics'
+    )
 
     total_accounted = received_count + dropped_count
 
-    assert total_accounted == num_files, 'Expected rate limiter to see all events'
+    assert total_accounted == num_files, (
+        'Expected rate limiter to see all events'
+    )
+
 
 def test_rate_limit_unlimited(monitored_dir, server, fact_config):
     """
@@ -86,11 +98,19 @@ def test_rate_limit_unlimited(monitored_dir, server, fact_config):
             f.write(f'test {i}')
 
         events.append(
-            Event(process=process, event_type=EventType.CREATION, file=fut, host_path=fut))
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=fut,
+                host_path=fut,
+            ),
+        )
 
     server.wait_events(events)
 
-    metrics_response = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
+    metrics_response = requests.get(
+        f'http://{config["endpoint"]["address"]}/metrics',
+    )
     assert metrics_response.status_code == 200
 
     metrics_text = metrics_response.text
@@ -103,5 +123,6 @@ def test_rate_limit_unlimited(monitored_dir, server, fact_config):
                 dropped_count = int(parts[1])
                 break
 
-    assert dropped_count == 0, \
+    assert dropped_count == 0, (
         f'Expected no dropped events with unlimited rate limiting, but got {dropped_count}'
+    )

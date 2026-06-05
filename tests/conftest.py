@@ -12,9 +12,7 @@ from server import FileActivityService
 
 
 # Declare files holding fixtures
-pytest_plugins = [
-    'test_editors.commons'
-]
+pytest_plugins = ['test_editors.commons']
 
 
 @pytest.fixture
@@ -79,8 +77,12 @@ def server():
 
 @pytest.fixture
 def logs_dir(request):
-    logs = os.path.join(os.getcwd(), 'logs',
-                        request.module.__name__, request.node.name)
+    logs = os.path.join(
+        os.getcwd(),
+        'logs',
+        request.module.__name__,
+        request.node.name,
+    )
     os.makedirs(logs, exist_ok=True)
     return logs
 
@@ -122,7 +124,11 @@ def fact_config(request, monitored_dir, logs_dir):
         'scan_interval': 0,
     }
     config_file = NamedTemporaryFile(
-        prefix='fact-config-', suffix='.yml', dir=cwd, mode='w')
+        prefix='fact-config-',
+        suffix='.yml',
+        dir=cwd,
+        mode='w',
+    )
     yaml.dump(config, config_file)
 
     yield config, config_file.name
@@ -149,7 +155,7 @@ def test_container(request, docker_client, monitored_dir, ignored_dir):
             monitored_dir: {
                 'bind': '/unmonitored',
                 'mode': 'z',
-            }
+            },
         },
         name='fedora',
     )
@@ -186,7 +192,7 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
             config_file: {
                 'bind': '/etc/stackrox/fact.yml',
                 'mode': 'ro',
-            }
+            },
         },
     )
 
@@ -195,7 +201,8 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
     for _ in range(3):
         try:
             resp = requests.get(
-                f'http://{config["endpoint"]["address"]}/health_check')
+                f'http://{config["endpoint"]["address"]}/health_check'
+            )
             if resp.status_code == 200:
                 break
         except (requests.RequestException, requests.ConnectionError) as e:
@@ -212,8 +219,7 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
     # Capture prometheus metrics before stopping the container
     if config['endpoint']['expose_metrics']:
         metric_log = os.path.join(logs_dir, 'metrics')
-        resp = requests.get(
-            f'http://{config["endpoint"]["address"]}/metrics')
+        resp = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
         if resp.status_code == 200:
             with open(metric_log, 'w') as f:
                 f.write(resp.text)
@@ -226,5 +232,9 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
 
 
 def pytest_addoption(parser):
-    parser.addoption('--image', action='store', default='quay.io/stackrox-io/fact:latest',
-                     help='The image to be used for testing')
+    parser.addoption(
+        '--image',
+        action='store',
+        default='quay.io/stackrox-io/fact:latest',
+        help='The image to be used for testing',
+    )

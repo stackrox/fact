@@ -5,12 +5,15 @@ import pytest
 from event import Event, EventType, Process
 
 
-@pytest.mark.parametrize("dirname", [
-    pytest.param('level3', id='ASCII'),
-    pytest.param('café', id='French'),
-    pytest.param('файл', id='Cyrillic'),
-    pytest.param('日本語', id='Japanese'),
-])
+@pytest.mark.parametrize(
+    'dirname',
+    [
+        pytest.param('level3', id='ASCII'),
+        pytest.param('café', id='French'),
+        pytest.param('файл', id='Cyrillic'),
+        pytest.param('日本語', id='Japanese'),
+    ],
+)
 def test_mkdir_nested(monitored_dir, server, dirname):
     """
     Tests that creating nested directories tracks all inodes correctly.
@@ -34,8 +37,12 @@ def test_mkdir_nested(monitored_dir, server, dirname):
     # Directory creation events are tracked internally but not sent to sensor
     # Only the file creation event should be sent
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=test_file, host_path=test_file),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=test_file,
+            host_path=test_file,
+        ),
     ]
 
     server.wait_events(events)
@@ -67,7 +74,11 @@ def test_mkdir_ignored(monitored_dir, ignored_dir, server):
         f.write('monitored')
 
     # Only the monitored file should generate an event (directories are tracked internally)
-    e = Event(process=process, event_type=EventType.CREATION,
-              file=monitored_file, host_path=monitored_file)
+    e = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=monitored_file,
+        host_path=monitored_file,
+    )
 
     server.wait_events([e])

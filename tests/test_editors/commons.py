@@ -40,7 +40,11 @@ def run_editor_container(image, docker_client, ignored_dir):
 
 @pytest.fixture
 def vi_container(docker_client, ignored_dir):
-    yield from run_editor_container('quay.io/fedora/fedora:43', docker_client, ignored_dir)
+    yield from run_editor_container(
+        'quay.io/fedora/fedora:43',
+        docker_client,
+        ignored_dir,
+    )
 
 
 @pytest.fixture

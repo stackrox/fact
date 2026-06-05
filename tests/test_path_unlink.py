@@ -8,14 +8,17 @@ from utils import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 
-@pytest.mark.parametrize("filename", [
-    'remove.txt',
-    'café.txt',
-    'файл.txt',
-    '测试.txt',
-    '🗑️delete.txt',
-    b'rm\xff\xfe.txt',
-])
+@pytest.mark.parametrize(
+    'filename',
+    [
+        'remove.txt',
+        'café.txt',
+        'файл.txt',
+        '测试.txt',
+        '🗑️delete.txt',
+        b'rm\xff\xfe.txt',
+    ],
+)
 def test_remove(monitored_dir, server, filename):
     """
     Tests the removal of a file and verifies the corresponding event is
@@ -43,10 +46,18 @@ def test_remove(monitored_dir, server, filename):
     process = Process.from_proc()
     # We expect both CREATION (from file creation) and UNLINK (from removal)
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=fut),
-        Event(process=process, event_type=EventType.UNLINK,
-              file=fut, host_path=fut),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path=fut,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=fut,
+            host_path=fut,
+        ),
     ]
 
     server.wait_events(events)
@@ -71,12 +82,22 @@ def test_multiple(monitored_dir, server):
             f.write('This is a test')
         os.remove(fut)
 
-        events.extend([
-            Event(process=process, event_type=EventType.CREATION,
-                  file=fut, host_path=fut),
-            Event(process=process, event_type=EventType.UNLINK,
-                  file=fut, host_path=fut),
-        ])
+        events.extend(
+            [
+                Event(
+                    process=process,
+                    event_type=EventType.CREATION,
+                    file=fut,
+                    host_path=fut,
+                ),
+                Event(
+                    process=process,
+                    event_type=EventType.UNLINK,
+                    file=fut,
+                    host_path=fut,
+                ),
+            ],
+        )
 
     server.wait_events(events)
 
@@ -102,8 +123,12 @@ def test_ignored(test_file, ignored_dir, server):
     # File Under Test
     os.remove(test_file)
 
-    e = Event(process=process, event_type=EventType.UNLINK,
-              file=test_file, host_path=test_file)
+    e = Event(
+        process=process,
+        event_type=EventType.UNLINK,
+        file=test_file,
+        host_path=test_file,
+    )
 
     server.wait_events([e])
 
@@ -134,10 +159,18 @@ def test_external_process(monitored_dir, server):
     process = Process.from_proc(proc.pid)
 
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=fut),
-        Event(process=process, event_type=EventType.UNLINK,
-              file=fut, host_path=fut),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path=fut,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=fut,
+            host_path=fut,
+        ),
     ]
 
     try:
@@ -168,10 +201,18 @@ def test_overlay(test_container, server):
         container_id=test_container.id[:12],
     )
     events = [
-        Event(process=touch, event_type=EventType.CREATION,
-              file=fut, host_path=''),
-        Event(process=rm, event_type=EventType.UNLINK,
-              file=fut, host_path=''),
+        Event(
+            process=touch,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
+        Event(
+            process=rm,
+            event_type=EventType.UNLINK,
+            file=fut,
+            host_path='',
+        ),
     ]
 
     server.wait_events(events)
@@ -199,10 +240,18 @@ def test_mounted_dir(test_container, ignored_dir, server):
     )
     # ignored_dir is not monitored, so host_path should be blank
     events = [
-        Event(process=touch, event_type=EventType.CREATION, file=fut,
-              host_path=''),
-        Event(process=rm, event_type=EventType.UNLINK, file=fut,
-              host_path=''),
+        Event(
+            process=touch,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
+        Event(
+            process=rm,
+            event_type=EventType.UNLINK,
+            file=fut,
+            host_path='',
+        ),
     ]
 
     server.wait_events(events)
@@ -221,7 +270,11 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
         name='rm',
         container_id=test_container.id[:12],
     )
-    event = Event(process=process, event_type=EventType.UNLINK,
-                  file=fut, host_path=test_file)
+    event = Event(
+        process=process,
+        event_type=EventType.UNLINK,
+        file=fut,
+        host_path=test_file,
+    )
 
     server.wait_events([event])

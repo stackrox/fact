@@ -46,10 +46,10 @@ def path_to_string(path):
 def rust_style_quote(s):
     """
     Quote a string in the manner of shlex::try_join() rust function.
-    
+
     Use of python's shlex was considered but has a different quoting
     strategy.
-    
+
     Args:
         s: The string to quote
     """
@@ -57,7 +57,7 @@ def rust_style_quote(s):
         return "''"
     if re.search(r'[^a-zA-Z0-9_.:/-]', s):
         # Try to match the behavior of shlex.try_join()
-        if '\'' in s and not '"' in s:
+        if "'" in s and not '"' in s:
             return f'"{s}"'
         escaped = s.replace("'", "\\'")
         return f"'{escaped}'"
