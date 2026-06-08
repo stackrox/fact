@@ -5,8 +5,8 @@ from event import Event, EventType, Process
 def test_sed(vi_container, server):
     # File Under Test
     fut = '/mounted/test.txt'
-    create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""
-    sed_cmd = fr'sed -i -e "s/a test/not \\0/" {fut}'
+    create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'
+    sed_cmd = rf'sed -i -e "s/a test/not \\0/" {fut}'
     container_id = vi_container.id[:12]
 
     vi_container.exec_run(create_cmd)
@@ -28,14 +28,34 @@ def test_sed(vi_container, server):
     sed_tmp_file = re.compile(r'\/mounted\/sed[0-9a-zA-Z]{6}')
 
     events = [
-        Event(process=shell, event_type=EventType.CREATION,
-              file=fut, host_path=''),
-        Event(process=sed, event_type=EventType.CREATION,
-              file=sed_tmp_file, host_path=''),
-        Event(process=sed, event_type=EventType.OWNERSHIP,
-              file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),
-        Event(process=sed, event_type=EventType.RENAME,
-              file=fut, host_path='', old_file=sed_tmp_file, old_host_path=''),
+        Event(
+            process=shell,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
+        Event(
+            process=sed,
+            event_type=EventType.CREATION,
+            file=sed_tmp_file,
+            host_path='',
+        ),
+        Event(
+            process=sed,
+            event_type=EventType.OWNERSHIP,
+            file=sed_tmp_file,
+            host_path='',
+            owner_uid=0,
+            owner_gid=0,
+        ),
+        Event(
+            process=sed,
+            event_type=EventType.RENAME,
+            file=fut,
+            host_path='',
+            old_file=sed_tmp_file,
+            old_host_path='',
+        ),
     ]
 
     server.wait_events(events, strict=True)
@@ -44,8 +64,8 @@ def test_sed(vi_container, server):
 def test_sed_ovfs(vi_container, server):
     # File Under Test
     fut = '/container-dir/test.txt'
-    create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""
-    sed_cmd = fr'sed -i -e "s/a test/not \\0/" {fut}'
+    create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'
+    sed_cmd = rf'sed -i -e "s/a test/not \\0/" {fut}'
     container_id = vi_container.id[:12]
 
     vi_container.exec_run(create_cmd)
@@ -67,14 +87,34 @@ def test_sed_ovfs(vi_container, server):
     sed_tmp_file = re.compile(r'\/container-dir\/sed[0-9a-zA-Z]{6}')
 
     events = [
-        Event(process=shell, event_type=EventType.CREATION,
-              file=fut, host_path=''),
-        Event(process=sed, event_type=EventType.CREATION,
-              file=sed_tmp_file, host_path=''),
-        Event(process=sed, event_type=EventType.OWNERSHIP,
-              file=sed_tmp_file, host_path='', owner_uid=0, owner_gid=0),
-        Event(process=sed, event_type=EventType.RENAME,
-              file=fut, host_path='', old_file=sed_tmp_file, old_host_path=''),
+        Event(
+            process=shell,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
+        Event(
+            process=sed,
+            event_type=EventType.CREATION,
+            file=sed_tmp_file,
+            host_path='',
+        ),
+        Event(
+            process=sed,
+            event_type=EventType.OWNERSHIP,
+            file=sed_tmp_file,
+            host_path='',
+            owner_uid=0,
+            owner_gid=0,
+        ),
+        Event(
+            process=sed,
+            event_type=EventType.RENAME,
+            file=fut,
+            host_path='',
+            old_file=sed_tmp_file,
+            old_host_path='',
+        ),
     ]
 
     server.wait_events(events, strict=True)

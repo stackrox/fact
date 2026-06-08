@@ -11,13 +11,19 @@ def build_self_deleter(docker_client):
     image, _ = docker_client.images.build(
         path='containers/self-deleter',
         tag='self-deleter:latest',
-        dockerfile='Containerfile'
+        dockerfile='Containerfile',
     )
     return image
 
 
 @pytest.fixture
-def run_self_deleter(fact, monitored_dir, logs_dir, docker_client, build_self_deleter):
+def run_self_deleter(
+    fact,
+    monitored_dir,
+    logs_dir,
+    docker_client,
+    build_self_deleter,
+):
     image = build_self_deleter.tags[0]
     container = docker_client.containers.run(
         image,
@@ -40,7 +46,12 @@ def run_self_deleter(fact, monitored_dir, logs_dir, docker_client, build_self_de
     container.remove()
 
 
-def test_d_path_sanitization(monitored_dir, server, run_self_deleter, docker_client):
+def test_d_path_sanitization(
+    monitored_dir,
+    server,
+    run_self_deleter,
+    docker_client,
+):
     """
     Ensure the sanitization of paths obtained by calling the bpf_d_path
     helper don't include the " (deleted)" suffix when the file is
@@ -58,7 +69,11 @@ def test_d_path_sanitization(monitored_dir, server, run_self_deleter, docker_cli
         name='self-deleter',
         container_id=container.id[:12],
     )
-    event = Event(process=process, event_type=EventType.OPEN,
-                  file=fut, host_path=host_path)
+    event = Event(
+        process=process,
+        event_type=EventType.OPEN,
+        file=fut,
+        host_path=host_path,
+    )
 
     server.wait_events([event])

@@ -87,7 +87,13 @@ def alternate_server():
     s.stop()
 
 
-def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, alternate_server):
+def test_output_grpc_address_change(
+    fact,
+    fact_config,
+    monitored_dir,
+    server,
+    alternate_server,
+):
     """
     Tests we can receive events on a new endpoint after a configuration
     change.
@@ -98,8 +104,12 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
         f.write('This is a test')
 
     process = Process.from_proc()
-    e = Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=fut)
+    e = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=fut,
+        host_path=fut,
+    )
 
     server.wait_events([e])
 
@@ -111,8 +121,12 @@ def test_output_grpc_address_change(fact, fact_config, monitored_dir, server, al
     with open(fut, 'w') as f:
         f.write('This is another test')
 
-    e = Event(process=process, event_type=EventType.OPEN,
-              file=fut, host_path=fut)
+    e = Event(
+        process=process,
+        event_type=EventType.OPEN,
+        file=fut,
+        host_path=fut,
+    )
 
     alternate_server.wait_events([e])
 
@@ -130,8 +144,7 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, event_type=EventType.CREATION,
-              file=fut, host_path=fut)
+    e = Event(process=p, event_type=EventType.CREATION, file=fut, host_path=fut)
 
     server.wait_events([e])
 
@@ -144,8 +157,12 @@ def test_paths(fact, fact_config, monitored_dir, ignored_dir, server):
     with open(ignored_file, 'w') as f:
         f.write('This is another test')
 
-    e = Event(process=p, event_type=EventType.OPEN,
-              file=ignored_file, host_path=ignored_file)
+    e = Event(
+        process=p,
+        event_type=EventType.OPEN,
+        file=ignored_file,
+        host_path=ignored_file,
+    )
 
     # File Under Test
     with open(fut, 'w') as f:
@@ -172,8 +189,7 @@ def test_no_paths_then_add(fact, fact_config, monitored_dir, server):
         f.write('This should be ignored')
     sleep(1)
 
-    e = Event(process=p, event_type=EventType.OPEN,
-              file=fut, host_path=fut)
+    e = Event(process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
 
     with pytest.raises(TimeoutError):
         server.wait_events([e])
@@ -201,8 +217,7 @@ def test_paths_then_remove(fact, fact_config, monitored_dir, server):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, event_type=EventType.CREATION,
-              file=fut, host_path=fut)
+    e = Event(process=p, event_type=EventType.CREATION, file=fut, host_path=fut)
 
     server.wait_events([e])
 
@@ -233,8 +248,7 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
     with open(fut, 'w') as f:
         f.write('This is a test')
 
-    e = Event(process=p, event_type=EventType.CREATION,
-              file=fut, host_path=fut)
+    e = Event(process=p, event_type=EventType.CREATION, file=fut, host_path=fut)
 
     server.wait_events([e])
 
@@ -250,9 +264,18 @@ def test_paths_addition(fact, fact_config, monitored_dir, ignored_dir, server):
         f.write('This is one final event')
 
     events = [
-        Event(process=p, event_type=EventType.OPEN,
-              file=ignored_file, host_path=ignored_file),
-        Event(process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
+        Event(
+            process=p,
+            event_type=EventType.OPEN,
+            file=ignored_file,
+            host_path=ignored_file,
+        ),
+        Event(
+            process=p,
+            event_type=EventType.OPEN,
+            file=fut,
+            host_path=fut,
+        ),
     ]
 
     server.wait_events(events)

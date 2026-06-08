@@ -108,6 +108,7 @@ jobs:
     - name: Check code format
       run: |
         rustup component add rustfmt
+        pip install ruff
         make format-check
 
   vars:

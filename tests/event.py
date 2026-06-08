@@ -29,6 +29,7 @@ def extract_container_id(cgroup: str) -> str:
 
 class EventType(Enum):
     """Enumeration for different types of file activity events."""
+
     OPEN = 1
     CREATION = 2
     UNLINK = 3
@@ -42,15 +43,17 @@ class Process:
     Represents a process with its attributes.
     """
 
-    def __init__(self,
-                 pid: int | None,
-                 uid: int,
-                 gid: int,
-                 exe_path: str,
-                 args: str,
-                 name: str,
-                 container_id: str,
-                 loginuid: int):
+    def __init__(
+        self,
+        pid: int | None,
+        uid: int,
+        gid: int,
+        exe_path: str,
+        args: str,
+        name: str,
+        container_id: str,
+        loginuid: int,
+    ):
         self._pid: int | None = pid
         self._uid: int = uid
         self._gid: int = gid
@@ -68,6 +71,7 @@ class Process:
         uid = 0
         gid = 0
         with open(os.path.join(proc_dir, 'status'), 'r') as f:
+
             def get_id(line: str, wanted_id: str) -> int | None:
                 if line.startswith(f'{wanted_id}:'):
                     parts = line.split()
@@ -85,8 +89,9 @@ class Process:
 
         with open(os.path.join(proc_dir, 'cmdline'), 'rb') as f:
             content = f.read(4096)
-            args = [arg.decode('utf-8')
-                    for arg in content.split(b'\x00') if arg]
+            args = [
+                arg.decode('utf-8') for arg in content.split(b'\x00') if arg
+            ]
         args = utils.rust_style_join(args)
 
         with open(os.path.join(proc_dir, 'comm'), 'r') as f:
@@ -98,29 +103,35 @@ class Process:
         with open(os.path.join(proc_dir, 'loginuid'), 'r') as f:
             loginuid = int(f.read())
 
-        return Process(pid=pid,
-                       uid=uid,
-                       gid=gid,
-                       exe_path=exe_path,
-                       args=args,
-                       name=name,
-                       container_id=container_id,
-                       loginuid=loginuid)
+        return Process(
+            pid=pid,
+            uid=uid,
+            gid=gid,
+            exe_path=exe_path,
+            args=args,
+            name=name,
+            container_id=container_id,
+            loginuid=loginuid,
+        )
 
     @classmethod
-    def in_container(cls,
-                     exe_path: str,
-                     args: str,
-                     name: str,
-                     container_id: str):
-        return Process(pid=None,
-                       uid=0,
-                       gid=0,
-                       loginuid=pow(2, 32)-1,
-                       exe_path=exe_path,
-                       args=args,
-                       name=name,
-                       container_id=container_id)
+    def in_container(
+        cls,
+        exe_path: str,
+        args: str,
+        name: str,
+        container_id: str,
+    ):
+        return Process(
+            pid=None,
+            uid=0,
+            gid=0,
+            loginuid=pow(2, 32) - 1,
+            exe_path=exe_path,
+            args=args,
+            name=name,
+            container_id=container_id,
+        )
 
     @property
     def uid(self) -> int:
@@ -172,23 +183,27 @@ class Process:
 
         Event._diff_field(diff, 'uid', self.uid, other.uid)
         Event._diff_field(diff, 'gid', self.gid, other.gid)
-        Event._diff_field(diff, 'exe_path',
-                          self.exe_path, other.exec_file_path)
+        Event._diff_field(diff, 'exe_path', self.exe_path, other.exec_file_path)
         Event._diff_field(diff, 'args', self.args, other.args)
         Event._diff_field(diff, 'name', self.name, other.name)
-        Event._diff_field(diff, 'container_id',
-                          self.container_id, other.container_id)
-        Event._diff_field(diff, 'loginuid',
-                          self.loginuid, other.login_uid)
+        Event._diff_field(
+            diff,
+            'container_id',
+            self.container_id,
+            other.container_id,
+        )
+        Event._diff_field(diff, 'loginuid', self.loginuid, other.login_uid)
 
         return diff if diff else None
 
     @override
     def __str__(self) -> str:
-        return (f'Process(uid={self.uid}, gid={self.gid}, pid={self.pid}, '
-                f'exe_path={self.exe_path}, args={self.args}, '
-                f'name={self.name}, container_id={self.container_id}, '
-                f'loginuid={self.loginuid})')
+        return (
+            f'Process(uid={self.uid}, gid={self.gid}, pid={self.pid}, '
+            f'exe_path={self.exe_path}, args={self.args}, '
+            f'name={self.name}, container_id={self.container_id}, '
+            f'loginuid={self.loginuid})'
+        )
 
 
 class Event:
@@ -264,21 +279,21 @@ class Event:
             }
 
     @classmethod
-    def _diff_path(cls, diff, name: str, expected: str | Pattern[str], actual: str):
+    def _diff_path(
+        cls,
+        diff,
+        name: str,
+        expected: str | Pattern[str],
+        actual: str,
+    ):
         """
         Compare paths with regex pattern support.
         """
         if isinstance(expected, Pattern):
             if not expected.match(actual):
-                diff[name] = {
-                    'expected': f'{expected}',
-                    'actual': actual
-                }
+                diff[name] = {'expected': f'{expected}', 'actual': actual}
         elif expected != actual:
-            diff[name] = {
-                'expected': expected,
-                'actual': actual
-            }
+            diff[name] = {'expected': expected, 'actual': actual}
 
     def diff(self, other: FileActivity) -> dict | None:
         """
@@ -301,8 +316,12 @@ class Event:
         event_type_expected = self.event_type.name.lower()
         event_type_actual = other.WhichOneof('file')
 
-        Event._diff_field(diff, 'event_type',
-                          event_type_expected, event_type_actual)
+        Event._diff_field(
+            diff,
+            'event_type',
+            event_type_expected,
+            event_type_actual,
+        )
         if diff:
             return diff
 
@@ -313,35 +332,61 @@ class Event:
         # new and old paths.
         if self.event_type == EventType.RENAME:
             Event._diff_path(diff, 'new_file', self.file, event_field.new.path)
-            Event._diff_path(diff, 'new_host_path',
-                             self.host_path, event_field.new.host_path)
-            Event._diff_path(diff, 'old_file', self.old_file,
-                             event_field.old.path)
-            Event._diff_path(diff, 'old_host_path',
-                             self.old_host_path, event_field.old.host_path)
+            Event._diff_path(
+                diff,
+                'new_host_path',
+                self.host_path,
+                event_field.new.host_path,
+            )
+            Event._diff_path(
+                diff,
+                'old_file',
+                self.old_file,
+                event_field.old.path,
+            )
+            Event._diff_path(
+                diff,
+                'old_host_path',
+                self.old_host_path,
+                event_field.old.host_path,
+            )
             return diff if diff else None
 
         # Compare file and host_path (common to all event types)
         # All event types have .activity.path and .activity.host_path except they're accessed differently
         Event._diff_path(diff, 'file', self.file, event_field.activity.path)
-        Event._diff_path(diff, 'host_path', self.host_path,
-                         event_field.activity.host_path)
+        Event._diff_path(
+            diff,
+            'host_path',
+            self.host_path,
+            event_field.activity.host_path,
+        )
 
         if self.event_type == EventType.PERMISSION:
             Event._diff_field(diff, 'mode', self.mode, event_field.mode)
         elif self.event_type == EventType.OWNERSHIP:
-            Event._diff_field(diff, 'owner_uid',
-                              self.owner_uid, event_field.uid)
-            Event._diff_field(diff, 'owner_gid',
-                              self.owner_gid, event_field.gid)
+            Event._diff_field(
+                diff,
+                'owner_uid',
+                self.owner_uid,
+                event_field.uid,
+            )
+            Event._diff_field(
+                diff,
+                'owner_gid',
+                self.owner_gid,
+                event_field.gid,
+            )
 
         return diff if diff else None
 
     @override
     def __str__(self) -> str:
-        s = (f'Event(event_type={self.event_type.name}, '
-             f'process={self.process}, file="{self.file}", '
-             f'host_path="{self.host_path}"')
+        s = (
+            f'Event(event_type={self.event_type.name}, '
+            f'process={self.process}, file="{self.file}", '
+            f'host_path="{self.host_path}"'
+        )
 
         if self.event_type == EventType.PERMISSION:
             s += f', mode={self.mode}'

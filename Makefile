@@ -43,9 +43,11 @@ clean:
 format-check:
 	cargo fmt --check
 	make -C fact-ebpf format-check
+	ruff format --diff tests/
 
 format:
 	cargo fmt
 	make -C fact-ebpf format
+	ruff format tests/
 
 .PHONY: tag mock-server integration-tests image image-name licenses coverage clean

@@ -41,7 +41,8 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         Sets the running event once the server starts.
         """
         sfa_iservice_pb2_grpc.add_FileActivityServiceServicer_to_server(
-            self, self.server
+            self,
+            self.server,
         )
         self.server.add_insecure_port(addr)
         self.server.start()
@@ -81,7 +82,12 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         """
         return self.running.is_set()
 
-    def _wait_events(self, events: list['Event'], strict: bool, cancel: ThreadingEvent):
+    def _wait_events(
+        self,
+        events: list['Event'],
+        strict: bool,
+        cancel: ThreadingEvent,
+    ):
         while self.is_running() and not cancel.is_set():
             msg = self.get_next()
             if msg is None:

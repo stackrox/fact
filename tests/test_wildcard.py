@@ -38,8 +38,12 @@ def test_extension_wildcard(wildcard_config, monitored_dir, server):
 
     # TODO: host_path is empty because wildcard patterns don't include the parent
     # directory, so the parent inode isn't tracked for path construction
-    e = Event(process=process, event_type=EventType.CREATION,
-              file=txt_file, host_path='')
+    e = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=txt_file,
+        host_path='',
+    )
 
     server.wait_events([e])
 
@@ -58,8 +62,12 @@ def test_prefix_wildcard(wildcard_config, monitored_dir, server):
 
     # TODO: host_path is empty because wildcard patterns don't include the parent
     # directory, so the parent inode isn't tracked for path construction
-    e = Event(process=process, event_type=EventType.CREATION,
-              file=test_log, host_path='')
+    e = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=test_log,
+        host_path='',
+    )
 
     server.wait_events([e])
 
@@ -86,10 +94,18 @@ def test_recursive_wildcard(wildcard_config, monitored_dir, server):
     # TODO: host_path is empty because wildcard patterns don't include the parent
     # directory, so the parent inode isn't tracked for path construction
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=root_txt, host_path=''),
-        Event(process=process, event_type=EventType.CREATION,
-              file=nested_txt, host_path=''),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=root_txt,
+            host_path='',
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=nested_txt,
+            host_path='',
+        ),
     ]
 
     server.wait_events(events)
@@ -104,8 +120,12 @@ def test_nonrecursive_wildcard(wildcard_config, monitored_dir, server):
 
     # TODO: host_path is empty because wildcard patterns don't include the parent
     # directory, so the parent inode isn't tracked for path construction
-    e = Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path='')
+    e = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=fut,
+        host_path='',
+    )
 
     server.wait_events([e])
 
@@ -129,10 +149,18 @@ def test_multiple_patterns(wildcard_config, monitored_dir, server):
     # TODO: host_path is empty because wildcard patterns don't include the parent
     # directory, so the parent inode isn't tracked for path construction
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=txt_file, host_path=''),
-        Event(process=process, event_type=EventType.CREATION,
-              file=log_file, host_path=''),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=txt_file,
+            host_path='',
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=log_file,
+            host_path='',
+        ),
     ]
 
     server.wait_events(events)

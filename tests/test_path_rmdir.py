@@ -17,7 +17,11 @@ def get_inode_removed_count(fact_config):
     Returns:
         The current value of host_scanner_scan{label="InodeRemoved"} metric.
     """
-    value = get_metric_value(fact_config, "host_scanner_scan", {"label": "InodeRemoved"})
+    value = get_metric_value(
+        fact_config,
+        'host_scanner_scan',
+        {'label': 'InodeRemoved'},
+    )
     return int(value) if value is not None else 0
 
 
@@ -31,8 +35,16 @@ def get_kernel_rmdir_processed(fact_config):
     Returns:
         The difference between Total and Ignored kernel_path_rmdir_events.
     """
-    total_str = get_metric_value(fact_config, "kernel_path_rmdir_events", {"label": "Total"})
-    ignored_str = get_metric_value(fact_config, "kernel_path_rmdir_events", {"label": "Ignored"})
+    total_str = get_metric_value(
+        fact_config,
+        'kernel_path_rmdir_events',
+        {'label': 'Total'},
+    )
+    ignored_str = get_metric_value(
+        fact_config,
+        'kernel_path_rmdir_events',
+        {'label': 'Ignored'},
+    )
 
     total = int(total_str) if total_str is not None else 0
     ignored = int(ignored_str) if ignored_str is not None else 0
@@ -40,12 +52,15 @@ def get_kernel_rmdir_processed(fact_config):
     return total - ignored
 
 
-@pytest.mark.parametrize("dirname", [
-    pytest.param('testdir', id='ASCII'),
-    pytest.param('café', id='French'),
-    pytest.param('файл', id='Cyrillic'),
-    pytest.param('日本語', id='Japanese'),
-])
+@pytest.mark.parametrize(
+    'dirname',
+    [
+        pytest.param('testdir', id='ASCII'),
+        pytest.param('café', id='French'),
+        pytest.param('файл', id='Cyrillic'),
+        pytest.param('日本語', id='Japanese'),
+    ],
+)
 def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
     """
     Tests that removing an empty directory properly cleans up inode tracking.
@@ -79,8 +94,12 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
         f.write('test content')
 
     # File creation should be tracked
-    e1 = Event(process=process, event_type=EventType.CREATION,
-              file=test_file, host_path=test_file)
+    e1 = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=test_file,
+        host_path=test_file,
+    )
 
     server.wait_events([e1])
 
@@ -88,16 +107,21 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
     os.remove(test_file)
 
     # File deletion should be tracked
-    e2 = Event(process=process, event_type=EventType.UNLINK,
-              file=test_file, host_path=test_file)
+    e2 = Event(
+        process=process,
+        event_type=EventType.UNLINK,
+        file=test_file,
+        host_path=test_file,
+    )
 
     server.wait_events([e2])
 
     # Check that file deletion incremented the metric by exactly 1
     count_after_file = get_inode_removed_count(fact_config)
     file_delta = count_after_file - initial_inode_removed
-    assert file_delta == 1, \
-        f"Expected exactly 1 inode removed for file deletion, got {file_delta}"
+    assert file_delta == 1, (
+        f'Expected exactly 1 inode removed for file deletion, got {file_delta}'
+    )
 
     # Now remove the empty directory with rmdir
     os.rmdir(test_dir)
@@ -109,10 +133,12 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
     inode_delta = final_inode_removed - initial_inode_removed
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
 
-    assert inode_delta == 2, \
-        f"Expected exactly 2 inodes removed (1 file + 1 dir), got {inode_delta}"
-    assert kernel_delta == 1, \
-        f"Expected exactly 1 kernel rmdir event processed, got {kernel_delta}"
+    assert inode_delta == 2, (
+        f'Expected exactly 2 inodes removed (1 file + 1 dir), got {inode_delta}'
+    )
+    assert kernel_delta == 1, (
+        f'Expected exactly 1 kernel rmdir event processed, got {kernel_delta}'
+    )
 
 
 def test_rmdir_recursive(monitored_dir, server, fact_config):
@@ -158,12 +184,24 @@ def test_rmdir_recursive(monitored_dir, server, fact_config):
 
     # All files should be tracked
     creation_events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=file1, host_path=file1),
-        Event(process=process, event_type=EventType.CREATION,
-              file=file2, host_path=file2),
-        Event(process=process, event_type=EventType.CREATION,
-              file=file3, host_path=file3),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=file1,
+            host_path=file1,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=file2,
+            host_path=file2,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=file3,
+            host_path=file3,
+        ),
     ]
 
     server.wait_events(creation_events)
@@ -175,12 +213,24 @@ def test_rmdir_recursive(monitored_dir, server, fact_config):
 
     # Wait for file deletion events (rm -rf deletes depth-first)
     unlink_events = [
-        Event(process=process, event_type=EventType.UNLINK,
-              file=file1, host_path=file1),
-        Event(process=process, event_type=EventType.UNLINK,
-              file=file2, host_path=file2),
-        Event(process=process, event_type=EventType.UNLINK,
-              file=file3, host_path=file3),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=file1,
+            host_path=file1,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=file2,
+            host_path=file2,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=file3,
+            host_path=file3,
+        ),
     ]
 
     server.wait_events(unlink_events)
@@ -192,10 +242,12 @@ def test_rmdir_recursive(monitored_dir, server, fact_config):
     inode_delta = final_inode_removed - initial_inode_removed
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
 
-    assert inode_delta == 6, \
-        f"Expected exactly 6 inodes removed (3 files + 3 dirs), got {inode_delta}"
-    assert kernel_delta == 3, \
-        f"Expected exactly 3 kernel rmdir events processed, got {kernel_delta}"
+    assert inode_delta == 6, (
+        f'Expected exactly 6 inodes removed (3 files + 3 dirs), got {inode_delta}'
+    )
+    assert kernel_delta == 3, (
+        f'Expected exactly 3 kernel rmdir events processed, got {kernel_delta}'
+    )
 
 
 def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
@@ -230,10 +282,12 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     # Metrics should not have changed
     inode_after_ignored = get_inode_removed_count(fact_config)
     kernel_after_ignored = get_kernel_rmdir_processed(fact_config)
-    assert inode_after_ignored == initial_inode_removed, \
-        f"Ignored path operations should not increment inode_removed metric"
-    assert kernel_after_ignored == initial_kernel_rmdir, \
-        f"Ignored path operations should not increment kernel_rmdir_processed metric"
+    assert inode_after_ignored == initial_inode_removed, (
+        f'Ignored path operations should not increment inode_removed metric'
+    )
+    assert kernel_after_ignored == initial_kernel_rmdir, (
+        f'Ignored path operations should not increment kernel_rmdir_processed metric'
+    )
 
     # Create and remove directory in monitored path
     monitored_subdir = os.path.join(monitored_dir, 'monitored_subdir')
@@ -243,8 +297,12 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
         f.write('monitored')
 
     # Monitored file creation should generate an event
-    e1 = Event(process=process, event_type=EventType.CREATION,
-              file=monitored_file, host_path=monitored_file)
+    e1 = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=monitored_file,
+        host_path=monitored_file,
+    )
 
     server.wait_events([e1])
 
@@ -253,8 +311,12 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     os.rmdir(monitored_subdir)
 
     deletion_events = [
-        Event(process=process, event_type=EventType.UNLINK,
-              file=monitored_file, host_path=monitored_file),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=monitored_file,
+            host_path=monitored_file,
+        ),
     ]
 
     server.wait_events(deletion_events)
@@ -266,10 +328,12 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     inode_delta = final_inode_removed - initial_inode_removed
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
 
-    assert inode_delta == 2, \
-        f"Expected exactly 2 inodes removed from monitored path, got {inode_delta}"
-    assert kernel_delta == 1, \
-        f"Expected exactly 1 kernel rmdir event processed, got {kernel_delta}"
+    assert inode_delta == 2, (
+        f'Expected exactly 2 inodes removed from monitored path, got {inode_delta}'
+    )
+    assert kernel_delta == 1, (
+        f'Expected exactly 1 kernel rmdir event processed, got {kernel_delta}'
+    )
 
 
 def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
@@ -300,8 +364,12 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
         f.write('content')
 
     # Verify file creation is tracked
-    e1 = Event(process=process, event_type=EventType.CREATION,
-              file=test_file, host_path=test_file)
+    e1 = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=test_file,
+        host_path=test_file,
+    )
     server.wait_events([e1])
 
     # Create another file at the root level (parent directory)
@@ -309,8 +377,12 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
     with open(root_file, 'w') as f:
         f.write('root content')
 
-    e2 = Event(process=process, event_type=EventType.CREATION,
-              file=root_file, host_path=root_file)
+    e2 = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=root_file,
+        host_path=root_file,
+    )
     server.wait_events([e2])
 
     # Remove the subdirectory and its contents
@@ -319,8 +391,12 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
 
     # Verify file deletion is tracked
     deletion_events = [
-        Event(process=process, event_type=EventType.UNLINK,
-              file=test_file, host_path=test_file),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=test_file,
+            host_path=test_file,
+        ),
     ]
     server.wait_events(deletion_events)
 
@@ -331,10 +407,12 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
     inode_delta_subdir = inode_after_subdir - initial_inode_removed
     kernel_delta_subdir = kernel_after_subdir - initial_kernel_rmdir
 
-    assert inode_delta_subdir == 2, \
-        f"Expected 2 inodes removed (file + subdir), got {inode_delta_subdir}"
-    assert kernel_delta_subdir == 1, \
-        f"Expected 1 kernel rmdir event processed, got {kernel_delta_subdir}"
+    assert inode_delta_subdir == 2, (
+        f'Expected 2 inodes removed (file + subdir), got {inode_delta_subdir}'
+    )
+    assert kernel_delta_subdir == 1, (
+        f'Expected 1 kernel rmdir event processed, got {kernel_delta_subdir}'
+    )
 
     # Create a NEW file in the parent directory (monitored_dir)
     # This tests that removing the subdirectory didn't corrupt
@@ -343,15 +421,23 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
     with open(new_file, 'w') as f:
         f.write('new content')
 
-    e4 = Event(process=process, event_type=EventType.CREATION,
-              file=new_file, host_path=new_file)
+    e4 = Event(
+        process=process,
+        event_type=EventType.CREATION,
+        file=new_file,
+        host_path=new_file,
+    )
     server.wait_events([e4])
 
     # Remove the new file to clean up
     os.remove(new_file)
 
-    e5 = Event(process=process, event_type=EventType.UNLINK,
-              file=new_file, host_path=new_file)
+    e5 = Event(
+        process=process,
+        event_type=EventType.UNLINK,
+        file=new_file,
+        host_path=new_file,
+    )
     server.wait_events([e5])
 
     # Final metric check: should be 3 total inodes (test_file, subdir, new_file)
@@ -362,7 +448,9 @@ def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
     inode_total_delta = final_inode_removed - initial_inode_removed
     kernel_total_delta = final_kernel_rmdir - initial_kernel_rmdir
 
-    assert inode_total_delta == 3, \
-        f"Expected 3 inodes removed total, got {inode_total_delta}"
-    assert kernel_total_delta == 1, \
-        f"Expected 1 kernel rmdir event total, got {kernel_total_delta}"
+    assert inode_total_delta == 3, (
+        f'Expected 3 inodes removed total, got {inode_total_delta}'
+    )
+    assert kernel_total_delta == 1, (
+        f'Expected 1 kernel rmdir event total, got {kernel_total_delta}'
+    )

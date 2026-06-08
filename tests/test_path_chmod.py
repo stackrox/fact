@@ -7,14 +7,17 @@ from utils import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
 
 
-@pytest.mark.parametrize("filename", [
-    'chmod.txt',
-    'café.txt',
-    'файл.txt',
-    '测试.txt',
-    '🔒secure.txt',
-    b'perm\xff\xfe.txt',
-])
+@pytest.mark.parametrize(
+    'filename',
+    [
+        'chmod.txt',
+        'café.txt',
+        'файл.txt',
+        '测试.txt',
+        '🔒secure.txt',
+        b'perm\xff\xfe.txt',
+    ],
+)
 def test_chmod(monitored_dir, server, filename):
     """
     Tests changing permissions on a file and verifies the corresponding
@@ -40,10 +43,19 @@ def test_chmod(monitored_dir, server, filename):
     process = Process.from_proc()
     # We expect both CREATION (from file creation) and PERMISSION (from chmod)
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=fut),
-        Event(process=process, event_type=EventType.PERMISSION,
-              file=fut, host_path=fut, mode=mode),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path=fut,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.PERMISSION,
+            file=fut,
+            host_path=fut,
+            mode=mode,
+        ),
     ]
 
     server.wait_events(events)
@@ -67,12 +79,23 @@ def test_multiple(monitored_dir, server):
             f.write('This is a test')
         os.chmod(fut, mode)
 
-        events.extend([
-            Event(process=process, event_type=EventType.CREATION,
-                  file=fut, host_path=fut),
-            Event(process=process, event_type=EventType.PERMISSION,
-                  file=fut, host_path=fut, mode=mode),
-        ])
+        events.extend(
+            [
+                Event(
+                    process=process,
+                    event_type=EventType.CREATION,
+                    file=fut,
+                    host_path=fut,
+                ),
+                Event(
+                    process=process,
+                    event_type=EventType.PERMISSION,
+                    file=fut,
+                    host_path=fut,
+                    mode=mode,
+                ),
+            ],
+        )
 
     server.wait_events(events)
 
@@ -98,8 +121,13 @@ def test_ignored(test_file, ignored_dir, server):
     # File Under Test
     os.chmod(test_file, mode)
 
-    e = Event(process=process, event_type=EventType.PERMISSION,
-              file=test_file, host_path=test_file, mode=mode)
+    e = Event(
+        process=process,
+        event_type=EventType.PERMISSION,
+        file=test_file,
+        host_path=test_file,
+        mode=mode,
+    )
 
     server.wait_events([e])
 
@@ -131,10 +159,20 @@ def test_external_process(monitored_dir, server):
     process = Process.from_proc(proc.pid)
 
     events = [
-        Event(process=process, event_type=EventType.CREATION,
-              file=fut, host_path=fut, mode=mode),
-        Event(process=process, event_type=EventType.PERMISSION,
-              file=fut, host_path=fut, mode=mode),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path=fut,
+            mode=mode,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.PERMISSION,
+            file=fut,
+            host_path=fut,
+            mode=mode,
+        ),
     ]
 
     try:
@@ -173,10 +211,19 @@ def test_overlay(test_container, server):
         container_id=test_container.id[:12],
     )
     events = [
-        Event(process=touch, event_type=EventType.CREATION,
-              file=fut, host_path=''),
-        Event(process=chmod, event_type=EventType.PERMISSION,
-              file=fut, host_path='', mode=int(mode, 8)),
+        Event(
+            process=touch,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
+        Event(
+            process=chmod,
+            event_type=EventType.PERMISSION,
+            file=fut,
+            host_path='',
+            mode=int(mode, 8),
+        ),
     ]
 
     server.wait_events(events)
@@ -213,10 +260,19 @@ def test_mounted_dir(test_container, ignored_dir, server):
     )
     # ignored_dir is not monitored, so host_path should be blank
     events = [
-        Event(process=touch, event_type=EventType.CREATION, file=fut,
-              host_path=''),
-        Event(process=chmod, event_type=EventType.PERMISSION, file=fut,
-              host_path='', mode=int(mode, 8)),
+        Event(
+            process=touch,
+            event_type=EventType.CREATION,
+            file=fut,
+            host_path='',
+        ),
+        Event(
+            process=chmod,
+            event_type=EventType.PERMISSION,
+            file=fut,
+            host_path='',
+            mode=int(mode, 8),
+        ),
     ]
 
     server.wait_events(events)
@@ -247,7 +303,12 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
         name='chmod',
         container_id=test_container.id[:12],
     )
-    event = Event(process=process, event_type=EventType.PERMISSION,
-                  file=fut, host_path=test_file, mode=int(mode, 8))
+    event = Event(
+        process=process,
+        event_type=EventType.PERMISSION,
+        file=fut,
+        host_path=test_file,
+        mode=int(mode, 8),
+    )
 
     server.wait_events([event])
