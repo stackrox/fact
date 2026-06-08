@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 import os
 
+import docker.models.containers
 import pytest
 
-from utils import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
+from server import FileActivityService
+from utils import join_path_with_filename, path_to_string
 
 
 @pytest.mark.parametrize(
@@ -17,7 +21,11 @@ from event import Event, EventType, Process
         pytest.param(b'test\xff\xfe.txt', id='Invalid'),
     ],
 )
-def test_rename(monitored_dir, server, filename):
+def test_rename(
+    monitored_dir: str,
+    server: FileActivityService,
+    filename: str | bytes,
+):
     """
     Tests the renaming of a file and verifies that the corresponding
     events are captured by the server.
@@ -68,7 +76,11 @@ def test_rename(monitored_dir, server, filename):
     )
 
 
-def test_ignored(monitored_dir, ignored_dir, server):
+def test_ignored(
+    monitored_dir: str,
+    ignored_dir: str,
+    server: FileActivityService,
+):
     """
     Tests that rename events on ignored files are not captured by the
     server.
@@ -122,7 +134,9 @@ def test_ignored(monitored_dir, ignored_dir, server):
     )
 
 
-def test_rename_dir(monitored_dir, ignored_dir, server):
+def test_rename_dir(
+    monitored_dir: str, ignored_dir: str, server: FileActivityService
+):
     """
     Test renaming a directory is caught
 
@@ -139,7 +153,9 @@ def test_rename_dir(monitored_dir, ignored_dir, server):
         server: The server instance to communicate with.
     """
 
-    def touch_test_files(directory, process=None) -> list[Event]:
+    def touch_test_files(
+        directory: str, process: Process | None = None
+    ) -> list[Event]:
         events = []
         for i in range(3):
             with open(os.path.join(directory, f'{i}.txt'), 'w') as f:
@@ -221,7 +237,7 @@ def test_rename_dir(monitored_dir, ignored_dir, server):
 
 
 @pytest.mark.parametrize(
-    'from_monitored,to_monitored',
+    ('from_monitored', 'to_monitored'),
     [
         pytest.param(True, True, id='both_monitored'),
         pytest.param(False, True, id='target_monitored'),
@@ -229,11 +245,11 @@ def test_rename_dir(monitored_dir, ignored_dir, server):
     ],
 )
 def test_rename_overwrite(
-    from_monitored,
-    to_monitored,
-    monitored_dir,
-    ignored_dir,
-    server,
+    from_monitored: bool,
+    to_monitored: bool,
+    monitored_dir: str,
+    ignored_dir: str,
+    server: FileActivityService,
 ):
     events = []
     p = Process.from_proc()
@@ -296,7 +312,11 @@ def test_rename_overwrite(
     server.wait_events(events)
 
 
-def test_overlay(test_container, server):
+def test_overlay(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
     new_fut = '/container-dir/rename.txt'
@@ -337,7 +357,12 @@ def test_overlay(test_container, server):
     server.wait_events(events)
 
 
-def test_mounted_dir(test_container, ignored_dir, server):
+def test_mounted_dir(
+    test_container: docker.models.containers.Container,
+    ignored_dir: str,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/mounted/test.txt'
     new_fut = '/mounted/rename.txt'
@@ -379,7 +404,11 @@ def test_mounted_dir(test_container, ignored_dir, server):
     server.wait_events(events)
 
 
-def test_cross_mountpoints(test_container, monitored_dir, server):
+def test_cross_mountpoints(
+    test_container: docker.models.containers.Container,
+    monitored_dir: str,
+    server: FileActivityService,
+):
     """
     Attempt to rename files/directories across mountpoints
 
@@ -388,6 +417,7 @@ def test_cross_mountpoints(test_container, monitored_dir, server):
     defintely not triggered when an inode crosses a mount point, so it
     doesn't fit but it kind of does? ¯\\_(ツ)_/¯
     """
+    assert test_container.id is not None
     mounted_file = '/unmonitored/test.txt'
     host_path = os.path.join(monitored_dir, 'test.txt')
     ovfs_file = '/container-dir/test.txt'

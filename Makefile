@@ -40,6 +40,10 @@ clean:
 	rm -f THIRD_PARTY_LICENSES.html
 	rm -f codecov.json
 
+lint:
+	cargo clippy --all-targets --all-features -- -D warnings
+	make -C tests lint
+
 format-check:
 	cargo fmt --check
 	make -C fact-ebpf format-check
@@ -50,4 +54,4 @@ format:
 	make -C fact-ebpf format
 	ruff format tests/
 
-.PHONY: tag mock-server integration-tests image image-name licenses coverage clean
+.PHONY: tag mock-server integration-tests image image-name licenses coverage lint clean

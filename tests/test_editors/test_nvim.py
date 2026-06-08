@@ -1,9 +1,17 @@
-from event import Event, EventType, Process
+from __future__ import annotations
 
+import docker.models.containers
+
+from event import Event, EventType, Process
+from server import FileActivityService
 from test_editors.commons import get_vi_test_file
 
 
-def test_new_file(editor_container, server):
+def test_new_file(
+    editor_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert editor_container.id is not None
     fut = '/mounted/test.txt'
     cmd = f"nvim {fut} '+:normal iThis is a test<CR>' -c x"
 
@@ -27,7 +35,11 @@ def test_new_file(editor_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file(editor_container, server):
+def test_open_file(
+    editor_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert editor_container.id is not None
     fut = '/mounted/test.txt'
     fut_backup = f'{fut}~'
     cmd = f"nvim {fut} '+:normal iThis is a test<CR>' -c x"
@@ -111,7 +123,11 @@ def test_open_file(editor_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_new_file_ovfs(editor_container, server):
+def test_new_file_ovfs(
+    editor_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert editor_container.id is not None
     fut = '/container-dir/test.txt'
     cmd = f"nvim {fut} '+:normal iThis is a test<CR>' -c x"
 
@@ -135,7 +151,11 @@ def test_new_file_ovfs(editor_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file_ovfs(editor_container, server):
+def test_open_file_ovfs(
+    editor_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert editor_container.id is not None
     fut = '/container-dir/test.txt'
     fut_backup = f'{fut}~'
     cmd = f"nvim {fut} '+:normal iThis is a test<CR>' -c x"

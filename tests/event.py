@@ -1,12 +1,12 @@
 import os
-from re import Pattern
 import string
 from enum import Enum
+from re import Pattern
 from typing import Any, override
 
+import utils
 from internalapi.sensor.collector_pb2 import ProcessSignal
 from internalapi.sensor.sfa_pb2 import FileActivity
-import utils
 
 
 def extract_container_id(cgroup: str) -> str:
@@ -65,12 +65,12 @@ class Process:
 
     @classmethod
     def from_proc(cls, pid: int | None = None):
-        pid: int = pid if pid is not None else os.getpid()
+        pid = pid if pid is not None else os.getpid()
         proc_dir = os.path.join('/proc', str(pid))
 
         uid = 0
         gid = 0
-        with open(os.path.join(proc_dir, 'status'), 'r') as f:
+        with open(os.path.join(proc_dir, 'status')) as f:
 
             def get_id(line: str, wanted_id: str) -> int | None:
                 if line.startswith(f'{wanted_id}:'):
@@ -94,13 +94,13 @@ class Process:
             ]
         args = utils.rust_style_join(args)
 
-        with open(os.path.join(proc_dir, 'comm'), 'r') as f:
+        with open(os.path.join(proc_dir, 'comm')) as f:
             name = f.read().strip()
 
-        with open(os.path.join(proc_dir, 'cgroup'), 'r') as f:
+        with open(os.path.join(proc_dir, 'cgroup')) as f:
             container_id = extract_container_id(f.read())
 
-        with open(os.path.join(proc_dir, 'loginuid'), 'r') as f:
+        with open(os.path.join(proc_dir, 'loginuid')) as f:
             loginuid = int(f.read())
 
         return Process(
@@ -271,7 +271,7 @@ class Event:
         return self._old_host_path
 
     @classmethod
-    def _diff_field(cls, diff, name, expected, actual):
+    def _diff_field(cls, diff: dict, name: str, expected: Any, actual: Any):
         if expected != actual:
             diff[name] = {
                 'expected': expected,
@@ -281,9 +281,9 @@ class Event:
     @classmethod
     def _diff_path(
         cls,
-        diff,
+        diff: dict,
         name: str,
-        expected: str | Pattern[str],
+        expected: str | Pattern[str] | None,
         actual: str,
     ):
         """
@@ -353,7 +353,8 @@ class Event:
             return diff if diff else None
 
         # Compare file and host_path (common to all event types)
-        # All event types have .activity.path and .activity.host_path except they're accessed differently
+        # All event types have .activity.path and .activity.host_path
+        # accessed differently
         Event._diff_path(diff, 'file', self.file, event_field.activity.path)
         Event._diff_path(
             diff,
@@ -395,7 +396,10 @@ class Event:
             s += f', owner=(uid={self.owner_uid}, gid={self.owner_gid})'
 
         if self.event_type == EventType.RENAME:
-            s += f', old_file="{self.old_file}", old_host_path="{self.old_host_path}"'
+            s += (
+                f', old_file="{self.old_file}"'
+                f', old_host_path="{self.old_host_path}"'
+            )
 
         s += ')'
 

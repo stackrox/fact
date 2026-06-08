@@ -1,0 +1,16 @@
+line-length = 80
+
+[lint]
+select = [
+    "F",   # Pyflakes: unused imports, undefined names
+    "E",   # pycodestyle: style errors, line length
+    "I",   # isort: import sorting
+    "UP",  # pyupgrade: modernize syntax for newer Python
+    "B",   # flake8-bugbear: common bug patterns
+    "SIM", # flake8-simplify: unnecessary complexity
+    "PT",  # flake8-pytest-style: pytest best practices
+    "RUF", # Ruff-specific rules
+]
+
+[format]
+quote-style = "single"

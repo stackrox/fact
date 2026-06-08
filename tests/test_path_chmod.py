@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import multiprocessing as mp
 import os
+from multiprocessing.synchronize import Event as MpEvent
 
+import docker.models.containers
 import pytest
 
-from utils import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
+from server import FileActivityService
+from utils import join_path_with_filename, path_to_string
 
 
 @pytest.mark.parametrize(
@@ -18,7 +23,11 @@ from event import Event, EventType, Process
         b'perm\xff\xfe.txt',
     ],
 )
-def test_chmod(monitored_dir, server, filename):
+def test_chmod(
+    monitored_dir: str,
+    server: FileActivityService,
+    filename: str | bytes,
+):
     """
     Tests changing permissions on a file and verifies the corresponding
     event is captured by the server
@@ -61,7 +70,7 @@ def test_chmod(monitored_dir, server, filename):
     server.wait_events(events)
 
 
-def test_multiple(monitored_dir, server):
+def test_multiple(monitored_dir: str, server: FileActivityService):
     """
     Tests modifying permissions on multiple files.
 
@@ -100,7 +109,7 @@ def test_multiple(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_ignored(test_file, ignored_dir, server):
+def test_ignored(test_file: str, ignored_dir: str, server: FileActivityService):
     """
     Tests that permission events on ignored files are not captured.
 
@@ -132,7 +141,7 @@ def test_ignored(test_file, ignored_dir, server):
     server.wait_events([e])
 
 
-def do_test(fut: str, mode: int, stop_event: mp.Event):
+def do_test(fut: str, mode: int, stop_event: MpEvent):
     with open(fut, 'w') as f:
         f.write('This is a test')
     os.chmod(fut, mode)
@@ -141,7 +150,7 @@ def do_test(fut: str, mode: int, stop_event: mp.Event):
     stop_event.wait()
 
 
-def test_external_process(monitored_dir, server):
+def test_external_process(monitored_dir: str, server: FileActivityService):
     """
     Tests permission change of a file by an external process and
     verifies that the corresponding event is captured by the server.
@@ -182,7 +191,10 @@ def test_external_process(monitored_dir, server):
         proc.join(1)
 
 
-def test_overlay(test_container, server):
+def test_overlay(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
     """
     Test permission changes on an overlayfs file (inside a container)
 
@@ -190,6 +202,7 @@ def test_overlay(test_container, server):
         test_container: A container for running commands in.
         server: The server instance to communicate with.
     """
+    assert test_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
     mode = '666'
@@ -229,15 +242,21 @@ def test_overlay(test_container, server):
     server.wait_events(events)
 
 
-def test_mounted_dir(test_container, ignored_dir, server):
+def test_mounted_dir(
+    test_container: docker.models.containers.Container,
+    ignored_dir: str,
+    server: FileActivityService,
+):
     """
     Test permission changes on a file bind mounted into a container
 
     Args:
         test_container: A container for running commands in.
-        ignored_dir: This directory is ignored on the host, and mounted to the container.
+        ignored_dir: This directory is ignored on the host,
+            and mounted to the container.
         server: The server instance to communicate with.
     """
+    assert test_container.id is not None
     # File Under Test
     fut = '/mounted/test.txt'
     mode = '666'
@@ -278,7 +297,11 @@ def test_mounted_dir(test_container, ignored_dir, server):
     server.wait_events(events)
 
 
-def test_unmonitored_mounted_dir(test_container, test_file, server):
+def test_unmonitored_mounted_dir(
+    test_container: docker.models.containers.Container,
+    test_file: str,
+    server: FileActivityService,
+):
     """
     Test permission changes on a file bind mounted to a container and
     monitored on the host.
@@ -288,6 +311,7 @@ def test_unmonitored_mounted_dir(test_container, test_file, server):
         test_file: File monitored on the host, mounted to the container.
         server: The server instance to communicate with.
     """
+    assert test_container.id is not None
     # File Under Test
     # The path corresponds to the container, `test_file` is the path on
     # host. Events on this path will trigger via inode tracking.

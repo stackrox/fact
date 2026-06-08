@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import os
+
+import docker
+import docker.models.containers
+import docker.models.images
+import pytest
 
 from conftest import dump_logs
 from event import Event, EventType, Process
-
-import pytest
+from server import FileActivityService
 
 
 @pytest.fixture
-def build_self_deleter(docker_client):
+def build_self_deleter(docker_client: docker.DockerClient):
     image, _ = docker_client.images.build(
         path='containers/self-deleter',
         tag='self-deleter:latest',
@@ -18,11 +24,11 @@ def build_self_deleter(docker_client):
 
 @pytest.fixture
 def run_self_deleter(
-    fact,
-    monitored_dir,
-    logs_dir,
-    docker_client,
-    build_self_deleter,
+    fact: docker.models.containers.Container,
+    monitored_dir: str,
+    logs_dir: str,
+    docker_client: docker.DockerClient,
+    build_self_deleter: docker.models.images.Image,
 ):
     image = build_self_deleter.tags[0]
     container = docker_client.containers.run(
@@ -47,10 +53,10 @@ def run_self_deleter(
 
 
 def test_d_path_sanitization(
-    monitored_dir,
-    server,
-    run_self_deleter,
-    docker_client,
+    monitored_dir: str,
+    server: FileActivityService,
+    run_self_deleter: docker.models.containers.Container,
+    docker_client: docker.DockerClient,
 ):
     """
     Ensure the sanitization of paths obtained by calling the bpf_d_path
@@ -62,6 +68,7 @@ def test_d_path_sanitization(
     host_path = os.path.join(monitored_dir, 'test.txt')
 
     container = run_self_deleter
+    assert container.id is not None
 
     process = Process.in_container(
         exe_path='/usr/local/bin/self-deleter',

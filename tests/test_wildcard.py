@@ -1,14 +1,22 @@
-from time import sleep
-import os
+from __future__ import annotations
 
+import os
+from time import sleep
+
+import docker.models.containers
 import pytest
 import yaml
 
 from event import Event, EventType, Process
+from server import FileActivityService
 
 
 @pytest.fixture
-def wildcard_config(fact, fact_config, monitored_dir):
+def wildcard_config(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+):
     config, config_file = fact_config
     config['paths'] = [
         f'{monitored_dir}/**/*.txt',
@@ -24,7 +32,11 @@ def wildcard_config(fact, fact_config, monitored_dir):
     return config, config_file
 
 
-def test_extension_wildcard(wildcard_config, monitored_dir, server):
+def test_extension_wildcard(
+    wildcard_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     process = Process.from_proc()
 
     # Should not match any pattern
@@ -36,8 +48,9 @@ def test_extension_wildcard(wildcard_config, monitored_dir, server):
     with open(txt_file, 'w') as f:
         f.write('This should be captured')
 
-    # TODO: host_path is empty because wildcard patterns don't include the parent
-    # directory, so the parent inode isn't tracked for path construction
+    # TODO: host_path is empty because wildcard patterns
+    # don't include the parent directory, so the parent
+    # inode isn't tracked for path construction
     e = Event(
         process=process,
         event_type=EventType.CREATION,
@@ -48,7 +61,11 @@ def test_extension_wildcard(wildcard_config, monitored_dir, server):
     server.wait_events([e])
 
 
-def test_prefix_wildcard(wildcard_config, monitored_dir, server):
+def test_prefix_wildcard(
+    wildcard_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     process = Process.from_proc()
 
     # Wrong prefix - should not match
@@ -60,8 +77,9 @@ def test_prefix_wildcard(wildcard_config, monitored_dir, server):
     with open(test_log, 'w') as f:
         f.write('This should be captured')
 
-    # TODO: host_path is empty because wildcard patterns don't include the parent
-    # directory, so the parent inode isn't tracked for path construction
+    # TODO: host_path is empty because wildcard patterns
+    # don't include the parent directory, so the parent
+    # inode isn't tracked for path construction
     e = Event(
         process=process,
         event_type=EventType.CREATION,
@@ -72,7 +90,11 @@ def test_prefix_wildcard(wildcard_config, monitored_dir, server):
     server.wait_events([e])
 
 
-def test_recursive_wildcard(wildcard_config, monitored_dir, server):
+def test_recursive_wildcard(
+    wildcard_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     process = Process.from_proc()
 
     nested_dir = os.path.join(monitored_dir, 'level1', 'level2')
@@ -91,8 +113,9 @@ def test_recursive_wildcard(wildcard_config, monitored_dir, server):
     with open(nested_txt, 'w') as f:
         f.write('Nested txt')
 
-    # TODO: host_path is empty because wildcard patterns don't include the parent
-    # directory, so the parent inode isn't tracked for path construction
+    # TODO: host_path is empty because wildcard patterns
+    # don't include the parent directory, so the parent
+    # inode isn't tracked for path construction
     events = [
         Event(
             process=process,
@@ -111,15 +134,20 @@ def test_recursive_wildcard(wildcard_config, monitored_dir, server):
     server.wait_events(events)
 
 
-def test_nonrecursive_wildcard(wildcard_config, monitored_dir, server):
+def test_nonrecursive_wildcard(
+    wildcard_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     process = Process.from_proc()
 
     fut = os.path.join(monitored_dir, 'app.conf')
     with open(fut, 'w') as f:
         f.write('This should be captured')
 
-    # TODO: host_path is empty because wildcard patterns don't include the parent
-    # directory, so the parent inode isn't tracked for path construction
+    # TODO: host_path is empty because wildcard patterns
+    # don't include the parent directory, so the parent
+    # inode isn't tracked for path construction
     e = Event(
         process=process,
         event_type=EventType.CREATION,
@@ -130,7 +158,11 @@ def test_nonrecursive_wildcard(wildcard_config, monitored_dir, server):
     server.wait_events([e])
 
 
-def test_multiple_patterns(wildcard_config, monitored_dir, server):
+def test_multiple_patterns(
+    wildcard_config: tuple[dict, str],
+    monitored_dir: str,
+    server: FileActivityService,
+):
     process = Process.from_proc()
 
     # Matches no pattern
@@ -146,8 +178,9 @@ def test_multiple_patterns(wildcard_config, monitored_dir, server):
     with open(log_file, 'w') as f:
         f.write('Log file')
 
-    # TODO: host_path is empty because wildcard patterns don't include the parent
-    # directory, so the parent inode isn't tracked for path construction
+    # TODO: host_path is empty because wildcard patterns
+    # don't include the parent directory, so the parent
+    # inode isn't tracked for path construction
     events = [
         Event(
             process=process,

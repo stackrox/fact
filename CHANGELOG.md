@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* chore: add formatting and linting to integration test code (#783, #784)
 * feat: add code coverage with cargo-llvm-cov and Codecov upload (#745)
 
 ## 0.3.0

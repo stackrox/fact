@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import multiprocessing as mp
 import os
+from multiprocessing.synchronize import Event as MpEvent
 
-import docker
+import docker.models.containers
 import pytest
 
-from utils import join_path_with_filename, path_to_string
 from event import Event, EventType, Process
+from server import FileActivityService
+from utils import join_path_with_filename, path_to_string
 
 
 @pytest.mark.parametrize(
@@ -19,7 +23,11 @@ from event import Event, EventType, Process
         b'rm\xff\xfe.txt',
     ],
 )
-def test_remove(monitored_dir, server, filename):
+def test_remove(
+    monitored_dir: str,
+    server: FileActivityService,
+    filename: str | bytes,
+):
     """
     Tests the removal of a file and verifies the corresponding event is
     captured by the server.
@@ -27,7 +35,8 @@ def test_remove(monitored_dir, server, filename):
     Args:
         monitored_dir: Temporary directory path for creating the test file.
         server: The server instance to communicate with.
-        filename: Name of the file to create and remove (includes UTF-8 test cases).
+        filename: Name of the file to create and remove
+            (includes UTF-8 test cases).
     """
 
     # File under test
@@ -40,7 +49,8 @@ def test_remove(monitored_dir, server, filename):
     # Remove the file
     os.remove(fut)
 
-    # Convert test_file to string for the Event, replacing invalid UTF-8 with U+FFFD
+    # Convert test_file to string for the Event,
+    # replacing invalid UTF-8 with U+FFFD
     fut = path_to_string(fut)
 
     process = Process.from_proc()
@@ -63,7 +73,7 @@ def test_remove(monitored_dir, server, filename):
     server.wait_events(events)
 
 
-def test_multiple(monitored_dir, server):
+def test_multiple(monitored_dir: str, server: FileActivityService):
     """
     Tests the removal of multiple files and verifies the corresponding
     events are captured by the server.
@@ -102,7 +112,7 @@ def test_multiple(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_ignored(test_file, ignored_dir, server):
+def test_ignored(test_file: str, ignored_dir: str, server: FileActivityService):
     """
     Tests that unlink events on ignored files are not captured by the
     server.
@@ -133,7 +143,7 @@ def test_ignored(test_file, ignored_dir, server):
     server.wait_events([e])
 
 
-def do_test(fut: str, stop_event: mp.Event):
+def do_test(fut: str, stop_event: MpEvent):
     with open(fut, 'w') as f:
         f.write('This is a test')
     os.remove(fut)
@@ -142,7 +152,7 @@ def do_test(fut: str, stop_event: mp.Event):
     stop_event.wait()
 
 
-def test_external_process(monitored_dir, server):
+def test_external_process(monitored_dir: str, server: FileActivityService):
     """
     Tests the removal of a file by an external process and verifies that
     the corresponding event is captured by the server.
@@ -180,7 +190,11 @@ def test_external_process(monitored_dir, server):
         proc.join(1)
 
 
-def test_overlay(test_container, server):
+def test_overlay(
+    test_container: docker.models.containers.Container,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
 
@@ -218,7 +232,12 @@ def test_overlay(test_container, server):
     server.wait_events(events)
 
 
-def test_mounted_dir(test_container, ignored_dir, server):
+def test_mounted_dir(
+    test_container: docker.models.containers.Container,
+    ignored_dir: str,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/mounted/test.txt'
 
@@ -257,7 +276,12 @@ def test_mounted_dir(test_container, ignored_dir, server):
     server.wait_events(events)
 
 
-def test_unmonitored_mounted_dir(test_container, test_file, server):
+def test_unmonitored_mounted_dir(
+    test_container: docker.models.containers.Container,
+    test_file: str,
+    server: FileActivityService,
+):
+    assert test_container.id is not None
     # File Under Test
     fut = '/unmonitored/test.txt'
 

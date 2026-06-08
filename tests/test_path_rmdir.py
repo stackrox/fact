@@ -1,21 +1,26 @@
+from __future__ import annotations
+
 import os
 import shutil
 
 import pytest
 
 from event import Event, EventType, Process
+from server import FileActivityService
 from utils import get_metric_value
 
 
-def get_inode_removed_count(fact_config):
+def get_inode_removed_count(fact_config: tuple[dict, str]):
     """
     Query Prometheus metrics to get the count of removed inodes.
 
     Args:
-        fact_config: The fact configuration tuple (config dict, config file path).
+        fact_config: The fact configuration tuple
+            (config dict, config file path).
 
     Returns:
-        The current value of host_scanner_scan{label="InodeRemoved"} metric.
+        The current value of
+        host_scanner_scan{label="InodeRemoved"} metric.
     """
     value = get_metric_value(
         fact_config,
@@ -25,12 +30,14 @@ def get_inode_removed_count(fact_config):
     return int(value) if value is not None else 0
 
 
-def get_kernel_rmdir_processed(fact_config):
+def get_kernel_rmdir_processed(fact_config: tuple[dict, str]):
     """
-    Query Prometheus metrics to get the count of processed (non-ignored) rmdir events.
+    Query Prometheus metrics to get the count of processed
+    (non-ignored) rmdir events.
 
     Args:
-        fact_config: The fact configuration tuple (config dict, config file path).
+        fact_config: The fact configuration tuple
+            (config dict, config file path).
 
     Returns:
         The difference between Total and Ignored kernel_path_rmdir_events.
@@ -61,11 +68,17 @@ def get_kernel_rmdir_processed(fact_config):
         pytest.param('日本語', id='Japanese'),
     ],
 )
-def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
+def test_rmdir_empty(
+    monitored_dir: str,
+    server: FileActivityService,
+    fact_config: tuple[dict, str],
+    dirname: str,
+):
     """
     Tests that removing an empty directory properly cleans up inode tracking.
 
-    Scenario: File is removed first, leaving an empty directory, then rmdir is called.
+    Scenario: File is removed first, leaving an empty directory,
+    then rmdir is called.
 
     We use exact delta matching because:
     - Each test has an isolated monitored_dir
@@ -141,11 +154,17 @@ def test_rmdir_empty(monitored_dir, server, fact_config, dirname):
     )
 
 
-def test_rmdir_recursive(monitored_dir, server, fact_config):
+def test_rmdir_recursive(
+    monitored_dir: str,
+    server: FileActivityService,
+    fact_config: tuple[dict, str],
+):
     """
-    Tests that removing a directory tree recursively cleans up all inode tracking.
+    Tests that removing a directory tree recursively cleans up
+    all inode tracking.
 
-    Scenario: Directory with nested subdirectories and files is removed recursively
+    Scenario: Directory with nested subdirectories and files is
+    removed recursively
     using the rm -rf command via subprocess.
 
     This tests that all inodes (both files and directories) are properly removed
@@ -243,16 +262,23 @@ def test_rmdir_recursive(monitored_dir, server, fact_config):
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
 
     assert inode_delta == 6, (
-        f'Expected exactly 6 inodes removed (3 files + 3 dirs), got {inode_delta}'
+        'Expected exactly 6 inodes removed '
+        f'(3 files + 3 dirs), got {inode_delta}'
     )
     assert kernel_delta == 3, (
         f'Expected exactly 3 kernel rmdir events processed, got {kernel_delta}'
     )
 
 
-def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
+def test_rmdir_ignored(
+    monitored_dir: str,
+    ignored_dir: str,
+    server: FileActivityService,
+    fact_config: tuple[dict, str],
+):
     """
-    Tests that directories removed outside monitored paths don't affect tracking.
+    Tests that directories removed outside monitored paths
+    don't affect tracking.
 
     Verifies that inode_removed metric only increments for monitored paths.
 
@@ -275,7 +301,8 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     with open(ignored_file, 'w') as f:
         f.write('ignored')
 
-    # Remove ignored file and directory - should NOT generate events or increment metrics
+    # Remove ignored file and directory - should NOT
+    # generate events or increment metrics
     os.remove(ignored_file)
     os.rmdir(ignored_subdir)
 
@@ -283,10 +310,11 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     inode_after_ignored = get_inode_removed_count(fact_config)
     kernel_after_ignored = get_kernel_rmdir_processed(fact_config)
     assert inode_after_ignored == initial_inode_removed, (
-        f'Ignored path operations should not increment inode_removed metric'
+        'Ignored path operations should not increment inode_removed metric'
     )
     assert kernel_after_ignored == initial_kernel_rmdir, (
-        f'Ignored path operations should not increment kernel_rmdir_processed metric'
+        'Ignored path operations should not increment '
+        'kernel_rmdir_processed metric'
     )
 
     # Create and remove directory in monitored path
@@ -329,19 +357,24 @@ def test_rmdir_ignored(monitored_dir, ignored_dir, server, fact_config):
     kernel_delta = final_kernel_rmdir - initial_kernel_rmdir
 
     assert inode_delta == 2, (
-        f'Expected exactly 2 inodes removed from monitored path, got {inode_delta}'
+        'Expected exactly 2 inodes removed '
+        f'from monitored path, got {inode_delta}'
     )
     assert kernel_delta == 1, (
         f'Expected exactly 1 kernel rmdir event processed, got {kernel_delta}'
     )
 
 
-def test_rmdir_with_parent_inode(monitored_dir, server, fact_config):
+def test_rmdir_with_parent_inode(
+    monitored_dir: str,
+    server: FileActivityService,
+    fact_config: tuple[dict, str],
+):
     """
     Tests that directory deletion properly handles parent inode relationships.
 
-    This is important because after deleting a subdirectory, the parent directory
-    should still be tracked and able to track new files created in it.
+    This is important because after deleting a subdirectory, the parent
+    directory should still be tracked and able to track new files created in it.
 
     Args:
         monitored_dir: Temporary directory path for creating test directories.

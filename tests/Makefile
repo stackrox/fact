@@ -20,9 +20,13 @@ grpc-gen: ${ARTIFACTS}
 		--grpc_python_out=${PYOUT} \
 		${ARTIFACTS}
 
+lint: grpc-gen
+	ruff check .
+	pyright .
+
 clean:
 	rm -rf logs/
 	rm -rf logs.tar.gz
 	rm -f results.xml
 
-.PHONY: all pytest grpc-gen clean
+.PHONY: all pytest grpc-gen lint clean

@@ -99,6 +99,23 @@ jobs:
         files: codecov.json
         token: ${{ secrets.CODECOV_TOKEN }}
 
+  lint-tests:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.14"
+    - name: Lint
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install ruff pyright
+        pip install -r tests/requirements.txt
+        make -C tests lint
+
   format-check:
     runs-on: ubuntu-24.04
     env:
