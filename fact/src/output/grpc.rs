@@ -121,10 +121,12 @@ impl Client {
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
-        let connector = self.get_connector().await?;
         loop {
+            // Re-read certs on each connection attempt so rotated certificates
+            // on disk are picked up on the next reconnect.
+            let connector = self.get_connector().await?;
             info!("Attempting to connect to gRPC server...");
-            let channel = match self.create_channel(connector.clone()).await {
+            let channel = match self.create_channel(connector).await {
                 Ok(channel) => channel,
                 Err(e) => {
                     debug!("Failed to connect to server: {e:?}");
