@@ -224,7 +224,7 @@ def fact(
 
     container_log = os.path.join(logs_dir, 'fact.log')
     # Wait for container to be ready
-    for _ in range(3):
+    for _ in range(5):
         try:
             resp = requests.get(
                 f'http://{config["endpoint"]["address"]}/health_check'
@@ -240,6 +240,8 @@ def fact(
         container.remove()
         pytest.fail('fact failed to start')
 
+    # fact seems to be taking a bit longer to startup, try adding a small delay
+    sleep(1)
     yield container
 
     # Capture prometheus metrics before stopping the container

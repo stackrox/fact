@@ -1,24 +1,20 @@
 #[cfg(all(test, feature = "bpf-test"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
-    ffi::{CStr, OsStr},
-    os::{raw::c_char, unix::ffi::OsStrExt},
+    ffi::OsStr,
+    os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
 };
 
 use globset::GlobSet;
 use serde::Serialize;
 
-use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t, monitored_t};
+use fact_ebpf::{inode_key_t, monitored_t};
 
-use crate::host_info;
 use process::Process;
 
+pub(crate) mod parser;
 pub(crate) mod process;
-
-fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
-    Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
-}
 
 /// Sanitize a buffer obtained from calling d_path kernel side.
 ///
@@ -37,9 +33,8 @@ fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
 /// However, we believe this would be a _very_ special case with a low
 /// chance that we will stumble upon it, so we purposely decide to
 /// ignore it.
-fn sanitize_d_path(s: &[c_char]) -> PathBuf {
-    let s = unsafe { CStr::from_ptr(s.as_ptr()) };
-    let p = Path::new(OsStr::from_bytes(s.to_bytes()));
+fn sanitize_d_path(s: &[u8]) -> PathBuf {
+    let p = Path::new(OsStr::from_bytes(s));
 
     // Take the file name of the path and remove the " (deleted)" suffix
     // if present.
@@ -300,30 +295,6 @@ impl Event {
     }
 }
 
-impl TryFrom<&event_t> for Event {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let process = Process::try_from(value.process)?;
-        let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(
-            value.type_,
-            value.filename,
-            value.inode,
-            value.parent_inode,
-            value.monitored,
-            value.__bindgen_anon_1,
-        )?;
-
-        Ok(Event {
-            timestamp,
-            hostname: host_info::get_hostname(),
-            process,
-            file,
-        })
-    }
-}
-
 impl From<Event> for fact_api::FileActivity {
     fn from(value: Event) -> Self {
         let file = fact_api::file_activity::File::from(value.file);
@@ -356,62 +327,6 @@ pub enum FileData {
     Chmod(ChmodFileData),
     Chown(ChownFileData),
     Rename(RenameFileData),
-}
-
-impl FileData {
-    pub fn new(
-        event_type: file_activity_type_t,
-        filename: [c_char; PATH_MAX as usize],
-        inode: inode_key_t,
-        parent_inode: inode_key_t,
-        monitored: monitored_t,
-        extra_data: fact_ebpf::event_t__bindgen_ty_1,
-    ) -> anyhow::Result<Self> {
-        let inner = BaseFileData::new(filename, inode, parent_inode, monitored)?;
-        let file = match event_type {
-            file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
-            file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
-            file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::MkDir(inner),
-            file_activity_type_t::DIR_ACTIVITY_UNLINK => FileData::RmDir(inner),
-            file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
-            file_activity_type_t::FILE_ACTIVITY_CHMOD => {
-                let data = ChmodFileData {
-                    inner,
-                    new_mode: unsafe { extra_data.chmod.new },
-                    old_mode: unsafe { extra_data.chmod.old },
-                };
-                FileData::Chmod(data)
-            }
-            file_activity_type_t::FILE_ACTIVITY_CHOWN => {
-                let data = ChownFileData {
-                    inner,
-                    new_uid: unsafe { extra_data.chown.new.uid },
-                    new_gid: unsafe { extra_data.chown.new.gid },
-                    old_uid: unsafe { extra_data.chown.old.uid },
-                    old_gid: unsafe { extra_data.chown.old.gid },
-                };
-                FileData::Chown(data)
-            }
-            file_activity_type_t::FILE_ACTIVITY_RENAME => {
-                let old_filename = unsafe { extra_data.rename.filename };
-                let old_inode = unsafe { extra_data.rename.inode };
-                let old_monitored = unsafe { extra_data.rename.monitored };
-                let data = RenameFileData {
-                    new: inner,
-                    old: BaseFileData::new(
-                        old_filename,
-                        old_inode,
-                        Default::default(),
-                        old_monitored,
-                    )?,
-                };
-                FileData::Rename(data)
-            }
-            invalid => unreachable!("Invalid event type: {invalid:?}"),
-        };
-
-        Ok(file)
-    }
 }
 
 impl From<FileData> for fact_api::file_activity::File {
@@ -481,13 +396,13 @@ pub struct BaseFileData {
 
 impl BaseFileData {
     pub fn new(
-        filename: [c_char; PATH_MAX as usize],
+        filename: &[u8],
         inode: inode_key_t,
         parent_inode: inode_key_t,
         monitored: monitored_t,
     ) -> anyhow::Result<Self> {
         Ok(BaseFileData {
-            filename: sanitize_d_path(&filename),
+            filename: sanitize_d_path(filename),
             host_file: PathBuf::new(), // this field is set by HostScanner
             inode,
             parent_inode,
@@ -596,75 +511,8 @@ impl PartialEq for RenameFileData {
 }
 
 #[cfg(test)]
-mod test_utils {
-    use std::os::raw::c_char;
-
-    /// Helper function to convert raw bytes to a c_char array for testing
-    pub fn bytes_to_c_char_array<const N: usize>(bytes: &[u8]) -> [c_char; N] {
-        let mut array = [0 as c_char; N];
-        let len = bytes.len().min(N - 1);
-        for (i, &byte) in bytes.iter().take(len).enumerate() {
-            array[i] = byte as c_char;
-        }
-        array
-    }
-
-    /// Helper function to convert a Rust string to a c_char array for testing
-    pub fn string_to_c_char_array<const N: usize>(s: &str) -> [c_char; N] {
-        bytes_to_c_char_array(s.as_bytes())
-    }
-}
-
-#[cfg(test)]
 mod tests {
-    use super::test_utils::*;
     use super::*;
-
-    #[test]
-    fn slice_to_string_valid_utf8() {
-        let tests = [
-            ("hello", "ASCII"),
-            ("café", "French"),
-            ("файл", "Cyrillic"),
-            ("测试文件", "Chinese"),
-            ("test🚀file", "Emoji"),
-            ("test-файл-测试-🐛.txt", "Mixed Unicode"),
-            ("ملف", "Arabic"),
-            ("קובץ", "Hebrew"),
-            ("ファイル", "Japanese"),
-        ];
-
-        for (input, description) in tests {
-            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
-            assert_eq!(
-                slice_to_string(&arr).unwrap(),
-                input,
-                "Failed for {}",
-                description
-            );
-        }
-    }
-
-    #[test]
-    fn slice_to_string_invalid_utf8() {
-        let tests: &[(&[u8], &str)] = &[
-            (&[0xFF, 0xFE, 0xFD], "Invalid continuation bytes"),
-            (b"test\xE2", "Truncated multi-byte sequence"),
-            (&[0xC0, 0x80], "Overlong encoding"),
-            (b"hello\x80world", "Invalid start byte"),
-            (&[0x80], "Lone continuation byte"),
-            (b"test\xFF\xFE", "Mixed valid and invalid bytes"),
-        ];
-
-        for (bytes, description) in tests {
-            let arr = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
-            assert!(
-                slice_to_string(&arr).is_err(),
-                "Should fail for {}",
-                description
-            );
-        }
-    }
 
     #[test]
     fn sanitize_d_path_valid_utf8() {
@@ -687,9 +535,8 @@ mod tests {
         ];
 
         for (input, expected, description) in tests {
-            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
             assert_eq!(
-                sanitize_d_path(&arr),
+                sanitize_d_path(input.as_bytes()),
                 PathBuf::from(expected),
                 "Failed for {}",
                 description
@@ -719,9 +566,8 @@ mod tests {
         ];
 
         for (input, expected, description) in tests {
-            let arr = string_to_c_char_array::<{ PATH_MAX as usize }>(input);
             assert_eq!(
-                sanitize_d_path(&arr),
+                sanitize_d_path(input.as_bytes()),
                 PathBuf::from(expected),
                 "Failed for {}",
                 description
@@ -757,8 +603,7 @@ mod tests {
         ];
 
         for (bytes, pattern, description) in tests {
-            let arr = bytes_to_c_char_array::<{ PATH_MAX as usize }>(bytes);
-            let result = sanitize_d_path(&arr);
+            let result = sanitize_d_path(bytes);
             let result_str = result.to_string_lossy();
 
             let re = Regex::new(pattern).expect("Invalid regex pattern");
@@ -774,9 +619,7 @@ mod tests {
 
     #[test]
     fn sanitize_d_path_invalid_utf8_with_deleted_suffix() {
-        let invalid_with_deleted =
-            bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/tmp/\xFF\xFE (deleted)");
-        let result = sanitize_d_path(&invalid_with_deleted);
+        let result = sanitize_d_path(b"/tmp/\xFF\xFE (deleted)");
         let result_str = result.to_string_lossy();
 
         assert!(result_str.contains("/tmp/"));

@@ -16,9 +16,14 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{config::BpfConfig, event::Event, host_info, metrics::EventCounter};
+use crate::{
+    config::BpfConfig,
+    event::{Event, parser::Parser},
+    host_info,
+    metrics::EventCounter,
+};
 
-use fact_ebpf::{LPM_SIZE_MAX, event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t};
+use fact_ebpf::{LPM_SIZE_MAX, inode_key_t, inode_value_t, metrics_t, path_prefix_t};
 
 mod checks;
 
@@ -227,8 +232,7 @@ impl Bpf {
                             .context("ringbuffer guard held while runtime is stopping")?;
                         let ringbuf = guard.get_inner_mut();
                         while let Some(event) = ringbuf.next() {
-                            let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
-                            let event = match Event::try_from(event) {
+                            let event = match Parser::from(&event).parse() {
                                 Ok(event) => {
                                     // If the event is monitored by parent, we need to check
                                     // its host path, but we don't have that context here,
