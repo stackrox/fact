@@ -16,6 +16,29 @@ pub mod reloader;
 #[cfg(test)]
 mod tests;
 
+fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
+    v.as_f64()
+        .or_else(|| v.as_i64().map(|i| i as f64))
+        .filter(|s| s.is_finite() && *s >= 0.0)
+        .map(Duration::from_secs_f64)
+}
+
+fn parse_duration_secs(s: &str) -> anyhow::Result<Duration> {
+    let f: f64 = s.parse()?;
+    if !f.is_finite() || f < 0.0 {
+        bail!("value must be a non-negative finite number, got {f}");
+    }
+    Ok(Duration::from_secs_f64(f))
+}
+
+fn parse_positive_duration_secs(s: &str) -> anyhow::Result<Duration> {
+    let d = parse_duration_secs(s)?;
+    if d.is_zero() {
+        bail!("value must be greater than zero");
+    }
+    Ok(d)
+}
+
 const CONFIG_FILES: [&str; 4] = [
     "/etc/stackrox/fact.yml",
     "/etc/stackrox/fact.yaml",
@@ -218,20 +241,11 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     config.hotreload = Some(hotreload);
                 }
                 "scan_interval" => {
-                    // scan_internal == 0 disables the scanner
-                    if let Some(scan_interval) = v.as_f64() {
-                        if scan_interval < 0.0 {
-                            bail!("invalid scan_interval: {scan_interval}");
-                        }
-                        config.scan_interval = Some(Duration::from_secs_f64(scan_interval));
-                    } else if let Some(scan_interval) = v.as_i64() {
-                        if scan_interval < 0 {
-                            bail!("invalid scan_interval: {scan_interval}");
-                        }
-                        config.scan_interval = Some(Duration::from_secs(scan_interval as u64))
-                    } else {
-                        bail!("scan_interval field has incorrect type: {v:?}");
-                    }
+                    // scan_interval == 0 disables the scanner
+                    config.scan_interval = Some(
+                        yaml_to_duration_secs(v)
+                            .with_context(|| format!("invalid scan_interval: {v:?}"))?,
+                    );
                 }
                 "rate_limit" => {
                     // rate_limit == 0 means unlimited (no throttling)
@@ -329,9 +343,66 @@ impl TryFrom<&yaml::Hash> for EndpointConfig {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct BackoffConfig {
+    initial: Option<Duration>,
+    max: Option<Duration>,
+}
+
+impl BackoffConfig {
+    fn update(&mut self, from: &BackoffConfig) {
+        if let Some(initial) = from.initial {
+            self.initial = Some(initial);
+        }
+        if let Some(max) = from.max {
+            self.max = Some(max);
+        }
+    }
+
+    pub fn initial(&self) -> Duration {
+        self.initial.unwrap_or(Duration::from_secs(1))
+    }
+
+    pub fn max(&self) -> Duration {
+        self.max.unwrap_or(Duration::from_secs(60))
+    }
+}
+
+impl TryFrom<&yaml::Hash> for BackoffConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
+        let mut backoff = BackoffConfig::default();
+        for (k, v) in value.iter() {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}");
+            };
+            match k {
+                "initial" => {
+                    backoff.initial = Some(
+                        yaml_to_duration_secs(v)
+                            .filter(|d| !d.is_zero())
+                            .with_context(|| format!("invalid grpc.backoff.initial: {v:?}"))?,
+                    );
+                }
+                "max" => {
+                    backoff.max = Some(
+                        yaml_to_duration_secs(v)
+                            .filter(|d| !d.is_zero())
+                            .with_context(|| format!("invalid grpc.backoff.max: {v:?}"))?,
+                    );
+                }
+                name => bail!("Invalid field 'grpc.backoff.{name}' with value: {v:?}"),
+            }
+        }
+        Ok(backoff)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct GrpcConfig {
     url: Option<String>,
     certs: Option<PathBuf>,
+    pub backoff: BackoffConfig,
 }
 
 impl GrpcConfig {
@@ -343,6 +414,8 @@ impl GrpcConfig {
         if let Some(certs) = from.certs.as_deref() {
             self.certs = Some(certs.to_owned());
         }
+
+        self.backoff.update(&from.backoff);
     }
 
     pub fn url(&self) -> Option<&str> {
@@ -376,6 +449,12 @@ impl TryFrom<&yaml::Hash> for GrpcConfig {
                         bail!("certs field has incorrect type: {v:?}");
                     };
                     grpc.certs = Some(PathBuf::from(certs));
+                }
+                "backoff" => {
+                    let Some(backoff) = v.as_hash() else {
+                        bail!("grpc.backoff section has incorrect type: {v:?}");
+                    };
+                    grpc.backoff = BackoffConfig::try_from(backoff)?;
                 }
                 name => bail!("Invalid field 'grpc.{name}' with value: {v:?}"),
             }
@@ -465,6 +544,18 @@ pub struct FactCli {
     #[arg(short, long, env = "FACT_CERTS")]
     certs: Option<PathBuf>,
 
+    /// Initial backoff delay in seconds for gRPC reconnection
+    ///
+    /// Default value is 1 second
+    #[arg(long, env = "FACT_GRPC_BACKOFF_INITIAL", value_parser = parse_positive_duration_secs)]
+    backoff_initial: Option<Duration>,
+
+    /// Maximum backoff delay in seconds for gRPC reconnection
+    ///
+    /// Default value is 60 seconds
+    #[arg(long, env = "FACT_GRPC_BACKOFF_MAX", value_parser = parse_positive_duration_secs)]
+    backoff_max: Option<Duration>,
+
     /// The port to bind for all exposed endpoints
     #[arg(long, short, env = "FACT_ENDPOINT_ADDRESS")]
     address: Option<SocketAddr>,
@@ -535,8 +626,8 @@ pub struct FactCli {
     /// The seconds can use a decimal point for fractions of seconds.
     ///
     /// Default value is 30 seconds
-    #[arg(long, short, env = "FACT_SCAN_INTERVAL")]
-    scan_interval: Option<f64>,
+    #[arg(long, short, env = "FACT_SCAN_INTERVAL", value_parser = parse_duration_secs)]
+    scan_interval: Option<Duration>,
 
     /// Maximum number of file events to allow per second
     ///
@@ -555,6 +646,10 @@ impl FactCli {
             grpc: GrpcConfig {
                 url: self.url.clone(),
                 certs: self.certs.clone(),
+                backoff: BackoffConfig {
+                    initial: self.backoff_initial,
+                    max: self.backoff_max,
+                },
             },
             endpoint: EndpointConfig {
                 address: self.address,
@@ -568,7 +663,7 @@ impl FactCli {
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),
             hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),
-            scan_interval: self.scan_interval.map(Duration::from_secs_f64),
+            scan_interval: self.scan_interval,
             rate_limit: self.rate_limit,
         }
     }

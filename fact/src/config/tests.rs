@@ -257,11 +257,66 @@ fn parsing() {
         ),
         (
             r#"
+            grpc:
+              backoff:
+                initial: 2
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(2)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: 30
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(30)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: 0.5
+                max: 120
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs_f64(0.5)),
+                        max: Some(Duration::from_secs(120)),
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
             paths:
             - /etc
             grpc:
               url: 'https://svc.sensor.stackrox:9090'
               certs: /etc/stackrox/certs
+              backoff:
+                initial: 0.5
+                max: 120
             endpoint:
               address: 0.0.0.0:8080
               expose_metrics: true
@@ -279,6 +334,10 @@ fn parsing() {
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs_f64(0.5)),
+                        max: Some(Duration::from_secs(120)),
+                    },
                 },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
@@ -345,6 +404,69 @@ paths:
               certs: true
             "#,
             "certs field has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff: true
+            "#,
+            "grpc.backoff section has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: true
+            "#,
+            "invalid grpc.backoff.initial: Boolean(true)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: true
+            "#,
+            "invalid grpc.backoff.max: Boolean(true)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: 0
+            "#,
+            "invalid grpc.backoff.initial: Integer(0)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: -1
+            "#,
+            "invalid grpc.backoff.initial: Integer(-1)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: 0
+            "#,
+            "invalid grpc.backoff.max: Integer(0)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: -5
+            "#,
+            "invalid grpc.backoff.max: Integer(-5)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                unknown: 4
+            "#,
+            "Invalid field 'grpc.backoff.unknown' with value: Integer(4)",
         ),
         (
             "endpoint: true",
@@ -483,10 +605,16 @@ paths:
         ),
         (
             "scan_interval: true",
-            "scan_interval field has incorrect type: Boolean(true)",
+            "invalid scan_interval: Boolean(true)",
         ),
-        ("scan_interval: -128", "invalid scan_interval: -128"),
-        ("scan_interval: -128.5", "invalid scan_interval: -128.5"),
+        (
+            "scan_interval: -128",
+            "invalid scan_interval: Integer(-128)",
+        ),
+        (
+            "scan_interval: -128.5",
+            "invalid scan_interval: Real(\"-128.5\")",
+        ),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
     for (input, expected) in tests {
@@ -653,6 +781,150 @@ fn update() {
             FactConfig {
                 grpc: GrpcConfig {
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: 5
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(5)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: 5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(2)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(5)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: 5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(5)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(5)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: 120
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(120)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: 120
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(30)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(120)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: 120
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(120)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(120)),
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1020,6 +1292,9 @@ fn update() {
             grpc:
               url: 'https://svc.sensor.stackrox:9090'
               certs: /etc/stackrox/certs
+              backoff:
+                initial: 0.5
+                max: 120
             endpoint:
               address: 127.0.0.1:8080
               expose_metrics: true
@@ -1037,6 +1312,10 @@ fn update() {
                 grpc: GrpcConfig {
                     url: Some(String::from("http://localhost")),
                     certs: Some(PathBuf::from("/etc/certs")),
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(15)),
+                        max: Some(Duration::from_secs(30)),
+                    },
                 },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
@@ -1058,6 +1337,10 @@ fn update() {
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs_f64(0.5)),
+                        max: Some(Duration::from_secs(120)),
+                    },
                 },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
@@ -1104,6 +1387,8 @@ fn defaults() {
     assert_eq!(config.bpf.ringbuf_size(), 8192);
     assert_eq!(config.bpf.inodes_max(), 65536);
     assert!(config.hotreload());
+    assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
+    assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
@@ -1227,6 +1512,16 @@ fn env_vars() {
         ),
         (
             EnvVar {
+                name: "FACT_SCAN_INTERVAL",
+                value: "0",
+            },
+            FactConfig {
+                scan_interval: Some(Duration::ZERO),
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
                 name: "FACT_RATE_LIMIT",
                 value: "500",
             },
@@ -1256,6 +1551,38 @@ fn env_vars() {
             FactConfig {
                 grpc: GrpcConfig {
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_INITIAL",
+                value: "5",
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(5)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MAX",
+                value: "120",
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(120)),
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1367,6 +1694,40 @@ fn env_vars_override_yaml() {
             FactConfig {
                 grpc: GrpcConfig {
                     url: Some(String::from("https://override:9090")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_INITIAL",
+                value: "5",
+            },
+            "grpc:\n  backoff:\n    initial: 2",
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(5)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MAX",
+                value: "120",
+            },
+            "grpc:\n  backoff:\n    max: 30",
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(120)),
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
                 ..Default::default()
@@ -1586,6 +1947,55 @@ fn env_vars_invalid_values() {
                 value: "not_a_boolean",
             },
             "error: invalid value 'not_a_boolean' for '--hotreload'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_INITIAL",
+                value: "not_a_number",
+            },
+            "error: invalid value 'not_a_number' for '--backoff-initial <BACKOFF_INITIAL>': invalid float literal",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MAX",
+                value: "not_a_number",
+            },
+            "error: invalid value 'not_a_number' for '--backoff-max <BACKOFF_MAX>': invalid float literal",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_INITIAL",
+                value: "0",
+            },
+            "error: invalid value '0' for '--backoff-initial <BACKOFF_INITIAL>': value must be greater than zero",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MAX",
+                value: "0",
+            },
+            "error: invalid value '0' for '--backoff-max <BACKOFF_MAX>': value must be greater than zero",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_INITIAL",
+                value: "-1",
+            },
+            "error: invalid value '-1' for '--backoff-initial <BACKOFF_INITIAL>': value must be a non-negative finite number, got -1",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MAX",
+                value: "-1",
+            },
+            "error: invalid value '-1' for '--backoff-max <BACKOFF_MAX>': value must be a non-negative finite number, got -1",
+        ),
+        (
+            EnvVar {
+                name: "FACT_SCAN_INTERVAL",
+                value: "-1",
+            },
+            "error: invalid value '-1' for '--scan-interval <SCAN_INTERVAL>': value must be a non-negative finite number, got -1",
         ),
     ];
     for (env, expected) in tests {

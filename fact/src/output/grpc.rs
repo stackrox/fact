@@ -147,7 +147,8 @@ impl Client {
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
-        let mut backoff = Backoff::new(Duration::from_secs(1), Duration::from_secs(60));
+        let backoff_config = self.config.borrow().backoff.clone();
+        let mut backoff = Backoff::new(backoff_config.initial(), backoff_config.max());
         loop {
             // Re-read certs on each connection attempt so rotated certificates
             // on disk are picked up on the next reconnect.
