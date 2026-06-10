@@ -18,7 +18,11 @@ use tokio_stream::{
 };
 use tonic::transport::Channel;
 
-use crate::{config::GrpcConfig, event::Event, metrics::EventCounter};
+use crate::{
+    config::{BackoffConfig, GrpcConfig},
+    event::Event,
+    metrics::EventCounter,
+};
 
 struct Backoff {
     initial: Duration,
@@ -43,6 +47,12 @@ impl Backoff {
 
     fn reset(&mut self) {
         self.current = self.initial;
+    }
+}
+
+impl From<&BackoffConfig> for Backoff {
+    fn from(value: &BackoffConfig) -> Self {
+        Backoff::new(value.initial(), value.max())
     }
 }
 
@@ -147,8 +157,7 @@ impl Client {
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
-        let backoff_config = self.config.borrow().backoff.clone();
-        let mut backoff = Backoff::new(backoff_config.initial(), backoff_config.max());
+        let mut backoff = Backoff::from(&self.config.borrow().backoff);
         loop {
             // Re-read certs on each connection attempt so rotated certificates
             // on disk are picked up on the next reconnect.
@@ -189,9 +198,6 @@ impl Client {
                         Ok(_) => info!("gRPC stream ended"),
                         Err(e) => warn!("gRPC stream error: {e:?}"),
                     }
-                    let delay = backoff.next();
-                    warn!("Reconnecting in {delay:?}...");
-                    sleep(delay).await;
                 }
                 _ = self.config.changed() => return Ok(true),
                 _ = self.running.changed() => return Ok(*self.running.borrow()),
@@ -237,9 +243,9 @@ mod tests {
     #[test]
     fn backoff_reset() {
         let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60));
-        b.next();
-        b.next();
-        b.next();
+        assert_eq!(b.next(), Duration::from_secs(1));
+        assert_eq!(b.next(), Duration::from_secs(2));
+        assert_eq!(b.next(), Duration::from_secs(4));
         b.reset();
         assert_eq!(b.next(), Duration::from_secs(1));
         assert_eq!(b.next(), Duration::from_secs(2));
