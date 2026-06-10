@@ -20,6 +20,32 @@ use tonic::transport::Channel;
 
 use crate::{config::GrpcConfig, event::Event, metrics::EventCounter};
 
+struct Backoff {
+    initial: Duration,
+    current: Duration,
+    max: Duration,
+}
+
+impl Backoff {
+    fn new(initial: Duration, max: Duration) -> Self {
+        Self {
+            initial,
+            current: initial,
+            max,
+        }
+    }
+
+    fn next(&mut self) -> Duration {
+        let delay = self.current;
+        self.current = (self.current * 2).min(self.max);
+        delay
+    }
+
+    fn reset(&mut self) {
+        self.current = self.initial;
+    }
+}
+
 pub struct Client {
     rx: broadcast::Receiver<Arc<Event>>,
     running: watch::Receiver<bool>,
@@ -121,6 +147,7 @@ impl Client {
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
+        let mut backoff = Backoff::new(Duration::from_secs(1), Duration::from_secs(60));
         loop {
             // Re-read certs on each connection attempt so rotated certificates
             // on disk are picked up on the next reconnect.
@@ -129,12 +156,14 @@ impl Client {
             let channel = match self.create_channel(connector).await {
                 Ok(channel) => channel,
                 Err(e) => {
-                    debug!("Failed to connect to server: {e:?}");
-                    sleep(Duration::from_secs(1)).await;
+                    let delay = backoff.next();
+                    debug!("Failed to connect to server: {e:?}, retrying in {delay:?}");
+                    sleep(delay).await;
                     continue;
                 }
             };
             info!("Successfully connected to gRPC server");
+            backoff.reset();
 
             let mut client = FileActivityServiceClient::new(channel);
 
@@ -159,6 +188,9 @@ impl Client {
                         Ok(_) => info!("gRPC stream ended"),
                         Err(e) => warn!("gRPC stream error: {e:?}"),
                     }
+                    let delay = backoff.next();
+                    warn!("Reconnecting in {delay:?}...");
+                    sleep(delay).await;
                 }
                 _ = self.config.changed() => return Ok(true),
                 _ = self.running.changed() => return Ok(*self.running.borrow()),
@@ -175,5 +207,40 @@ impl Client {
             _ = self.config.changed() => Ok(true),
             _ = self.running.changed() => Ok(*self.running.borrow()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backoff_exponential() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60));
+        assert_eq!(b.next(), Duration::from_secs(1));
+        assert_eq!(b.next(), Duration::from_secs(2));
+        assert_eq!(b.next(), Duration::from_secs(4));
+        assert_eq!(b.next(), Duration::from_secs(8));
+        assert_eq!(b.next(), Duration::from_secs(16));
+        assert_eq!(b.next(), Duration::from_secs(32));
+    }
+
+    #[test]
+    fn backoff_caps_at_max() {
+        let mut b = Backoff::new(Duration::from_secs(32), Duration::from_secs(60));
+        assert_eq!(b.next(), Duration::from_secs(32));
+        assert_eq!(b.next(), Duration::from_secs(60));
+        assert_eq!(b.next(), Duration::from_secs(60));
+    }
+
+    #[test]
+    fn backoff_reset() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60));
+        b.next();
+        b.next();
+        b.next();
+        b.reset();
+        assert_eq!(b.next(), Duration::from_secs(1));
+        assert_eq!(b.next(), Duration::from_secs(2));
     }
 }
