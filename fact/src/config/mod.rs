@@ -39,6 +39,14 @@ fn parse_positive_duration_secs(s: &str) -> anyhow::Result<Duration> {
     Ok(d)
 }
 
+fn parse_multiplier(s: &str) -> anyhow::Result<f64> {
+    let mult = s.parse::<f64>()?;
+    if !mult.is_finite() || mult <= 1.0 {
+        bail!("multiplier must be > 1.0, got {mult}");
+    }
+    Ok(mult)
+}
+
 const CONFIG_FILES: [&str; 4] = [
     "/etc/stackrox/fact.yml",
     "/etc/stackrox/fact.yaml",
@@ -46,7 +54,7 @@ const CONFIG_FILES: [&str; 4] = [
     "fact.yaml",
 ];
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     pub grpc: GrpcConfig,
@@ -342,11 +350,12 @@ impl TryFrom<&yaml::Hash> for EndpointConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct BackoffConfig {
     initial: Option<Duration>,
     max: Option<Duration>,
     jitter: Option<bool>,
+    multiplier: Option<f64>,
 }
 
 impl BackoffConfig {
@@ -360,6 +369,9 @@ impl BackoffConfig {
         if let Some(jitter) = from.jitter {
             self.jitter = Some(jitter);
         }
+        if let Some(multiplier) = from.multiplier {
+            self.multiplier = Some(multiplier);
+        }
     }
 
     pub fn initial(&self) -> Duration {
@@ -372,6 +384,10 @@ impl BackoffConfig {
 
     pub fn jitter(&self) -> bool {
         self.jitter.unwrap_or(true)
+    }
+
+    pub fn multiplier(&self) -> f64 {
+        self.multiplier.unwrap_or(1.5)
     }
 }
 
@@ -405,6 +421,18 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
                     };
                     backoff.jitter = Some(jitter);
                 }
+                "multiplier" => {
+                    let multiplier = match v.as_f64().or_else(|| v.as_i64().map(|v| v as f64)) {
+                        Some(m) if !m.is_finite() || m <= 1.0 => {
+                            bail!("invalid grpc.backoff.multiplier: {v:?}")
+                        }
+                        None => {
+                            bail!("invalid grpc.backoff.multiplier: {v:?}")
+                        }
+                        Some(m) => m,
+                    };
+                    backoff.multiplier = Some(multiplier);
+                }
                 name => bail!("Invalid field 'grpc.backoff.{name}' with value: {v:?}"),
             }
         }
@@ -412,7 +440,7 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct GrpcConfig {
     url: Option<String>,
     certs: Option<PathBuf>,
@@ -570,6 +598,12 @@ pub struct FactCli {
     #[arg(long, env = "FACT_GRPC_BACKOFF_MAX", value_parser = parse_positive_duration_secs)]
     backoff_max: Option<Duration>,
 
+    /// Backoff multiplier for gRPC reconnection
+    ///
+    /// Must be > 1.0. Default value is 1.5
+    #[arg(long, env = "FACT_GRPC_BACKOFF_MULTIPLIER", value_parser = parse_multiplier)]
+    backoff_multiplier: Option<f64>,
+
     /// Enable jitter for gRPC reconnection backoff
     ///
     /// Default value is true
@@ -676,6 +710,7 @@ impl FactCli {
                     initial: self.backoff_initial,
                     max: self.backoff_max,
                     jitter: resolve_bool_arg(self.backoff_jitter, self.no_backoff_jitter),
+                    multiplier: self.backoff_multiplier,
                 },
             },
             endpoint: EndpointConfig {

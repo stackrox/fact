@@ -310,9 +310,44 @@ fn parsing() {
             r#"
             grpc:
               backoff:
+                multiplier: 2
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(2.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                multiplier: 3.5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(3.5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
                 initial: 0.5
                 max: 120
                 jitter: false
+                multiplier: 2
             "#,
             FactConfig {
                 grpc: GrpcConfig {
@@ -320,6 +355,7 @@ fn parsing() {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
                         jitter: Some(false),
+                        multiplier: Some(2.0),
                     },
                     ..Default::default()
                 },
@@ -337,6 +373,7 @@ fn parsing() {
                 initial: 0.5
                 max: 120
                 jitter: false
+                multiplier: 2
             endpoint:
               address: 0.0.0.0:8080
               expose_metrics: true
@@ -358,6 +395,7 @@ fn parsing() {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
                         jitter: Some(false),
+                        multiplier: Some(2.0),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -488,6 +526,22 @@ paths:
                 jitter: 4
             "#,
             "grpc.backoff.jitter field has incorrect type: Integer(4)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                multiplier: true
+            "#,
+            "invalid grpc.backoff.multiplier: Boolean(true)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                multiplier: 0.5
+            "#,
+            "invalid grpc.backoff.multiplier: Real(\"0.5\")",
         ),
         (
             r#"
@@ -961,6 +1015,51 @@ fn update() {
         ),
         (
             r#"
+            grpc:
+              backoff:
+                multiplier: 2
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(2.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                multiplier: 2
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(1.5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(2.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
             endpoint:
               expose_metrics: true
             "#,
@@ -1325,6 +1424,7 @@ fn update() {
                 initial: 0.5
                 max: 120
                 jitter: false
+                multiplier: 3.0
             endpoint:
               address: 127.0.0.1:8080
               expose_metrics: true
@@ -1346,6 +1446,7 @@ fn update() {
                         initial: Some(Duration::from_secs(15)),
                         max: Some(Duration::from_secs(30)),
                         jitter: Some(true),
+                        multiplier: Some(2.0),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -1372,6 +1473,7 @@ fn update() {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
                         jitter: Some(false),
+                        multiplier: Some(3.0),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -1422,6 +1524,7 @@ fn defaults() {
     assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
     assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
     assert!(config.grpc.backoff.jitter());
+    assert_eq!(config.grpc.backoff.multiplier(), 1.5);
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
@@ -1630,6 +1733,22 @@ fn env_vars() {
                 grpc: GrpcConfig {
                     backoff: BackoffConfig {
                         jitter: Some(false),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MULTIPLIER",
+                value: "2.5",
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(2.5),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -2052,6 +2171,20 @@ fn env_vars_invalid_values() {
                 value: "not_a_boolean",
             },
             "error: invalid value 'not_a_boolean' for '--no-backoff-jitter'",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MULTIPLIER",
+                value: "not_a_number",
+            },
+            "error: invalid value 'not_a_number' for '--backoff-multiplier <BACKOFF_MULTIPLIER>': invalid float literal",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_MULTIPLIER",
+                value: "0.5",
+            },
+            "error: invalid value '0.5' for '--backoff-multiplier <BACKOFF_MULTIPLIER>': multiplier must be > 1.0, got 0.5",
         ),
     ];
     for (env, expected) in tests {
