@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* feat(grpc): add exponential backoff for reconnection attempts (#789)
 * ROX-34502: reload mTLS certificates on each gRPC connection attempt (#788)
 * chore: add formatting and linting to integration test code (#783, #784)
 * feat: add code coverage with cargo-llvm-cov and Codecov upload (#745)
