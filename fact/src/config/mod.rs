@@ -346,6 +346,7 @@ impl TryFrom<&yaml::Hash> for EndpointConfig {
 pub struct BackoffConfig {
     initial: Option<Duration>,
     max: Option<Duration>,
+    jitter: Option<bool>,
 }
 
 impl BackoffConfig {
@@ -356,6 +357,9 @@ impl BackoffConfig {
         if let Some(max) = from.max {
             self.max = Some(max);
         }
+        if let Some(jitter) = from.jitter {
+            self.jitter = Some(jitter);
+        }
     }
 
     pub fn initial(&self) -> Duration {
@@ -364,6 +368,10 @@ impl BackoffConfig {
 
     pub fn max(&self) -> Duration {
         self.max.unwrap_or(Duration::from_secs(60))
+    }
+
+    pub fn jitter(&self) -> bool {
+        self.jitter.unwrap_or(true)
     }
 }
 
@@ -390,6 +398,12 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
                             .filter(|d| !d.is_zero())
                             .with_context(|| format!("invalid grpc.backoff.max: {v:?}"))?,
                     );
+                }
+                "jitter" => {
+                    let Some(jitter) = v.as_bool() else {
+                        bail!("grpc.backoff.jitter field has incorrect type: {v:?}");
+                    };
+                    backoff.jitter = Some(jitter);
                 }
                 name => bail!("Invalid field 'grpc.backoff.{name}' with value: {v:?}"),
             }
@@ -556,6 +570,18 @@ pub struct FactCli {
     #[arg(long, env = "FACT_GRPC_BACKOFF_MAX", value_parser = parse_positive_duration_secs)]
     backoff_max: Option<Duration>,
 
+    /// Enable jitter for gRPC reconnection backoff
+    ///
+    /// Default value is true
+    #[arg(long, overrides_with = "no_backoff_jitter", hide = true)]
+    backoff_jitter: bool,
+    #[arg(
+        long,
+        overrides_with = "backoff_jitter",
+        env = "FACT_GRPC_NO_BACKOFF_JITTER"
+    )]
+    no_backoff_jitter: bool,
+
     /// The port to bind for all exposed endpoints
     #[arg(long, short, env = "FACT_ENDPOINT_ADDRESS")]
     address: Option<SocketAddr>,
@@ -649,6 +675,7 @@ impl FactCli {
                 backoff: BackoffConfig {
                     initial: self.backoff_initial,
                     max: self.backoff_max,
+                    jitter: resolve_bool_arg(self.backoff_jitter, self.no_backoff_jitter),
                 },
             },
             endpoint: EndpointConfig {

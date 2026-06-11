@@ -293,14 +293,33 @@ fn parsing() {
             r#"
             grpc:
               backoff:
+                jitter: false
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        jitter: Some(false),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
                 initial: 0.5
                 max: 120
+                jitter: false
             "#,
             FactConfig {
                 grpc: GrpcConfig {
                     backoff: BackoffConfig {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
+                        jitter: Some(false),
                     },
                     ..Default::default()
                 },
@@ -317,6 +336,7 @@ fn parsing() {
               backoff:
                 initial: 0.5
                 max: 120
+                jitter: false
             endpoint:
               address: 0.0.0.0:8080
               expose_metrics: true
@@ -337,6 +357,7 @@ fn parsing() {
                     backoff: BackoffConfig {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
+                        jitter: Some(false),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -459,6 +480,14 @@ paths:
                 max: -5
             "#,
             "invalid grpc.backoff.max: Integer(-5)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                jitter: 4
+            "#,
+            "grpc.backoff.jitter field has incorrect type: Integer(4)",
         ),
         (
             r#"
@@ -1295,6 +1324,7 @@ fn update() {
               backoff:
                 initial: 0.5
                 max: 120
+                jitter: false
             endpoint:
               address: 127.0.0.1:8080
               expose_metrics: true
@@ -1315,6 +1345,7 @@ fn update() {
                     backoff: BackoffConfig {
                         initial: Some(Duration::from_secs(15)),
                         max: Some(Duration::from_secs(30)),
+                        jitter: Some(true),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -1340,6 +1371,7 @@ fn update() {
                     backoff: BackoffConfig {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
+                        jitter: Some(false),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -1389,6 +1421,7 @@ fn defaults() {
     assert!(config.hotreload());
     assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
     assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
+    assert!(config.grpc.backoff.jitter());
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
@@ -1581,6 +1614,22 @@ fn env_vars() {
                 grpc: GrpcConfig {
                     backoff: BackoffConfig {
                         max: Some(Duration::from_secs(120)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_NO_BACKOFF_JITTER",
+                value: "true",
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        jitter: Some(false),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -1996,6 +2045,13 @@ fn env_vars_invalid_values() {
                 value: "-1",
             },
             "error: invalid value '-1' for '--scan-interval <SCAN_INTERVAL>': value must be a non-negative finite number, got -1",
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_NO_BACKOFF_JITTER",
+                value: "not_a_boolean",
+            },
+            "error: invalid value 'not_a_boolean' for '--no-backoff-jitter'",
         ),
     ];
     for (env, expected) in tests {

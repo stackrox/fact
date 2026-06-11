@@ -28,21 +28,28 @@ struct Backoff {
     initial: Duration,
     current: Duration,
     max: Duration,
+    jitter: bool,
 }
 
 impl Backoff {
-    fn new(initial: Duration, max: Duration) -> Self {
+    fn new(initial: Duration, max: Duration, jitter: bool) -> Self {
         Self {
             initial,
             current: initial,
             max,
+            jitter,
         }
     }
 
     fn next(&mut self) -> Duration {
         let delay = self.current;
         self.current = (self.current * 2).min(self.max);
-        delay
+        if self.jitter {
+            let nanos = rand::random_range(0..=delay.as_nanos() as u64);
+            Duration::from_nanos(nanos)
+        } else {
+            delay
+        }
     }
 
     fn reset(&mut self) {
@@ -52,7 +59,7 @@ impl Backoff {
 
 impl From<&BackoffConfig> for Backoff {
     fn from(value: &BackoffConfig) -> Self {
-        Backoff::new(value.initial(), value.max())
+        Backoff::new(value.initial(), value.max(), value.jitter())
     }
 }
 
@@ -223,7 +230,7 @@ mod tests {
 
     #[test]
     fn backoff_exponential() {
-        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60));
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false);
         assert_eq!(b.next(), Duration::from_secs(1));
         assert_eq!(b.next(), Duration::from_secs(2));
         assert_eq!(b.next(), Duration::from_secs(4));
@@ -234,7 +241,7 @@ mod tests {
 
     #[test]
     fn backoff_caps_at_max() {
-        let mut b = Backoff::new(Duration::from_secs(32), Duration::from_secs(60));
+        let mut b = Backoff::new(Duration::from_secs(32), Duration::from_secs(60), false);
         assert_eq!(b.next(), Duration::from_secs(32));
         assert_eq!(b.next(), Duration::from_secs(60));
         assert_eq!(b.next(), Duration::from_secs(60));
@@ -242,12 +249,40 @@ mod tests {
 
     #[test]
     fn backoff_reset() {
-        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60));
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false);
         assert_eq!(b.next(), Duration::from_secs(1));
         assert_eq!(b.next(), Duration::from_secs(2));
         assert_eq!(b.next(), Duration::from_secs(4));
         b.reset();
         assert_eq!(b.next(), Duration::from_secs(1));
         assert_eq!(b.next(), Duration::from_secs(2));
+    }
+
+    #[test]
+    fn backoff_jitter_within_range() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), true);
+        let mut expected_max = Duration::from_secs(1);
+        for _ in 0..100 {
+            let delay = b.next();
+            assert!(
+                delay <= expected_max,
+                "delay {delay:?} exceeded expected max {expected_max:?}"
+            );
+            expected_max = (expected_max * 2).min(Duration::from_secs(60));
+        }
+    }
+
+    #[test]
+    fn backoff_jitter_reset() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), true);
+        for _ in 0..5 {
+            b.next();
+        }
+        b.reset();
+        let delay = b.next();
+        assert!(
+            delay <= Duration::from_secs(1),
+            "delay {delay:?} exceeded 1s after reset"
+        );
     }
 }
