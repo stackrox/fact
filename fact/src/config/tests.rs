@@ -1726,8 +1726,8 @@ fn env_vars() {
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_NO_BACKOFF_JITTER",
-                value: "true",
+                name: "FACT_GRPC_BACKOFF_JITTER",
+                value: "false",
             },
             FactConfig {
                 grpc: GrpcConfig {
@@ -2167,10 +2167,10 @@ fn env_vars_invalid_values() {
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_NO_BACKOFF_JITTER",
+                name: "FACT_GRPC_BACKOFF_JITTER",
                 value: "not_a_boolean",
             },
-            "error: invalid value 'not_a_boolean' for '--no-backoff-jitter'",
+            "error: invalid value 'not_a_boolean' for '--backoff-jitter <BACKOFF_JITTER>'",
         ),
         (
             EnvVar {

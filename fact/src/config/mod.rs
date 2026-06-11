@@ -16,43 +16,19 @@ pub mod reloader;
 #[cfg(test)]
 mod tests;
 
-fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
-    v.as_f64()
-        .or_else(|| v.as_i64().map(|i| i as f64))
-        .filter(|s| s.is_finite() && *s >= 0.0)
-        .map(Duration::from_secs_f64)
-}
-
-fn parse_duration_secs(s: &str) -> anyhow::Result<Duration> {
-    let f: f64 = s.parse()?;
-    if !f.is_finite() || f < 0.0 {
-        bail!("value must be a non-negative finite number, got {f}");
-    }
-    Ok(Duration::from_secs_f64(f))
-}
-
-fn parse_positive_duration_secs(s: &str) -> anyhow::Result<Duration> {
-    let d = parse_duration_secs(s)?;
-    if d.is_zero() {
-        bail!("value must be greater than zero");
-    }
-    Ok(d)
-}
-
-fn parse_multiplier(s: &str) -> anyhow::Result<f64> {
-    let mult = s.parse::<f64>()?;
-    if !mult.is_finite() || mult <= 1.0 {
-        bail!("multiplier must be > 1.0, got {mult}");
-    }
-    Ok(mult)
-}
-
 const CONFIG_FILES: [&str; 4] = [
     "/etc/stackrox/fact.yml",
     "/etc/stackrox/fact.yaml",
     "fact.yml",
     "fact.yaml",
 ];
+
+fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
+    v.as_f64()
+        .or_else(|| v.as_i64().map(|i| i as f64))
+        .filter(|s| s.is_finite() && *s >= 0.0)
+        .map(Duration::from_secs_f64)
+}
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct FactConfig {
@@ -250,10 +226,10 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                 }
                 "scan_interval" => {
                     // scan_interval == 0 disables the scanner
-                    config.scan_interval = Some(
-                        yaml_to_duration_secs(v)
-                            .with_context(|| format!("invalid scan_interval: {v:?}"))?,
-                    );
+                    let Some(scan_interval) = yaml_to_duration_secs(v) else {
+                        bail!("invalid scan_interval: {v:?}");
+                    };
+                    config.scan_interval = Some(scan_interval);
                 }
                 "rate_limit" => {
                     // rate_limit == 0 means unlimited (no throttling)
@@ -402,18 +378,16 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
             };
             match k {
                 "initial" => {
-                    backoff.initial = Some(
-                        yaml_to_duration_secs(v)
-                            .filter(|d| !d.is_zero())
-                            .with_context(|| format!("invalid grpc.backoff.initial: {v:?}"))?,
-                    );
+                    let Some(initial) = yaml_to_duration_secs(v).filter(|d| !d.is_zero()) else {
+                        bail!("invalid grpc.backoff.initial: {v:?}");
+                    };
+                    backoff.initial = Some(initial);
                 }
                 "max" => {
-                    backoff.max = Some(
-                        yaml_to_duration_secs(v)
-                            .filter(|d| !d.is_zero())
-                            .with_context(|| format!("invalid grpc.backoff.max: {v:?}"))?,
-                    );
+                    let Some(max) = yaml_to_duration_secs(v).filter(|d| !d.is_zero()) else {
+                        bail!("invalid grpc.backoff.max: {v:?}");
+                    };
+                    backoff.max = Some(max);
                 }
                 "jitter" => {
                     let Some(jitter) = v.as_bool() else {
@@ -422,14 +396,12 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
                     backoff.jitter = Some(jitter);
                 }
                 "multiplier" => {
-                    let multiplier = match v.as_f64().or_else(|| v.as_i64().map(|v| v as f64)) {
-                        Some(m) if !m.is_finite() || m <= 1.0 => {
-                            bail!("invalid grpc.backoff.multiplier: {v:?}")
-                        }
-                        None => {
-                            bail!("invalid grpc.backoff.multiplier: {v:?}")
-                        }
-                        Some(m) => m,
+                    let Some(multiplier) = v
+                        .as_f64()
+                        .or_else(|| v.as_i64().map(|v| v as f64))
+                        .filter(|mult| mult.is_finite() && *mult > 1.0)
+                    else {
+                        bail!("invalid grpc.backoff.multiplier: {v:?}");
                     };
                     backoff.multiplier = Some(multiplier);
                 }
@@ -571,6 +543,30 @@ impl TryFrom<&yaml::Hash> for BpfConfig {
     }
 }
 
+fn parse_duration_secs(s: &str) -> anyhow::Result<Duration> {
+    let f = s.parse::<f64>()?;
+    if !f.is_finite() || f < 0.0 {
+        bail!("value must be a non-negative finite number, got {f}");
+    }
+    Ok(Duration::from_secs_f64(f))
+}
+
+fn parse_positive_duration_secs(s: &str) -> anyhow::Result<Duration> {
+    let d = parse_duration_secs(s)?;
+    if d.is_zero() {
+        bail!("value must be greater than zero");
+    }
+    Ok(d)
+}
+
+fn parse_multiplier(s: &str) -> anyhow::Result<f64> {
+    let mult = s.parse::<f64>()?;
+    if !mult.is_finite() || mult <= 1.0 {
+        bail!("multiplier must be > 1.0, got {mult}");
+    }
+    Ok(mult)
+}
+
 #[derive(Debug, Parser)]
 #[clap(version = crate::version::FACT_VERSION, about)]
 pub struct FactCli {
@@ -607,14 +603,8 @@ pub struct FactCli {
     /// Enable jitter for gRPC reconnection backoff
     ///
     /// Default value is true
-    #[arg(long, overrides_with = "no_backoff_jitter", hide = true)]
-    backoff_jitter: bool,
-    #[arg(
-        long,
-        overrides_with = "backoff_jitter",
-        env = "FACT_GRPC_NO_BACKOFF_JITTER"
-    )]
-    no_backoff_jitter: bool,
+    #[arg(long, env = "FACT_GRPC_BACKOFF_JITTER")]
+    backoff_jitter: Option<bool>,
 
     /// The port to bind for all exposed endpoints
     #[arg(long, short, env = "FACT_ENDPOINT_ADDRESS")]
@@ -709,7 +699,7 @@ impl FactCli {
                 backoff: BackoffConfig {
                     initial: self.backoff_initial,
                     max: self.backoff_max,
-                    jitter: resolve_bool_arg(self.backoff_jitter, self.no_backoff_jitter),
+                    jitter: self.backoff_jitter,
                     multiplier: self.backoff_multiplier,
                 },
             },
