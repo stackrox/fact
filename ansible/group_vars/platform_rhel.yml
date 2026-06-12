@@ -1,2 +1,0 @@
----
-runtime_host: "unix:///run/podman/podman.sock"
