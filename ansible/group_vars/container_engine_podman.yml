@@ -1,2 +1,3 @@
 ---
 runtime_command: podman
+runtime_host: 'unix:///run/podman/podman.sock'

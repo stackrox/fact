@@ -27,6 +27,9 @@ jobs:
         vm:
           - fedora-coreos
           - fcarm
+          - rhel
+          - rhel-arm64
+          - rhcos
 
     steps:
     - uses: actions/checkout@v4
@@ -80,11 +83,25 @@ jobs:
         quay:
           username: ${{ secrets.QUAY_RHACS_ENG_RO_USERNAME }}
           password: ${{ secrets.QUAY_RHACS_ENG_RO_PASSWORD }}
+        excluded_vms:
+        # RHEL 8 doesn't handle file creation properly,
+        # need more investigation
+        - rhel-8
+        - rhcos-412-86-202402272018-0-gcp-x86-64
+        - rhcos-414-92-202407091253-0-gcp-x86-64
+        # BPF trampolines are only implemented starting with RHEL 10
+        - rhel-9-arm64
         EOF
 
     - name: Create Test VMs
+      env:
+        ANSIBLE_CONFIG: "${{ github.workspace }}/collector/ansible/ansible.cfg"
       run: |
-        make -C "./collector/ansible" create-ci-vms
+        ansible-playbook \
+          -i "${GITHUB_WORKSPACE}/collector/ansible/ci" \
+          -e @vars.yml \
+          --tags setup,provision \
+          "${GITHUB_WORKSPACE}/collector/ansible/integration-tests.yml"
 
     - name: Run the tests
       env:
@@ -103,17 +120,17 @@ jobs:
     - name: Unarchive logs
       if: always()
       run: |
-        cd "${GITHUB_WORKSPACE}/fact/tests"
-        if [[ -f "logs.tar.gz" ]]; then
-          tar xzf "logs.tar.gz"
-          rm -f "logs.tar.gz"
-        fi
+        cd "/tmp/fact/tests"
+        for file in logs/*.tar.gz; do
+          tar xzf "$file"
+          rm -f "$file"
+        done
 
     - name: Test summary
       uses: test-summary/action@v2
       if: always()
       with:
-        paths: ${{ github.workspace }}/fact/tests/results.xml
+        paths: /tmp/fact/tests/*-results.xml
 
     - name: Store artifacts
       if: always()
@@ -125,6 +142,6 @@ jobs:
       with:
         name: ${{ matrix.vm }}-test-logs
         path: |
-          ${{ github.workspace }}/fact/tests/logs
-          ${{ github.workspace }}/fact/tests/results.xml
+          /tmp/fact/tests/logs
+          /tmp/fact/tests/*-results.xml
         if-no-files-found: ignore
