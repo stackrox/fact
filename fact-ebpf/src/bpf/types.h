@@ -15,6 +15,9 @@
 
 #define LINEAGE_MAX 2
 
+// Matches Linux kernel XATTR_NAME_MAX (255) + null terminator
+#define XATTR_NAME_MAX_LEN 256
+
 #define LPM_SIZE_MAX 256
 
 typedef struct lineage_t {
@@ -64,6 +67,8 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_RENAME,
   DIR_ACTIVITY_CREATION,
   DIR_ACTIVITY_UNLINK,
+  FILE_ACTIVITY_SETXATTR,
+  FILE_ACTIVITY_REMOVEXATTR,
 } file_activity_type_t;
 
 struct event_t {
@@ -90,6 +95,9 @@ struct event_t {
       inode_key_t inode;
       monitored_t monitored;
     } rename;
+    struct {
+      char name[XATTR_NAME_MAX_LEN];
+    } xattr;
   };
 };
 
@@ -132,4 +140,6 @@ struct metrics_t {
   struct metrics_by_hook_t path_mkdir;
   struct metrics_by_hook_t d_instantiate;
   struct metrics_by_hook_t path_rmdir;
+  struct metrics_by_hook_t inode_setxattr;
+  struct metrics_by_hook_t inode_removexattr;
 };

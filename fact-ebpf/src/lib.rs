@@ -145,6 +145,8 @@ impl metrics_t {
         self.path_mkdir = self.path_mkdir.accumulate(&other.path_mkdir);
         self.path_rmdir = self.path_rmdir.accumulate(&other.path_rmdir);
         self.d_instantiate = self.d_instantiate.accumulate(&other.d_instantiate);
+        self.inode_setxattr = self.inode_setxattr.accumulate(&other.inode_setxattr);
+        self.inode_removexattr = self.inode_removexattr.accumulate(&other.inode_removexattr);
         self
     }
 }

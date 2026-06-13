@@ -9,7 +9,9 @@ use std::{
 use globset::GlobSet;
 use serde::Serialize;
 
-use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t, monitored_t};
+use fact_ebpf::{
+    PATH_MAX, XATTR_NAME_MAX_LEN, event_t, file_activity_type_t, inode_key_t, monitored_t,
+};
 
 use crate::host_info;
 use process::Process;
@@ -131,6 +133,10 @@ impl Event {
         matches!(self.file, FileData::Creation(_) | FileData::MkDir(_))
     }
 
+    pub fn is_xattr(&self) -> bool {
+        matches!(self.file, FileData::SetXattr(_) | FileData::RemoveXattr(_))
+    }
+
     pub fn is_mkdir(&self) -> bool {
         matches!(self.file, FileData::MkDir(_))
     }
@@ -162,6 +168,8 @@ impl Event {
             FileData::Chmod(data) => &data.inner.inode,
             FileData::Chown(data) => &data.inner.inode,
             FileData::Rename(data) => &data.new.inode,
+            FileData::SetXattr(data) => &data.inner.inode,
+            FileData::RemoveXattr(data) => &data.inner.inode,
         }
     }
 
@@ -176,6 +184,8 @@ impl Event {
             FileData::Chmod(data) => &data.inner.parent_inode,
             FileData::Chown(data) => &data.inner.parent_inode,
             FileData::Rename(data) => &data.new.parent_inode,
+            FileData::SetXattr(data) => &data.inner.parent_inode,
+            FileData::RemoveXattr(data) => &data.inner.parent_inode,
         }
     }
 
@@ -199,6 +209,8 @@ impl Event {
             FileData::Chmod(data) => &data.inner.filename,
             FileData::Chown(data) => &data.inner.filename,
             FileData::Rename(data) => &data.new.filename,
+            FileData::SetXattr(data) => &data.inner.filename,
+            FileData::RemoveXattr(data) => &data.inner.filename,
         }
     }
 
@@ -219,6 +231,8 @@ impl Event {
             FileData::Chmod(data) => &data.inner.host_file,
             FileData::Chown(data) => &data.inner.host_file,
             FileData::Rename(data) => &data.new.host_file,
+            FileData::SetXattr(data) => &data.inner.host_file,
+            FileData::RemoveXattr(data) => &data.inner.host_file,
         }
     }
 
@@ -243,6 +257,8 @@ impl Event {
             FileData::Chmod(data) => data.inner.host_file = host_path,
             FileData::Chown(data) => data.inner.host_file = host_path,
             FileData::Rename(data) => data.new.host_file = host_path,
+            FileData::SetXattr(data) => data.inner.host_file = host_path,
+            FileData::RemoveXattr(data) => data.inner.host_file = host_path,
         }
     }
 
@@ -264,6 +280,8 @@ impl Event {
             FileData::Chmod(data) => data.inner.monitored,
             FileData::Chown(data) => data.inner.monitored,
             FileData::Rename(data) => data.new.monitored,
+            FileData::SetXattr(data) => data.inner.monitored,
+            FileData::RemoveXattr(data) => data.inner.monitored,
         }
     }
 
@@ -356,6 +374,8 @@ pub enum FileData {
     Chmod(ChmodFileData),
     Chown(ChownFileData),
     Rename(RenameFileData),
+    SetXattr(XattrFileData),
+    RemoveXattr(XattrFileData),
 }
 
 impl FileData {
@@ -407,6 +427,18 @@ impl FileData {
                 };
                 FileData::Rename(data)
             }
+            file_activity_type_t::FILE_ACTIVITY_SETXATTR => {
+                let xattr_name = slice_to_string(
+                    &unsafe { extra_data.xattr }.name[..XATTR_NAME_MAX_LEN as usize],
+                )?;
+                FileData::SetXattr(XattrFileData { inner, xattr_name })
+            }
+            file_activity_type_t::FILE_ACTIVITY_REMOVEXATTR => {
+                let xattr_name = slice_to_string(
+                    &unsafe { extra_data.xattr }.name[..XATTR_NAME_MAX_LEN as usize],
+                )?;
+                FileData::RemoveXattr(XattrFileData { inner, xattr_name })
+            }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
 
@@ -432,6 +464,12 @@ impl From<FileData> for fact_api::file_activity::File {
             }
             FileData::RmDir(_) => {
                 unreachable!("RmDir event reached protobuf conversion");
+            }
+            FileData::SetXattr(_) => {
+                unreachable!("SetXattr event reached protobuf conversion");
+            }
+            FileData::RemoveXattr(_) => {
+                unreachable!("RemoveXattr event reached protobuf conversion");
             }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
@@ -465,6 +503,8 @@ impl PartialEq for FileData {
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
             (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
             (FileData::Rename(this), FileData::Rename(other)) => this == other,
+            (FileData::SetXattr(this), FileData::SetXattr(other)) => this == other,
+            (FileData::RemoveXattr(this), FileData::RemoveXattr(other)) => this == other,
             _ => false,
         }
     }
@@ -592,6 +632,19 @@ impl From<RenameFileData> for fact_api::FileRename {
 impl PartialEq for RenameFileData {
     fn eq(&self, other: &Self) -> bool {
         self.new == other.new && self.old == other.old
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct XattrFileData {
+    inner: BaseFileData,
+    xattr_name: String,
+}
+
+#[cfg(test)]
+impl PartialEq for XattrFileData {
+    fn eq(&self, other: &Self) -> bool {
+        self.xattr_name == other.xattr_name && self.inner == other.inner
     }
 }
 

@@ -452,8 +452,8 @@ You can increase this limit with:
                             self.handle_unlink_event(&event);
                         }
 
-                        // Skip directory creation and deletion events - we track them internally but don't send to sensor
-                        if event.is_mkdir() || event.is_rmdir() {
+                        // Skip events that are tracked internally but not yet sent to sensor
+                        if event.is_mkdir() || event.is_rmdir() || event.is_xattr() {
                             continue;
                         }
 

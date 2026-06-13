@@ -16,6 +16,8 @@ pub struct KernelMetrics {
     path_mkdir: EventCounter,
     path_rmdir: EventCounter,
     d_instantiate: EventCounter,
+    inode_setxattr: EventCounter,
+    inode_removexattr: EventCounter,
     map: PerCpuArray<MapData, metrics_t>,
 }
 
@@ -61,6 +63,16 @@ impl KernelMetrics {
             "Events processed by the d_instantiate LSM hook",
             &[], // Labels are not needed since `collect` will add them all
         );
+        let inode_setxattr = EventCounter::new(
+            "kernel_inode_setxattr_events",
+            "Events processed by the inode_setxattr LSM hook",
+            &[], // Labels are not needed since `collect` will add them all
+        );
+        let inode_removexattr = EventCounter::new(
+            "kernel_inode_removexattr_events",
+            "Events processed by the inode_removexattr LSM hook",
+            &[], // Labels are not needed since `collect` will add them all
+        );
 
         file_open.register(reg);
         path_unlink.register(reg);
@@ -70,6 +82,8 @@ impl KernelMetrics {
         path_mkdir.register(reg);
         path_rmdir.register(reg);
         d_instantiate.register(reg);
+        inode_setxattr.register(reg);
+        inode_removexattr.register(reg);
 
         KernelMetrics {
             file_open,
@@ -80,6 +94,8 @@ impl KernelMetrics {
             path_mkdir,
             path_rmdir,
             d_instantiate,
+            inode_setxattr,
+            inode_removexattr,
             map: kernel_metrics,
         }
     }
@@ -132,6 +148,8 @@ impl KernelMetrics {
         KernelMetrics::refresh_labels(&self.path_mkdir, &metrics.path_mkdir);
         KernelMetrics::refresh_labels(&self.path_rmdir, &metrics.path_rmdir);
         KernelMetrics::refresh_labels(&self.d_instantiate, &metrics.d_instantiate);
+        KernelMetrics::refresh_labels(&self.inode_setxattr, &metrics.inode_setxattr);
+        KernelMetrics::refresh_labels(&self.inode_removexattr, &metrics.inode_removexattr);
 
         Ok(())
     }

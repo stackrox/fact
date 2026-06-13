@@ -389,6 +389,80 @@ cleanup:
   return 0;
 }
 
+SEC("lsm/inode_setxattr")
+int BPF_PROG(trace_inode_setxattr, struct mnt_idmap* idmap, struct dentry* dentry,
+             const char* name, const void* value, size_t size, int flags) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->inode_setxattr};
+
+  args.metrics->total++;
+
+  args.inode = inode_to_key(dentry->d_inode);
+
+  struct dentry* parent_dentry = BPF_CORE_READ(dentry, d_parent);
+  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  args.parent_inode = inode_to_key(parent_inode_ptr);
+
+  args.monitored = inode_is_monitored(inode_get(&args.inode), inode_get(&args.parent_inode));
+
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  // Path is resolved in userspace from the inode map
+  struct bound_path_t* path = get_bound_path(BOUND_PATH_MAIN);
+  if (path == NULL) {
+    args.metrics->error++;
+    return 0;
+  }
+  path->path[0] = '\0';
+  args.filename = path->path;
+
+  submit_setxattr_event(&args, name);
+  return 0;
+}
+
+SEC("lsm/inode_removexattr")
+int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* dentry,
+             const char* name) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->inode_removexattr};
+
+  args.metrics->total++;
+
+  args.inode = inode_to_key(dentry->d_inode);
+
+  struct dentry* parent_dentry = BPF_CORE_READ(dentry, d_parent);
+  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  args.parent_inode = inode_to_key(parent_inode_ptr);
+
+  args.monitored = inode_is_monitored(inode_get(&args.inode), inode_get(&args.parent_inode));
+
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  // Path is resolved in userspace from the inode map
+  struct bound_path_t* path = get_bound_path(BOUND_PATH_MAIN);
+  if (path == NULL) {
+    args.metrics->error++;
+    return 0;
+  }
+  path->path[0] = '\0';
+  args.filename = path->path;
+
+  submit_removexattr_event(&args, name);
+  return 0;
+}
+
 SEC("lsm/path_rmdir")
 int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();
