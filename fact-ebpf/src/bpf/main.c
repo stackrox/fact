@@ -410,14 +410,15 @@ int BPF_PROG(trace_inode_setxattr, struct mnt_idmap* idmap, struct dentry* dentr
     return 0;
   }
 
-  // Path is resolved in userspace from the inode map
-  struct bound_path_t* path = get_bound_path(BOUND_PATH_MAIN);
-  if (path == NULL) {
+  // inode hooks don't provide a struct path, so filename is left empty.
+  // __submit_event requires a valid pointer for bpf_probe_read_str.
+  struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
+  if (bound_path == NULL) {
     args.metrics->error++;
     return 0;
   }
-  path->path[0] = '\0';
-  args.filename = path->path;
+  bound_path->path[0] = '\0';
+  args.filename = bound_path->path;
 
   submit_setxattr_event(&args, name);
   return 0;
@@ -444,14 +445,15 @@ int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* de
     return 0;
   }
 
-  // Path is resolved in userspace from the inode map
-  struct bound_path_t* path = get_bound_path(BOUND_PATH_MAIN);
-  if (path == NULL) {
+  // inode hooks don't provide a struct path, so filename is left empty.
+  // __submit_event requires a valid pointer for bpf_probe_read_str.
+  struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
+  if (bound_path == NULL) {
     args.metrics->error++;
     return 0;
   }
-  path->path[0] = '\0';
-  args.filename = path->path;
+  bound_path->path[0] = '\0';
+  args.filename = bound_path->path;
 
   submit_removexattr_event(&args, name);
   return 0;
