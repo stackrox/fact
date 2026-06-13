@@ -401,10 +401,7 @@ int BPF_PROG(trace_inode_setxattr, struct mnt_idmap* idmap, struct dentry* dentr
   args.metrics->total++;
 
   args.inode = inode_to_key(dentry->d_inode);
-
-  struct dentry* parent_dentry = BPF_CORE_READ(dentry, d_parent);
-  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
-  args.parent_inode = inode_to_key(parent_inode_ptr);
+  args.parent_inode = inode_to_key(BPF_CORE_READ(dentry, d_parent, d_inode));
 
   args.monitored = inode_is_monitored(inode_get(&args.inode), inode_get(&args.parent_inode));
 
@@ -438,10 +435,7 @@ int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* de
   args.metrics->total++;
 
   args.inode = inode_to_key(dentry->d_inode);
-
-  struct dentry* parent_dentry = BPF_CORE_READ(dentry, d_parent);
-  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
-  args.parent_inode = inode_to_key(parent_inode_ptr);
+  args.parent_inode = inode_to_key(BPF_CORE_READ(dentry, d_parent, d_inode));
 
   args.monitored = inode_is_monitored(inode_get(&args.inode), inode_get(&args.parent_inode));
 
