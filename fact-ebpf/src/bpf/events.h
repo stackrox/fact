@@ -145,23 +145,13 @@ __always_inline static void submit_rmdir_event(struct submit_event_args_t* args)
   __submit_event(args, path_hooks_support_bpf_d_path);
 }
 
-__always_inline static void submit_setxattr_event(struct submit_event_args_t* args,
-                                                  const char* xattr_name) {
+__always_inline static void submit_xattr_event(struct submit_event_args_t* args,
+                                                file_activity_type_t event_type,
+                                                const char* xattr_name) {
   if (!reserve_event(args)) {
     return;
   }
-  args->event->type = FILE_ACTIVITY_SETXATTR;
-  bpf_probe_read_str(args->event->xattr.name, XATTR_NAME_MAX_LEN, xattr_name);
-
-  __submit_event(args, false);
-}
-
-__always_inline static void submit_removexattr_event(struct submit_event_args_t* args,
-                                                     const char* xattr_name) {
-  if (!reserve_event(args)) {
-    return;
-  }
-  args->event->type = FILE_ACTIVITY_REMOVEXATTR;
+  args->event->type = event_type;
   bpf_probe_read_str(args->event->xattr.name, XATTR_NAME_MAX_LEN, xattr_name);
 
   __submit_event(args, false);
