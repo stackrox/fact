@@ -181,14 +181,16 @@ def test_setxattr_new_file(
     with open(test_file, 'w') as f:
         f.write('new file')
 
-    server.wait_events([
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=test_file,
-            host_path=test_file,
-        ),
-    ])
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=test_file,
+                host_path=test_file,
+            ),
+        ]
+    )
 
     initial = get_kernel_setxattr_added(fact_config)
 
