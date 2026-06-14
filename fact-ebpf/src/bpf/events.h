@@ -146,8 +146,8 @@ __always_inline static void submit_rmdir_event(struct submit_event_args_t* args)
 }
 
 __always_inline static void submit_xattr_event(struct submit_event_args_t* args,
-                                                file_activity_type_t event_type,
-                                                const char* xattr_name) {
+                                               file_activity_type_t event_type,
+                                               const char* xattr_name) {
   if (!reserve_event(args)) {
     return;
   }
