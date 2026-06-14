@@ -439,7 +439,6 @@ int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* de
     return 0;
   }
   return handle_xattr(&m->inode_removexattr, dentry, name, FILE_ACTIVITY_REMOVEXATTR);
-  return 0;
 }
 
 SEC("lsm/path_rmdir")
