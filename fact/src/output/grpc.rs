@@ -34,6 +34,10 @@ struct Backoff {
 
 impl Backoff {
     fn new(initial: Duration, max: Duration, jitter: bool, multiplier: f64) -> Self {
+        if initial >= max {
+            warn!("Initial backoff value is equal or greater than max.");
+        }
+
         Self {
             initial,
             current: initial,
