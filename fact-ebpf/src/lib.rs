@@ -135,19 +135,27 @@ impl metrics_by_hook_t {
     }
 }
 
-impl metrics_t {
-    pub fn accumulate(mut self, other: &metrics_t) -> metrics_t {
-        self.file_open = self.file_open.accumulate(&other.file_open);
-        self.path_unlink = self.path_unlink.accumulate(&other.path_unlink);
-        self.path_chmod = self.path_chmod.accumulate(&other.path_chmod);
-        self.path_chown = self.path_chown.accumulate(&other.path_chown);
-        self.path_rename = self.path_rename.accumulate(&other.path_rename);
-        self.path_mkdir = self.path_mkdir.accumulate(&other.path_mkdir);
-        self.path_rmdir = self.path_rmdir.accumulate(&other.path_rmdir);
-        self.d_instantiate = self.d_instantiate.accumulate(&other.d_instantiate);
-        self
-    }
+macro_rules! impl_metrics_t {
+    ($($hook:ident),+ $(,)?) => {
+        impl metrics_t {
+            pub fn accumulate(mut self, other: &metrics_t) -> metrics_t {
+                $(self.$hook = self.$hook.accumulate(&other.$hook);)+
+                self
+            }
+        }
+    };
 }
+
+impl_metrics_t!(
+    file_open,
+    path_unlink,
+    path_chmod,
+    path_chown,
+    path_rename,
+    path_mkdir,
+    path_rmdir,
+    d_instantiate,
+);
 
 unsafe impl Pod for metrics_t {}
 
