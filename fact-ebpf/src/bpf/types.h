@@ -15,7 +15,8 @@
 
 #define LINEAGE_MAX 2
 
-// Matches Linux kernel XATTR_NAME_MAX (255) + null terminator
+// Matches Linux kernel XATTR_NAME_MAX (255) + null terminator.
+// https://github.com/torvalds/linux/blob/66affa37cfac0aec061cc4bcf4a065b0c52f7e19/include/uapi/linux/limits.h#L15
 #define XATTR_NAME_MAX_LEN 256
 
 #define LPM_SIZE_MAX 256
