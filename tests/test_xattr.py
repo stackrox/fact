@@ -38,7 +38,6 @@ def test_setxattr(
                 xattr_name='user.fact_test',
             ),
         ],
-        strict=False,
     )
 
 
@@ -69,7 +68,6 @@ def test_removexattr(
                 xattr_name='user.fact_remove',
             ),
         ],
-        strict=False,
     )
 
 
@@ -115,7 +113,6 @@ def test_setxattr_multiple(
                 xattr_name='user.attr3',
             ),
         ],
-        strict=False,
     )
 
 
@@ -156,7 +153,6 @@ def test_setxattr_ignored(
                 xattr_name='user.monitored',
             ),
         ],
-        strict=False,
     )
 
 
@@ -205,7 +201,6 @@ def test_setxattr_new_file(
                 xattr_name='user.new_file',
             ),
         ],
-        strict=False,
     )
 
 
@@ -268,5 +263,4 @@ def test_setxattr_utf8_filenames(
                 xattr_name='user.utf8_test',
             ),
         ],
-        strict=False,
     )
