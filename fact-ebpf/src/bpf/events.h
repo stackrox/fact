@@ -37,7 +37,11 @@ __always_inline static void __submit_event(struct submit_event_args_t* args,
   event->monitored = args->monitored;
   inode_copy(&event->inode, &args->inode);
   inode_copy(&event->parent_inode, &args->parent_inode);
-  bpf_probe_read_str(event->filename, PATH_MAX, args->filename);
+  if (args->filename != NULL) {
+    bpf_probe_read_str(event->filename, PATH_MAX, args->filename);
+  } else {
+    event->filename[0] = '\0';
+  }
 
   struct helper_t* helper = get_helper();
   if (helper == NULL) {

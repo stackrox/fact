@@ -407,16 +407,6 @@ __always_inline static int handle_xattr(struct metrics_by_hook_t* hook_metrics,
     return 0;
   }
 
-  // inode hooks don't provide a struct path, so filename is left empty.
-  // __submit_event requires a valid pointer for bpf_probe_read_str.
-  struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
-  if (bound_path == NULL) {
-    args.metrics->error++;
-    return 0;
-  }
-  bound_path->path[0] = '\0';
-  args.filename = bound_path->path;
-
   submit_xattr_event(&args, event_type, xattr_name);
   return 0;
 }
