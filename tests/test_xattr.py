@@ -4,127 +4,122 @@ import os
 
 from event import Event, EventType, Process
 from server import FileActivityService
-from utils import get_metric_value
-
-
-def get_kernel_setxattr_added(fact_config: tuple[dict, str]):
-    """
-    Query Prometheus metrics to get the count of setxattr events
-    added to the ring buffer.
-
-    Args:
-        fact_config: The fact configuration tuple
-            (config dict, config file path).
-
-    Returns:
-        The current value of
-        kernel_inode_setxattr_events{label="Added"} metric.
-    """
-    value = get_metric_value(
-        fact_config,
-        'kernel_inode_setxattr_events',
-        {'label': 'Added'},
-    )
-    return int(value) if value is not None else 0
-
-
-def get_kernel_removexattr_added(fact_config: tuple[dict, str]):
-    """
-    Query Prometheus metrics to get the count of removexattr events
-    added to the ring buffer.
-
-    Args:
-        fact_config: The fact configuration tuple
-            (config dict, config file path).
-
-    Returns:
-        The current value of
-        kernel_inode_removexattr_events{label="Added"} metric.
-    """
-    value = get_metric_value(
-        fact_config,
-        'kernel_inode_removexattr_events',
-        {'label': 'Added'},
-    )
-    return int(value) if value is not None else 0
 
 
 def test_setxattr(
     test_file: str,
-    fact_config: tuple[dict, str],
+    server: FileActivityService,
 ):
     """
-    Tests that setting a user xattr on a monitored file is tracked
-    via kernel metrics.
+    Tests that setting a user xattr on a monitored file generates
+    a gRPC xattr event.
 
     The test_file fixture creates a file before fact starts, so it is
     picked up by the initial scan and its inode is already tracked.
 
     Args:
         test_file: File monitored on the host.
-        fact_config: The fact configuration.
+        server: The server instance to communicate with.
     """
-    initial = get_kernel_setxattr_added(fact_config)
+    process = Process.from_proc()
 
     os.setxattr(test_file, 'user.fact_test', b'test_value')
 
-    final = get_kernel_setxattr_added(fact_config)
-    delta = final - initial
-    assert delta == 1, f'Expected exactly 1 setxattr event added, got {delta}'
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=test_file,
+                xattr_name='user.fact_test',
+            ),
+        ],
+        strict=False,
+    )
 
 
 def test_removexattr(
     test_file: str,
-    fact_config: tuple[dict, str],
+    server: FileActivityService,
 ):
     """
-    Tests that removing a user xattr from a monitored file is tracked
-    via kernel metrics.
+    Tests that removing a user xattr from a monitored file generates
+    a gRPC xattr event.
 
     Args:
         test_file: File monitored on the host.
-        fact_config: The fact configuration.
+        server: The server instance to communicate with.
     """
+    process = Process.from_proc()
+
     os.setxattr(test_file, 'user.fact_remove', b'to_remove')
-
-    initial = get_kernel_removexattr_added(fact_config)
-
     os.removexattr(test_file, 'user.fact_remove')
 
-    final = get_kernel_removexattr_added(fact_config)
-    delta = final - initial
-    assert delta == 1, (
-        f'Expected exactly 1 removexattr event added, got {delta}'
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=test_file,
+                xattr_name='user.fact_remove',
+            ),
+        ],
+        strict=False,
     )
 
 
 def test_setxattr_multiple(
     test_file: str,
-    fact_config: tuple[dict, str],
+    server: FileActivityService,
 ):
     """
-    Tests that setting multiple xattrs on a monitored file tracks
-    all of them.
+    Tests that setting multiple xattrs on a monitored file generates
+    a gRPC event for each.
 
     Args:
         test_file: File monitored on the host.
-        fact_config: The fact configuration.
+        server: The server instance to communicate with.
     """
-    initial = get_kernel_setxattr_added(fact_config)
+    process = Process.from_proc()
 
     os.setxattr(test_file, 'user.attr1', b'value1')
     os.setxattr(test_file, 'user.attr2', b'value2')
     os.setxattr(test_file, 'user.attr3', b'value3')
 
-    final = get_kernel_setxattr_added(fact_config)
-    delta = final - initial
-    assert delta == 3, f'Expected exactly 3 setxattr events added, got {delta}'
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=test_file,
+                xattr_name='user.attr1',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=test_file,
+                xattr_name='user.attr2',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=test_file,
+                xattr_name='user.attr3',
+            ),
+        ],
+        strict=False,
+    )
 
 
 def test_setxattr_ignored(
     test_file: str,
     ignored_dir: str,
-    fact_config: tuple[dict, str],
+    server: FileActivityService,
 ):
     """
     Tests that xattr changes on unmonitored files are not tracked,
@@ -133,34 +128,38 @@ def test_setxattr_ignored(
     Args:
         test_file: File monitored on the host.
         ignored_dir: Temporary directory that is not monitored by fact.
-        fact_config: The fact configuration.
+        server: The server instance to communicate with.
     """
+    process = Process.from_proc()
+
     ignored_file = os.path.join(ignored_dir, 'ignored.txt')
     with open(ignored_file, 'w') as f:
         f.write('ignored')
 
-    initial = get_kernel_setxattr_added(fact_config)
-
+    # Set xattr on ignored file - should NOT generate an event
     os.setxattr(ignored_file, 'user.ignored', b'value')
 
-    after_ignored = get_kernel_setxattr_added(fact_config)
-    assert after_ignored == initial, (
-        'Setting xattr on ignored file should not increment Added metric'
-    )
-
+    # Set xattr on monitored file - should generate an event
     os.setxattr(test_file, 'user.monitored', b'value')
 
-    final = get_kernel_setxattr_added(fact_config)
-    delta = final - initial
-    assert delta == 1, (
-        f'Expected exactly 1 setxattr event (monitored file only), got {delta}'
+    # Only the monitored file's xattr event should arrive
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=test_file,
+                xattr_name='user.monitored',
+            ),
+        ],
+        strict=False,
     )
 
 
 def test_setxattr_new_file(
     monitored_dir: str,
     server: FileActivityService,
-    fact_config: tuple[dict, str],
 ):
     """
     Tests that xattr tracking works for files created while fact is
@@ -173,7 +172,6 @@ def test_setxattr_new_file(
     Args:
         monitored_dir: Temporary directory path that is monitored.
         server: The server instance to communicate with.
-        fact_config: The fact configuration.
     """
     process = Process.from_proc()
 
@@ -189,13 +187,20 @@ def test_setxattr_new_file(
                 file=test_file,
                 host_path=test_file,
             ),
-        ]
+        ],
     )
-
-    initial = get_kernel_setxattr_added(fact_config)
 
     os.setxattr(test_file, 'user.new_file', b'value')
 
-    final = get_kernel_setxattr_added(fact_config)
-    delta = final - initial
-    assert delta == 1, f'Expected exactly 1 setxattr event added, got {delta}'
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=test_file,
+                xattr_name='user.new_file',
+            ),
+        ],
+        strict=False,
+    )

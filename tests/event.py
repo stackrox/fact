@@ -36,6 +36,7 @@ class EventType(Enum):
     PERMISSION = 4
     OWNERSHIP = 5
     RENAME = 6
+    XATTR = 7
 
 
 class Process:
@@ -223,6 +224,7 @@ class Event:
         owner_gid: int | None = None,
         old_file: str | Pattern[str] | None = None,
         old_host_path: str | Pattern[str] | None = None,
+        xattr_name: str | None = None,
     ):
         self._type: EventType = event_type
         self._process: Process = process
@@ -233,6 +235,7 @@ class Event:
         self._owner_gid: int | None = owner_gid
         self._old_file: str | Pattern[str] | None = old_file
         self._old_host_path: str | Pattern[str] | None = old_host_path
+        self._xattr_name: str | None = xattr_name
 
     @property
     def event_type(self) -> EventType:
@@ -269,6 +272,10 @@ class Event:
     @property
     def old_host_path(self) -> str | Pattern[str] | None:
         return self._old_host_path
+
+    @property
+    def xattr_name(self) -> str | None:
+        return self._xattr_name
 
     @classmethod
     def _diff_field(cls, diff: dict, name: str, expected: Any, actual: Any):
@@ -378,6 +385,13 @@ class Event:
                 self.owner_gid,
                 event_field.gid,
             )
+        elif self.event_type == EventType.XATTR:
+            Event._diff_field(
+                diff,
+                'xattr_name',
+                self.xattr_name,
+                event_field.xattr_name,
+            )
 
         return diff if diff else None
 
@@ -400,6 +414,9 @@ class Event:
                 f', old_file="{self.old_file}"'
                 f', old_host_path="{self.old_host_path}"'
             )
+
+        if self.event_type == EventType.XATTR:
+            s += f', xattr_name="{self.xattr_name}"'
 
         s += ')'
 
