@@ -109,12 +109,11 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
                 if len(events) == 0:
                     return
             elif strict:
-                # Container events are fully controlled by the test,
-                # so any mismatch is a real failure. Node events may
-                # include system noise (e.g. SELinux xattr changes)
-                # that the test cannot predict, so they are skipped.
-                is_container_event = bool(msg.process.container_id)
-                if is_container_event:
+                # In strict mode, fail when the event type matches but
+                # the content differs. Events of a different type are
+                # skipped since they may be system noise that the test
+                # cannot predict (e.g. SELinux xattr changes).
+                if 'event_type' not in diff:
                     raise ValueError(json.dumps(diff, indent=4))
 
     def wait_events(self, events: list[Event], strict: bool = True):
