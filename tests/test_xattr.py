@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import os
 
+import pytest
+
 from event import Event, EventType, Process
 from server import FileActivityService
+from utils import join_path_with_filename, path_to_string
 
 
 def test_setxattr(
@@ -200,6 +203,69 @@ def test_setxattr_new_file(
                 file='',
                 host_path=test_file,
                 xattr_name='user.new_file',
+            ),
+        ],
+        strict=False,
+    )
+
+
+@pytest.mark.parametrize(
+    'filename',
+    [
+        pytest.param('xattr.txt', id='ASCII'),
+        pytest.param('café.txt', id='French'),
+        pytest.param('файл.txt', id='Cyrillic'),
+        pytest.param('测试.txt', id='Chinese'),
+        pytest.param('🔒secure.txt', id='Emoji'),
+        pytest.param(b'xattr\xff\xfe.txt', id='InvalidUTF8'),
+    ],
+)
+def test_setxattr_utf8_filenames(
+    monitored_dir: str,
+    server: FileActivityService,
+    filename: str | bytes,
+):
+    """
+    Tests that xattr events are correctly tracked on files with
+    various UTF-8 and non-UTF-8 filenames.
+
+    Args:
+        monitored_dir: Temporary directory path for creating the test file.
+        server: The server instance to communicate with.
+        filename: Name of the file to create (includes UTF-8 test cases).
+    """
+    fut = join_path_with_filename(monitored_dir, filename)
+
+    with open(fut, 'w') as f:
+        f.write('test')
+
+    # gRPC events use lossy UTF-8 conversion, but os.setxattr
+    # needs the original path to find the file on disk.
+    fut_str = path_to_string(fut)
+
+    process = Process.from_proc()
+
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=fut_str,
+                host_path=fut_str,
+            ),
+        ],
+    )
+
+    os.setxattr(fut, 'user.utf8_test', b'value')
+
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.XATTR,
+                file='',
+                host_path=fut_str,
+                xattr_name='user.utf8_test',
             ),
         ],
         strict=False,
