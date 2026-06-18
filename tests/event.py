@@ -36,7 +36,8 @@ class EventType(Enum):
     PERMISSION = 4
     OWNERSHIP = 5
     RENAME = 6
-    XATTR = 7
+    XATTR_SET = 7
+    XATTR_REMOVE = 8
 
 
 class Process:
@@ -385,7 +386,7 @@ class Event:
                 self.owner_gid,
                 event_field.gid,
             )
-        elif self.event_type == EventType.XATTR:
+        elif self.event_type in (EventType.XATTR_SET, EventType.XATTR_REMOVE):
             Event._diff_field(
                 diff,
                 'xattr_name',
@@ -415,7 +416,7 @@ class Event:
                 f', old_host_path="{self.old_host_path}"'
             )
 
-        if self.event_type == EventType.XATTR:
+        if self.event_type in (EventType.XATTR_SET, EventType.XATTR_REMOVE):
             s += f', xattr_name="{self.xattr_name}"'
 
         s += ')'

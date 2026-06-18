@@ -434,7 +434,6 @@ impl FileData {
                 FileData::SetXattr(XattrFileData {
                     inner,
                     xattr_name,
-                    operation: XattrOperation::Set,
                 })
             }
             file_activity_type_t::FILE_ACTIVITY_REMOVEXATTR => {
@@ -444,7 +443,6 @@ impl FileData {
                 FileData::RemoveXattr(XattrFileData {
                     inner,
                     xattr_name,
-                    operation: XattrOperation::Remove,
                 })
             }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
@@ -475,11 +473,11 @@ impl From<FileData> for fact_api::file_activity::File {
             }
             FileData::SetXattr(event) => {
                 let f_act = fact_api::FileXattrChange::from(event);
-                fact_api::file_activity::File::Xattr(f_act)
+                fact_api::file_activity::File::XattrSet(f_act)
             }
             FileData::RemoveXattr(event) => {
                 let f_act = fact_api::FileXattrChange::from(event);
-                fact_api::file_activity::File::Xattr(f_act)
+                fact_api::file_activity::File::XattrRemove(f_act)
             }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
@@ -645,30 +643,18 @@ impl PartialEq for RenameFileData {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub enum XattrOperation {
-    Set,
-    Remove,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct XattrFileData {
     inner: BaseFileData,
     xattr_name: String,
-    operation: XattrOperation,
 }
 
 impl From<XattrFileData> for fact_api::FileXattrChange {
     fn from(value: XattrFileData) -> Self {
         let activity = fact_api::FileActivityBase::from(value.inner);
-        let operation = match value.operation {
-            XattrOperation::Set => fact_api::file_xattr_change::Operation::Set,
-            XattrOperation::Remove => fact_api::file_xattr_change::Operation::Remove,
-        };
         fact_api::FileXattrChange {
             activity: Some(activity),
             xattr_name: value.xattr_name,
-            operation: operation.into(),
         }
     }
 }

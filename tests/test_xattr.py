@@ -32,7 +32,7 @@ def test_setxattr(
         [
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_SET,
                 file='',
                 host_path=test_file,
                 xattr_name='user.fact_test',
@@ -62,7 +62,7 @@ def test_removexattr(
         [
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_REMOVE,
                 file='',
                 host_path=test_file,
                 xattr_name='user.fact_remove',
@@ -93,21 +93,21 @@ def test_setxattr_multiple(
         [
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_SET,
                 file='',
                 host_path=test_file,
                 xattr_name='user.attr1',
             ),
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_SET,
                 file='',
                 host_path=test_file,
                 xattr_name='user.attr2',
             ),
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_SET,
                 file='',
                 host_path=test_file,
                 xattr_name='user.attr3',
@@ -147,7 +147,7 @@ def test_setxattr_ignored(
         [
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_SET,
                 file='',
                 host_path=test_file,
                 xattr_name='user.monitored',
@@ -195,7 +195,7 @@ def test_setxattr_new_file(
         [
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_SET,
                 file='',
                 host_path=test_file,
                 xattr_name='user.new_file',
@@ -257,7 +257,7 @@ def test_setxattr_utf8_filenames(
         [
             Event(
                 process=process,
-                event_type=EventType.XATTR,
+                event_type=EventType.XATTR_SET,
                 file='',
                 host_path=fut_str,
                 xattr_name='user.utf8_test',
