@@ -24,7 +24,7 @@ libc = { version = "0.2.159", default-features = false }
 log = { version = "0.4.22", default-features = false }
 native-tls = { version = "0.2.14", features = ["alpn"] }
 openssl = "0.10.75"
-prometheus-client = { version = "0.24.0", default-features = false }
+prometheus-client = { version = "0.25.0", default-features = false }
 prost = "0.14.0"
 prost-types = "0.14.0"
 serde = { version = "1.0.219", features = ["derive"] }
