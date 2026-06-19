@@ -17,8 +17,20 @@ image:
 		-f Containerfile \
 		--build-arg FACT_VERSION=$(FACT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--target fact \
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
+
+operator:
+	$(DOCKER) build \
+		-f Containerfile \
+		--build-arg FACT_VERSION=$(FACT_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--target fact-operator \
+		-t $(FACT_OPERATOR_NAME) \
+		$(CURDIR)
+
+images: image operator
 
 licenses:THIRD_PARTY_LICENSES.html
 
