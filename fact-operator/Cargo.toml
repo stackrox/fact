@@ -11,7 +11,10 @@ futures = { version = "0.3.32", default-features = false }
 kube = { version = "4.0.0", default-features = false, features = ["client", "openssl-tls", "derive", "runtime"] }
 k8s-openapi = { version = "0.28.0", features = ["latest", "schemars"] }
 log = { workspace = true }
-schemars = { version = "1" }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+yaml-rust2 = { workspace = true }
+
+fact-core = { path = "../fact-core" }

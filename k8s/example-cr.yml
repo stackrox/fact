@@ -4,6 +4,18 @@ metadata:
   name: fact
   namespace: default
 spec:
-  image: quay.io/stackrox-io/fact:0.3.0
+  image: quay.io/mmoltras/fact:operator-test
   logLevel: debug
-  rateLimit: 60000
+  config:
+    rateLimit: 50000
+    paths:
+    - /etc
+    - /etc/**/*
+    - /bin
+    - /bin/**/*
+    - /sbin
+    - /sbin/**/*
+    - /usr/bin
+    - /usr/bin/**/*
+    - /usr/sbin
+    - /usr/sbin/**/*

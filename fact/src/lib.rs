@@ -14,7 +14,6 @@ use tokio::{
 };
 
 mod bpf;
-pub mod config;
 mod endpoints;
 mod event;
 mod host_info;
@@ -24,8 +23,9 @@ mod output;
 mod pre_flight;
 mod rate_limiter;
 
-use config::FactConfig;
 use pre_flight::pre_flight;
+
+use fact_core::config::{FactConfig, reloader::Reloader};
 
 pub fn init_log() -> anyhow::Result<()> {
     let log_level = std::env::var("FACT_LOGLEVEL").unwrap_or("info".to_owned());
@@ -48,12 +48,8 @@ pub fn init_log() -> anyhow::Result<()> {
     Ok(())
 }
 
-mod version {
-    include!(concat!(env!("OUT_DIR"), "/version.rs"));
-}
-
 pub fn log_system_information() {
-    info!("fact version: {}", version::FACT_VERSION);
+    info!("fact version: {}", fact_core::version());
     info!("OS: {}", get_distro());
     match SystemInfo::new() {
         Ok(sysinfo) => {
@@ -91,7 +87,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         debug!("Skipping pre-flight checks");
     }
 
-    let reloader = config::reloader::Reloader::from(config);
+    let reloader = Reloader::from(config);
     let config_trigger = reloader.get_trigger();
 
     let (mut bpf, rx) = Bpf::new(reloader.paths(), &reloader.config().bpf)?;

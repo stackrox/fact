@@ -9,6 +9,9 @@ version:
 image-name:
 	@echo "$(FACT_IMAGE_NAME)"
 
+operator-name:
+	@echo "$(FACT_OPERATOR_NAME)"
+
 mock-server:
 	make -C mock-server
 
@@ -67,4 +70,4 @@ format:
 	ruff format tests/
 
 .PHONY: tag mock-server integration-tests image image-otel image-name
-.PHONY: operator licenses coverage lint clean
+.PHONY: operator operator-name licenses coverage lint clean

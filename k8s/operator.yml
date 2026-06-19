@@ -28,9 +28,69 @@ spec:
                 logLevel:
                   type: string
                   default: info
-                rateLimit:
-                  type: integer
-                  default: 0
+                config:
+                  type: object
+                  properties:
+                    paths:
+                      type: array
+                      items:
+                        type: string
+                      default: null
+                    grpc:
+                      type: object
+                      default: null
+                      properties:
+                        url:
+                          type: string
+                          default: null
+                        certs:
+                          type: string
+                          default: null
+                    otel:
+                      type: object
+                      default: null
+                      properties:
+                        endpoint:
+                          type: string
+                          default: null
+                    endpoint:
+                      type: object
+                      default: null
+                      properties:
+                        address:
+                          type: string
+                          default: null
+                        exposeMetrics:
+                          type: boolean
+                          default: null
+                        healthCheck:
+                          type: boolean
+                          default: null
+                    bpf:
+                      type: object
+                      default: null
+                      properties:
+                        ringbufSize:
+                          type: integer
+                          default: null
+                        inodesMax:
+                          type: integer
+                          default: null
+                    skipPreFlight:
+                      type: boolean
+                      default: null
+                    json:
+                      type: boolean
+                      default: null
+                    hotreload:
+                      type: boolean
+                      default: null
+                    scanInterval:
+                      type: integer
+                      default: null
+                    rateLimit:
+                      type: integer
+                      default: 0
             status:
               type: object
               properties:

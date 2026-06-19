@@ -39,6 +39,7 @@ uuid = { workspace = true }
 yaml-rust2 = { workspace = true }
 
 fact-api = { path = "../fact-api" }
+fact-core = { path = "../fact-core" }
 fact-ebpf = { path = "../fact-ebpf" }
 
 [dev-dependencies]
