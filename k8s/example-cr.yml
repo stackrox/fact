@@ -1,0 +1,9 @@
+apiVersion: fact.stackrox.io/v1alpha1
+kind: Fact
+metadata:
+  name: fact
+  namespace: default
+spec:
+  image: quay.io/stackrox-io/fact:0.3.0
+  logLevel: debug
+  rateLimit: 60000

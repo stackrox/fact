@@ -4,6 +4,7 @@ members = [
     "fact",
     "fact-api",
     "fact-ebpf",
+    "fact-operator",
 ]
 default-members = ["fact"]
 
