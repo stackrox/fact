@@ -15,7 +15,6 @@ use tokio::{
 };
 
 mod bpf;
-pub mod config;
 mod endpoints;
 mod event;
 mod host_info;
@@ -26,14 +25,14 @@ mod pre_flight;
 mod rate_limiter;
 mod replay;
 
-use config::FactConfig;
 use pre_flight::pre_flight;
 
 use crate::{
-    config::BpfConfig,
     event::Event,
     metrics::{Metrics, kernel_metrics::KernelMetrics},
 };
+
+use fact_core::config::{BpfConfig, FactConfig, reloader::Reloader};
 
 pub fn init_log() -> anyhow::Result<()> {
     let log_level = std::env::var("FACT_LOGLEVEL").unwrap_or("info".to_owned());
@@ -56,12 +55,8 @@ pub fn init_log() -> anyhow::Result<()> {
     Ok(())
 }
 
-mod version {
-    include!(concat!(env!("OUT_DIR"), "/version.rs"));
-}
-
 pub fn log_system_information() {
-    info!("fact version: {}", version::FACT_VERSION);
+    info!("fact version: {}", fact_core::version());
     info!("OS: {}", get_distro());
     match SystemInfo::new() {
         Ok(sysinfo) => {
@@ -94,7 +89,7 @@ struct SetupArgs<'a> {
     skip_pre_flight: bool,
     running: watch::Receiver<bool>,
     task_set: &'a mut JoinSet<anyhow::Result<()>>,
-    reloader: &'a config::reloader::Reloader,
+    reloader: &'a Reloader,
     metrics: &'a Metrics,
 
     // Replay mode
@@ -120,7 +115,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let metrics_userspace = Metrics::new();
     let mut task_set = JoinSet::new();
-    let reloader = config::reloader::Reloader::from(config);
+    let reloader = Reloader::from(config);
     let config_trigger = reloader.get_trigger();
 
     let setup_args = SetupArgs {

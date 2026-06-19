@@ -16,10 +16,11 @@ use tokio::{
 };
 
 use crate::{
-    config::EndpointConfig,
     host_scanner::{self, IntrospectionRequestType as HostScannerReq},
     metrics::exporter::Exporter,
 };
+
+use fact_core::config::EndpointConfig;
 
 #[derive(Clone)]
 pub struct Server {
