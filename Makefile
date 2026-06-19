@@ -9,6 +9,9 @@ version:
 image-name:
 	@echo "$(FACT_IMAGE_NAME)"
 
+operator-name:
+	@echo "$(FACT_OPERATOR_NAME)"
+
 mock-server:
 	make -C mock-server
 
@@ -66,4 +69,5 @@ format:
 	make -C fact-ebpf format
 	ruff format tests/
 
-.PHONY: tag mock-server integration-tests image image-name licenses coverage lint clean
+.PHONY: tag mock-server integration-tests image images image-name
+.PHONY: operator operator-name licenses coverage lint clean

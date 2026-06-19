@@ -3,7 +3,9 @@ use std::sync::Arc;
 use log::{debug, warn};
 use tokio::sync::{broadcast, mpsc, watch};
 
-use crate::{config::GrpcConfig, event::Event, metrics::OutputMetrics};
+use crate::{event::Event, metrics::OutputMetrics};
+
+use fact_core::config::GrpcConfig;
 
 mod grpc;
 mod stdout;

@@ -736,6 +736,7 @@ dependencies = [
  "clap",
  "env_logger",
  "fact-api",
+ "fact-core",
  "fact-ebpf",
  "glob",
  "globset",
@@ -779,6 +780,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "fact-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "log",
+ "schemars",
+ "serde",
+ "tokio",
+ "yaml-rust2",
+]
+
+[[package]]
 name = "fact-ebpf"
 version = "0.1.0"
 dependencies = [
@@ -795,6 +809,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "env_logger",
+ "fact-core",
  "futures",
  "k8s-openapi",
  "kube",
@@ -803,6 +818,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "yaml-rust2",
 ]
 
 [[package]]

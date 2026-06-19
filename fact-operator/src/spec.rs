@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use fact_core::config::FactConfig;
 use k8s_openapi::{
     api::{
         apps::v1::{DaemonSet, DaemonSetSpec},
@@ -13,6 +14,7 @@ use k8s_openapi::{
 use kube::{CustomResource, Resource, ResourceExt, api::ObjectMeta};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use yaml_rust2::YamlEmitter;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, CustomResource)]
 #[serde(rename_all = "camelCase")]
@@ -23,26 +25,25 @@ use serde::{Deserialize, Serialize};
     namespaced
 )]
 pub(crate) struct FactSpec {
+    // Configuration requiring restarts
     pub image: String,
     #[serde(default = "default_log_level")]
     pub log_level: String,
-    #[serde(default = "default_rate_limit")]
-    pub rate_limit: u64,
+
+    // Configuration hot-reloaded via configmap
+    pub config: FactConfig,
 }
 
 fn default_log_level() -> String {
     String::from("info")
 }
 
-fn default_rate_limit() -> u64 {
-    0
-}
-
 pub(crate) fn build_configmap(fact: &Fact) -> ConfigMap {
-    let data = BTreeMap::from([(
-        "fact.yml".into(),
-        format!("rate_limit: {}", fact.spec.rate_limit),
-    )]);
+    let config = fact.spec.config.to_yaml();
+    let mut output = String::new();
+    YamlEmitter::new(&mut output).dump(&config).unwrap();
+
+    let data = BTreeMap::from([("fact.yml".into(), output)]);
     ConfigMap {
         data: Some(data),
         metadata: ObjectMeta {
@@ -73,10 +74,6 @@ pub(crate) fn build_daemonset(fact: &Fact) -> DaemonSet {
         name: "fact".into(),
         image: Some(spec.image.clone()),
         image_pull_policy: Some("IfNotPresent".into()),
-        args: Some(vec![
-            "--paths".into(),
-            "/etc:/bin:/sbin:/usr/bin:/usr/sbin".into(),
-        ]),
         ports: Some(vec![ContainerPort {
             container_port: 9000,
             name: Some("monitoring".into()),
