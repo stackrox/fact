@@ -11,7 +11,9 @@ use tokio::{
     task::JoinSet,
 };
 
-use crate::{config::OTelConfig, metrics::EventCounter, output::EventReceiver};
+use crate::{metrics::EventCounter, output::EventReceiver};
+
+use fact_core::config::OTelConfig;
 
 pub(super) struct Client {
     subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
