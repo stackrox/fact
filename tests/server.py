@@ -109,12 +109,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
                 if len(events) == 0:
                     return
             elif strict:
-                # In strict mode, fail when the event type matches but
-                # the content differs. Events of a different type are
-                # skipped since they may be system noise that the test
-                # cannot predict (e.g. SELinux xattr changes).
-                if 'event_type' not in diff:
-                    raise ValueError(json.dumps(diff, indent=4))
+                raise ValueError(json.dumps(diff, indent=4))
 
     def wait_events(self, events: list[Event], strict: bool = True):
         """
