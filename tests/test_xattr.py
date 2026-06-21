@@ -97,6 +97,9 @@ def test_setxattr_multiple(
     os.setxattr(test_file, 'user.attr1', b'value1')
     os.setxattr(test_file, 'user.attr2', b'value2')
     os.setxattr(test_file, 'user.attr3', b'value3')
+    os.removexattr(test_file, 'user.attr1')
+    os.removexattr(test_file, 'user.attr2')
+    os.removexattr(test_file, 'user.attr3')
 
     server.wait_events(
         skip_xattr=False,
@@ -118,6 +121,27 @@ def test_setxattr_multiple(
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
+                file='',
+                host_path=test_file,
+                xattr_name='user.attr3',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR_REMOVE,
+                file='',
+                host_path=test_file,
+                xattr_name='user.attr1',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR_REMOVE,
+                file='',
+                host_path=test_file,
+                xattr_name='user.attr2',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR_REMOVE,
                 file='',
                 host_path=test_file,
                 xattr_name='user.attr3',
