@@ -62,6 +62,13 @@ def test_removexattr(
         [
             Event(
                 process=process,
+                event_type=EventType.XATTR_SET,
+                file='',
+                host_path=test_file,
+                xattr_name='user.fact_remove',
+            ),
+            Event(
+                process=process,
                 event_type=EventType.XATTR_REMOVE,
                 file='',
                 host_path=test_file,

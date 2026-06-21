@@ -422,3 +422,13 @@ class Event:
         s += ')'
 
         return s
+
+
+def selinux_xattr(process: Process, host_path: str = '') -> Event:
+    return Event(
+        process=process,
+        event_type=EventType.XATTR_SET,
+        file='',
+        host_path=host_path,
+        xattr_name='security.selinux',
+    )
