@@ -204,7 +204,7 @@ def test_xattr_ignored(
     )
 
 
-def test_setxattr_new_file(
+def test_xattr_new_file(
     monitored_dir: str,
     server: FileActivityService,
 ):
@@ -238,6 +238,7 @@ def test_setxattr_new_file(
     )
 
     os.setxattr(test_file, 'user.new_file', b'value')
+    os.removexattr(test_file, 'user.new_file')
 
     server.wait_events(
         skip_xattr=False,
@@ -245,6 +246,13 @@ def test_setxattr_new_file(
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
+                file='',
+                host_path=test_file,
+                xattr_name='user.new_file',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR_REMOVE,
                 file='',
                 host_path=test_file,
                 xattr_name='user.new_file',
@@ -264,7 +272,7 @@ def test_setxattr_new_file(
         pytest.param(b'xattr\xff\xfe.txt', id='InvalidUTF8'),
     ],
 )
-def test_setxattr_utf8_filenames(
+def test_xattr_utf8_filenames(
     monitored_dir: str,
     server: FileActivityService,
     filename: str | bytes,
@@ -301,6 +309,7 @@ def test_setxattr_utf8_filenames(
     )
 
     os.setxattr(fut, 'user.utf8_test', b'value')
+    os.removexattr(fut, 'user.utf8_test')
 
     server.wait_events(
         skip_xattr=False,
@@ -308,6 +317,13 @@ def test_setxattr_utf8_filenames(
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
+                file='',
+                host_path=fut_str,
+                xattr_name='user.utf8_test',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR_REMOVE,
                 file='',
                 host_path=fut_str,
                 xattr_name='user.utf8_test',
