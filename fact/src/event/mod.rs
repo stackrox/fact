@@ -431,19 +431,13 @@ impl FileData {
                 let xattr_name = slice_to_string(
                     &unsafe { extra_data.xattr }.name[..XATTR_NAME_MAX_LEN as usize],
                 )?;
-                FileData::SetXattr(XattrFileData {
-                    inner,
-                    xattr_name,
-                })
+                FileData::SetXattr(XattrFileData { inner, xattr_name })
             }
             file_activity_type_t::FILE_ACTIVITY_REMOVEXATTR => {
                 let xattr_name = slice_to_string(
                     &unsafe { extra_data.xattr }.name[..XATTR_NAME_MAX_LEN as usize],
                 )?;
-                FileData::RemoveXattr(XattrFileData {
-                    inner,
-                    xattr_name,
-                })
+                FileData::RemoveXattr(XattrFileData { inner, xattr_name })
             }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };

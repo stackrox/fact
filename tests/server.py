@@ -138,7 +138,11 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         print('Waiting for events:', *events, sep='\n')
         cancel = ThreadingEvent()
         fs = self.executor.submit(
-            self._wait_events, events, strict, skip_xattr, cancel,
+            self._wait_events,
+            events,
+            strict,
+            skip_xattr,
+            cancel,
         )
         try:
             fs.result(timeout=5)
