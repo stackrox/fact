@@ -150,7 +150,7 @@ def test_setxattr_multiple(
     )
 
 
-def test_setxattr_ignored(
+def test_xattr_ignored(
     test_file: str,
     ignored_dir: str,
     server: FileActivityService,
@@ -176,13 +176,26 @@ def test_setxattr_ignored(
     # Set xattr on monitored file - should generate an event
     os.setxattr(test_file, 'user.monitored', b'value')
 
-    # Only the monitored file's xattr event should arrive
+    # Remove xattr on ignored file - should NOT generate an event
+    os.removexattr(ignored_file, 'user.ignored')
+
+    # Remove xattr on monitored file - should generate an event
+    os.removexattr(test_file, 'user.monitored')
+
+    # Only the monitored file's xattr events should arrive
     server.wait_events(
         skip_xattr=False,
         events=[
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
+                file='',
+                host_path=test_file,
+                xattr_name='user.monitored',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR_REMOVE,
                 file='',
                 host_path=test_file,
                 xattr_name='user.monitored',
