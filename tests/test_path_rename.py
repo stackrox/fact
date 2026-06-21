@@ -5,7 +5,7 @@ import os
 import docker.models.containers
 import pytest
 
-from event import Event, EventType, Process, selinux_xattr
+from event import Event, EventType, Process
 from server import FileActivityService
 from utils import join_path_with_filename, path_to_string
 
@@ -500,7 +500,6 @@ def test_cross_mountpoints(
                 owner_uid=owner_uid,
                 owner_gid=owner_gid,
             ),
-            selinux_xattr(second_rename, host_path),
             Event(
                 process=second_rename,
                 event_type=EventType.PERMISSION,
