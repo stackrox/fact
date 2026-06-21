@@ -330,3 +330,53 @@ def test_xattr_utf8_filenames(
             ),
         ],
     )
+
+
+@pytest.mark.parametrize(
+    'xattr_name',
+    [
+        pytest.param('user.ascii', id='ASCII'),
+        pytest.param('user.café', id='French'),
+        pytest.param('user.файл', id='Cyrillic'),
+        pytest.param('user.测试', id='Chinese'),
+        pytest.param('user.🔒secure', id='Emoji'),
+    ],
+)
+def test_xattr_utf8_names(
+    test_file: str,
+    server: FileActivityService,
+    xattr_name: str,
+):
+    """
+    Tests that xattr events with UTF-8 xattr names are correctly
+    tracked.
+
+    Args:
+        test_file: File monitored on the host.
+        server: The server instance to communicate with.
+        xattr_name: The xattr name to set and remove.
+    """
+    process = Process.from_proc()
+
+    os.setxattr(test_file, xattr_name, b'value')
+    os.removexattr(test_file, xattr_name)
+
+    server.wait_events(
+        skip_xattr=False,
+        events=[
+            Event(
+                process=process,
+                event_type=EventType.XATTR_SET,
+                file='',
+                host_path=test_file,
+                xattr_name=xattr_name,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.XATTR_REMOVE,
+                file='',
+                host_path=test_file,
+                xattr_name=xattr_name,
+            ),
+        ],
+    )
