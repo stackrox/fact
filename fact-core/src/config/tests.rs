@@ -1946,6 +1946,10 @@ fn defaults() {
     assert_eq!(config.paths(), default_paths);
     assert_eq!(config.grpc.url(), None);
     assert_eq!(config.grpc.certs(), None);
+    assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
+    assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
+    assert!(config.grpc.backoff.jitter());
+    assert_eq!(config.grpc.backoff.multiplier(), 1.5);
     assert_eq!(
         config.endpoint.address(),
         SocketAddr::from(([0, 0, 0, 0], 9000))
@@ -2015,6 +2019,468 @@ fn bpf_prog_enabled() {
         let is_enabled = bpf_config.program_is_enabled(PROGRAM);
         assert_eq!(is_enabled, expected)
     }
+}
+
+macro_rules! generate_to_yaml_test {
+    ($testname:ident, $config:expr, $expected:expr) => {
+        #[test]
+        fn $testname() {
+            let expected = YamlLoader::load_from_str($expected).unwrap().pop().unwrap();
+            assert_eq!($config.to_yaml(), expected);
+        }
+    };
+}
+
+generate_to_yaml_test! {
+    test_empty_paths_to_yaml,
+    FactConfig {
+        paths: Some(Vec::new()),
+        ..Default::default()
+    },
+    r#"
+        paths: []
+    "#
+}
+generate_to_yaml_test! {
+    test_paths_to_yaml,
+    FactConfig {
+        paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+        ..Default::default()
+    },
+    r#"
+        paths:
+        - /etc
+        - /bin
+        "#
+}
+
+macro_rules! generate_grpc_to_yaml_test {
+    ($testname:ident, $config:expr, $expected:literal) => {
+        generate_to_yaml_test! {
+            $testname,
+            FactConfig {
+                grpc: $config,
+                ..Default::default()
+            },
+            $expected
+        }
+    };
+}
+
+generate_grpc_to_yaml_test! {
+    test_grpc_url_to_yaml,
+    GrpcConfig {
+        url: Some("http://localhost:9090".into()),
+        ..Default::default()
+    },
+    r#"
+    grpc:
+      url: 'http://localhost:9090'
+    "#
+}
+generate_grpc_to_yaml_test! {
+    test_grpc_certs_to_yaml,
+    GrpcConfig {
+        certs: Some("/etc/stackrox/certs".into()),
+        ..Default::default()
+    },
+    r#"
+    grpc:
+      certs: /etc/stackrox/certs
+    "#
+}
+generate_grpc_to_yaml_test! {
+    test_grpc_backoff_initial_to_yaml,
+    GrpcConfig {
+        backoff: BackoffConfig {
+            initial: Some(Duration::from_secs(5)),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    r#"
+    grpc:
+      backoff:
+        initial: 5
+    "#
+}
+generate_grpc_to_yaml_test! {
+    test_grpc_backoff_max_to_yaml,
+    GrpcConfig {
+        backoff: BackoffConfig {
+            max: Some(Duration::from_secs(120)),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    r#"
+    grpc:
+      backoff:
+        max: 120
+    "#
+}
+generate_grpc_to_yaml_test! {
+    test_grpc_backoff_jitter_to_yaml,
+    GrpcConfig {
+        backoff: BackoffConfig {
+            jitter: Some(false),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    r#"
+    grpc:
+      backoff:
+        jitter: false
+    "#
+}
+generate_grpc_to_yaml_test! {
+    test_grpc_backoff_multiplier_to_yaml,
+    GrpcConfig {
+        backoff: BackoffConfig {
+            multiplier: Some(3.5),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    r#"
+    grpc:
+      backoff:
+        multiplier: 3.5
+    "#
+}
+generate_grpc_to_yaml_test! {
+    test_grpc_backoff_retries_to_yaml,
+    GrpcConfig {
+        backoff: BackoffConfig {
+            retries_max: Some(20),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    r#"
+    grpc:
+      backoff:
+        retries: 20
+    "#
+}
+
+generate_to_yaml_test! {
+    test_otel_endpoint_to_yaml,
+    FactConfig {
+        otel: OTelConfig { endpoint: Some("http://localhost:4317".into()) },
+        ..Default::default()
+    },
+    r#"
+    otel:
+      endpoint: http://localhost:4317
+    "#
+}
+
+macro_rules! generate_endpoint_to_yaml_test {
+    ($testname:ident, $config:expr, $expected:literal) => {
+        generate_to_yaml_test! {
+            $testname,
+            FactConfig {
+                endpoint: $config,
+                ..Default::default()
+            },
+            $expected
+        }
+    };
+}
+
+generate_endpoint_to_yaml_test! {
+    test_endpoint_address_to_yaml,
+    EndpointConfig {
+        address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      address: 0.0.0.0:8080
+    "#
+}
+generate_endpoint_to_yaml_test! {
+    test_endpoint_address_local_to_yaml,
+    EndpointConfig {
+        address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      address: 127.0.0.1:8080
+    "#
+}
+generate_endpoint_to_yaml_test! {
+    test_endpoint_address_v6_to_yaml,
+    EndpointConfig {
+        address: Some(SocketAddr::from((
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            8080,
+        ))),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      address: '[::]:8080'
+    "#
+
+}
+generate_endpoint_to_yaml_test! {
+    test_endpoint_address_v6_local_to_yaml,
+    EndpointConfig {
+        address: Some(SocketAddr::from((
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            8080,
+        ))),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      address: '[::1]:8080'
+    "#
+
+}
+generate_endpoint_to_yaml_test! {
+    test_endpoint_expose_metrics_true_to_yaml,
+    EndpointConfig {
+        expose_metrics: Some(true),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      expose_metrics: true
+    "#
+}
+generate_endpoint_to_yaml_test! {
+    test_endpoint_expose_metrics_false_to_yaml,
+    EndpointConfig {
+        expose_metrics: Some(false),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      expose_metrics: false
+    "#
+}
+generate_endpoint_to_yaml_test! {
+    test_endpoint_health_check_true_to_yaml,
+    EndpointConfig {
+        health_check: Some(true),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      health_check: true
+    "#
+}
+generate_endpoint_to_yaml_test! {
+    test_endpoint_health_check_false_to_yaml,
+    EndpointConfig {
+        health_check: Some(false),
+        ..Default::default()
+    },
+    r#"
+    endpoint:
+      health_check: false
+    "#
+}
+
+generate_to_yaml_test! {
+    test_skip_pre_flight_true_to_yaml,
+    FactConfig {
+        skip_pre_flight: Some(true),
+        ..Default::default()
+    },
+    "skip_pre_flight: true"
+}
+generate_to_yaml_test! {
+    test_skip_pre_flight_false_to_yaml,
+    FactConfig {
+        skip_pre_flight: Some(false),
+        ..Default::default()
+    },
+    "skip_pre_flight: false"
+}
+
+generate_to_yaml_test! {
+    test_json_true_to_yaml,
+    FactConfig {
+        json: Some(true),
+        ..Default::default()
+    },
+    "json: true"
+}
+generate_to_yaml_test! {
+    test_json_false_to_yaml,
+    FactConfig {
+        json: Some(false),
+        ..Default::default()
+    },
+    "json: false"
+}
+
+macro_rules! generate_bpf_to_yaml_test {
+    ($testname:ident, $config:expr, $expected:literal) => {
+        generate_to_yaml_test! {
+            $testname,
+            FactConfig {
+                bpf: $config,
+                ..Default::default()
+            },
+            $expected
+        }
+    };
+}
+
+generate_bpf_to_yaml_test! {
+    test_bpf_ringbuf_size_to_yaml,
+    BpfConfig {
+        ringbuf_size: Some(64),
+        ..Default::default()
+    },
+    r#"
+    bpf:
+        ringbuf_size: 64
+    "#
+}
+generate_bpf_to_yaml_test! {
+    test_bpf_inodes_max_to_yaml,
+    BpfConfig {
+        inodes_max: Some(64),
+        ..Default::default()
+    },
+    r#"
+    bpf:
+        inodes_max: 64
+    "#
+}
+
+generate_to_yaml_test! {
+    test_hotreload_true_to_yaml,
+    FactConfig {
+        hotreload: Some(true),
+        ..Default::default()
+    },
+    "hotreload: true"
+}
+generate_to_yaml_test! {
+    test_hotreload_false_to_yaml,
+    FactConfig {
+        hotreload: Some(false),
+        ..Default::default()
+    },
+    "hotreload: false"
+}
+
+generate_to_yaml_test! {
+    test_scan_interval_integer_to_yaml,
+    FactConfig {
+        scan_interval: Some(Duration::from_secs(60)),
+        ..Default::default()
+    },
+    "scan_interval: 60"
+}
+generate_to_yaml_test! {
+    test_scan_interval_float_to_yaml,
+    FactConfig {
+        scan_interval: Some(Duration::from_secs_f64(30.5)),
+        ..Default::default()
+    },
+    "scan_interval: 30.5"
+}
+
+generate_to_yaml_test! {
+    test_rate_limit_zero_to_yaml,
+    FactConfig {
+        rate_limit: Some(0),
+        ..Default::default()
+    },
+    "rate_limit: 0"
+}
+generate_to_yaml_test! {
+    test_rate_limit_to_yaml,
+    FactConfig {
+        rate_limit: Some(1000),
+        ..Default::default()
+    },
+    "rate_limit: 1000"
+}
+
+generate_to_yaml_test! {
+    test_replay_to_yaml,
+    FactConfig {
+        replay: Some("/etc/some-path".into()),
+        ..Default::default()
+    },
+    "replay: /etc/some-path"
+}
+
+generate_to_yaml_test! {
+    test_full_config_to_yaml,
+        FactConfig {
+            paths: Some(vec!["/etc".into()]),
+            grpc: GrpcConfig {
+                url: Some("https://svc.sensor.stackrox:9090".into()),
+                certs: Some("/etc/stackrox/certs".into()),
+                backoff: BackoffConfig {
+                    initial: Some(Duration::from_secs_f64(0.5)),
+                    max: Some(Duration::from_secs(120)),
+                    jitter: Some(false),
+                    multiplier: Some(3.5),
+                    retries_max: Some(5),
+                },
+            },
+            otel: OTelConfig {
+                endpoint: Some("http://localhost:4317".into()),
+            },
+            endpoint: EndpointConfig {
+                address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                expose_metrics: Some(true),
+                health_check: Some(true),
+            },
+            skip_pre_flight: Some(false),
+            json: Some(false),
+            bpf: BpfConfig {
+                ringbuf_size: Some(8192),
+                inodes_max: Some(64),
+                programs: HashMap::new(),
+            },
+            hotreload: Some(false),
+            scan_interval: Some(Duration::from_secs(60)),
+            rate_limit: Some(1000),
+            replay: Some("/etc/some-path".into()),
+        },
+
+    r#"
+    paths:
+    - /etc
+    grpc:
+      url: 'https://svc.sensor.stackrox:9090'
+      certs: /etc/stackrox/certs
+      backoff:
+        initial: 0.5
+        max: 120
+        jitter: false
+        multiplier: 3.5
+        retries: 5
+    otel:
+      endpoint: 'http://localhost:4317'
+    endpoint:
+      address: 0.0.0.0:8080
+      expose_metrics: true
+      health_check: true
+    bpf:
+        ringbuf_size: 8192
+        inodes_max: 64
+    skip_pre_flight: false
+    json: false
+    hotreload: false
+    scan_interval: 60
+    rate_limit: 1000
+    replay: /etc/some-path
+    "#
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
