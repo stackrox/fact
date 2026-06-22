@@ -585,13 +585,13 @@ pub struct FactCli {
     /// Initial backoff delay in seconds for gRPC reconnection
     ///
     /// Default value is 1 second
-    #[arg(long, env = "FACT_GRPC_BACKOFF_INITIAL", value_parser = parse_positive_duration_secs)]
+    #[arg(long, env = "FACT_GRPC_BACKOFF_INITIAL_DURATION", value_parser = parse_positive_duration_secs)]
     backoff_initial: Option<Duration>,
 
     /// Maximum backoff delay in seconds for gRPC reconnection
     ///
     /// Default value is 60 seconds
-    #[arg(long, env = "FACT_GRPC_BACKOFF_MAX", value_parser = parse_positive_duration_secs)]
+    #[arg(long, env = "FACT_GRPC_BACKOFF_MAX_DURATION", value_parser = parse_positive_duration_secs)]
     backoff_max: Option<Duration>,
 
     /// Backoff multiplier for gRPC reconnection

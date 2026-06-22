@@ -1694,7 +1694,7 @@ fn env_vars() {
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_INITIAL",
+                name: "FACT_GRPC_BACKOFF_INITIAL_DURATION",
                 value: "5",
             },
             FactConfig {
@@ -1710,7 +1710,7 @@ fn env_vars() {
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_MAX",
+                name: "FACT_GRPC_BACKOFF_MAX_DURATION",
                 value: "120",
             },
             FactConfig {
@@ -1869,7 +1869,7 @@ fn env_vars_override_yaml() {
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_INITIAL",
+                name: "FACT_GRPC_BACKOFF_INITIAL_DURATION",
                 value: "5",
             },
             "grpc:\n  backoff:\n    initial: 2",
@@ -1886,7 +1886,7 @@ fn env_vars_override_yaml() {
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_MAX",
+                name: "FACT_GRPC_BACKOFF_MAX_DURATION",
                 value: "120",
             },
             "grpc:\n  backoff:\n    max: 30",
@@ -2118,42 +2118,42 @@ fn env_vars_invalid_values() {
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_INITIAL",
+                name: "FACT_GRPC_BACKOFF_INITIAL_DURATION",
                 value: "not_a_number",
             },
             "error: invalid value 'not_a_number' for '--backoff-initial <BACKOFF_INITIAL>': invalid float literal",
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_MAX",
+                name: "FACT_GRPC_BACKOFF_MAX_DURATION",
                 value: "not_a_number",
             },
             "error: invalid value 'not_a_number' for '--backoff-max <BACKOFF_MAX>': invalid float literal",
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_INITIAL",
+                name: "FACT_GRPC_BACKOFF_INITIAL_DURATION",
                 value: "0",
             },
             "error: invalid value '0' for '--backoff-initial <BACKOFF_INITIAL>': value must be greater than zero",
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_MAX",
+                name: "FACT_GRPC_BACKOFF_MAX_DURATION",
                 value: "0",
             },
             "error: invalid value '0' for '--backoff-max <BACKOFF_MAX>': value must be greater than zero",
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_INITIAL",
+                name: "FACT_GRPC_BACKOFF_INITIAL_DURATION",
                 value: "-1",
             },
             "error: invalid value '-1' for '--backoff-initial <BACKOFF_INITIAL>': value must be a non-negative finite number, got -1",
         ),
         (
             EnvVar {
-                name: "FACT_GRPC_BACKOFF_MAX",
+                name: "FACT_GRPC_BACKOFF_MAX_DURATION",
                 value: "-1",
             },
             "error: invalid value '-1' for '--backoff-max <BACKOFF_MAX>': value must be a non-negative finite number, got -1",
