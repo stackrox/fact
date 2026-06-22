@@ -315,6 +315,7 @@ def test_rename_overwrite(
 def test_overlay(
     test_container: docker.models.containers.Container,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     assert test_container.id is not None
     # File Under Test
@@ -338,6 +339,7 @@ def test_overlay(
         container_id=test_container.id[:12],
     )
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,
@@ -361,6 +363,7 @@ def test_mounted_dir(
     test_container: docker.models.containers.Container,
     ignored_dir: str,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     assert test_container.id is not None
     # File Under Test
@@ -385,6 +388,7 @@ def test_mounted_dir(
     )
     # ignored_dir is not monitored, so host_path should be blank
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,
@@ -408,6 +412,7 @@ def test_cross_mountpoints(
     test_container: docker.models.containers.Container,
     monitored_dir: str,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Attempt to rename files/directories across mountpoints
@@ -453,6 +458,7 @@ def test_cross_mountpoints(
 
     server.wait_events(
         [
+            *docker_selinux_xattr,
             Event(
                 process=touch,
                 event_type=EventType.OPEN,
