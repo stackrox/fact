@@ -531,7 +531,7 @@ spec:
       - name: name
         value: verify-pq-crypto-policies
       - name: bundle
-        value: quay.io/rhacs-eng/konflux-tasks:latest@sha256:4d05c7ad1bcf63015b6b67787e9f024466fd2c864b69f7939a1925e307afb9b0
+        value: quay.io/rhacs-eng/konflux-tasks:pr-106@sha256:7ac792e1ff5bd02bf862e738d0a139c6575a2b8427f2da0e139ad1dfac8b74d4
       - name: kind
         value: task
       resolver: bundles
