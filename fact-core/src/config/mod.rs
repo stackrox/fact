@@ -163,7 +163,7 @@ impl FactConfig {
             );
         }
 
-        if let Some(json) = self.skip_pre_flight {
+        if let Some(json) = self.json {
             config.insert(Yaml::String("json".into()), Yaml::Boolean(json));
         }
 
@@ -172,10 +172,13 @@ impl FactConfig {
         }
 
         if let Some(scan_interval) = self.scan_interval {
-            config.insert(
-                Yaml::String("scan_interval".into()),
-                Yaml::Integer(scan_interval.as_secs() as i64),
-            );
+            let scan_interval = scan_interval.as_secs_f64();
+            let scan_interval = if scan_interval.fract() != 0.0 {
+                Yaml::Real(scan_interval.to_string())
+            } else {
+                Yaml::Integer(scan_interval as i64)
+            };
+            config.insert(Yaml::String("scan_interval".into()), scan_interval);
         }
 
         if let Some(rate_limit) = self.rate_limit {
@@ -622,7 +625,7 @@ impl BpfConfig {
             );
         }
 
-        if let Some(inodes_max) = self.ringbuf_size {
+        if let Some(inodes_max) = self.inodes_max {
             bpf.insert(
                 Yaml::String("inodes_max".into()),
                 Yaml::Integer(inodes_max as i64),
