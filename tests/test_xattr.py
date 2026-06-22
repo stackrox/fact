@@ -29,8 +29,7 @@ def test_setxattr(
     os.setxattr(test_file, 'user.fact_test', b'test_value')
 
     server.wait_events(
-        skip_xattr=False,
-        events=[
+        [
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
@@ -60,8 +59,7 @@ def test_removexattr(
     os.removexattr(test_file, 'user.fact_remove')
 
     server.wait_events(
-        skip_xattr=False,
-        events=[
+        [
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
@@ -102,8 +100,7 @@ def test_setxattr_multiple(
     os.removexattr(test_file, 'user.attr3')
 
     server.wait_events(
-        skip_xattr=False,
-        events=[
+        [
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
@@ -184,8 +181,7 @@ def test_xattr_ignored(
 
     # Only the monitored file's xattr events should arrive
     server.wait_events(
-        skip_xattr=False,
-        events=[
+        [
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
@@ -241,8 +237,7 @@ def test_xattr_new_file(
     os.removexattr(test_file, 'user.new_file')
 
     server.wait_events(
-        skip_xattr=False,
-        events=[
+        [
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
@@ -312,8 +307,7 @@ def test_xattr_utf8_filenames(
     os.removexattr(fut, 'user.utf8_test')
 
     server.wait_events(
-        skip_xattr=False,
-        events=[
+        [
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
@@ -362,8 +356,7 @@ def test_xattr_utf8_names(
     os.removexattr(test_file, xattr_name)
 
     server.wait_events(
-        skip_xattr=False,
-        events=[
+        [
             Event(
                 process=process,
                 event_type=EventType.XATTR_SET,
