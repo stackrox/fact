@@ -27,11 +27,20 @@ def get_dockerd_process() -> Process | None:
         return None
     pid = int(result.stdout.strip().split('\n')[0])
     proc = Process.from_proc(pid)
+    # Process.from_proc uses os.path.realpath on /proc/<pid>/exe,
+    # which may not resolve across mount namespaces (e.g. CoreOS).
+    # Use the path from pgrep -a instead.
+    result = subprocess.run(
+        ['pgrep', '-a', 'dockerd'],
+        capture_output=True,
+        text=True,
+    )
+    exe_path = result.stdout.strip().split('\n')[0].split()[1]
     return Process(
         pid=None,
         uid=proc.uid,
         gid=proc.gid,
-        exe_path=proc.exe_path,
+        exe_path=exe_path,
         args=proc.args,
         name=proc.name,
         container_id=proc.container_id,
