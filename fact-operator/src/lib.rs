@@ -9,7 +9,7 @@ use kube::{
 };
 use log::{info, warn};
 
-use crate::spec::Fact;
+use crate::spec::{DaemonSetBuilder, Fact};
 
 mod spec;
 
@@ -30,7 +30,7 @@ async fn reconcile(fact: Arc<Fact>, ctx: Arc<Context>) -> Result<Action, kube::E
     )
     .await?;
 
-    let ds = spec::build_daemonset(&fact);
+    let ds = DaemonSetBuilder::from(&*fact).build();
     let api = Api::<DaemonSet>::namespaced(ctx.client.clone(), &ns);
     api.patch(
         &fact.name_any(),
