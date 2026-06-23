@@ -47,6 +47,7 @@ def get_dockerd_process() -> Process | None:
         loginuid=proc.loginuid,
     )
 
+
 # Declare files holding fixtures
 pytest_plugins = ['test_editors.commons']
 
@@ -232,10 +233,7 @@ def docker_selinux_xattr(
     otherwise.
     """
     info = docker_client.info()
-    selinux = any(
-        'selinux' in opt
-        for opt in info.get('SecurityOptions', [])
-    )
+    selinux = any('selinux' in opt for opt in info.get('SecurityOptions', []))
     if not selinux:
         return []
     dockerd = get_dockerd_process()
