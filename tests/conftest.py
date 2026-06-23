@@ -222,6 +222,7 @@ def test_container(
 @pytest.fixture
 def docker_selinux_xattr(
     docker_client: docker.DockerClient,
+    monitored_dir: str,
     test_file: str,
 ) -> list[Event]:
     """
@@ -231,6 +232,8 @@ def docker_selinux_xattr(
     relabels files with security.selinux. This fixture returns the
     expected events if Docker has SELinux enabled, or an empty list
     otherwise.
+
+    Docker relabels both the file and its parent directory.
     """
     info = docker_client.info()
     selinux = any('selinux' in opt for opt in info.get('SecurityOptions', []))
@@ -245,6 +248,13 @@ def docker_selinux_xattr(
             event_type=EventType.XATTR_SET,
             file='',
             host_path=test_file,
+            xattr_name='security.selinux',
+        ),
+        Event(
+            process=dockerd,
+            event_type=EventType.XATTR_SET,
+            file='',
+            host_path=monitored_dir,
             xattr_name='security.selinux',
         ),
     ]
