@@ -48,10 +48,8 @@ impl Backoff {
     }
 
     fn next(&mut self) -> Duration {
-        let delay = self.current;
-        self.current = Duration::from_secs_f64(
-            (self.current.as_secs_f64() * self.multiplier).min(self.max.as_secs_f64()),
-        );
+        let delay = self.current.min(self.max);
+        self.current = self.current.mul_f64(self.multiplier).min(self.max);
         if self.jitter {
             let nanos = rand::random_range(0..=delay.as_nanos() as u64);
             Duration::from_nanos(nanos)
