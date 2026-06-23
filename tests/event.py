@@ -48,194 +48,8 @@ class EventType(Enum):
     RENAME = 6
     XATTR_SET = 7
     XATTR_REMOVE = 8
-
-
-class Process:
-    """
-    Represents a process with its attributes.
-    """
-
-    def __init__(
-        self,
-        pid: int | None,
-        uid: int,
-        gid: int,
-        exe_path: str,
-        args: str,
-        name: str,
-        container_id: str,
-        loginuid: int,
-    ):
-        self._pid: int | None = pid
-        self._uid: int = uid
-        self._gid: int = gid
-        self._exe_path: str = exe_path
-        self._args: str = args
-        self._name: str = name
-        self._container_id: str = container_id
-        self._loginuid: int = loginuid
-
-    @classmethod
-    def from_proc(cls, pid: int | None = None):
-        pid = pid if pid is not None else os.getpid()
-        proc_dir = os.path.join('/proc', str(pid))
-
-        uid = 0
-        gid = 0
-        with open(os.path.join(proc_dir, 'status')) as f:
-
-            def get_id(line: str, wanted_id: str) -> int | None:
-                if line.startswith(f'{wanted_id}:'):
-                    parts = line.split()
-                    if len(parts) > 2:
-                        return int(parts[1])
-                return None
-
-            for line in f.readlines():
-                if (id := get_id(line, 'Uid')) is not None:
-                    uid = id
-                elif (id := get_id(line, 'Gid')) is not None:
-                    gid = id
-
-        exe_path = os.path.realpath(os.path.join(proc_dir, 'exe'))
-
-        with open(os.path.join(proc_dir, 'cmdline'), 'rb') as f:
-            content = f.read(4096)
-            args = [
-                arg.decode('utf-8') for arg in content.split(b'\x00') if arg
-            ]
-        args = utils.rust_style_join(args)
-
-        with open(os.path.join(proc_dir, 'comm')) as f:
-            name = f.read().strip()
-
-        with open(os.path.join(proc_dir, 'cgroup')) as f:
-            container_id = extract_container_id(f.read())
-
-        with open(os.path.join(proc_dir, 'loginuid')) as f:
-            loginuid = int(f.read())
-
-        return Process(
-            pid=pid,
-            uid=uid,
-            gid=gid,
-            exe_path=exe_path,
-            args=args,
-            name=name,
-            container_id=container_id,
-            loginuid=loginuid,
-        )
-
-    @classmethod
-    def in_container(
-        cls,
-        exe_path: str,
-        args: str,
-        name: str,
-        container_id: str,
-    ):
-        return Process(
-            pid=None,
-            uid=0,
-            gid=0,
-            loginuid=pow(2, 32) - 1,
-            exe_path=exe_path,
-            args=args,
-            name=name,
-            container_id=container_id,
-        )
-
-    @property
-    def uid(self) -> int:
-        return self._uid
-
-    @property
-    def gid(self) -> int:
-        return self._gid
-
-    @property
-    def pid(self) -> int | None:
-        return self._pid
-
-    @property
-    def exe_path(self) -> str:
-        return self._exe_path
-
-    @property
-    def args(self) -> str:
-        return self._args
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def container_id(self) -> str:
-        return self._container_id
-
-    @property
-    def loginuid(self) -> int:
-        return self._loginuid
-
-    def diff(self, other: ProcessSignal) -> dict | None:
-        """
-        Compare this Process with a ProcessSignal protobuf message.
-
-        Args:
-            other: ProcessSignal protobuf message to compare against
-
-        Returns:
-            None if identical, dict of differences if not matching
-        """
-        diff = {}
-
-        # Compare each field
-        if self.pid is not None:
-            Event._diff_field(diff, 'pid', self.pid, other.pid)
-
-        Event._diff_field(diff, 'uid', self.uid, other.uid)
-        Event._diff_field(diff, 'gid', self.gid, other.gid)
-        Event._diff_field(diff, 'exe_path', self.exe_path, other.exec_file_path)
-        Event._diff_field(diff, 'args', self.args, other.args)
-        Event._diff_field(diff, 'name', self.name, other.name)
-        Event._diff_field(
-            diff,
-            'container_id',
-            self.container_id,
-            other.container_id,
-        )
-        Event._diff_field(diff, 'loginuid', self.loginuid, other.login_uid)
-
-        return diff if diff else None
-
-    @override
-    def __str__(self) -> str:
-        return (
-            f'Process(uid={self.uid}, gid={self.gid}, pid={self.pid}, '
-            f'exe_path={self.exe_path}, args={self.args}, '
-            f'name={self.name}, container_id={self.container_id}, '
-            f'loginuid={self.loginuid})'
-        )
-
-
-class Event:
-    """
-    Represents a file activity event, associating a process with an
-    event type and a file.
-    """
-
-    def __init__(
-        self,
-        process: Process,
-        event_type: EventType,
-        file: str | Pattern[str],
-        host_path: str | Pattern[str] = '',
-        mode: int | None = None,
-        owner_uid: int | None = None,
-        owner_gid: int | None = None,
-        old_file: str | Pattern[str] | None = None,
-        old_host_path: str | Pattern[str] | None = None,
-        xattr_name: str | None = None,
+        acl_type: str | None = None,
+        acl_entries: list[dict] | None = None,
     ):
         self._type: EventType = event_type
         self._process: Process = process
@@ -247,46 +61,12 @@ class Event:
         self._old_file: str | Pattern[str] | None = old_file
         self._old_host_path: str | Pattern[str] | None = old_host_path
         self._xattr_name: str | None = xattr_name
+    def acl_type(self) -> str | None:
+        return self._acl_type
 
     @property
-    def event_type(self) -> EventType:
-        return self._type
-
-    @property
-    def process(self) -> Process:
-        return self._process
-
-    @property
-    def file(self) -> str | Pattern[str]:
-        return self._file
-
-    @property
-    def host_path(self) -> str | Pattern[str]:
-        return self._host_path
-
-    @property
-    def mode(self) -> int | None:
-        return self._mode
-
-    @property
-    def owner_uid(self) -> int | None:
-        return self._owner_uid
-
-    @property
-    def owner_gid(self) -> int | None:
-        return self._owner_gid
-
-    @property
-    def old_file(self) -> str | Pattern[str] | None:
-        return self._old_file
-
-    @property
-    def old_host_path(self) -> str | Pattern[str] | None:
-        return self._old_host_path
-
-    @property
-    def xattr_name(self) -> str | None:
-        return self._xattr_name
+    def acl_entries(self) -> list[dict] | None:
+        return self._acl_entries
 
     @classmethod
     def _diff_field(cls, diff: dict, name: str, expected: Any, actual: Any):
@@ -403,31 +183,9 @@ class Event:
                 self.xattr_name,
                 event_field.xattr_name,
             )
-
-        return diff if diff else None
-
-    @override
-    def __str__(self) -> str:
-        s = (
-            f'Event(event_type={self.event_type.name}, '
-            f'process={self.process}, file="{self.file}", '
-            f'host_path="{self.host_path}"'
-        )
-
-        if self.event_type == EventType.PERMISSION:
-            s += f', mode={self.mode}'
-
-        if self.event_type == EventType.OWNERSHIP:
-            s += f', owner=(uid={self.owner_uid}, gid={self.owner_gid})'
-
-        if self.event_type == EventType.RENAME:
-            s += (
-                f', old_file="{self.old_file}"'
-                f', old_host_path="{self.old_host_path}"'
-            )
-
-        if self.event_type in (EventType.XATTR_SET, EventType.XATTR_REMOVE):
-            s += f', xattr_name="{self.xattr_name}"'
+        if self.event_type == EventType.ACL:
+            s += f', acl_type={self.acl_type}'
+            s += f', acl_entries={self.acl_entries}'
 
         s += ')'
 

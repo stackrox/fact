@@ -72,4 +72,5 @@ define_kernel_metrics!(
     d_instantiate,
     inode_setxattr,
     inode_removexattr,
+    inode_set_acl,
 );

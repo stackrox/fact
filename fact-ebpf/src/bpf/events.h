@@ -160,3 +160,45 @@ __always_inline static void submit_xattr_event(struct submit_event_args_t* args,
 
   __submit_event(args, false);
 }
+
+__always_inline static void submit_acl_event(struct submit_event_args_t* args,
+                                             const char* acl_name,
+                                             struct posix_acl* kacl) {
+  if (!reserve_event(args)) {
+    return;
+  }
+
+  args->event->type = FILE_ACTIVITY_ACL_SET;
+
+  // Determine ACL type from the xattr name.
+  // "system.posix_acl_access" vs "system.posix_acl_default"
+  char name_buf[32] = {0};
+  long name_len = bpf_probe_read_kernel_str(name_buf, sizeof(name_buf), acl_name);
+  if (name_len == 25 && __builtin_memcmp(name_buf, "system.posix_acl_default", 24) == 0) {
+    args->event->acl.acl_type = FACT_ACL_TYPE_DEFAULT;
+  } else {
+    args->event->acl.acl_type = FACT_ACL_TYPE_ACCESS;
+  }
+
+  if (kacl == NULL) {
+    args->event->acl.count = 0;
+  } else {
+    unsigned int count = 0;
+    bpf_probe_read_kernel(&count, sizeof(count), &kacl->a_count);
+    if (count > FACT_MAX_ACL_ENTRIES) {
+      count = FACT_MAX_ACL_ENTRIES;
+    }
+    args->event->acl.count = count;
+
+    for (unsigned int i = 0; i < FACT_MAX_ACL_ENTRIES && i < count; i++) {
+      struct posix_acl_entry entry = {0};
+      bpf_probe_read_kernel(&entry, sizeof(entry), &kacl->a_entries[i]);
+      args->event->acl.entries[i].e_tag = entry.e_tag;
+      args->event->acl.entries[i].e_perm = entry.e_perm;
+      args->event->acl.entries[i].e_id = entry.e_uid.val;
+    }
+  }
+
+  // inode_set_acl does not support bpf_d_path (no struct path available)
+  __submit_event(args, false);
+}

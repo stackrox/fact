@@ -24,6 +24,10 @@ mod checks;
 
 const RINGBUFFER_NAME: &str = "rb";
 
+/// Hooks that may not be available on all supported kernels. If these
+/// fail to load, FACT will log a warning and continue without them.
+const OPTIONAL_HOOKS: &[&str] = &["inode_set_acl"];
+
 pub struct Bpf {
     obj: Ebpf,
 
@@ -178,28 +182,38 @@ impl Bpf {
             let Some(hook) = name.strip_prefix("trace_") else {
                 bail!("Invalid hook name: {name}");
             };
-            match prog {
-                Program::Lsm(prog) => prog.load(hook, btf)?,
+            let result = match prog {
+                Program::Lsm(prog) => prog.load(hook, btf),
                 u => unimplemented!("{u:?}"),
+            };
+            if let Err(e) = result {
+                if OPTIONAL_HOOKS.contains(&hook) {
+                    warn!("Optional hook {hook} not available on this kernel, skipping: {e}");
+                    continue;
+                }
+                return Err(e.into());
             }
         }
         Ok(())
     }
 
-    /// Attaches all BPF programs. If any attach fails, all previously
-    /// attached programs are automatically detached via drop.
+    /// Attaches all loaded BPF programs. Programs that were not loaded
+    /// (e.g. optional hooks on unsupported kernels) are skipped.
+    /// If any attach fails, all previously attached programs are
+    /// automatically detached via drop.
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        self.links = self
-            .obj
-            .programs_mut()
-            .map(|(_, prog)| match prog {
+        for (_, prog) in self.obj.programs_mut() {
+            match prog {
                 Program::Lsm(prog) => {
+                    if prog.fd().is_err() {
+                        continue;
+                    }
                     let link_id = prog.attach()?;
-                    prog.take_link(link_id)
+                    self.links.push(prog.take_link(link_id)?);
                 }
                 u => unimplemented!("{u:?}"),
-            })
-            .collect::<Result<_, _>>()?;
+            }
+        }
         Ok(())
     }
 

@@ -431,6 +431,38 @@ int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* de
   return handle_xattr(&m->inode_removexattr, dentry, name, FILE_ACTIVITY_REMOVEXATTR);
 }
 
+SEC("lsm/inode_set_acl")
+int BPF_PROG(trace_inode_set_acl, struct mnt_idmap* idmap, struct dentry* dentry,
+             const char* acl_name, struct posix_acl* kacl) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->inode_set_acl};
+
+  args.metrics->total++;
+
+  struct bound_path_t* bound_path = dentry_read(dentry);
+  if (bound_path == NULL) {
+    bpf_printk("Failed to read path from dentry");
+    args.metrics->error++;
+    return 0;
+  }
+  args.filename = bound_path->path;
+
+  struct inode* inode_ptr = BPF_CORE_READ(dentry, d_inode);
+  args.inode = inode_to_key(inode_ptr);
+  args.monitored = is_monitored(&args.inode, bound_path, NULL);
+
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  submit_acl_event(&args, acl_name, kacl);
+  return 0;
+}
+
 SEC("lsm/path_rmdir")
 int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();
