@@ -30,6 +30,7 @@ jobs:
           - rhel
           - rhel-arm64
           - rhcos
+          - rhcos-arm64
 
     steps:
     - uses: actions/checkout@v4
@@ -91,6 +92,10 @@ jobs:
         - rhcos-414-92-202407091253-0-gcp-x86-64
         # BPF trampolines are only implemented starting with RHEL 10
         - rhel-9-arm64
+        - rhcos-9-8-20260520-0-gcp-aarch64
+        - rhcos-9-6-20260512-0-gcp-aarch64
+        - rhcos-418-94-202602022246-0-gcp-aarch64
+        - rhcos-416-94-202510081640-0-gcp-aarch64
         EOF
 
     - name: Create Test VMs
