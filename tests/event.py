@@ -1,8 +1,18 @@
+from __future__ import annotations
+
 import os
 import string
 from enum import Enum
 from re import Pattern
-from typing import Any, override
+from typing import Any
+
+try:
+    from typing import override  # type: ignore[reportAssignmentType]
+except ImportError:
+
+    def override(func):  # type: ignore[reportMissingParameterType]
+        return func
+
 
 import utils
 from internalapi.sensor.collector_pb2 import ProcessSignal
