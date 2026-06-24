@@ -7,132 +7,67 @@ use crate::metrics::MetricEvents;
 
 use super::{EventCounter, LabelValues};
 
-pub struct KernelMetrics {
-    file_open: EventCounter,
-    path_unlink: EventCounter,
-    path_chmod: EventCounter,
-    path_chown: EventCounter,
-    path_rename: EventCounter,
-    path_mkdir: EventCounter,
-    path_rmdir: EventCounter,
-    d_instantiate: EventCounter,
-    map: PerCpuArray<MapData, metrics_t>,
-}
-
-impl KernelMetrics {
-    pub fn new(reg: &mut Registry, kernel_metrics: PerCpuArray<MapData, metrics_t>) -> Self {
-        let file_open = EventCounter::new(
-            "kernel_file_open_events",
-            "Events processed by the file_open LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-        let path_unlink = EventCounter::new(
-            "kernel_path_unlink_events",
-            "Events processed by the path_unlink LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-        let path_chmod = EventCounter::new(
-            "kernel_path_chmod_events",
-            "Events processed by the path_chmod LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-        let path_chown = EventCounter::new(
-            "kernel_path_chown_events",
-            "Events processed by the path_chown LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-        let path_rename = EventCounter::new(
-            "kernel_path_rename_events",
-            "Events processed by the path_rename LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-        let path_mkdir = EventCounter::new(
-            "kernel_path_mkdir_events",
-            "Events processed by the path_mkdir LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-        let path_rmdir = EventCounter::new(
-            "kernel_path_rmdir_events",
-            "Events processed by the path_rmdir LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-        let d_instantiate = EventCounter::new(
-            "kernel_d_instantiate_events",
-            "Events processed by the d_instantiate LSM hook",
-            &[], // Labels are not needed since `collect` will add them all
-        );
-
-        file_open.register(reg);
-        path_unlink.register(reg);
-        path_chmod.register(reg);
-        path_chown.register(reg);
-        path_rename.register(reg);
-        path_mkdir.register(reg);
-        path_rmdir.register(reg);
-        d_instantiate.register(reg);
-
-        KernelMetrics {
-            file_open,
-            path_unlink,
-            path_chmod,
-            path_chown,
-            path_rename,
-            path_mkdir,
-            path_rmdir,
-            d_instantiate,
-            map: kernel_metrics,
+macro_rules! define_kernel_metrics {
+    ($($hook:ident),+ $(,)?) => {
+        pub struct KernelMetrics {
+            $($hook: EventCounter,)+
+            map: PerCpuArray<MapData, metrics_t>,
         }
-    }
 
-    fn refresh_labels(ec: &EventCounter, m: &metrics_by_hook_t) {
-        ec.counter.clear();
-        ec.counter
-            .get_or_create(&MetricEvents {
-                label: LabelValues::Total,
-            })
-            .inc_by(m.total);
+        impl KernelMetrics {
+            pub fn new(reg: &mut Registry, kernel_metrics: PerCpuArray<MapData, metrics_t>) -> Self {
+                $(
+                    let $hook = EventCounter::new(
+                        concat!("kernel_", stringify!($hook), "_events"),
+                        concat!("Events processed by the ", stringify!($hook), " LSM hook"),
+                        &[],
+                    );
+                    $hook.register(reg);
+                )+
 
-        ec.counter
-            .get_or_create(&MetricEvents {
-                label: LabelValues::Added,
-            })
-            .inc_by(m.added);
+                KernelMetrics {
+                    $($hook,)+
+                    map: kernel_metrics,
+                }
+            }
 
-        ec.counter
-            .get_or_create(&MetricEvents {
-                label: LabelValues::Error,
-            })
-            .inc_by(m.error);
+            pub fn collect(&self) -> anyhow::Result<()> {
+                let metrics = self
+                    .map
+                    .get(&0, 0)?
+                    .iter()
+                    .fold(metrics_t::default(), |acc, x| acc.accumulate(x));
 
-        ec.counter
-            .get_or_create(&MetricEvents {
-                label: LabelValues::Ignored,
-            })
-            .inc_by(m.ignored);
+                $(Self::refresh_labels(&self.$hook, &metrics.$hook);)+
 
-        ec.counter
-            .get_or_create(&MetricEvents {
-                label: LabelValues::RingbufferFull,
-            })
-            .inc_by(m.ringbuffer_full);
-    }
+                Ok(())
+            }
 
-    pub fn collect(&self) -> anyhow::Result<()> {
-        let metrics = self
-            .map
-            .get(&0, 0)?
-            .iter()
-            .fold(metrics_t::default(), |acc, x| acc.accumulate(x));
-
-        KernelMetrics::refresh_labels(&self.file_open, &metrics.file_open);
-        KernelMetrics::refresh_labels(&self.path_unlink, &metrics.path_unlink);
-        KernelMetrics::refresh_labels(&self.path_chmod, &metrics.path_chmod);
-        KernelMetrics::refresh_labels(&self.path_chown, &metrics.path_chown);
-        KernelMetrics::refresh_labels(&self.path_rename, &metrics.path_rename);
-        KernelMetrics::refresh_labels(&self.path_mkdir, &metrics.path_mkdir);
-        KernelMetrics::refresh_labels(&self.path_rmdir, &metrics.path_rmdir);
-        KernelMetrics::refresh_labels(&self.d_instantiate, &metrics.d_instantiate);
-
-        Ok(())
-    }
+            fn refresh_labels(ec: &EventCounter, m: &metrics_by_hook_t) {
+                ec.counter.clear();
+                for (label, value) in [
+                    (LabelValues::Total, m.total),
+                    (LabelValues::Added, m.added),
+                    (LabelValues::Error, m.error),
+                    (LabelValues::Ignored, m.ignored),
+                    (LabelValues::RingbufferFull, m.ringbuffer_full),
+                ] {
+                    ec.counter
+                        .get_or_create(&MetricEvents { label })
+                        .inc_by(value);
+                }
+            }
+        }
+    };
 }
+
+define_kernel_metrics!(
+    file_open,
+    path_unlink,
+    path_chmod,
+    path_chown,
+    path_rename,
+    path_mkdir,
+    path_rmdir,
+    d_instantiate,
+);

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 
 import pytest
 
@@ -154,6 +155,10 @@ def test_rmdir_empty(
     )
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason='shutil.rmtree behavior changes between interpreter versions',
+)
 def test_rmdir_recursive(
     monitored_dir: str,
     server: FileActivityService,

@@ -27,7 +27,6 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
-          ref: release-${{ inputs.version }}
           token: ${{ secrets.RHACS_BOT_GITHUB_TOKEN }}
 
       - uses: ./.github/actions/validate-version
@@ -38,6 +37,7 @@ jobs:
       - name: Determine patch version
         id: patch
         run: |
+          git checkout release-"${VERSION}"
           last_tag="$(git describe --tags --abbrev=0)"
 
           if [[ "$last_tag" =~ ^"${VERSION}"\.x$ ]]; then

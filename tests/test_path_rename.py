@@ -451,29 +451,40 @@ def test_cross_mountpoints(
         container_id=test_container.id[:12],
     )
 
-    server.wait_events(
+    events = [
+        Event(
+            process=touch,
+            event_type=EventType.OPEN,
+            file=mounted_file,
+            host_path=host_path,
+        ),
+        Event(
+            process=first_rename,
+            event_type=EventType.CREATION,
+            file=ovfs_file,
+            host_path='',
+        ),
+    ]
+
+    # If the id for the current process and the process in the container (root)
+    # match, the ownership events are skipped
+    curr_id = (os.getuid(), os.getgid())
+    root_id = (0, 0)
+    if curr_id != root_id:
+        events.append(
+            Event(
+                process=first_rename,
+                event_type=EventType.OWNERSHIP,
+                file=ovfs_file,
+                host_path='',
+                owner_uid=owner_uid,
+                owner_gid=owner_gid,
+            )
+        )
+
+    events.extend(
         [
             Event(
-                process=touch,
-                event_type=EventType.OPEN,
-                file=mounted_file,
-                host_path=host_path,
-            ),
-            Event(
-                process=first_rename,
-                event_type=EventType.CREATION,
-                file=ovfs_file,
-                host_path='',
-            ),
-            Event(
-                process=first_rename,
-                event_type=EventType.OWNERSHIP,
-                file=ovfs_file,
-                host_path='',
-                owner_uid=owner_uid,
-                owner_gid=owner_gid,
-            ),
-            Event(
                 process=first_rename,
                 event_type=EventType.PERMISSION,
                 file=ovfs_file,
@@ -492,26 +503,37 @@ def test_cross_mountpoints(
                 file=mounted_file,
                 host_path=host_path,
             ),
-            Event(
-                process=second_rename,
-                event_type=EventType.OWNERSHIP,
-                file=mounted_file,
-                host_path=host_path,
-                owner_uid=owner_uid,
-                owner_gid=owner_gid,
-            ),
-            Event(
-                process=second_rename,
-                event_type=EventType.PERMISSION,
-                file=mounted_file,
-                host_path=host_path,
-                mode=mode,
-            ),
-            Event(
-                process=second_rename,
-                event_type=EventType.UNLINK,
-                file=ovfs_file,
-                host_path='',
-            ),
-        ],
+        ]
     )
+
+    if curr_id != root_id:
+        events.append(
+            Event(
+                process=second_rename,
+                event_type=EventType.OWNERSHIP,
+                file=mounted_file,
+                host_path=host_path,
+                owner_uid=owner_uid,
+                owner_gid=owner_gid,
+            )
+        )
+
+    events.extend(
+        [
+            Event(
+                process=second_rename,
+                event_type=EventType.PERMISSION,
+                file=mounted_file,
+                host_path=host_path,
+                mode=mode,
+            ),
+            Event(
+                process=second_rename,
+                event_type=EventType.UNLINK,
+                file=ovfs_file,
+                host_path='',
+            ),
+        ]
+    )
+
+    server.wait_events(events)

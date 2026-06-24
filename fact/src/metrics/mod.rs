@@ -57,70 +57,42 @@ impl EventCounter {
         }
     }
 
-    /// Register the counter in the given registry.
-    ///
-    /// # Arguments
-    ///
-    /// * `reg` - A prometheus Registry that the counter will be registered into.
     fn register(&self, reg: &mut Registry) {
         reg.register(self.name, self.help, self.counter.clone());
     }
 
-    /// Increment the counter for the Added label.
-    ///
-    /// Panics if the counter did not add the Added label as part of its
-    /// creation step.
-    pub fn added(&self) {
+    fn inc_label(&self, label: LabelValues) {
         self.counter
-            .get(&MetricEvents {
-                label: LabelValues::Added,
-            })
-            .unwrap()
+            .get(&MetricEvents { label })
+            .expect("label not found")
             .inc();
     }
 
-    /// Increment the counter for the Dropped label.
-    ///
-    /// Panics if the counter did not add the Dropped label as part of
-    /// its creation step.
-    pub fn dropped(&self) {
+    fn inc_label_by(&self, label: LabelValues, n: u64) {
         self.counter
-            .get(&MetricEvents {
-                label: LabelValues::Dropped,
-            })
-            .unwrap()
-            .inc();
-    }
-
-    pub fn dropped_n(&self, n: u64) {
-        self.counter
-            .get(&MetricEvents {
-                label: LabelValues::Dropped,
-            })
-            .unwrap()
+            .get(&MetricEvents { label })
+            .expect("label not found")
             .inc_by(n);
     }
 
-    /// Increment the counter for the Ignored label.
-    ///
-    /// Panics if the counter did not add the Ignored label as part of
-    /// its creation step.
+    pub fn added(&self) {
+        self.inc_label(LabelValues::Added);
+    }
+
+    pub fn dropped(&self) {
+        self.inc_label(LabelValues::Dropped);
+    }
+
+    pub fn dropped_n(&self, n: u64) {
+        self.inc_label_by(LabelValues::Dropped, n);
+    }
+
     pub fn ignored(&self) {
-        self.counter
-            .get(&MetricEvents {
-                label: LabelValues::Ignored,
-            })
-            .expect("Ignored label not found")
-            .inc();
+        self.inc_label(LabelValues::Ignored);
     }
 
     pub fn errored(&self) {
-        self.counter
-            .get(&MetricEvents {
-                label: LabelValues::Error,
-            })
-            .expect("Error label not found")
-            .inc();
+        self.inc_label(LabelValues::Error);
     }
 }
 
