@@ -70,4 +70,6 @@ define_kernel_metrics!(
     path_mkdir,
     path_rmdir,
     d_instantiate,
+    inode_setxattr,
+    inode_removexattr,
 );
