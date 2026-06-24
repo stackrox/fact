@@ -18,7 +18,61 @@ use tokio_stream::{
 };
 use tonic::transport::Channel;
 
-use crate::{config::GrpcConfig, event::Event, metrics::EventCounter};
+use crate::{
+    config::{BackoffConfig, GrpcConfig},
+    event::Event,
+    metrics::EventCounter,
+};
+
+struct Backoff {
+    initial: Duration,
+    current: Duration,
+    max: Duration,
+    jitter: bool,
+    multiplier: f64,
+}
+
+impl Backoff {
+    fn new(initial: Duration, max: Duration, jitter: bool, multiplier: f64) -> Self {
+        if initial >= max {
+            warn!("Initial backoff value is equal or greater than max.");
+        }
+
+        Self {
+            initial,
+            current: initial,
+            max,
+            jitter,
+            multiplier,
+        }
+    }
+
+    fn next(&mut self) -> Duration {
+        let delay = self.current.min(self.max);
+        self.current = self.current.mul_f64(self.multiplier).min(self.max);
+        if self.jitter {
+            let nanos = rand::random_range(0..=delay.as_nanos() as u64);
+            Duration::from_nanos(nanos)
+        } else {
+            delay
+        }
+    }
+
+    fn reset(&mut self) {
+        self.current = self.initial;
+    }
+}
+
+impl From<&BackoffConfig> for Backoff {
+    fn from(value: &BackoffConfig) -> Self {
+        Backoff::new(
+            value.initial(),
+            value.max(),
+            value.jitter(),
+            value.multiplier(),
+        )
+    }
+}
 
 pub struct Client {
     rx: broadcast::Receiver<Arc<Event>>,
@@ -121,6 +175,7 @@ impl Client {
     }
 
     async fn run(&mut self) -> anyhow::Result<bool> {
+        let mut backoff = Backoff::from(&self.config.borrow().backoff);
         loop {
             // Re-read certs on each connection attempt so rotated certificates
             // on disk are picked up on the next reconnect.
@@ -129,12 +184,14 @@ impl Client {
             let channel = match self.create_channel(connector).await {
                 Ok(channel) => channel,
                 Err(e) => {
-                    debug!("Failed to connect to server: {e:?}");
-                    sleep(Duration::from_secs(1)).await;
+                    let delay = backoff.next();
+                    debug!("Failed to connect to server: {e:?}, retrying in {delay:?}");
+                    sleep(delay).await;
                     continue;
                 }
             };
             info!("Successfully connected to gRPC server");
+            backoff.reset();
 
             let mut client = FileActivityServiceClient::new(channel);
 
@@ -175,5 +232,78 @@ impl Client {
             _ = self.config.changed() => Ok(true),
             _ = self.running.changed() => Ok(*self.running.borrow()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backoff_exponential_2x() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false, 2.0);
+        assert_eq!(b.next(), Duration::from_secs(1));
+        assert_eq!(b.next(), Duration::from_secs(2));
+        assert_eq!(b.next(), Duration::from_secs(4));
+        assert_eq!(b.next(), Duration::from_secs(8));
+        assert_eq!(b.next(), Duration::from_secs(16));
+        assert_eq!(b.next(), Duration::from_secs(32));
+    }
+
+    #[test]
+    fn backoff_default_multiplier() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false, 1.5);
+        assert_eq!(b.next(), Duration::from_secs(1));
+        assert_eq!(b.next(), Duration::from_millis(1500));
+        assert_eq!(b.next(), Duration::from_millis(2250));
+        assert_eq!(b.next(), Duration::from_millis(3375));
+    }
+
+    #[test]
+    fn backoff_caps_at_max() {
+        let mut b = Backoff::new(Duration::from_secs(32), Duration::from_secs(60), false, 2.0);
+        assert_eq!(b.next(), Duration::from_secs(32));
+        assert_eq!(b.next(), Duration::from_secs(60));
+        assert_eq!(b.next(), Duration::from_secs(60));
+    }
+
+    #[test]
+    fn backoff_reset() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false, 2.0);
+        assert_eq!(b.next(), Duration::from_secs(1));
+        assert_eq!(b.next(), Duration::from_secs(2));
+        assert_eq!(b.next(), Duration::from_secs(4));
+        b.reset();
+        assert_eq!(b.next(), Duration::from_secs(1));
+        assert_eq!(b.next(), Duration::from_secs(2));
+    }
+
+    #[test]
+    fn backoff_jitter_within_range() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), true, 1.5);
+        let mut expected_max = Duration::from_secs(1);
+        for _ in 0..100 {
+            let delay = b.next();
+            assert!(
+                delay <= expected_max,
+                "delay {delay:?} exceeded expected max {expected_max:?}"
+            );
+            let nanos = expected_max.as_nanos() as u64 * 1500 / 1000;
+            expected_max = Duration::from_nanos(nanos).min(Duration::from_secs(60));
+        }
+    }
+
+    #[test]
+    fn backoff_jitter_reset() {
+        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), true, 1.5);
+        for _ in 0..5 {
+            b.next();
+        }
+        b.reset();
+        let delay = b.next();
+        assert!(
+            delay <= Duration::from_secs(1),
+            "delay {delay:?} exceeded 1s after reset"
+        );
     }
 }
