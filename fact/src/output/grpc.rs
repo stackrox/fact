@@ -4,12 +4,13 @@ use anyhow::{Context, bail};
 use fact_api::file_activity_service_client::FileActivityServiceClient;
 use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
-use log::{debug, info, warn};
+use log::{info, warn};
 use native_tls::{Certificate, Identity};
 use openssl::{ec::EcKey, pkey::PKey};
 use tokio::{
     fs,
     sync::{broadcast, watch},
+    task::JoinHandle,
     time::sleep,
 };
 use tokio_stream::{
@@ -30,13 +31,28 @@ struct Backoff {
     max: Duration,
     jitter: bool,
     multiplier: f64,
+    retries_max: u64,
+    retries_curr: u64,
 }
 
 impl Backoff {
-    fn new(initial: Duration, max: Duration, jitter: bool, multiplier: f64) -> Self {
-        if initial >= max {
-            warn!("Initial backoff value is equal or greater than max.");
-        }
+    fn new(
+        initial: Duration,
+        max: Duration,
+        jitter: bool,
+        multiplier: f64,
+        retries_max: u64,
+    ) -> Self {
+        let initial = if initial >= max {
+            warn!(
+                "Invalid initial value: {} >= {}",
+                initial.as_secs_f64(),
+                max.as_secs_f64()
+            );
+            max
+        } else {
+            initial
+        };
 
         Self {
             initial,
@@ -44,22 +60,34 @@ impl Backoff {
             max,
             jitter,
             multiplier,
+            retries_max,
+            retries_curr: 0,
         }
     }
 
-    fn next(&mut self) -> Duration {
-        let delay = self.current.min(self.max);
+    fn next(&mut self) -> Option<Duration> {
+        if self.retries_max != 0 {
+            if self.retries_curr >= self.retries_max {
+                return None;
+            }
+            self.retries_curr += 1;
+        }
+
+        let delay = self.current;
         self.current = self.current.mul_f64(self.multiplier).min(self.max);
-        if self.jitter {
+        let delay = if self.jitter {
             let nanos = rand::random_range(0..=delay.as_nanos() as u64);
             Duration::from_nanos(nanos)
         } else {
             delay
-        }
+        };
+
+        Some(delay)
     }
 
     fn reset(&mut self) {
         self.current = self.initial;
+        self.retries_curr = 0;
     }
 }
 
@@ -70,6 +98,7 @@ impl From<&BackoffConfig> for Backoff {
             value.max(),
             value.jitter(),
             value.multiplier(),
+            value.retries(),
         )
     }
 }
@@ -96,7 +125,7 @@ impl Client {
         }
     }
 
-    pub fn start(mut self) {
+    pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
         tokio::spawn(async move {
             loop {
                 let res = if self.is_enabled() {
@@ -111,10 +140,11 @@ impl Client {
                         info!("Stopping gRPC output...");
                         break;
                     }
-                    Err(e) => warn!("gRPC error: {e:?}"),
+                    Err(e) => bail!("gRPC error: {e:?}"),
                 }
             }
-        });
+            Ok(())
+        })
     }
 
     async fn get_connector(&self) -> anyhow::Result<Option<HttpsConnector<HttpConnector>>> {
@@ -184,8 +214,10 @@ impl Client {
             let channel = match self.create_channel(connector).await {
                 Ok(channel) => channel,
                 Err(e) => {
-                    let delay = backoff.next();
-                    debug!("Failed to connect to server: {e:?}, retrying in {delay:?}");
+                    let Some(delay) = backoff.next() else {
+                        bail!("Failed to connect to server: reconnection attempts exhausted");
+                    };
+                    info!("Failed to connect to server: {e:?}, retrying in {delay:?}");
                     sleep(delay).await;
                     continue;
                 }
@@ -241,49 +273,79 @@ mod tests {
 
     #[test]
     fn backoff_exponential_2x() {
-        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false, 2.0);
-        assert_eq!(b.next(), Duration::from_secs(1));
-        assert_eq!(b.next(), Duration::from_secs(2));
-        assert_eq!(b.next(), Duration::from_secs(4));
-        assert_eq!(b.next(), Duration::from_secs(8));
-        assert_eq!(b.next(), Duration::from_secs(16));
-        assert_eq!(b.next(), Duration::from_secs(32));
+        let mut b = Backoff::new(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            false,
+            2.0,
+            0,
+        );
+        assert_eq!(b.next(), Some(Duration::from_secs(1)));
+        assert_eq!(b.next(), Some(Duration::from_secs(2)));
+        assert_eq!(b.next(), Some(Duration::from_secs(4)));
+        assert_eq!(b.next(), Some(Duration::from_secs(8)));
+        assert_eq!(b.next(), Some(Duration::from_secs(16)));
+        assert_eq!(b.next(), Some(Duration::from_secs(32)));
     }
 
     #[test]
     fn backoff_default_multiplier() {
-        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false, 1.5);
-        assert_eq!(b.next(), Duration::from_secs(1));
-        assert_eq!(b.next(), Duration::from_millis(1500));
-        assert_eq!(b.next(), Duration::from_millis(2250));
-        assert_eq!(b.next(), Duration::from_millis(3375));
+        let mut b = Backoff::new(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            false,
+            1.5,
+            0,
+        );
+        assert_eq!(b.next(), Some(Duration::from_secs(1)));
+        assert_eq!(b.next(), Some(Duration::from_millis(1500)));
+        assert_eq!(b.next(), Some(Duration::from_millis(2250)));
+        assert_eq!(b.next(), Some(Duration::from_millis(3375)));
     }
 
     #[test]
     fn backoff_caps_at_max() {
-        let mut b = Backoff::new(Duration::from_secs(32), Duration::from_secs(60), false, 2.0);
-        assert_eq!(b.next(), Duration::from_secs(32));
-        assert_eq!(b.next(), Duration::from_secs(60));
-        assert_eq!(b.next(), Duration::from_secs(60));
+        let mut b = Backoff::new(
+            Duration::from_secs(32),
+            Duration::from_secs(60),
+            false,
+            2.0,
+            0,
+        );
+        assert_eq!(b.next(), Some(Duration::from_secs(32)));
+        assert_eq!(b.next(), Some(Duration::from_secs(60)));
+        assert_eq!(b.next(), Some(Duration::from_secs(60)));
     }
 
     #[test]
     fn backoff_reset() {
-        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), false, 2.0);
-        assert_eq!(b.next(), Duration::from_secs(1));
-        assert_eq!(b.next(), Duration::from_secs(2));
-        assert_eq!(b.next(), Duration::from_secs(4));
+        let mut b = Backoff::new(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            false,
+            2.0,
+            0,
+        );
+        assert_eq!(b.next(), Some(Duration::from_secs(1)));
+        assert_eq!(b.next(), Some(Duration::from_secs(2)));
+        assert_eq!(b.next(), Some(Duration::from_secs(4)));
         b.reset();
-        assert_eq!(b.next(), Duration::from_secs(1));
-        assert_eq!(b.next(), Duration::from_secs(2));
+        assert_eq!(b.next(), Some(Duration::from_secs(1)));
+        assert_eq!(b.next(), Some(Duration::from_secs(2)));
     }
 
     #[test]
     fn backoff_jitter_within_range() {
-        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), true, 1.5);
+        let mut b = Backoff::new(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            true,
+            1.5,
+            0,
+        );
         let mut expected_max = Duration::from_secs(1);
         for _ in 0..100 {
-            let delay = b.next();
+            let delay = b.next().expect("retries exhausted");
             assert!(
                 delay <= expected_max,
                 "delay {delay:?} exceeded expected max {expected_max:?}"
@@ -295,15 +357,68 @@ mod tests {
 
     #[test]
     fn backoff_jitter_reset() {
-        let mut b = Backoff::new(Duration::from_secs(1), Duration::from_secs(60), true, 1.5);
+        let mut b = Backoff::new(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            true,
+            1.5,
+            0,
+        );
         for _ in 0..5 {
             b.next();
         }
         b.reset();
-        let delay = b.next();
+        let delay = b.next().expect("retries exhausted");
         assert!(
             delay <= Duration::from_secs(1),
             "delay {delay:?} exceeded 1s after reset"
         );
+    }
+
+    #[test]
+    fn backoff_reconnection_give_up() {
+        let mut b = Backoff::new(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            false,
+            2.0,
+            3,
+        );
+        assert_eq!(b.next(), Some(Duration::from_secs(1)));
+        assert_eq!(b.next(), Some(Duration::from_secs(2)));
+        assert_eq!(b.next(), Some(Duration::from_secs(4)));
+        assert_eq!(b.next(), None);
+    }
+
+    #[test]
+    fn backoff_reconnection_reset() {
+        let mut b = Backoff::new(
+            Duration::from_secs(1),
+            Duration::from_secs(60),
+            false,
+            2.0,
+            3,
+        );
+        assert_eq!(b.next(), Some(Duration::from_secs(1)));
+        assert_eq!(b.next(), Some(Duration::from_secs(2)));
+        b.reset();
+        assert_eq!(b.next(), Some(Duration::from_secs(1)));
+        assert_eq!(b.next(), Some(Duration::from_secs(2)));
+        assert_eq!(b.next(), Some(Duration::from_secs(4)));
+        assert_eq!(b.next(), None);
+    }
+
+    #[test]
+    fn backoff_initial_greater_than_max() {
+        let mut b = Backoff::new(
+            Duration::from_secs(120),
+            Duration::from_secs(60),
+            false,
+            2.0,
+            0,
+        );
+        assert_eq!(b.next(), Some(Duration::from_secs(60)));
+        assert_eq!(b.next(), Some(Duration::from_secs(60)));
+        assert_eq!(b.next(), Some(Duration::from_secs(60)));
     }
 }

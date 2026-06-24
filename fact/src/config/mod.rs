@@ -332,6 +332,7 @@ pub struct BackoffConfig {
     max: Option<Duration>,
     jitter: Option<bool>,
     multiplier: Option<f64>,
+    retries_max: Option<u64>,
 }
 
 impl BackoffConfig {
@@ -347,6 +348,9 @@ impl BackoffConfig {
         }
         if let Some(multiplier) = from.multiplier {
             self.multiplier = Some(multiplier);
+        }
+        if let Some(retries) = from.retries_max {
+            self.retries_max = Some(retries);
         }
     }
 
@@ -364,6 +368,10 @@ impl BackoffConfig {
 
     pub fn multiplier(&self) -> f64 {
         self.multiplier.unwrap_or(1.5)
+    }
+
+    pub fn retries(&self) -> u64 {
+        self.retries_max.unwrap_or(10)
     }
 }
 
@@ -404,6 +412,12 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
                         bail!("invalid grpc.backoff.multiplier: {v:?}");
                     };
                     backoff.multiplier = Some(multiplier);
+                }
+                "retries" => {
+                    let Some(retries) = v.as_i64() else {
+                        bail!("invalid grpc.backoff.retries: {v:?}");
+                    };
+                    backoff.retries_max = Some(retries as u64);
                 }
                 name => bail!("Invalid field 'grpc.backoff.{name}' with value: {v:?}"),
             }
@@ -606,6 +620,13 @@ pub struct FactCli {
     #[arg(long, env = "FACT_GRPC_BACKOFF_JITTER")]
     backoff_jitter: Option<bool>,
 
+    /// Maximum number of times a gRPC connection will be attempted
+    /// before giving up
+    ///
+    /// 0 means infinite retries
+    #[arg(long, env = "FACT_GRPC_BACKOFF_RETRIES_MAX")]
+    backoff_retries_max: Option<u64>,
+
     /// The port to bind for all exposed endpoints
     #[arg(long, short, env = "FACT_ENDPOINT_ADDRESS")]
     address: Option<SocketAddr>,
@@ -701,6 +722,7 @@ impl FactCli {
                     max: self.backoff_max,
                     jitter: self.backoff_jitter,
                     multiplier: self.backoff_multiplier,
+                    retries_max: self.backoff_retries_max,
                 },
             },
             endpoint: EndpointConfig {

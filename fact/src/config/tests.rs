@@ -344,10 +344,28 @@ fn parsing() {
             r#"
             grpc:
               backoff:
+                retries: 5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        retries_max: Some(5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
                 initial: 0.5
                 max: 120
                 jitter: false
                 multiplier: 2
+                retries: 5
             "#,
             FactConfig {
                 grpc: GrpcConfig {
@@ -356,6 +374,7 @@ fn parsing() {
                         max: Some(Duration::from_secs(120)),
                         jitter: Some(false),
                         multiplier: Some(2.0),
+                        retries_max: Some(5),
                     },
                     ..Default::default()
                 },
@@ -374,6 +393,7 @@ fn parsing() {
                 max: 120
                 jitter: false
                 multiplier: 2
+                retries: 5
             endpoint:
               address: 0.0.0.0:8080
               expose_metrics: true
@@ -396,6 +416,7 @@ fn parsing() {
                         max: Some(Duration::from_secs(120)),
                         jitter: Some(false),
                         multiplier: Some(2.0),
+                        retries_max: Some(5),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -542,6 +563,22 @@ paths:
                 multiplier: 0.5
             "#,
             "invalid grpc.backoff.multiplier: Real(\"0.5\")",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                retries: 0.5
+            "#,
+            "invalid grpc.backoff.retries: Real(\"0.5\")",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                retries: true
+            "#,
+            "invalid grpc.backoff.retries: Boolean(true)",
         ),
         (
             r#"
@@ -1060,6 +1097,51 @@ fn update() {
         ),
         (
             r#"
+            grpc:
+              backoff:
+                retries: 5
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        retries_max: Some(5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                retries: 5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        retries_max: Some(10),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        retries_max: Some(5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
             endpoint:
               expose_metrics: true
             "#,
@@ -1425,6 +1507,7 @@ fn update() {
                 max: 120
                 jitter: false
                 multiplier: 3.0
+                retries: 5
             endpoint:
               address: 127.0.0.1:8080
               expose_metrics: true
@@ -1447,6 +1530,7 @@ fn update() {
                         max: Some(Duration::from_secs(30)),
                         jitter: Some(true),
                         multiplier: Some(2.0),
+                        retries_max: Some(20),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -1474,6 +1558,7 @@ fn update() {
                         max: Some(Duration::from_secs(120)),
                         jitter: Some(false),
                         multiplier: Some(3.0),
+                        retries_max: Some(5),
                     },
                 },
                 endpoint: EndpointConfig {
@@ -1525,6 +1610,7 @@ fn defaults() {
     assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
     assert!(config.grpc.backoff.jitter());
     assert_eq!(config.grpc.backoff.multiplier(), 1.5);
+    assert_eq!(config.grpc.backoff.retries(), 10);
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
@@ -1749,6 +1835,22 @@ fn env_vars() {
                 grpc: GrpcConfig {
                     backoff: BackoffConfig {
                         multiplier: Some(2.5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_GRPC_BACKOFF_RETRIES_MAX",
+                value: "5",
+            },
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        retries_max: Some(5),
                         ..Default::default()
                     },
                     ..Default::default()
