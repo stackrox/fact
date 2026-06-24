@@ -1,12 +1,39 @@
 from __future__ import annotations
 
+import errno
 import os
+import tempfile
 
 import pytest
 
 from event import Event, EventType, Process
 from server import FileActivityService
 from utils import join_path_with_filename, path_to_string
+
+
+def _xattr_supported() -> bool:
+    """Check whether the filesystem under cwd supports user xattrs."""
+    try:
+        fd, path = tempfile.mkstemp(dir=os.getcwd())
+        try:
+            os.setxattr(path, 'user.test', b'probe')
+            os.removexattr(path, 'user.test')
+            return True
+        except OSError as e:
+            if e.errno in (errno.ENOTSUP, errno.EOPNOTSUPP):
+                return False
+            raise
+        finally:
+            os.close(fd)
+            os.unlink(path)
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _xattr_supported(),
+    reason='filesystem does not support user xattrs',
+)
 
 
 def test_setxattr(
