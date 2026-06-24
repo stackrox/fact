@@ -42,13 +42,13 @@ def test_setxattr(
     )
 
 
-def test_removexattr(
+def test_xattr_set_and_remove(
     test_file: str,
     server: FileActivityService,
 ):
     """
-    Tests that removing a user xattr from a monitored file generates
-    a gRPC xattr event.
+    Tests that setting and then removing a user xattr from a monitored
+    file generates gRPC events for both operations.
 
     Args:
         test_file: File monitored on the host.
@@ -80,13 +80,13 @@ def test_removexattr(
     )
 
 
-def test_setxattr_multiple(
+def test_xattr_multiple(
     test_file: str,
     server: FileActivityService,
 ):
     """
-    Tests that setting multiple xattrs on a monitored file generates
-    a gRPC event for each.
+    Tests that setting and removing multiple xattrs on a monitored file
+    generates a gRPC event for each operation.
 
     Args:
         test_file: File monitored on the host.
