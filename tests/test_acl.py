@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 import docker.models.containers
+import pytest
 
 from event import (
     ACL_TAG_GROUP_OBJ,
@@ -17,6 +18,31 @@ from event import (
     Process,
 )
 from server import FileActivityService
+
+
+def _kernel_supports_acl_hook() -> bool:
+    """Check whether the kernel has the inode_set_acl LSM hook by
+    searching for its BTF type in /sys/kernel/btf/vmlinux."""
+    needle = b'bpf_lsm_inode_set_acl'
+    chunk_size = 64 * 1024
+    try:
+        with open('/sys/kernel/btf/vmlinux', 'rb') as f:
+            # Read in chunks, keeping an overlap to catch matches
+            # that span chunk boundaries.
+            prev = b''
+            while chunk := f.read(chunk_size):
+                if needle in prev + chunk:
+                    return True
+                prev = chunk[-len(needle) :]
+        return False
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _kernel_supports_acl_hook(),
+    reason='kernel does not support inode_set_acl LSM hook',
+)
 
 
 def test_set_access_acl(
