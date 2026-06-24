@@ -193,6 +193,7 @@ def test_external_process(monitored_dir: str, server: FileActivityService):
 def test_overlay(
     test_container: docker.models.containers.Container,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     assert test_container.id is not None
     # File Under Test
@@ -215,6 +216,7 @@ def test_overlay(
         container_id=test_container.id[:12],
     )
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,
@@ -236,6 +238,7 @@ def test_mounted_dir(
     test_container: docker.models.containers.Container,
     ignored_dir: str,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     assert test_container.id is not None
     # File Under Test
@@ -259,6 +262,7 @@ def test_mounted_dir(
     )
     # ignored_dir is not monitored, so host_path should be blank
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,
@@ -280,6 +284,7 @@ def test_unmonitored_mounted_dir(
     test_container: docker.models.containers.Container,
     test_file: str,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     assert test_container.id is not None
     # File Under Test
@@ -301,4 +306,4 @@ def test_unmonitored_mounted_dir(
         host_path=test_file,
     )
 
-    server.wait_events([event])
+    server.wait_events([*docker_selinux_xattr, event])

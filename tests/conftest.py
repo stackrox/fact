@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from shutil import rmtree
 from tempfile import NamedTemporaryFile, mkdtemp
 from time import sleep
@@ -12,7 +13,40 @@ import pytest
 import requests
 import yaml
 
+from event import Event, EventType, Process
 from server import FileActivityService
+
+
+def get_dockerd_process() -> Process | None:
+    result = subprocess.run(
+        ['pgrep', 'dockerd'],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    pid = int(result.stdout.strip().split('\n')[0])
+    proc = Process.from_proc(pid)
+    # Process.from_proc uses os.path.realpath on /proc/<pid>/exe,
+    # which may not resolve across mount namespaces (e.g. CoreOS).
+    # Use the path from pgrep -a instead.
+    result = subprocess.run(
+        ['pgrep', '-a', 'dockerd'],
+        capture_output=True,
+        text=True,
+    )
+    exe_path = result.stdout.strip().split('\n')[0].split()[1]
+    return Process(
+        pid=None,
+        uid=proc.uid,
+        gid=proc.gid,
+        exe_path=exe_path,
+        args=proc.args,
+        name=proc.name,
+        container_id=proc.container_id,
+        loginuid=proc.loginuid,
+    )
+
 
 # Declare files holding fixtures
 pytest_plugins = ['test_editors.commons']
@@ -183,6 +217,47 @@ def test_container(
 
     container.stop(timeout=1)
     container.remove()
+
+
+@pytest.fixture
+def docker_selinux_xattr(
+    docker_client: docker.DockerClient,
+    monitored_dir: str,
+    test_file: str,
+) -> list[Event]:
+    """
+    Expected xattr events from Docker SELinux relabeling.
+
+    When Docker creates a container with ':z' volume mounts, it
+    relabels files with security.selinux. This fixture returns the
+    expected events if Docker has SELinux enabled, or an empty list
+    otherwise.
+
+    Docker relabels both the file and its parent directory.
+    """
+    info = docker_client.info()
+    selinux = any('selinux' in opt for opt in info.get('SecurityOptions', []))
+    if not selinux:
+        return []
+    dockerd = get_dockerd_process()
+    if dockerd is None:
+        return []
+    return [
+        Event(
+            process=dockerd,
+            event_type=EventType.XATTR_SET,
+            file='',
+            host_path=test_file,
+            xattr_name='security.selinux',
+        ),
+        Event(
+            process=dockerd,
+            event_type=EventType.XATTR_SET,
+            file='',
+            host_path=monitored_dir,
+            xattr_name='security.selinux',
+        ),
+    ]
 
 
 @pytest.fixture(autouse=True)

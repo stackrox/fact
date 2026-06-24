@@ -30,6 +30,7 @@ def test_chown(
     test_container: docker.models.containers.Container,
     server: FileActivityService,
     filename: str | bytes,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Execute a chown operation on a file and verifies the corresponding event is
@@ -67,6 +68,7 @@ def test_chown(
         container_id=test_container.id[:12],
     )
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,
@@ -89,6 +91,7 @@ def test_chown(
 def test_multiple(
     test_container: docker.models.containers.Container,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Tests ownership operations on multiple files and verifies the corresponding
@@ -99,7 +102,7 @@ def test_multiple(
         server: The server instance to communicate with.
     """
     assert test_container.id is not None
-    events = []
+    events: list[Event] = [*docker_selinux_xattr]
 
     # File Under Test
     for i in range(3):
@@ -147,6 +150,7 @@ def test_multiple(
 def test_ignored(
     test_container: docker.models.containers.Container,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Tests that ownership events on ignored files are not captured by the
@@ -183,6 +187,7 @@ def test_ignored(
         container_id=test_container.id[:12],
     )
     events = [
+        *docker_selinux_xattr,
         Event(
             process=reported_touch,
             event_type=EventType.CREATION,
@@ -205,6 +210,7 @@ def test_ignored(
 def test_no_change(
     test_container: docker.models.containers.Container,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Tests that chown to the same UID/GID triggers events for all calls.
@@ -252,6 +258,7 @@ def test_no_change(
 
     # Expect both chown events (all calls to chown trigger events)
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,

@@ -194,6 +194,7 @@ def test_external_process(monitored_dir: str, server: FileActivityService):
 def test_overlay(
     test_container: docker.models.containers.Container,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Test permission changes on an overlayfs file (inside a container)
@@ -224,6 +225,7 @@ def test_overlay(
         container_id=test_container.id[:12],
     )
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,
@@ -246,6 +248,7 @@ def test_mounted_dir(
     test_container: docker.models.containers.Container,
     ignored_dir: str,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Test permission changes on a file bind mounted into a container
@@ -279,6 +282,7 @@ def test_mounted_dir(
     )
     # ignored_dir is not monitored, so host_path should be blank
     events = [
+        *docker_selinux_xattr,
         Event(
             process=touch,
             event_type=EventType.CREATION,
@@ -301,6 +305,7 @@ def test_unmonitored_mounted_dir(
     test_container: docker.models.containers.Container,
     test_file: str,
     server: FileActivityService,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Test permission changes on a file bind mounted to a container and
@@ -335,4 +340,4 @@ def test_unmonitored_mounted_dir(
         mode=int(mode, 8),
     )
 
-    server.wait_events([event])
+    server.wait_events([*docker_selinux_xattr, event])

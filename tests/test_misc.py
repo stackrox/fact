@@ -57,6 +57,7 @@ def test_d_path_sanitization(
     server: FileActivityService,
     run_self_deleter: docker.models.containers.Container,
     docker_client: docker.DockerClient,
+    docker_selinux_xattr: list[Event],
 ):
     """
     Ensure the sanitization of paths obtained by calling the bpf_d_path
@@ -83,4 +84,4 @@ def test_d_path_sanitization(
         host_path=host_path,
     )
 
-    server.wait_events([event])
+    server.wait_events([*docker_selinux_xattr, event])
