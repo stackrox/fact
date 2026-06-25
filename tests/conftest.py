@@ -224,7 +224,7 @@ def fact(
 
     container_log = os.path.join(logs_dir, 'fact.log')
     # Wait for container to be ready
-    for _ in range(3):
+    for _ in range(10):
         try:
             resp = requests.get(
                 f'http://{config["endpoint"]["address"]}/health_check'
