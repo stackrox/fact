@@ -1,10 +1,14 @@
-"""Tests for POSIX ACL change events."""
+"""Tests for POSIX ACL change events.
+
+Uses os.setxattr to set ACLs directly via the POSIX ACL xattr wire
+format, avoiding a dependency on the setfacl tool.
+"""
 
 from __future__ import annotations
 
 import os
+import struct
 
-import docker.models.containers
 import pytest
 
 from event import (
@@ -18,6 +22,26 @@ from event import (
     Process,
 )
 from server import FileActivityService
+
+# POSIX ACL xattr wire format constants
+_ACL_VERSION = 2
+_ACL_UNDEFINED_ID = 0xFFFFFFFF
+
+# Kernel ACL tag values (from include/uapi/linux/posix_acl.h)
+_ACL_USER_OBJ = 0x01
+_ACL_USER = 0x02
+_ACL_GROUP_OBJ = 0x04
+_ACL_GROUP = 0x08
+_ACL_MASK = 0x10
+_ACL_OTHER = 0x20
+
+
+def _make_acl_xattr(entries: list[tuple[int, int, int]]) -> bytes:
+    """Build a POSIX ACL xattr value from a list of (tag, perm, id) tuples."""
+    data = struct.pack('<I', _ACL_VERSION)
+    for tag, perm, uid in entries:
+        data += struct.pack('<HHI', tag, perm, uid)
+    return data
 
 
 def _kernel_supports_acl_hook() -> bool:
@@ -46,54 +70,45 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_set_access_acl(
-    test_container: docker.models.containers.Container,
+    monitored_dir: str,
     server: FileActivityService,
 ):
-    """
-    Test setting an access ACL on a file inside a container.
+    """Test setting an access ACL on a monitored file."""
+    fut = os.path.join(monitored_dir, 'acl_test.txt')
+    with open(fut, 'w') as f:
+        f.write('test')
 
-    Args:
-        test_container: A container for running commands in.
-        server: The server instance to communicate with.
-    """
-    assert test_container.id is not None
-    fut = '/container-dir/acl_test.txt'
-
-    test_container.exec_run(f'touch {fut}')
-    test_container.exec_run(f'setfacl -m u:1000:rw {fut}')
-
-    touch = Process.in_container(
-        exe_path='/usr/bin/touch',
-        args=f'touch {fut}',
-        name='touch',
-        container_id=test_container.id[:12],
+    acl = _make_acl_xattr(
+        [
+            (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
+            (_ACL_USER, 6, 1000),
+            (_ACL_GROUP_OBJ, 4, _ACL_UNDEFINED_ID),
+            (_ACL_MASK, 6, _ACL_UNDEFINED_ID),
+            (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
+        ]
     )
-    setfacl = Process.in_container(
-        exe_path='/usr/bin/setfacl',
-        args=f'setfacl -m u:1000:rw {fut}',
-        name='setfacl',
-        container_id=test_container.id[:12],
-    )
+    os.setxattr(fut, 'system.posix_acl_access', acl)
 
+    process = Process.from_proc()
     events = [
         Event(
-            process=touch,
+            process=process,
             event_type=EventType.CREATION,
             file=fut,
-            host_path='',
+            host_path=fut,
         ),
         Event(
-            process=setfacl,
+            process=process,
             event_type=EventType.ACL,
             file=fut,
-            host_path='',
+            host_path=fut,
             acl_type='access',
             acl_entries=[
-                {'tag': ACL_TAG_USER_OBJ, 'perm': 6, 'id': 0xFFFFFFFF},
+                {'tag': ACL_TAG_USER_OBJ, 'perm': 6, 'id': _ACL_UNDEFINED_ID},
                 {'tag': ACL_TAG_USER, 'perm': 6, 'id': 1000},
-                {'tag': ACL_TAG_GROUP_OBJ, 'perm': 4, 'id': 0xFFFFFFFF},
-                {'tag': ACL_TAG_MASK, 'perm': 6, 'id': 0xFFFFFFFF},
-                {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': 0xFFFFFFFF},
+                {'tag': ACL_TAG_GROUP_OBJ, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
+                {'tag': ACL_TAG_MASK, 'perm': 6, 'id': _ACL_UNDEFINED_ID},
+                {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
             ],
         ),
     ]
@@ -102,35 +117,31 @@ def test_set_access_acl(
 
 
 def test_set_default_acl(
-    test_container: docker.models.containers.Container,
+    monitored_dir: str,
     server: FileActivityService,
 ):
-    """
-    Test setting a default ACL on a directory inside a container.
+    """Test setting a default ACL on a monitored directory."""
+    fut = os.path.join(monitored_dir, 'acl_subdir')
+    os.makedirs(fut, exist_ok=True)
 
-    Args:
-        test_container: A container for running commands in.
-        server: The server instance to communicate with.
-    """
-    assert test_container.id is not None
-    fut = '/container-dir/subdir'
-
-    test_container.exec_run(f'mkdir -p {fut}')
-    test_container.exec_run(f'setfacl -d -m g:1000:rx {fut}')
-
-    setfacl = Process.in_container(
-        exe_path='/usr/bin/setfacl',
-        args=f'setfacl -d -m g:1000:rx {fut}',
-        name='setfacl',
-        container_id=test_container.id[:12],
+    acl = _make_acl_xattr(
+        [
+            (_ACL_USER_OBJ, 7, _ACL_UNDEFINED_ID),
+            (_ACL_GROUP_OBJ, 5, _ACL_UNDEFINED_ID),
+            (_ACL_GROUP, 5, 1000),
+            (_ACL_MASK, 5, _ACL_UNDEFINED_ID),
+            (_ACL_OTHER, 5, _ACL_UNDEFINED_ID),
+        ]
     )
+    os.setxattr(fut, 'system.posix_acl_default', acl)
 
+    process = Process.from_proc()
     events = [
         Event(
-            process=setfacl,
+            process=process,
             event_type=EventType.ACL,
             file=fut,
-            host_path='',
+            host_path=fut,
             acl_type='default',
         ),
     ]
@@ -139,66 +150,61 @@ def test_set_default_acl(
 
 
 def test_remove_acl(
-    test_container: docker.models.containers.Container,
+    monitored_dir: str,
     server: FileActivityService,
 ):
-    """
-    Test removing ACLs from a file inside a container.
+    """Test removing ACLs from a monitored file."""
+    fut = os.path.join(monitored_dir, 'acl_remove.txt')
+    with open(fut, 'w') as f:
+        f.write('test')
 
-    Args:
-        test_container: A container for running commands in.
-        server: The server instance to communicate with.
-    """
-    assert test_container.id is not None
-    fut = '/container-dir/acl_remove.txt'
-
-    test_container.exec_run(f'touch {fut}')
-    test_container.exec_run(f'setfacl -m u:1000:rw {fut}')
-    test_container.exec_run(f'setfacl -b {fut}')
-
-    touch = Process.in_container(
-        exe_path='/usr/bin/touch',
-        args=f'touch {fut}',
-        name='touch',
-        container_id=test_container.id[:12],
+    # Set an ACL with an extra user entry
+    acl_with_user = _make_acl_xattr(
+        [
+            (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
+            (_ACL_USER, 6, 1000),
+            (_ACL_GROUP_OBJ, 4, _ACL_UNDEFINED_ID),
+            (_ACL_MASK, 6, _ACL_UNDEFINED_ID),
+            (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
+        ]
     )
-    setfacl_set = Process.in_container(
-        exe_path='/usr/bin/setfacl',
-        args=f'setfacl -m u:1000:rw {fut}',
-        name='setfacl',
-        container_id=test_container.id[:12],
-    )
-    setfacl_remove = Process.in_container(
-        exe_path='/usr/bin/setfacl',
-        args=f'setfacl -b {fut}',
-        name='setfacl',
-        container_id=test_container.id[:12],
-    )
+    os.setxattr(fut, 'system.posix_acl_access', acl_with_user)
 
+    # Remove extended ACL entries by setting a minimal ACL
+    acl_minimal = _make_acl_xattr(
+        [
+            (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
+            (_ACL_GROUP_OBJ, 4, _ACL_UNDEFINED_ID),
+            (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
+        ]
+    )
+    os.setxattr(fut, 'system.posix_acl_access', acl_minimal)
+
+    process = Process.from_proc()
     events = [
         Event(
-            process=touch,
+            process=process,
             event_type=EventType.CREATION,
             file=fut,
-            host_path='',
+            host_path=fut,
         ),
         Event(
-            process=setfacl_set,
+            process=process,
             event_type=EventType.ACL,
             file=fut,
-            host_path='',
+            host_path=fut,
             acl_type='access',
         ),
         Event(
-            process=setfacl_remove,
+            process=process,
             event_type=EventType.ACL,
             file=fut,
-            host_path='',
+            host_path=fut,
             acl_type='access',
             acl_entries=[
-                {'tag': ACL_TAG_USER_OBJ, 'perm': 6, 'id': 0xFFFFFFFF},
-                {'tag': ACL_TAG_GROUP_OBJ, 'perm': 4, 'id': 0xFFFFFFFF},
-                {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': 0xFFFFFFFF},
+                {'tag': ACL_TAG_USER_OBJ, 'perm': 6, 'id': _ACL_UNDEFINED_ID},
+                {'tag': ACL_TAG_GROUP_OBJ, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
+                {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
             ],
         ),
     ]
@@ -207,47 +213,40 @@ def test_remove_acl(
 
 
 def test_multiple_entries(
-    test_container: docker.models.containers.Container,
+    monitored_dir: str,
     server: FileActivityService,
 ):
-    """
-    Test setting multiple ACL entries on a single file.
+    """Test setting multiple ACL entries on a single file."""
+    fut = os.path.join(monitored_dir, 'acl_multi.txt')
+    with open(fut, 'w') as f:
+        f.write('test')
 
-    Args:
-        test_container: A container for running commands in.
-        server: The server instance to communicate with.
-    """
-    assert test_container.id is not None
-    fut = '/container-dir/acl_multi.txt'
-
-    test_container.exec_run(f'touch {fut}')
-    test_container.exec_run(f'setfacl -m u:1000:rwx,u:1001:r,g:2000:rw {fut}')
-
-    touch = Process.in_container(
-        exe_path='/usr/bin/touch',
-        args=f'touch {fut}',
-        name='touch',
-        container_id=test_container.id[:12],
+    acl = _make_acl_xattr(
+        [
+            (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
+            (_ACL_USER, 7, 1000),
+            (_ACL_USER, 4, 1001),
+            (_ACL_GROUP_OBJ, 4, _ACL_UNDEFINED_ID),
+            (_ACL_GROUP, 6, 2000),
+            (_ACL_MASK, 7, _ACL_UNDEFINED_ID),
+            (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
+        ]
     )
-    setfacl = Process.in_container(
-        exe_path='/usr/bin/setfacl',
-        args=f"setfacl -m 'u:1000:rwx,u:1001:r,g:2000:rw' {fut}",
-        name='setfacl',
-        container_id=test_container.id[:12],
-    )
+    os.setxattr(fut, 'system.posix_acl_access', acl)
 
+    process = Process.from_proc()
     events = [
         Event(
-            process=touch,
+            process=process,
             event_type=EventType.CREATION,
             file=fut,
-            host_path='',
+            host_path=fut,
         ),
         Event(
-            process=setfacl,
+            process=process,
             event_type=EventType.ACL,
             file=fut,
-            host_path='',
+            host_path=fut,
             acl_type='access',
         ),
     ]
@@ -258,30 +257,25 @@ def test_multiple_entries(
 def test_ignored_path(
     test_file: str,
     ignored_dir: str,
-    test_container: docker.models.containers.Container,
     server: FileActivityService,
 ):
-    """
-    Test that ACL changes on ignored paths are not captured.
-
-    Args:
-        test_file: File monitored on the host.
-        ignored_dir: Temporary directory that is not monitored.
-        test_container: A container for running commands in.
-        server: The server instance to communicate with.
-    """
-    assert test_container.id is not None
-
-    # Set ACL on an ignored file -- should not produce an event
+    """Test that ACL changes on ignored paths are not captured."""
     ignored_file = os.path.join(ignored_dir, 'ignored_acl.txt')
     with open(ignored_file, 'w') as f:
         f.write('ignored')
 
-    # This runs on the host but the file is in an unmonitored directory.
-    # Since we only match by inode and this file was just created in an
-    # ignored dir, it won't be in the inode_map and won't trigger.
+    acl = _make_acl_xattr(
+        [
+            (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
+            (_ACL_USER, 6, 1000),
+            (_ACL_GROUP_OBJ, 4, _ACL_UNDEFINED_ID),
+            (_ACL_MASK, 6, _ACL_UNDEFINED_ID),
+            (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
+        ]
+    )
+    os.setxattr(ignored_file, 'system.posix_acl_access', acl)
 
-    # Now do a chmod on the monitored file to verify the server is working
+    # Verify the server is working by doing a chmod on a monitored file
     process = Process.from_proc()
     mode = 0o644
     os.chmod(test_file, mode)
