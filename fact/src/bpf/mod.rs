@@ -24,12 +24,9 @@ mod checks;
 
 const RINGBUFFER_NAME: &str = "rb";
 
-/// Hooks that may not be available on all supported kernels. If these
-/// fail to load, FACT will log a warning and continue without them.
-const OPTIONAL_HOOKS: &[&str] = &["inode_set_acl"];
-
 pub struct Bpf {
     obj: Ebpf,
+    checks: Checks,
 
     tx: mpsc::Sender<Event>,
 
@@ -68,6 +65,7 @@ impl Bpf {
         let paths = Vec::new();
         let mut bpf = Bpf {
             obj,
+            checks,
             tx,
             paths,
             paths_config,
@@ -182,17 +180,17 @@ impl Bpf {
             let Some(hook) = name.strip_prefix("trace_") else {
                 bail!("Invalid hook name: {name}");
             };
-            let result = match prog {
-                Program::Lsm(prog) => prog.load(hook, btf),
+
+            // Skip hooks that the kernel doesn't support
+            if hook == "inode_set_acl" && !self.checks.supports_inode_set_acl {
+                info!("Skipping {hook}: not supported on this kernel");
+                continue;
+            }
+
+            match prog {
+                Program::Lsm(prog) => prog.load(hook, btf)?,
                 u => unimplemented!("{u:?}"),
             };
-            if let Err(e) = result {
-                if OPTIONAL_HOOKS.contains(&hook) {
-                    warn!("Optional hook {hook} not available on this kernel, skipping: {e}");
-                    continue;
-                }
-                return Err(e.into());
-            }
         }
         Ok(())
     }
