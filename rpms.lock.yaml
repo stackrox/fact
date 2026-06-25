@@ -361,20 +361,20 @@ arches:
     name: ca-certificates
     evr: 2025.2.80_v9.0.305-91.el9
     sourcerpm: ca-certificates-2025.2.80_v9.0.305-91.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-8.32-40.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-8.32-41.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 1178977
-    checksum: sha256:232157668e7d2b80c61fe60da1c8165c3f5e50a417d1a6e04408ecd6d692bbf2
+    size: 1177900
+    checksum: sha256:ee2de9f5fbc5e83bad920a353c45d3446997aa0e4023436528b2d6f817bd6f50
     name: coreutils
-    evr: 8.32-40.el9
-    sourcerpm: coreutils-8.32-40.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-common-8.32-40.el9.aarch64.rpm
+    evr: 8.32-41.el9_8
+    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-common-8.32-41.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 2116174
-    checksum: sha256:d50877ba7f37788625d6b52d175f2e71bbf160075da235458975361ffdc4811f
+    size: 2114764
+    checksum: sha256:cd79ca65bba152b9ccadcb9780ec78e3d06ce538b693078fd14459d038ab5c0c
     name: coreutils-common
-    evr: 8.32-40.el9
-    sourcerpm: coreutils-8.32-40.el9.src.rpm
+    evr: 8.32-41.el9_8
+    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/cracklib-2.9.6-28.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 102026
@@ -1688,20 +1688,20 @@ arches:
     name: ca-certificates
     evr: 2025.2.80_v9.0.305-91.el9
     sourcerpm: ca-certificates-2025.2.80_v9.0.305-91.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-8.32-40.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-8.32-41.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 1223184
-    checksum: sha256:506252b4d9569a738189c8592f6a9fa0f934b7700e019f3cb5748ba5badd7fbd
+    size: 1220715
+    checksum: sha256:e53f0f831246c73ab03ae395054d261ae392faa1229e6c691c08d2321a824b75
     name: coreutils
-    evr: 8.32-40.el9
-    sourcerpm: coreutils-8.32-40.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-common-8.32-40.el9.x86_64.rpm
+    evr: 8.32-41.el9_8
+    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-common-8.32-41.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 2112892
-    checksum: sha256:1b901fc27ee96272908a3fbc16998f57eec143e5762db2d8d64ce1d8d488601f
+    size: 2116611
+    checksum: sha256:1d4010cdc4f0fb7a4be68bf1bf0f0cda84a11d7337bd15d8368ab0ff90ca0db4
     name: coreutils-common
-    evr: 8.32-40.el9
-    sourcerpm: coreutils-8.32-40.el9.src.rpm
+    evr: 8.32-41.el9_8
+    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/cracklib-2.9.6-28.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 102444
