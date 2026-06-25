@@ -8,88 +8,104 @@
 #include "maps.h"
 #include "process.h"
 #include "types.h"
+#include "raw_event.h"
 
 #include <bpf/bpf_helpers.h>
 // clang-format on
 
 struct submit_event_args_t {
-  struct event_t* event;
   struct metrics_by_hook_t* metrics;
-  const char* filename;
+  struct bound_path_t* filename;
   inode_key_t inode;
   inode_key_t parent_inode;
   monitored_t monitored;
 };
 
-__always_inline static bool reserve_event(struct submit_event_args_t* args) {
-  args->event = bpf_ringbuf_reserve(&rb, sizeof(struct event_t), 0);
-  if (args->event == NULL) {
-    args->metrics->ringbuffer_full++;
-    return false;
-  }
-  return true;
-}
+__always_inline static long fill_base_event(struct submit_event_args_t* args,
+                                            struct raw_event_t* event,
+                                            file_activity_type_t type,
+                                            bool use_bpf_d_path) {
+  raw_event_copy_u16(event, type);
+  raw_event_copy_u64(event, bpf_ktime_get_boot_ns());
 
-__always_inline static void __submit_event(struct submit_event_args_t* args,
-                                           bool use_bpf_d_path) {
-  struct event_t* event = args->event;
-  event->timestamp = bpf_ktime_get_boot_ns();
-  event->monitored = args->monitored;
-  inode_copy(&event->inode, &args->inode);
-  inode_copy(&event->parent_inode, &args->parent_inode);
-  bpf_probe_read_str(event->filename, PATH_MAX, args->filename);
-
-  struct helper_t* helper = get_helper();
-  if (helper == NULL) {
-    goto error;
-  }
-
-  int64_t err = process_fill(&event->process, use_bpf_d_path);
+  int64_t err = process_fill(event, use_bpf_d_path);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
+    return -1;
+  }
+
+  // File data
+  raw_event_copy_u8(event, args->monitored);
+  raw_event_copy_inode(event, &args->inode);
+  raw_event_copy_inode(event, &args->parent_inode);
+  raw_event_copy_bound_path(event, args->filename);
+
+  return 0;
+}
+
+__always_inline static void __submit_event(struct submit_event_args_t* args, struct raw_event_t* event) {
+  if (bpf_ringbuf_output(&rb, event->buf, event->len, 0) != 0) {
+    args->metrics->ringbuffer_full++;
+    return;
+  }
+  args->metrics->added++;
+}
+
+__always_inline static void submit_open_event(struct submit_event_args_t* args,
+                                              file_activity_type_t type) {
+  struct raw_event_t event = INIT_RAW_EVENT();
+  if (event.buf == NULL) {
     goto error;
   }
 
-  args->metrics->added++;
-  bpf_ringbuf_submit(event, 0);
+  if (fill_base_event(args, &event, type, true) != 0) {
+    goto error;
+  }
+
+  __submit_event(args, &event);
   return;
 
 error:
   args->metrics->error++;
-  bpf_ringbuf_discard(event, 0);
-}
-
-__always_inline static void submit_open_event(struct submit_event_args_t* args,
-                                              file_activity_type_t event_type) {
-  if (!reserve_event(args)) {
-    return;
-  }
-  args->event->type = event_type;
-
-  __submit_event(args, true);
 }
 
 __always_inline static void submit_unlink_event(struct submit_event_args_t* args) {
-  if (!reserve_event(args)) {
-    return;
+  struct raw_event_t event = INIT_RAW_EVENT();
+  if (event.buf == NULL) {
+    goto error;
   }
-  args->event->type = FILE_ACTIVITY_UNLINK;
 
-  __submit_event(args, path_hooks_support_bpf_d_path);
+  if (fill_base_event(args, &event, FILE_ACTIVITY_UNLINK, path_hooks_support_bpf_d_path) != 0) {
+    goto error;
+  }
+
+  __submit_event(args, &event);
+  return;
+
+error:
+  args->metrics->error++;
 }
 
 __always_inline static void submit_mode_event(struct submit_event_args_t* args,
                                               umode_t mode,
                                               umode_t old_mode) {
-  if (!reserve_event(args)) {
-    return;
+  struct raw_event_t event = INIT_RAW_EVENT();
+  if (event.buf == NULL) {
+    goto error;
   }
 
-  args->event->type = FILE_ACTIVITY_CHMOD;
-  args->event->chmod.new = mode;
-  args->event->chmod.old = old_mode;
+  if (fill_base_event(args, &event, FILE_ACTIVITY_CHMOD, path_hooks_support_bpf_d_path) != 0) {
+    goto error;
+  }
 
-  __submit_event(args, path_hooks_support_bpf_d_path);
+  raw_event_copy_u16(&event, mode);
+  raw_event_copy_u16(&event, old_mode);
+
+  __submit_event(args, &event);
+  return;
+
+error:
+  args->metrics->error++;
 }
 
 __always_inline static void submit_ownership_event(struct submit_event_args_t* args,
@@ -97,50 +113,81 @@ __always_inline static void submit_ownership_event(struct submit_event_args_t* a
                                                    unsigned long long gid,
                                                    unsigned long long old_uid,
                                                    unsigned long long old_gid) {
-  if (!reserve_event(args)) {
-    return;
+  struct raw_event_t event = INIT_RAW_EVENT();
+  if (event.buf == NULL) {
+    goto error;
   }
 
-  args->event->type = FILE_ACTIVITY_CHOWN;
-  args->event->chown.new.uid = uid;
-  args->event->chown.new.gid = gid;
-  args->event->chown.old.uid = old_uid;
-  args->event->chown.old.gid = old_gid;
+  if (fill_base_event(args, &event, FILE_ACTIVITY_CHOWN, path_hooks_support_bpf_d_path) != 0) {
+    goto error;
+  }
 
-  __submit_event(args, path_hooks_support_bpf_d_path);
+  raw_event_copy_u32(&event, uid);
+  raw_event_copy_u32(&event, gid);
+  raw_event_copy_u32(&event, old_uid);
+  raw_event_copy_u32(&event, old_gid);
+
+  __submit_event(args, &event);
+  return;
+
+error:
+  args->metrics->error++;
 }
 
 __always_inline static void submit_rename_event(struct submit_event_args_t* args,
-                                                const char old_filename[PATH_MAX],
+                                                const struct bound_path_t* const filename,
                                                 inode_key_t* old_inode,
                                                 monitored_t old_monitored) {
-  if (!reserve_event(args)) {
-    return;
+  struct raw_event_t event = INIT_RAW_EVENT();
+  if (event.buf == NULL) {
+    goto error;
   }
 
-  args->event->type = FILE_ACTIVITY_RENAME;
-  bpf_probe_read_str(args->event->rename.filename, PATH_MAX, old_filename);
-  inode_copy(&args->event->rename.inode, old_inode);
-  args->event->rename.monitored = old_monitored;
+  if (fill_base_event(args, &event, FILE_ACTIVITY_RENAME, path_hooks_support_bpf_d_path) != 0) {
+    goto error;
+  }
 
-  __submit_event(args, path_hooks_support_bpf_d_path);
+  raw_event_copy_u8(&event, old_monitored);
+  raw_event_copy_inode(&event, old_inode);
+  raw_event_copy_bound_path(&event, filename);
+
+  __submit_event(args, &event);
+  return;
+
+error:
+  args->metrics->error++;
 }
 
 __always_inline static void submit_mkdir_event(struct submit_event_args_t* args) {
-  if (!reserve_event(args)) {
-    return;
+  struct raw_event_t event = INIT_RAW_EVENT();
+  if (event.buf == NULL) {
+    goto error;
   }
-  args->event->type = DIR_ACTIVITY_CREATION;
 
-  // d_instantiate doesn't support bpf_d_path, so we use false and rely on the stashed path from path_mkdir
-  __submit_event(args, false);
+  if (fill_base_event(args, &event, DIR_ACTIVITY_CREATION, false) != 0) {
+    goto error;
+  }
+
+  __submit_event(args, &event);
+  return;
+
+error:
+  args->metrics->error++;
 }
 
 __always_inline static void submit_rmdir_event(struct submit_event_args_t* args) {
-  if (!reserve_event(args)) {
-    return;
+  struct raw_event_t event = INIT_RAW_EVENT();
+  if (event.buf == NULL) {
+    goto error;
   }
-  args->event->type = DIR_ACTIVITY_UNLINK;
 
-  __submit_event(args, path_hooks_support_bpf_d_path);
+  if (fill_base_event(args, &event, DIR_ACTIVITY_UNLINK, path_hooks_support_bpf_d_path) != 0) {
+    goto error;
+  }
+
+  __submit_event(args, &event);
+  return;
+
+error:
+  args->metrics->error++;
 }
