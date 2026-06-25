@@ -584,6 +584,14 @@ paths:
             r#"
             grpc:
               backoff:
+                retries: -10
+            "#,
+            "invalid grpc.backoff.retries: Integer(-10)",
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
                 unknown: 4
             "#,
             "Invalid field 'grpc.backoff.unknown' with value: Integer(4)",

@@ -215,9 +215,11 @@ impl Client {
                 Ok(channel) => channel,
                 Err(e) => {
                     let Some(delay) = backoff.next() else {
-                        bail!("Failed to connect to server: reconnection attempts exhausted");
+                        bail!(
+                            "Failed to connect to server: Reconnection attempts exhausted: {e:?}"
+                        );
                     };
-                    info!("Failed to connect to server: {e:?}, retrying in {delay:?}");
+                    warn!("Failed to connect to server: {e:?}\nRetrying in {delay:?}");
                     sleep(delay).await;
                     continue;
                 }

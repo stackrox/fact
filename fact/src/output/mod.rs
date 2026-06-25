@@ -62,8 +62,8 @@ pub fn start(
                 res = grpc_handle.borrow_mut() => {
                     match res {
                         Ok(Ok(_)) => break,
-                        Ok(Err(e)) => bail!("grpc worker errored out: {e:?}"),
-                        Err(e) => bail!("grpc task errored out: {e:?}"),
+                        Ok(Err(e)) => bail!("gRPC worker errored out: {e:?}"),
+                        Err(e) => bail!("gRPC task errored out: {e:?}"),
                     }
                 }
                 _ = run.changed() => if !*run.borrow() { break; }

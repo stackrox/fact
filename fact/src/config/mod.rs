@@ -414,7 +414,7 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
                     backoff.multiplier = Some(multiplier);
                 }
                 "retries" => {
-                    let Some(retries) = v.as_i64() else {
+                    let Some(retries) = v.as_i64().filter(|r| *r >= 0) else {
                         bail!("invalid grpc.backoff.retries: {v:?}");
                     };
                     backoff.retries_max = Some(retries as u64);
