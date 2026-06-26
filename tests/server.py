@@ -92,6 +92,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         self,
         events: list[Event],
         strict: bool,
+        skip_xattr: bool,
         cancel: ThreadingEvent,
     ):
         while self.is_running() and not cancel.is_set():
@@ -102,6 +103,12 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
 
             print(f'Got event: {msg}')
 
+            if skip_xattr and msg.WhichOneof('file') in (
+                'xattr_set',
+                'xattr_remove',
+            ):
+                continue
+
             # Check if msg matches the next expected event
             diff = events[0].diff(msg)
             if diff is None:
@@ -111,7 +118,12 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
             elif strict:
                 raise ValueError(json.dumps(diff, indent=4))
 
-    def wait_events(self, events: list[Event], strict: bool = True):
+    def wait_events(
+        self,
+        events: list[Event],
+        strict: bool = True,
+        skip_xattr: bool = True,
+    ):
         """
         Continuously checks the server for incoming events until the
         specified events are found.
@@ -125,7 +137,13 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         """
         print('Waiting for events:', *events, sep='\n')
         cancel = ThreadingEvent()
-        fs = self.executor.submit(self._wait_events, events, strict, cancel)
+        fs = self.executor.submit(
+            self._wait_events,
+            events,
+            strict,
+            skip_xattr,
+            cancel,
+        )
         try:
             fs.result(timeout=5)
         except TimeoutError:

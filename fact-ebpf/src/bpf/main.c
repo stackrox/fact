@@ -389,6 +389,48 @@ cleanup:
   return 0;
 }
 
+__always_inline static int handle_xattr(struct metrics_by_hook_t* hook_metrics,
+                                        struct dentry* dentry,
+                                        const char* xattr_name,
+                                        file_activity_type_t event_type) {
+  struct submit_event_args_t args = {.metrics = hook_metrics};
+
+  args.metrics->total++;
+
+  args.inode = inode_to_key(dentry->d_inode);
+  args.parent_inode = inode_to_key(BPF_CORE_READ(dentry, d_parent, d_inode));
+
+  args.monitored = inode_is_monitored(inode_get(&args.inode), inode_get(&args.parent_inode));
+
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  submit_xattr_event(&args, event_type, xattr_name);
+  return 0;
+}
+
+SEC("lsm/inode_setxattr")
+int BPF_PROG(trace_inode_setxattr, struct mnt_idmap* idmap, struct dentry* dentry,
+             const char* name, const void* value, size_t size, int flags) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  return handle_xattr(&m->inode_setxattr, dentry, name, FILE_ACTIVITY_SETXATTR);
+}
+
+SEC("lsm/inode_removexattr")
+int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* dentry,
+             const char* name) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  return handle_xattr(&m->inode_removexattr, dentry, name, FILE_ACTIVITY_REMOVEXATTR);
+}
+
 SEC("lsm/path_rmdir")
 int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();

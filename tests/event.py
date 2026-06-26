@@ -46,6 +46,8 @@ class EventType(Enum):
     PERMISSION = 4
     OWNERSHIP = 5
     RENAME = 6
+    XATTR_SET = 7
+    XATTR_REMOVE = 8
 
 
 class Process:
@@ -233,6 +235,7 @@ class Event:
         owner_gid: int | None = None,
         old_file: str | Pattern[str] | None = None,
         old_host_path: str | Pattern[str] | None = None,
+        xattr_name: str | None = None,
     ):
         self._type: EventType = event_type
         self._process: Process = process
@@ -243,6 +246,7 @@ class Event:
         self._owner_gid: int | None = owner_gid
         self._old_file: str | Pattern[str] | None = old_file
         self._old_host_path: str | Pattern[str] | None = old_host_path
+        self._xattr_name: str | None = xattr_name
 
     @property
     def event_type(self) -> EventType:
@@ -279,6 +283,10 @@ class Event:
     @property
     def old_host_path(self) -> str | Pattern[str] | None:
         return self._old_host_path
+
+    @property
+    def xattr_name(self) -> str | None:
+        return self._xattr_name
 
     @classmethod
     def _diff_field(cls, diff: dict, name: str, expected: Any, actual: Any):
@@ -388,6 +396,13 @@ class Event:
                 self.owner_gid,
                 event_field.gid,
             )
+        elif self.event_type in (EventType.XATTR_SET, EventType.XATTR_REMOVE):
+            Event._diff_field(
+                diff,
+                'xattr_name',
+                self.xattr_name,
+                event_field.xattr_name,
+            )
 
         return diff if diff else None
 
@@ -411,6 +426,19 @@ class Event:
                 f', old_host_path="{self.old_host_path}"'
             )
 
+        if self.event_type in (EventType.XATTR_SET, EventType.XATTR_REMOVE):
+            s += f', xattr_name="{self.xattr_name}"'
+
         s += ')'
 
         return s
+
+
+def selinux_xattr(process: Process, host_path: str = '') -> Event:
+    return Event(
+        process=process,
+        event_type=EventType.XATTR_SET,
+        file='',
+        host_path=host_path,
+        xattr_name='security.selinux',
+    )

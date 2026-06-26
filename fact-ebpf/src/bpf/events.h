@@ -37,7 +37,11 @@ __always_inline static void __submit_event(struct submit_event_args_t* args,
   event->monitored = args->monitored;
   inode_copy(&event->inode, &args->inode);
   inode_copy(&event->parent_inode, &args->parent_inode);
-  bpf_probe_read_str(event->filename, PATH_MAX, args->filename);
+  if (args->filename != NULL) {
+    bpf_probe_read_str(event->filename, PATH_MAX, args->filename);
+  } else {
+    event->filename[0] = '\0';
+  }
 
   struct helper_t* helper = get_helper();
   if (helper == NULL) {
@@ -143,4 +147,16 @@ __always_inline static void submit_rmdir_event(struct submit_event_args_t* args)
   args->event->type = DIR_ACTIVITY_UNLINK;
 
   __submit_event(args, path_hooks_support_bpf_d_path);
+}
+
+__always_inline static void submit_xattr_event(struct submit_event_args_t* args,
+                                               file_activity_type_t event_type,
+                                               const char* xattr_name) {
+  if (!reserve_event(args)) {
+    return;
+  }
+  args->event->type = event_type;
+  bpf_probe_read_str(args->event->xattr.name, XATTR_NAME_MAX_LEN, xattr_name);
+
+  __submit_event(args, false);
 }
