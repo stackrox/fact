@@ -40,7 +40,7 @@ jobs:
       with:
         repository: stackrox/collector
         path: collector
-        ref: master
+        ref: mauro/ansible/exclude-by-regex
     - uses: actions/setup-python@v5
       with:
         python-version: "3.10"
@@ -88,14 +88,11 @@ jobs:
         # RHEL 8 doesn't handle file creation properly,
         # need more investigation
         - rhel-8
-        - rhcos-412-86-202402272018-0-gcp-x86-64
-        - rhcos-414-92-202407091253-0-gcp-x86-64
+        - rhcos-4[-0-9]+-gcp-x86-64
         # BPF trampolines are only implemented starting with RHEL 10
         - rhel-9-arm64
-        - rhcos-9-8-20260520-0-gcp-aarch64
-        - rhcos-9-6-20260512-0-gcp-aarch64
-        - rhcos-418-94-202602022246-0-gcp-aarch64
-        - rhcos-416-94-202510081640-0-gcp-aarch64
+        - rhcos-9-[-0-9]+-gcp-aarch64
+        - rhcos-4[-0-9]+-gcp-aarch64
         EOF
 
     - name: Create Test VMs
