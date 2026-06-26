@@ -125,9 +125,10 @@ jobs:
     - name: Unarchive logs
       if: always()
       run: |
-        cd "/tmp/fact/tests"
-        for file in logs/*.tar.gz; do
+        cd "/tmp/fact/tests/logs"
+        for file in *.tar.gz; do
           tar xzf "$file"
+          mv logs/ "${file%.tar.gz}"
           rm -f "$file"
         done
 
