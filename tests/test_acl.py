@@ -113,7 +113,7 @@ def test_set_access_acl(
         ),
     ]
 
-    server.wait_events(events)
+    server.wait_events(events, skip=())
 
 
 def test_set_default_acl(
@@ -146,7 +146,7 @@ def test_set_default_acl(
         ),
     ]
 
-    server.wait_events(events)
+    server.wait_events(events, skip=())
 
 
 def test_remove_acl(
@@ -209,7 +209,7 @@ def test_remove_acl(
         ),
     ]
 
-    server.wait_events(events)
+    server.wait_events(events, skip=())
 
 
 def test_multiple_entries(
@@ -251,7 +251,7 @@ def test_multiple_entries(
         ),
     ]
 
-    server.wait_events(events)
+    server.wait_events(events, skip=())
 
 
 def test_ignored_path(
