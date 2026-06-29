@@ -1,4 +1,9 @@
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    os::fd::AsRawFd,
+    path::PathBuf,
+    thread::{self, JoinHandle},
+};
 
 use anyhow::{Context, bail};
 use aya::{
@@ -10,11 +15,7 @@ use checks::Checks;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use libc::c_char;
 use log::{error, info, warn};
-use tokio::{
-    io::unix::AsyncFd,
-    sync::{mpsc, watch},
-    task::JoinHandle,
-};
+use tokio::sync::{mpsc, watch};
 
 use crate::{config::BpfConfig, event::Event, host_info, metrics::EventCounter};
 
@@ -211,22 +212,40 @@ impl Bpf {
     // Gather events from the ring buffer and print them out.
     pub fn start(
         mut self,
-        mut running: watch::Receiver<bool>,
+        running: watch::Receiver<bool>,
         event_counter: EventCounter,
     ) -> JoinHandle<anyhow::Result<()>> {
         info!("Starting BPF worker...");
 
-        tokio::spawn(async move {
-            let rb = self.take_ringbuffer()?;
-            let mut fd = AsyncFd::new(rb)?;
+        thread::spawn(move || {
+            let mut rb = self.take_ringbuffer()?;
+
+            let rb_event = epoll::Event::new(epoll::Events::EPOLLIN, 0);
+            let poller = match epoll::create(false) {
+                Ok(p) => p,
+                Err(e) => bail!("Failed to create epoll: {e:?}"),
+            };
+            if let Err(e) = epoll::ctl(
+                poller,
+                epoll::ControlOptions::EPOLL_CTL_ADD,
+                rb.as_raw_fd(),
+                rb_event,
+            ) {
+                bail!("Failed to add ringbuffer to epoll: {e:?}");
+            }
 
             loop {
-                tokio::select! {
-                    guard = fd.readable_mut() => {
-                        let mut guard = guard
-                            .context("ringbuffer guard held while runtime is stopping")?;
-                        let ringbuf = guard.get_inner_mut();
-                        while let Some(event) = ringbuf.next() {
+                if running.has_changed()? && !*running.borrow() {
+                    break;
+                }
+
+                if self.paths_config.has_changed()? {
+                    self.load_paths().context("Failed to load paths")?;
+                }
+
+                match epoll::wait(poller, 100, &mut [rb_event]) {
+                    Ok(n) if n != 0 => {
+                        while let Some(event) = rb.next() {
                             let event: &event_t = unsafe { &*(event.as_ptr() as *const _) };
                             let event = match Event::try_from(event) {
                                 Ok(event) => {
@@ -234,13 +253,14 @@ impl Bpf {
                                     // its host path, but we don't have that context here,
                                     // so we let the event go into HostScanner and make the
                                     // decision there.
-                                    if !event.is_monitored_by_parent() &&
-                                            event.is_ignored(&self.paths_globset) {
+                                    if !event.is_monitored_by_parent()
+                                        && event.is_ignored(&self.paths_globset)
+                                    {
                                         event_counter.dropped();
                                         continue;
                                     }
                                     event
-                                },
+                                }
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
                                     event_counter.dropped();
@@ -249,25 +269,18 @@ impl Bpf {
                             };
 
                             event_counter.added();
-                            if self.tx.send(event).await.is_err() {
+                            if self.tx.blocking_send(event).is_err() {
                                 info!("No BPF consumers left, stopping...");
                                 break;
                             }
                         }
-                        guard.clear_ready();
-                    },
-                    _ = self.paths_config.changed() => {
-                        self.load_paths().context("Failed to load paths")?;
-                    },
-                    _ = running.changed() => {
-                        if !*running.borrow() {
-                            info!("Stopping BPF worker...");
-                            break;
-                        }
-                    },
+                    }
+                    Ok(_) => {}
+                    Err(e) => bail!("Failed to wait for ringbuffer events: {e:?}"),
                 }
             }
 
+            info!("Stopping BPF worker...");
             Ok(())
         })
     }
@@ -289,8 +302,8 @@ mod bpf_tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_basic() {
+    #[test]
+    fn test_basic() {
         if let Ok(value) = std::env::var("FACT_LOGLEVEL") {
             let value = value.to_lowercase();
             if value == "debug" || value == "trace" {
@@ -312,7 +325,7 @@ mod bpf_tests {
 
         let handle = bpf.start(run_rx, exporter.metrics.bpf_worker.clone());
 
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        thread::sleep(Duration::from_millis(500));
 
         // Create a file
         let file = NamedTempFile::new_in(&monitored_path).expect("Failed to create temporary file");
@@ -383,24 +396,26 @@ mod bpf_tests {
         // Close the file, removing it
         file.close().expect("Failed to close temp file");
 
-        let wait = timeout(Duration::from_secs(1), async move {
-            for expected in expected_events {
-                println!("expected: {expected:#?}");
-                while let Some(event) = rx.recv().await {
-                    println!("{event:#?}");
-                    if event == expected {
-                        println!("Found!");
-                        break;
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let wait = timeout(Duration::from_secs(1), async {
+                for expected in expected_events {
+                    println!("expected: {expected:#?}");
+                    while let Some(event) = rx.recv().await {
+                        println!("{event:#?}");
+                        if event == expected {
+                            println!("Found!");
+                            break;
+                        }
                     }
                 }
+            });
+
+            tokio::select! {
+                res = wait => res.unwrap(),
             }
         });
 
-        tokio::select! {
-            res = wait => res.unwrap(),
-            res = handle => res.unwrap().unwrap(),
-        }
-
         run_tx.send(false).unwrap();
+        handle.join().unwrap().unwrap();
     }
 }
