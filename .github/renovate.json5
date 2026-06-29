@@ -42,6 +42,8 @@
         "matchPackageNames": [
           "/^quay.io/rhacs-eng/konflux-tasks/",
         ],
+        "recreateWhen": "always",
+        "rebaseWhen": "behind-base-branch",
       },
     ],
   },
