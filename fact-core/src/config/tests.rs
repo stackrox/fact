@@ -25,6 +25,12 @@ fn parsing() {
         ),
         (
             r#"
+            grpc: null
+            "#,
+            FactConfig::default(),
+        ),
+        (
+            r#"
             grpc:
               url: 'http://localhost:9090'
             "#,
@@ -48,6 +54,12 @@ fn parsing() {
                 },
                 ..Default::default()
             },
+        ),
+        (
+            r#"
+            endpoint: null
+            "#,
+            FactConfig::default(),
         ),
         (
             r#"
@@ -186,6 +198,12 @@ fn parsing() {
                 json: Some(false),
                 ..Default::default()
             },
+        ),
+        (
+            r#"
+            bpf: null
+            "#,
+            FactConfig::default(),
         ),
         (
             r#"
@@ -385,6 +403,7 @@ fn parsing() {
                 inodes_max: 64
             hotreload: false
             scan_interval: 60
+            rate_limit: 1000
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -411,7 +430,7 @@ fn parsing() {
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
-                rate_limit: None,
+                rate_limit: Some(1000),
             },
         ),
     ];
@@ -1510,6 +1529,10 @@ fn defaults() {
     assert_eq!(config.paths(), default_paths);
     assert_eq!(config.grpc.url(), None);
     assert_eq!(config.grpc.certs(), None);
+    assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
+    assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
+    assert!(config.grpc.backoff.jitter());
+    assert_eq!(config.grpc.backoff.multiplier(), 1.5);
     assert_eq!(
         config.endpoint.address(),
         SocketAddr::from(([0, 0, 0, 0], 9000))
@@ -1521,10 +1544,493 @@ fn defaults() {
     assert_eq!(config.bpf.ringbuf_size(), 8192);
     assert_eq!(config.bpf.inodes_max(), 65536);
     assert!(config.hotreload());
-    assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
-    assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
-    assert!(config.grpc.backoff.jitter());
-    assert_eq!(config.grpc.backoff.multiplier(), 1.5);
+    assert_eq!(config.scan_interval(), Duration::from_secs(30));
+    assert_eq!(config.rate_limit(), 0);
+}
+
+#[test]
+fn test_to_yaml() {
+    let tests = [
+        (
+            FactConfig {
+                paths: Some(Vec::new()),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            paths: []
+            grpc: null
+            endpoint: null
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            paths:
+            - /etc
+            - /bin
+            grpc: null
+            endpoint: null
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                grpc: GrpcConfig {
+                    url: Some(String::from("http://localhost:9090")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc:
+              url: 'http://localhost:9090'
+            endpoint: null
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                grpc: GrpcConfig {
+                    certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc:
+              certs: /etc/stackrox/certs
+            endpoint: null
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              address: 0.0.0.0:8080
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              address: 127.0.0.1:8080
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from((
+                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                        8080,
+                    ))),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              address: '[::]:8080'
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from((
+                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                        8080,
+                    ))),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              address: '[::1]:8080'
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              expose_metrics: true
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    expose_metrics: Some(false),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              expose_metrics: false
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              health_check: true
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                endpoint: EndpointConfig {
+                    health_check: Some(false),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint:
+              health_check: false
+            bpf: null
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                skip_pre_flight: Some(true),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            skip_pre_flight: true
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                skip_pre_flight: Some(false),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            skip_pre_flight: false
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                json: Some(false),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            json: false
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                json: Some(false),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            json: false
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                bpf: BpfConfig {
+                    ringbuf_size: Some(64),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf:
+                ringbuf_size: 64
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                bpf: BpfConfig {
+                    inodes_max: Some(64),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf:
+                inodes_max: 64
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                hotreload: Some(true),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            hotreload: true
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                hotreload: Some(false),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            hotreload: false
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                scan_interval: Some(Duration::from_secs(60)),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            scan_interval: 60
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                scan_interval: Some(Duration::from_secs_f64(30.5)),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            scan_interval: 30.5
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                rate_limit: Some(0),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            rate_limit: 0
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                rate_limit: Some(1000),
+                ..Default::default()
+            },
+            YamlLoader::load_from_str(
+                r#"
+            grpc: null
+            endpoint: null
+            bpf: null
+            rate_limit: 1000
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+        (
+            FactConfig {
+                paths: Some(vec!["/etc".into()]),
+                grpc: GrpcConfig {
+                    url: Some("https://svc.sensor.stackrox:9090".into()),
+                    certs: Some("/etc/stackrox/certs".into()),
+                },
+                endpoint: EndpointConfig {
+                    address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
+                    expose_metrics: Some(true),
+                    health_check: Some(true),
+                },
+                skip_pre_flight: Some(false),
+                json: Some(false),
+                bpf: BpfConfig {
+                    ringbuf_size: Some(8192),
+                    inodes_max: Some(64),
+                },
+                hotreload: Some(false),
+                scan_interval: Some(Duration::from_secs(60)),
+                rate_limit: Some(1000),
+            },
+            YamlLoader::load_from_str(
+                r#"
+            paths:
+            - /etc
+            grpc:
+              url: 'https://svc.sensor.stackrox:9090'
+              certs: /etc/stackrox/certs
+            endpoint:
+              address: 0.0.0.0:8080
+              expose_metrics: true
+              health_check: true
+            bpf:
+                ringbuf_size: 8192
+                inodes_max: 64
+            skip_pre_flight: false
+            json: false
+            hotreload: false
+            scan_interval: 60
+            rate_limit: 1000
+            "#,
+            )
+            .unwrap()[0]
+                .to_owned(),
+        ),
+    ];
+
+    for (config, expected) in tests {
+        assert_eq!(config.to_yaml(), expected);
+    }
+>>>>>>> b4154c7 (test(config): add tests for yaml serialization)
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());

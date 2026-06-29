@@ -9,6 +9,9 @@ version:
 image-name:
 	@echo "$(FACT_IMAGE_NAME)"
 
+operator-name:
+	@echo "$(FACT_OPERATOR_NAME)"
+
 mock-server:
 	make -C mock-server
 
@@ -17,8 +20,20 @@ image:
 		-f Containerfile \
 		--build-arg FACT_VERSION=$(FACT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--target fact \
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
+
+operator:
+	$(DOCKER) build \
+		-f Containerfile \
+		--build-arg FACT_VERSION=$(FACT_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--target fact-operator \
+		-t $(FACT_OPERATOR_NAME) \
+		$(CURDIR)
+
+images: image operator
 
 licenses:THIRD_PARTY_LICENSES.html
 
@@ -54,4 +69,5 @@ format:
 	make -C fact-ebpf format
 	ruff format tests/
 
-.PHONY: tag mock-server integration-tests image image-name licenses coverage lint clean
+.PHONY: tag mock-server integration-tests image images image-name
+.PHONY: operator operator-name licenses coverage lint clean

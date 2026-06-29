@@ -42,10 +42,11 @@ FROM builder AS build
 ARG FACT_VERSION
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target \
-    cargo build --release && \
-    cp target/release/fact fact
+    cargo build --release --all && \
+    cp target/release/fact fact && \
+    cp target/release/fact-operator fact-operator
 
-FROM ubi-micro-base
+FROM ubi-micro-base AS fact
 
 ARG FACT_VERSION
 LABEL name="fact" \
@@ -64,3 +65,23 @@ COPY LICENSE-APACHE LICENSE-MIT LICENSE-GPL2 /licenses/
 RUN update-crypto-policies --set DEFAULT:PQ
 
 ENTRYPOINT ["fact"]
+
+FROM ubi-micro-base AS fact-operator
+
+ARG FACT_VERSION
+LABEL name="fact-operator" \
+      vendor="StackRox" \
+      maintainer="support@stackrox.com" \
+      summary="File activity operator" \
+      description="This image supports an operator for deploying the file activity daemonset" \
+      io.stackrox.fact-operator.version="${FACT_VERSION}"
+
+COPY --from=package_installer /out/ /
+
+COPY --from=build /app/fact-operator /usr/local/bin
+
+COPY LICENSE-APACHE LICENSE-MIT LICENSE-GPL2 /licenses/
+
+RUN update-crypto-policies --set DEFAULT:PQ
+
+ENTRYPOINT ["fact-operator"]

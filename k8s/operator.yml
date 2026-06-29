@@ -1,0 +1,182 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: facts.fact.stackrox.io
+spec:
+  group: fact.stackrox.io
+  names:
+    kind: Fact
+    plural: facts
+    singular: fact
+    shortNames:
+      - ft
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                logLevel:
+                  type: string
+                  default: info
+                config:
+                  type: object
+                  properties:
+                    paths:
+                      type: array
+                      items:
+                        type: string
+                      default: null
+                    grpc:
+                      type: object
+                      default: null
+                      properties:
+                        url:
+                          type: string
+                          default: null
+                        certs:
+                          type: string
+                          default: null
+                    endpoint:
+                      type: object
+                      default: null
+                      properties:
+                        address:
+                          type: string
+                          default: null
+                        exposeMetrics:
+                          type: boolean
+                          default: null
+                        healthCheck:
+                          type: boolean
+                          default: null
+                    bpf:
+                      type: object
+                      default: null
+                      properties:
+                        ringbufSize:
+                          type: integer
+                          default: null
+                        inodesMax:
+                          type: integer
+                          default: null
+                    skipPreFlight:
+                      type: boolean
+                      default: null
+                    json:
+                      type: boolean
+                      default: null
+                    hotreload:
+                      type: boolean
+                      default: null
+                    scanInterval:
+                      type: integer
+                      default: null
+                    rateLimit:
+                      type: integer
+                      default: 0
+            status:
+              type: object
+              properties:
+                readyNodes:
+                  type: integer
+                desiredNodes:
+                  type: integer
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Image
+          type: string
+          jsonPath: .spec.image
+        - name: Ready
+          type: string
+          jsonPath: .status.readyNodes
+        - name: Desired
+          type: string
+          jsonPath: .status.desiredNodes
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fact-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fact-operator
+  namespace: fact-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fact-operator
+rules:
+  # Watch and update our CRD instances
+  - apiGroups: [fact.stackrox.io]
+    resources: [facts, facts/status]
+    verbs: [get, list, watch, patch, update]
+  # Manage ConfigMaps
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Manage DaemonSets
+  - apiGroups: [apps]
+    resources: [daemonsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  # Emit events
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fact-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fact-operator
+subjects:
+  - kind: ServiceAccount
+    name: fact-operator
+    namespace: fact-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fact-operator
+  namespace: fact-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fact-operator
+  template:
+    metadata:
+      labels:
+        app: fact-operator
+    spec:
+      serviceAccountName: fact-operator
+      containers:
+        - name: fact-operator
+          image: quay.io/mmoltras/fact:operator
+          imagePullPolicy: Always
+          env:
+            - name: RUST_LOG
+              value: debug
+          resources:
+            limits:
+              cpu: 200m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
