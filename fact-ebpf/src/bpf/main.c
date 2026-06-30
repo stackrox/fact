@@ -442,17 +442,10 @@ int BPF_PROG(trace_inode_set_acl, struct mnt_idmap* idmap, struct dentry* dentry
 
   args.metrics->total++;
 
-  struct bound_path_t* bound_path = dentry_read(dentry);
-  if (bound_path == NULL) {
-    bpf_printk("Failed to read path from dentry");
-    args.metrics->error++;
-    return 0;
-  }
-  args.filename = bound_path->path;
+  args.inode = inode_to_key(dentry->d_inode);
+  args.parent_inode = inode_to_key(BPF_CORE_READ(dentry, d_parent, d_inode));
 
-  struct inode* inode_ptr = BPF_CORE_READ(dentry, d_inode);
-  args.inode = inode_to_key(inode_ptr);
-  args.monitored = is_monitored(&args.inode, bound_path, NULL);
+  args.monitored = inode_is_monitored(inode_get(&args.inode), inode_get(&args.parent_inode));
 
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;

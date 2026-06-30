@@ -70,13 +70,15 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_set_access_acl(
-    monitored_dir: str,
+    test_file: str,
     server: FileActivityService,
 ):
-    """Test setting an access ACL on a monitored file."""
-    fut = os.path.join(monitored_dir, 'acl_test.txt')
-    with open(fut, 'w') as f:
-        f.write('test')
+    """Test setting an access ACL on a monitored file.
+
+    The test_file fixture creates a file before fact starts, so it is
+    picked up by the initial scan and its inode is already tracked.
+    """
+    process = Process.from_proc()
 
     acl = _make_acl_xattr(
         [
@@ -87,42 +89,49 @@ def test_set_access_acl(
             (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
         ]
     )
-    os.setxattr(fut, 'system.posix_acl_access', acl)
+    os.setxattr(test_file, 'system.posix_acl_access', acl)
 
-    process = Process.from_proc()
-    events = [
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=fut,
-            host_path=fut,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.ACL,
-            file=fut,
-            host_path=fut,
-            acl_type='access',
-            acl_entries=[
-                {'tag': ACL_TAG_USER_OBJ, 'perm': 6, 'id': _ACL_UNDEFINED_ID},
-                {'tag': ACL_TAG_USER, 'perm': 6, 'id': 1000},
-                {'tag': ACL_TAG_GROUP_OBJ, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
-                {'tag': ACL_TAG_MASK, 'perm': 6, 'id': _ACL_UNDEFINED_ID},
-                {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
-            ],
-        ),
-    ]
-
-    server.wait_events(events, skip=())
+    server.wait_events(
+        skip=(),
+        events=[
+            Event(
+                process=process,
+                event_type=EventType.ACL,
+                file='',
+                host_path=test_file,
+                acl_type='access',
+                acl_entries=[
+                    {
+                        'tag': ACL_TAG_USER_OBJ,
+                        'perm': 6,
+                        'id': _ACL_UNDEFINED_ID,
+                    },
+                    {'tag': ACL_TAG_USER, 'perm': 6, 'id': 1000},
+                    {
+                        'tag': ACL_TAG_GROUP_OBJ,
+                        'perm': 4,
+                        'id': _ACL_UNDEFINED_ID,
+                    },
+                    {'tag': ACL_TAG_MASK, 'perm': 6, 'id': _ACL_UNDEFINED_ID},
+                    {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
+                ],
+            ),
+        ],
+    )
 
 
 def test_set_default_acl(
     monitored_dir: str,
     server: FileActivityService,
 ):
-    """Test setting a default ACL on a monitored directory."""
-    fut = os.path.join(monitored_dir, 'acl_subdir')
-    os.makedirs(fut, exist_ok=True)
+    """Test setting a default ACL on a monitored directory.
+
+    The monitored_dir fixture is tracked by path prefix, but since
+    the ACL hook only monitors by inode, we need the directory to
+    be inode-tracked. monitored_dir is included in fact's paths
+    config, so fact tracks it by inode after the initial scan.
+    """
+    process = Process.from_proc()
 
     acl = _make_acl_xattr(
         [
@@ -133,32 +142,29 @@ def test_set_default_acl(
             (_ACL_OTHER, 5, _ACL_UNDEFINED_ID),
         ]
     )
-    os.setxattr(fut, 'system.posix_acl_default', acl)
+    os.setxattr(monitored_dir, 'system.posix_acl_default', acl)
 
-    process = Process.from_proc()
-    events = [
-        Event(
-            process=process,
-            event_type=EventType.ACL,
-            file=fut,
-            host_path=fut,
-            acl_type='default',
-        ),
-    ]
-
-    server.wait_events(events, skip=())
+    server.wait_events(
+        skip=(),
+        events=[
+            Event(
+                process=process,
+                event_type=EventType.ACL,
+                file='',
+                host_path=monitored_dir,
+                acl_type='default',
+            ),
+        ],
+    )
 
 
 def test_remove_acl(
-    monitored_dir: str,
+    test_file: str,
     server: FileActivityService,
 ):
-    """Test removing ACLs from a monitored file."""
-    fut = os.path.join(monitored_dir, 'acl_remove.txt')
-    with open(fut, 'w') as f:
-        f.write('test')
+    """Test setting and then removing ACLs from a monitored file."""
+    process = Process.from_proc()
 
-    # Set an ACL with an extra user entry
     acl_with_user = _make_acl_xattr(
         [
             (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
@@ -168,9 +174,8 @@ def test_remove_acl(
             (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
         ]
     )
-    os.setxattr(fut, 'system.posix_acl_access', acl_with_user)
+    os.setxattr(test_file, 'system.posix_acl_access', acl_with_user)
 
-    # Remove extended ACL entries by setting a minimal ACL
     acl_minimal = _make_acl_xattr(
         [
             (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
@@ -178,48 +183,48 @@ def test_remove_acl(
             (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
         ]
     )
-    os.setxattr(fut, 'system.posix_acl_access', acl_minimal)
+    os.setxattr(test_file, 'system.posix_acl_access', acl_minimal)
 
-    process = Process.from_proc()
-    events = [
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=fut,
-            host_path=fut,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.ACL,
-            file=fut,
-            host_path=fut,
-            acl_type='access',
-        ),
-        Event(
-            process=process,
-            event_type=EventType.ACL,
-            file=fut,
-            host_path=fut,
-            acl_type='access',
-            acl_entries=[
-                {'tag': ACL_TAG_USER_OBJ, 'perm': 6, 'id': _ACL_UNDEFINED_ID},
-                {'tag': ACL_TAG_GROUP_OBJ, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
-                {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
-            ],
-        ),
-    ]
-
-    server.wait_events(events, skip=())
+    server.wait_events(
+        skip=(),
+        events=[
+            Event(
+                process=process,
+                event_type=EventType.ACL,
+                file='',
+                host_path=test_file,
+                acl_type='access',
+            ),
+            Event(
+                process=process,
+                event_type=EventType.ACL,
+                file='',
+                host_path=test_file,
+                acl_type='access',
+                acl_entries=[
+                    {
+                        'tag': ACL_TAG_USER_OBJ,
+                        'perm': 6,
+                        'id': _ACL_UNDEFINED_ID,
+                    },
+                    {
+                        'tag': ACL_TAG_GROUP_OBJ,
+                        'perm': 4,
+                        'id': _ACL_UNDEFINED_ID,
+                    },
+                    {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
+                ],
+            ),
+        ],
+    )
 
 
 def test_multiple_entries(
-    monitored_dir: str,
+    test_file: str,
     server: FileActivityService,
 ):
     """Test setting multiple ACL entries on a single file."""
-    fut = os.path.join(monitored_dir, 'acl_multi.txt')
-    with open(fut, 'w') as f:
-        f.write('test')
+    process = Process.from_proc()
 
     acl = _make_acl_xattr(
         [
@@ -232,26 +237,20 @@ def test_multiple_entries(
             (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
         ]
     )
-    os.setxattr(fut, 'system.posix_acl_access', acl)
+    os.setxattr(test_file, 'system.posix_acl_access', acl)
 
-    process = Process.from_proc()
-    events = [
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=fut,
-            host_path=fut,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.ACL,
-            file=fut,
-            host_path=fut,
-            acl_type='access',
-        ),
-    ]
-
-    server.wait_events(events, skip=())
+    server.wait_events(
+        skip=(),
+        events=[
+            Event(
+                process=process,
+                event_type=EventType.ACL,
+                file='',
+                host_path=test_file,
+                acl_type='access',
+            ),
+        ],
+    )
 
 
 def test_ignored_path(
