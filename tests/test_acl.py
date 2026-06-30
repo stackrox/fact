@@ -18,6 +18,8 @@ from event import (
     ACL_TAG_OTHER,
     ACL_TAG_USER,
     ACL_TAG_USER_OBJ,
+    ACL_TYPE_ACCESS,
+    ACL_TYPE_DEFAULT,
     Event,
     EventType,
     Process,
@@ -100,7 +102,7 @@ def test_set_access_acl(
                 event_type=EventType.ACL,
                 file='',
                 host_path=test_file,
-                acl_type='access',
+                acl_type=ACL_TYPE_ACCESS,
                 acl_entries=[
                     {
                         'tag': ACL_TAG_USER_OBJ,
@@ -153,7 +155,7 @@ def test_set_default_acl(
                 event_type=EventType.ACL,
                 file='',
                 host_path=monitored_dir,
-                acl_type='default',
+                acl_type=ACL_TYPE_DEFAULT,
             ),
         ],
     )
@@ -194,14 +196,14 @@ def test_remove_acl(
                 event_type=EventType.ACL,
                 file='',
                 host_path=test_file,
-                acl_type='access',
+                acl_type=ACL_TYPE_ACCESS,
             ),
             Event(
                 process=process,
                 event_type=EventType.ACL,
                 file='',
                 host_path=test_file,
-                acl_type='access',
+                acl_type=ACL_TYPE_ACCESS,
                 acl_entries=[
                     {
                         'tag': ACL_TAG_USER_OBJ,
@@ -248,7 +250,7 @@ def test_multiple_entries(
                 event_type=EventType.ACL,
                 file='',
                 host_path=test_file,
-                acl_type='access',
+                acl_type=ACL_TYPE_ACCESS,
                 acl_entries=[
                     {
                         'tag': ACL_TAG_USER_OBJ,

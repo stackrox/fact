@@ -743,8 +743,8 @@ impl From<AclSetFileData> for fact_api::FileAclChange {
     fn from(value: AclSetFileData) -> Self {
         let activity = fact_api::FileActivityBase::from(value.inner);
         let acl_type = match value.acl_type {
-            AclType::Access => "access".to_string(),
-            AclType::Default => "default".to_string(),
+            AclType::Access => fact_api::AclType::Access as i32,
+            AclType::Default => fact_api::AclType::Default as i32,
         };
         let entries = value
             .entries

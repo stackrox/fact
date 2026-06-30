@@ -51,6 +51,10 @@ class EventType(Enum):
     ACL = 9
 
 
+# POSIX ACL type values matching the AclType proto enum.
+ACL_TYPE_ACCESS = 1
+ACL_TYPE_DEFAULT = 2
+
 # POSIX ACL tag values matching the AclTag proto enum.
 ACL_TAG_USER_OBJ = 1
 ACL_TAG_USER = 2
