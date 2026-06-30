@@ -12,6 +12,7 @@ import struct
 import pytest
 
 from event import (
+    ACL_TAG_GROUP,
     ACL_TAG_GROUP_OBJ,
     ACL_TAG_MASK,
     ACL_TAG_OTHER,
@@ -248,6 +249,23 @@ def test_multiple_entries(
                 file='',
                 host_path=test_file,
                 acl_type='access',
+                acl_entries=[
+                    {
+                        'tag': ACL_TAG_USER_OBJ,
+                        'perm': 6,
+                        'id': _ACL_UNDEFINED_ID,
+                    },
+                    {'tag': ACL_TAG_USER, 'perm': 7, 'id': 1000},
+                    {'tag': ACL_TAG_USER, 'perm': 4, 'id': 1001},
+                    {
+                        'tag': ACL_TAG_GROUP_OBJ,
+                        'perm': 4,
+                        'id': _ACL_UNDEFINED_ID,
+                    },
+                    {'tag': ACL_TAG_GROUP, 'perm': 6, 'id': 2000},
+                    {'tag': ACL_TAG_MASK, 'perm': 7, 'id': _ACL_UNDEFINED_ID},
+                    {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
+                ],
             ),
         ],
     )

@@ -38,29 +38,6 @@ __always_inline static struct bound_path_t* _path_read(struct path* path, bound_
   return bound_path;
 }
 
-/**
- * Read a filesystem-relative path from a bare dentry.
- *
- * This is for hooks that only provide a struct dentry without a
- * struct path (e.g. inode_set_acl). The resulting path can be used
- * for LPM trie matching and inode monitoring checks.
- */
-__always_inline static struct bound_path_t* dentry_read(struct dentry* dentry) {
-  struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
-  if (bound_path == NULL) {
-    return NULL;
-  }
-
-  bound_path->len = __d_path_from_dentry(dentry, bound_path->path, PATH_MAX);
-  if (bound_path->len <= 0) {
-    return NULL;
-  }
-
-  bound_path->len = PATH_LEN_CLAMP(bound_path->len);
-
-  return bound_path;
-}
-
 __always_inline static struct bound_path_t* path_read_unchecked(struct path* path) {
   return _path_read(path, BOUND_PATH_MAIN, true);
 }

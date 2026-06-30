@@ -24,14 +24,6 @@
  */
 #define PATH_LEN_CLAMP(len) ((len) & PATH_MAX_MASK)
 
-// Context for __d_path_inner.
-//
-// Supports two modes:
-//   Full path mode: mnt and root must both be set. Crosses mount
-//     boundaries and terminates at the process root.
-//   Dentry-only mode: mnt and root must both be NULL. Walks the
-//     dentry chain to the filesystem root, producing a
-//     filesystem-relative path.
 struct d_path_ctx {
   struct helper_t* helper;
   struct path* root;
@@ -46,49 +38,39 @@ static long __d_path_inner(uint32_t index, void* _ctx) {
   struct d_path_ctx* ctx = (struct d_path_ctx*)_ctx;
   struct dentry* dentry = ctx->dentry;
   struct dentry* parent = BPF_CORE_READ(dentry, d_parent);
+  struct mount* mnt = ctx->mnt;
+  struct dentry* mnt_root = BPF_CORE_READ(mnt, mnt.mnt_root);
 
-  if (ctx->mnt != NULL) {
-    // Full path mode: we have mount context and can cross mount
-    // boundaries and detect the process root.
-    struct mount* mnt = ctx->mnt;
-    struct dentry* mnt_root = BPF_CORE_READ(mnt, mnt.mnt_root);
+  if (dentry == ctx->root->dentry && &mnt->mnt == ctx->root->mnt) {
+    // Found the root of the process, we are done
+    ctx->success = true;
+    return 1;
+  }
 
-    if (dentry == ctx->root->dentry && &mnt->mnt == ctx->root->mnt) {
-      // Found the root of the process, we are done
-      ctx->success = true;
-      return 1;
+  if (dentry == mnt_root) {
+    struct mount* m = BPF_CORE_READ(mnt, mnt_parent);
+    if (m != mnt) {
+      // Current dentry is a mount root different to the previous one we
+      // had (to prevent looping), switch over to that mount position
+      // and keep walking up the path.
+      ctx->dentry = BPF_CORE_READ(mnt, mnt_mountpoint);
+      ctx->mnt = m;
+      return 0;
     }
 
-    if (dentry == mnt_root) {
-      struct mount* m = BPF_CORE_READ(mnt, mnt_parent);
-      if (m != mnt) {
-        // Current dentry is a mount root different to the previous one we
-        // had (to prevent looping), switch over to that mount position
-        // and keep walking up the path.
-        ctx->dentry = BPF_CORE_READ(mnt, mnt_mountpoint);
-        ctx->mnt = m;
-        return 0;
-      }
-
-      // Ended up in a global root, the path might need re-processing or
-      // the root is not attached yet, we are not getting a better path,
-      // so we assume we are correct and stop iterating.
-      ctx->success = true;
-      return 1;
-    }
+    // Ended up in a global root, the path might need re-processing or
+    // the root is not attached yet, we are not getting a better path,
+    // so we assume we are correct and stop iterating.
+    ctx->success = true;
+    return 1;
   }
 
   if (dentry == parent) {
-    // Reached the root of the filesystem's dentry tree.
+    // We escaped the mounts and ended up at (most likely) the root of
+    // the device, the path we formed will be wrong.
     //
-    // In full path mode (mnt != NULL) this means we escaped the mounts
-    // and the path may be wrong due to a race condition.
-    //
-    // In dentry-only mode (mnt == NULL) this is the expected
-    // termination: we've reached the filesystem root and have a
-    // filesystem-relative path. This is correct for overlayfs
-    // (containers) and for files on the root filesystem.
-    ctx->success = (ctx->mnt == NULL);
+    // This may happen in race conditions where some dentries go away
+    // while we are iterating.
     return 1;
   }
 
@@ -148,46 +130,6 @@ __always_inline static long __d_path(const struct path* path, char* buf, int buf
   ctx.root = &task->fs->root;
   ctx.mnt = container_of(path->mnt, struct mount, mnt);
   BPF_CORE_READ_INTO(&ctx.dentry, path, dentry);
-
-  long res = bpf_loop(PATH_MAX, __d_path_inner, &ctx, 0);
-  if (res <= 0 || !ctx.success) {
-    return -1;
-  }
-
-  bpf_probe_read_str(buf, buflen, &ctx.helper->buf[PATH_LEN_CLAMP(ctx.offset)]);
-  return buflen - ctx.offset;
-}
-
-/**
- * Resolve a filesystem-relative path from a bare dentry.
- *
- * This is used when no struct path is available (e.g. inode_set_acl).
- * It walks the dentry chain up to the filesystem root, producing a
- * path relative to the filesystem's root dentry. This is correct for
- * overlayfs (containers) and for files on the root filesystem. It
- * cannot cross mount boundaries, so paths on nested host mounts (e.g.
- * a separate /var partition) will be relative to that mount's root.
- */
-__always_inline static long __d_path_from_dentry(struct dentry* dentry, char* buf, int buflen) {
-  if (buflen <= 0) {
-    return -1;
-  }
-
-  int offset = PATH_LEN_CLAMP(buflen - 1);
-  struct d_path_ctx ctx = {
-      .buflen = buflen,
-      .helper = get_helper(),
-      .offset = offset,
-      .mnt = NULL,
-      .root = NULL,
-  };
-
-  if (ctx.helper == NULL) {
-    return -1;
-  }
-
-  ctx.helper->buf[offset] = '\0';
-  ctx.dentry = dentry;
 
   long res = bpf_loop(PATH_MAX, __d_path_inner, &ctx, 0);
   if (res <= 0 || !ctx.success) {
