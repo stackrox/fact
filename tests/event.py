@@ -250,7 +250,7 @@ class Event:
         old_file: str | Pattern[str] | None = None,
         old_host_path: str | Pattern[str] | None = None,
         xattr_name: str | None = None,
-        acl_type: str | None = None,
+        acl_type: int | None = None,
         acl_entries: list[dict] | None = None,
     ):
         self._type: EventType = event_type
@@ -263,7 +263,7 @@ class Event:
         self._old_file: str | Pattern[str] | None = old_file
         self._old_host_path: str | Pattern[str] | None = old_host_path
         self._xattr_name: str | None = xattr_name
-        self._acl_type: str | None = acl_type
+        self._acl_type: int | None = acl_type
         self._acl_entries: list[dict] | None = acl_entries
 
     @property
@@ -307,7 +307,7 @@ class Event:
         return self._xattr_name
 
     @property
-    def acl_type(self) -> str | None:
+    def acl_type(self) -> int | None:
         return self._acl_type
 
     @property
