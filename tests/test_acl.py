@@ -25,6 +25,7 @@ from event import (
     Process,
 )
 from server import FileActivityService
+from utils import btf_has_symbol
 
 # POSIX ACL xattr wire format constants
 _ACL_VERSION = 2
@@ -47,27 +48,8 @@ def _make_acl_xattr(entries: list[tuple[int, int, int]]) -> bytes:
     return data
 
 
-def _kernel_supports_acl_hook() -> bool:
-    """Check whether the kernel has the inode_set_acl LSM hook by
-    searching for its BTF type in /sys/kernel/btf/vmlinux."""
-    needle = b'bpf_lsm_inode_set_acl'
-    chunk_size = 64 * 1024
-    try:
-        with open('/sys/kernel/btf/vmlinux', 'rb') as f:
-            # Read in chunks, keeping an overlap to catch matches
-            # that span chunk boundaries.
-            prev = b''
-            while chunk := f.read(chunk_size):
-                if needle in prev + chunk:
-                    return True
-                prev = chunk[-len(needle) :]
-        return False
-    except OSError:
-        return False
-
-
 pytestmark = pytest.mark.skipif(
-    not _kernel_supports_acl_hook(),
+    not btf_has_symbol('bpf_lsm_inode_set_acl'),
     reason='kernel does not support inode_set_acl LSM hook',
 )
 
@@ -307,4 +289,4 @@ def test_ignored_path(
         mode=mode,
     )
 
-    server.wait_events([event])
+    server.wait_events([event], skip=())
