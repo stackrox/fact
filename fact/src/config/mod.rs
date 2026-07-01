@@ -34,6 +34,7 @@ fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
 pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
     pub grpc: GrpcConfig,
+    pub otel: OTelConfig,
     pub endpoint: EndpointConfig,
     pub bpf: BpfConfig,
     skip_pre_flight: Option<bool>,
@@ -72,7 +73,7 @@ impl FactConfig {
             )?;
 
         // Once file configuration is handled, apply CLI arguments
-        static CLI_ARGS: LazyLock<FactConfig> = LazyLock::new(|| FactCli::parse().to_config());
+        static CLI_ARGS: LazyLock<FactConfig> = LazyLock::new(|| FactCli::parse().into_config());
         config.update(&CLI_ARGS);
 
         Ok(config)
@@ -84,6 +85,7 @@ impl FactConfig {
         }
 
         self.grpc.update(&from.grpc);
+        self.otel.update(&from.otel);
         self.endpoint.update(&from.endpoint);
         self.bpf.update(&from.bpf);
 
@@ -195,6 +197,10 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                 "grpc" if v.is_hash() => {
                     let grpc = v.as_hash().unwrap();
                     config.grpc = GrpcConfig::try_from(grpc)?;
+                }
+                "otel" if v.is_hash() => {
+                    let otel = v.as_hash().unwrap();
+                    config.otel = OTelConfig::try_from(otel)?;
                 }
                 "endpoint" if v.is_hash() => {
                     let endpoint = v.as_hash().unwrap();
@@ -493,6 +499,48 @@ impl TryFrom<&yaml::Hash> for GrpcConfig {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct OTelConfig {
+    endpoint: Option<String>,
+}
+
+impl OTelConfig {
+    fn update(&mut self, from: &OTelConfig) {
+        if let Some(endpoint) = from.endpoint.as_deref() {
+            self.endpoint = Some(endpoint.to_owned());
+        }
+    }
+
+    pub fn endpoint(&self) -> Option<&str> {
+        self.endpoint.as_deref()
+    }
+}
+
+impl TryFrom<&yaml::Hash> for OTelConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
+        let mut otel = OTelConfig::default();
+        for (k, v) in value.iter() {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}");
+            };
+
+            match k {
+                "endpoint" => {
+                    let Some(endpoint) = v.as_str() else {
+                        bail!("otel.endpoint field has incorrect type: {v:?}")
+                    };
+                    otel.endpoint = Some(endpoint.to_owned());
+                }
+                name => bail!("Invalid field 'otel.{name}' with value: {v:?}"),
+            }
+        }
+
+        Ok(otel)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct BpfConfig {
     ringbuf_size: Option<u32>,
     inodes_max: Option<u32>,
@@ -627,6 +675,10 @@ pub struct FactCli {
     #[arg(long, env = "FACT_GRPC_BACKOFF_RETRIES_MAX")]
     backoff_retries_max: Option<u64>,
 
+    /// OpenTelemetry endpoint to push logs into
+    #[arg(long, env = "FACT_OTEL_ENDPOINT")]
+    otel_endpoint: Option<String>,
+
     /// The port to bind for all exposed endpoints
     #[arg(long, short, env = "FACT_ENDPOINT_ADDRESS")]
     address: Option<SocketAddr>,
@@ -711,12 +763,12 @@ pub struct FactCli {
 }
 
 impl FactCli {
-    fn to_config(&self) -> FactConfig {
+    fn into_config(self) -> FactConfig {
         FactConfig {
-            paths: self.paths.clone(),
+            paths: self.paths,
             grpc: GrpcConfig {
-                url: self.url.clone(),
-                certs: self.certs.clone(),
+                url: self.url,
+                certs: self.certs,
                 backoff: BackoffConfig {
                     initial: self.backoff_initial,
                     max: self.backoff_max,
@@ -724,6 +776,9 @@ impl FactCli {
                     multiplier: self.backoff_multiplier,
                     retries_max: self.backoff_retries_max,
                 },
+            },
+            otel: OTelConfig {
+                endpoint: self.otel_endpoint,
             },
             endpoint: EndpointConfig {
                 address: self.address,

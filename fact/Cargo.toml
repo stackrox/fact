@@ -20,6 +20,9 @@ hyper-util = { workspace = true }
 libc = { workspace = true }
 log = { workspace = true }
 native-tls = { workspace = true }
+opentelemetry = { version = "0.32.0", optional = true }
+opentelemetry-otlp = { version = "0.32.0", optional = true }
+opentelemetry_sdk = { version = "0.32.1", features = [ "logs"], optional = true }
 openssl = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true }
@@ -51,3 +54,4 @@ path = "src/main.rs"
 
 [features]
 bpf-test = []
+otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp"]

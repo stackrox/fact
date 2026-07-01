@@ -10,7 +10,7 @@ use openssl::{ec::EcKey, pkey::PKey};
 use tokio::{
     fs,
     sync::{mpsc, oneshot, watch},
-    task::JoinHandle,
+    task::JoinSet,
     time::sleep,
 };
 use tokio_stream::{
@@ -125,8 +125,8 @@ impl Client {
         }
     }
 
-    pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
+    pub fn start(mut self, set: &mut JoinSet<anyhow::Result<()>>) {
+        set.spawn(async move {
             loop {
                 let res = if self.is_enabled() {
                     self.run().await
@@ -144,7 +144,7 @@ impl Client {
                 }
             }
             Ok(())
-        })
+        });
     }
 
     async fn get_connector(&self) -> anyhow::Result<Option<HttpsConnector<HttpConnector>>> {

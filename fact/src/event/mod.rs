@@ -1,3 +1,5 @@
+#[cfg(feature = "otel")]
+use std::collections::HashMap;
 #[cfg(all(test, feature = "bpf-test"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
@@ -7,6 +9,8 @@ use std::{
 };
 
 use globset::GlobSet;
+#[cfg(feature = "otel")]
+use opentelemetry::logs::AnyValue;
 use serde::Serialize;
 
 use fact_ebpf::{
@@ -322,6 +326,11 @@ impl Event {
     pub fn is_monitored_by_parent(&self) -> bool {
         self.get_monitored() == monitored_t::MONITORED_BY_PARENT
     }
+
+    #[cfg(feature = "otel")]
+    pub(crate) fn event_type(&self) -> &'static str {
+        self.file.event_type()
+    }
 }
 
 impl TryFrom<&event_t> for Event {
@@ -360,6 +369,18 @@ impl From<Event> for fact_api::FileActivity {
             process: Some(process),
             hostname: value.hostname.to_string(),
         }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<Event> for opentelemetry::logs::AnyValue {
+    fn from(value: Event) -> Self {
+        AnyValue::Map(Box::new(HashMap::from([
+            ("file".into(), value.file.into()),
+            ("timestamp".into(), AnyValue::Int(value.timestamp as i64)),
+            ("process".into(), value.process.into()),
+            ("hostname".into(), value.hostname.into()),
+        ])))
     }
 }
 
@@ -466,6 +487,23 @@ impl FileData {
 
         Ok(file)
     }
+
+    #[cfg(feature = "otel")]
+    fn event_type(&self) -> &'static str {
+        match self {
+            FileData::Open(_) => "open",
+            FileData::Creation(_) => "creation",
+            FileData::MkDir(_) => "mkdir",
+            FileData::RmDir(_) => "rmdir",
+            FileData::Unlink(_) => "unlink",
+            FileData::Chmod(_) => "permission",
+            FileData::Chown(_) => "ownership",
+            FileData::Rename(_) => "rename",
+            FileData::SetXattr(_) => "xattr_set",
+            FileData::RemoveXattr(_) => "xattr_remove",
+            FileData::AclSet(_) => "acl",
+        }
+    }
 }
 
 impl From<FileData> for fact_api::file_activity::File {
@@ -517,6 +555,31 @@ impl From<FileData> for fact_api::file_activity::File {
                 fact_api::file_activity::File::Acl(f_act)
             }
         }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<FileData> for opentelemetry::logs::AnyValue {
+    fn from(value: FileData) -> Self {
+        let event_type = value.event_type();
+        let AnyValue::Map(mut map) = (match value {
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data) => AnyValue::from(data),
+            FileData::Chmod(data) => AnyValue::from(data),
+            FileData::Chown(data) => AnyValue::from(data),
+            FileData::Rename(data) => AnyValue::from(data),
+            FileData::SetXattr(data) | FileData::RemoveXattr(data) => AnyValue::from(data),
+            FileData::AclSet(data) => AnyValue::from(data),
+        }) else {
+            unreachable!("event data did not serialize to map");
+        };
+
+        map.insert("event_type".into(), event_type.into());
+
+        AnyValue::Map(map)
     }
 }
 
@@ -586,6 +649,22 @@ impl From<BaseFileData> for fact_api::FileActivityBase {
     }
 }
 
+#[cfg(feature = "otel")]
+impl From<BaseFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: BaseFileData) -> Self {
+        AnyValue::Map(Box::new(HashMap::from([
+            (
+                "filename".into(),
+                value.filename.to_string_lossy().to_string().into(),
+            ),
+            (
+                "host_path".into(),
+                value.host_file.to_string_lossy().to_string().into(),
+            ),
+        ])))
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ChmodFileData {
     inner: BaseFileData,
@@ -605,6 +684,21 @@ impl From<ChmodFileData> for fact_api::FilePermissionChange {
             activity: Some(activity),
             mode: new_mode as u32,
         }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<ChmodFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: ChmodFileData) -> Self {
+        let AnyValue::Map(mut map) = value.inner.into() else {
+            unreachable!("inner value did not serialize to map");
+        };
+        map.extend([
+            ("new_mode".into(), value.new_mode.into()),
+            ("old_mode".into(), value.old_mode.into()),
+        ]);
+
+        AnyValue::Map(map)
     }
 }
 
@@ -656,10 +750,49 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
     }
 }
 
+#[cfg(feature = "otel")]
+impl From<ChownFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: ChownFileData) -> Self {
+        let AnyValue::Map(mut map) = value.inner.into() else {
+            unreachable!("inner value did not serialize to map");
+        };
+        map.extend([
+            ("new_uid".into(), value.new_uid.into()),
+            ("old_uid".into(), value.old_uid.into()),
+            ("new_gid".into(), value.new_gid.into()),
+            ("old_gid".into(), value.old_gid.into()),
+        ]);
+
+        AnyValue::Map(map)
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RenameFileData {
     new: BaseFileData,
     old: BaseFileData,
+}
+
+impl From<RenameFileData> for fact_api::FileRename {
+    fn from(RenameFileData { new, old }: RenameFileData) -> Self {
+        let new = fact_api::FileActivityBase::from(new);
+        let old = fact_api::FileActivityBase::from(old);
+        fact_api::FileRename {
+            old: Some(old),
+            new: Some(new),
+        }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<RenameFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: RenameFileData) -> Self {
+        let AnyValue::Map(mut map) = value.new.into() else {
+            unreachable!("new value did not serialize to map");
+        };
+        map.insert("old".into(), value.old.into());
+        AnyValue::Map(map)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -683,6 +816,21 @@ impl From<fact_ebpf::acl_tag_t> for AclTag {
             fact_ebpf::acl_tag_t::FACT_ACL_TAG_MASK => AclTag::Mask,
             fact_ebpf::acl_tag_t::FACT_ACL_TAG_OTHER => AclTag::Other,
             other => AclTag::Unknown(other.0 as i16),
+        }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<AclTag> for opentelemetry::logs::AnyValue {
+    fn from(value: AclTag) -> Self {
+        match value {
+            AclTag::UserObj => "user_obj".into(),
+            AclTag::User => "user".into(),
+            AclTag::GroupObj => "group_obj".into(),
+            AclTag::Group => "group".into(),
+            AclTag::Mask => "mask".into(),
+            AclTag::Other => "other".into(),
+            AclTag::Unknown(v) => format!("unknown({v})").into(),
         }
     }
 }
@@ -713,10 +861,35 @@ impl AclEntry {
     }
 }
 
+#[cfg(feature = "otel")]
+impl From<AclEntry> for opentelemetry::logs::AnyValue {
+    fn from(value: AclEntry) -> Self {
+        let mut map = HashMap::from([
+            ("tag".into(), value.tag.into()),
+            ("perm".into(), value.perm.into()),
+        ]);
+        if let Some(id) = value.id {
+            map.insert("id".into(), id.into());
+        }
+
+        AnyValue::Map(Box::new(map))
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 pub enum AclType {
     Access,
     Default,
+}
+
+#[cfg(feature = "otel")]
+impl From<AclType> for opentelemetry::logs::AnyValue {
+    fn from(value: AclType) -> Self {
+        match value {
+            AclType::Access => "access".into(),
+            AclType::Default => "default".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -724,17 +897,6 @@ pub struct AclSetFileData {
     inner: BaseFileData,
     acl_type: AclType,
     entries: Vec<AclEntry>,
-}
-
-impl From<RenameFileData> for fact_api::FileRename {
-    fn from(RenameFileData { new, old }: RenameFileData) -> Self {
-        let new = fact_api::FileActivityBase::from(new);
-        let old = fact_api::FileActivityBase::from(old);
-        fact_api::FileRename {
-            old: Some(old),
-            new: Some(new),
-        }
-    }
 }
 
 impl From<AclTag> for i32 {
@@ -781,6 +943,24 @@ impl From<AclSetFileData> for fact_api::FileAclChange {
     }
 }
 
+#[cfg(feature = "otel")]
+impl From<AclSetFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: AclSetFileData) -> Self {
+        let AnyValue::Map(mut map) = value.inner.into() else {
+            unreachable!("new value did not serialize to map");
+        };
+        map.insert("acl_type".into(), value.acl_type.into());
+        let entries = value
+            .entries
+            .into_iter()
+            .map(AnyValue::from)
+            .collect::<Vec<_>>();
+        map.insert("entries".into(), AnyValue::ListAny(Box::new(entries)));
+
+        AnyValue::Map(map)
+    }
+}
+
 #[cfg(test)]
 impl PartialEq for RenameFileData {
     fn eq(&self, other: &Self) -> bool {
@@ -801,6 +981,18 @@ impl From<XattrFileData> for fact_api::FileXattrChange {
             activity: Some(activity),
             xattr_name: value.xattr_name,
         }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<XattrFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: XattrFileData) -> Self {
+        let AnyValue::Map(mut map) = value.inner.into() else {
+            unreachable!("inner value did not serialize to map");
+        };
+        map.insert("xattr_name".into(), value.xattr_name.into());
+
+        AnyValue::Map(map)
     }
 }
 

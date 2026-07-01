@@ -101,6 +101,7 @@ impl EventCounter {
 pub struct OutputMetrics {
     pub stdout: EventCounter,
     pub grpc: EventCounter,
+    pub otel: EventCounter,
 }
 
 impl OutputMetrics {
@@ -116,16 +117,23 @@ impl OutputMetrics {
             "Events processed by the grpc output component",
             &labels,
         );
+        let otel_counter = EventCounter::new(
+            "output_otel_events",
+            "Events processed by the otel output component",
+            &labels,
+        );
 
         OutputMetrics {
             stdout: stdout_counter,
             grpc: grpc_counter,
+            otel: otel_counter,
         }
     }
 
     fn register(&self, reg: &mut Registry) {
         self.stdout.register(reg);
         self.grpc.register(reg);
+        self.otel.register(reg);
     }
 }
 

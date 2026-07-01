@@ -118,6 +118,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         running.subscribe(),
         exporter.metrics.output.clone(),
         reloader.grpc(),
+        reloader.otel(),
         reloader.config().json(),
     );
     let mut host_scanner_handle = host_scanner.start();

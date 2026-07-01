@@ -9,12 +9,15 @@ use tokio::{
     time::interval,
 };
 
+use crate::config::OTelConfig;
+
 use super::{CONFIG_FILES, EndpointConfig, FactConfig, GrpcConfig};
 
 pub struct Reloader {
     config: FactConfig,
     endpoint: watch::Sender<EndpointConfig>,
     grpc: watch::Sender<GrpcConfig>,
+    otel: watch::Sender<OTelConfig>,
     paths: watch::Sender<Vec<PathBuf>>,
     files: HashMap<&'static str, i64>,
     scan_interval: watch::Sender<Duration>,
@@ -69,6 +72,12 @@ impl Reloader {
     /// changed.
     pub fn grpc(&self) -> watch::Receiver<GrpcConfig> {
         self.grpc.subscribe()
+    }
+
+    /// Subscribe to get notifications when otel configuration is
+    /// changed.
+    pub fn otel(&self) -> watch::Receiver<OTelConfig> {
+        self.otel.subscribe()
     }
 
     /// Subscribe to get notifications when paths configuration is
@@ -174,6 +183,16 @@ impl Reloader {
             }
         });
 
+        self.otel.send_if_modified(|old| {
+            if *old != new.otel {
+                debug!("Sending new OTel configuration...");
+                *old = new.otel.clone();
+                true
+            } else {
+                false
+            }
+        });
+
         self.paths.send_if_modified(|old| {
             let new = new.paths();
             if *old != new {
@@ -238,6 +257,7 @@ impl From<FactConfig> for Reloader {
             .collect();
         let (endpoint, _) = watch::channel(config.endpoint.clone());
         let (grpc, _) = watch::channel(config.grpc.clone());
+        let (otel, _) = watch::channel(config.otel.clone());
         let (paths, _) = watch::channel(config.paths().to_vec());
         let (scan_interval, _) = watch::channel(config.scan_interval());
         let (rate_limit, _) = watch::channel(config.rate_limit());
@@ -247,6 +267,7 @@ impl From<FactConfig> for Reloader {
             config,
             endpoint,
             grpc,
+            otel,
             paths,
             scan_interval,
             rate_limit,
