@@ -1,12 +1,14 @@
 #[cfg(all(test, feature = "bpf-test"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
+    collections::HashMap,
     ffi::{CStr, OsStr},
     os::{raw::c_char, unix::ffi::OsStrExt},
     path::{Path, PathBuf},
 };
 
 use globset::GlobSet;
+use opentelemetry::logs::AnyValue;
 use serde::Serialize;
 
 use fact_ebpf::{
@@ -357,6 +359,17 @@ impl From<Event> for fact_api::FileActivity {
     }
 }
 
+impl From<Event> for opentelemetry::logs::AnyValue {
+    fn from(value: Event) -> Self {
+        AnyValue::Map(Box::new(HashMap::from([
+            ("file".into(), value.file.into()),
+            ("timestamp".into(), AnyValue::Int(value.timestamp as i64)),
+            ("process".into(), value.process.into()),
+            ("hostname".into(), value.hostname.into()),
+        ])))
+    }
+}
+
 #[cfg(test)]
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
@@ -444,6 +457,21 @@ impl FileData {
 
         Ok(file)
     }
+
+    fn event_type(&self) -> &'static str {
+        match self {
+            FileData::Open(_) => "open",
+            FileData::Creation(_) => "creation",
+            FileData::MkDir(_) => "mkdir",
+            FileData::RmDir(_) => "rmdir",
+            FileData::Unlink(_) => "unlink",
+            FileData::Chmod(_) => "chmod",
+            FileData::Chown(_) => "chown",
+            FileData::Rename(_) => "rename",
+            FileData::SetXattr(_) => "setxattr",
+            FileData::RemoveXattr(_) => "removexattr",
+        }
+    }
 }
 
 impl From<FileData> for fact_api::file_activity::File {
@@ -491,6 +519,29 @@ impl From<FileData> for fact_api::file_activity::File {
                 fact_api::file_activity::File::Rename(f_act)
             }
         }
+    }
+}
+
+impl From<FileData> for opentelemetry::logs::AnyValue {
+    fn from(value: FileData) -> Self {
+        let event_type = value.event_type();
+        let AnyValue::Map(mut map) = (match value {
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data) => AnyValue::from(data),
+            FileData::Chmod(data) => AnyValue::from(data),
+            FileData::Chown(data) => AnyValue::from(data),
+            FileData::Rename(data) => AnyValue::from(data),
+            FileData::SetXattr(data) | FileData::RemoveXattr(data) => AnyValue::from(data),
+        }) else {
+            unreachable!("event data did not serialize to map");
+        };
+
+        map.insert("event_type".into(), event_type.into());
+
+        AnyValue::Map(map)
     }
 }
 
@@ -554,6 +605,21 @@ impl From<BaseFileData> for fact_api::FileActivityBase {
     }
 }
 
+impl From<BaseFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: BaseFileData) -> Self {
+        AnyValue::Map(Box::new(HashMap::from([
+            (
+                "filename".into(),
+                value.filename.to_string_lossy().to_string().into(),
+            ),
+            (
+                "host_path".into(),
+                value.host_file.to_string_lossy().to_string().into(),
+            ),
+        ])))
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ChmodFileData {
     inner: BaseFileData,
@@ -573,6 +639,20 @@ impl From<ChmodFileData> for fact_api::FilePermissionChange {
             activity: Some(activity),
             mode: new_mode as u32,
         }
+    }
+}
+
+impl From<ChmodFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: ChmodFileData) -> Self {
+        let AnyValue::Map(mut map) = value.inner.into() else {
+            unreachable!("inner value did not serialize to map");
+        };
+        map.extend([
+            ("new_mode".into(), value.new_mode.into()),
+            ("old_mode".into(), value.old_mode.into()),
+        ]);
+
+        AnyValue::Map(map)
     }
 }
 
@@ -613,6 +693,22 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
     }
 }
 
+impl From<ChownFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: ChownFileData) -> Self {
+        let AnyValue::Map(mut map) = value.inner.into() else {
+            unreachable!("inner value did not serialize to map");
+        };
+        map.extend([
+            ("new_uid".into(), value.new_uid.into()),
+            ("old_uid".into(), value.old_uid.into()),
+            ("new_gid".into(), value.new_gid.into()),
+            ("old_gid".into(), value.old_gid.into()),
+        ]);
+
+        AnyValue::Map(map)
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RenameFileData {
     new: BaseFileData,
@@ -627,6 +723,16 @@ impl From<RenameFileData> for fact_api::FileRename {
             old: Some(old),
             new: Some(new),
         }
+    }
+}
+
+impl From<RenameFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: RenameFileData) -> Self {
+        let AnyValue::Map(mut map) = value.new.into() else {
+            unreachable!("new value did not serialize to map");
+        };
+        map.insert("old".into(), value.old.into());
+        AnyValue::Map(map)
     }
 }
 
@@ -650,6 +756,17 @@ impl From<XattrFileData> for fact_api::FileXattrChange {
             activity: Some(activity),
             xattr_name: value.xattr_name,
         }
+    }
+}
+
+impl From<XattrFileData> for opentelemetry::logs::AnyValue {
+    fn from(value: XattrFileData) -> Self {
+        let AnyValue::Map(mut map) = value.inner.into() else {
+            unreachable!("inner value did not serialize to map");
+        };
+        map.insert("xattr_name".into(), value.xattr_name.into());
+
+        AnyValue::Map(map)
     }
 }
 
