@@ -20,6 +20,9 @@ hyper-util = { workspace = true }
 libc = { workspace = true }
 log = { workspace = true }
 native-tls = { workspace = true }
+opentelemetry = { version = "0.32.0" }
+opentelemetry-otlp = { version = "0.32.0" }
+opentelemetry_sdk = { version = "0.32.1", features = [ "logs"] }
 openssl = { workspace = true }
 tonic = { workspace = true }
 tokio = { workspace = true }

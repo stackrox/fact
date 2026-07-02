@@ -6,6 +6,7 @@ use tokio::sync::{broadcast, mpsc, watch};
 use crate::{config::GrpcConfig, event::Event, metrics::OutputMetrics};
 
 mod grpc;
+mod otel;
 mod stdout;
 
 /// Starts all the output tasks.
@@ -47,6 +48,8 @@ pub fn start(
         config.clone(),
     );
 
+    let otel_client = otel::Client::new(broad_rx.resubscribe());
+
     // JSON client will only start if explicitly enabled or no other
     // output is active at startup
     if !grpc_client.is_enabled() || stdout_enabled {
@@ -59,6 +62,7 @@ pub fn start(
     }
 
     grpc_client.start();
+    otel_client.start();
 
     Ok(())
 }
