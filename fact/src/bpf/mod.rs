@@ -46,13 +46,13 @@ impl Bpf {
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
         let obj = aya::EbpfLoader::new()
-            .set_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
-            .set_global(
+            .override_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
+            .override_global(
                 "path_hooks_support_bpf_d_path",
                 &(checks.path_hooks_support_bpf_d_path as u8),
                 true,
             )
-            .set_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
+            .map_max_entries(RINGBUFFER_NAME, ringbuf_size * 1024)
             .load(fact_ebpf::EBPF_OBJ)?;
 
         let paths = Vec::new();
