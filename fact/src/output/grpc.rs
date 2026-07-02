@@ -73,7 +73,7 @@ impl Backoff {
             self.retries_curr += 1;
         }
 
-        let delay = self.current;
+        let delay = self.current.min(self.max);
         self.current = self.current.mul_f64(self.multiplier).min(self.max);
         let delay = if self.jitter {
             let nanos = rand::random_range(0..=delay.as_nanos() as u64);
