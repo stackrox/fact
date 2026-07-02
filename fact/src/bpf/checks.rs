@@ -4,6 +4,7 @@ use log::debug;
 
 pub(super) struct Checks {
     pub(super) path_hooks_support_bpf_d_path: bool,
+    pub(super) supports_inode_set_acl: bool,
 }
 
 impl Checks {
@@ -12,15 +13,31 @@ impl Checks {
             .load(fact_ebpf::CHECKS_OBJ)
             .context("Failed to load checks.o")?;
 
-        let prog = obj
-            .program_mut("check_path_unlink_supports_bpf_d_path")
-            .context("Failed to find 'check_path_unlink_supports_bpf_d_path' program")?;
-        let prog: &mut Lsm = prog.try_into()?;
-        let path_hooks_support_bpf_d_path = prog.load("path_unlink", btf).is_ok();
-        debug!("path_unlink_supports_bpf_d_path: {path_hooks_support_bpf_d_path}");
+        let path_hooks_support_bpf_d_path = Self::probe_hook(
+            &mut obj,
+            "check_path_unlink_supports_bpf_d_path",
+            "path_unlink",
+            btf,
+        );
+        debug!("path_hooks_support_bpf_d_path: {path_hooks_support_bpf_d_path}");
+
+        let supports_inode_set_acl =
+            Self::probe_hook(&mut obj, "check_inode_set_acl", "inode_set_acl", btf);
+        debug!("supports_inode_set_acl: {supports_inode_set_acl}");
 
         Ok(Checks {
             path_hooks_support_bpf_d_path,
+            supports_inode_set_acl,
         })
+    }
+
+    fn probe_hook(obj: &mut aya::Ebpf, prog_name: &str, hook: &str, btf: &Btf) -> bool {
+        let Some(prog) = obj.program_mut(prog_name) else {
+            return false;
+        };
+        let Ok(prog): Result<&mut Lsm, _> = prog.try_into() else {
+            return false;
+        };
+        prog.load(hook, btf).is_ok()
     }
 }

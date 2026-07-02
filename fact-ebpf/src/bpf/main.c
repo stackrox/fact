@@ -431,6 +431,31 @@ int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* de
   return handle_xattr(&m->inode_removexattr, dentry, name, FILE_ACTIVITY_REMOVEXATTR);
 }
 
+SEC("lsm/inode_set_acl")
+int BPF_PROG(trace_inode_set_acl, struct mnt_idmap* idmap, struct dentry* dentry,
+             const char* acl_name, struct posix_acl* kacl) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->inode_set_acl};
+
+  args.metrics->total++;
+
+  args.inode = inode_to_key(dentry->d_inode);
+  args.parent_inode = inode_to_key(BPF_CORE_READ(dentry, d_parent, d_inode));
+
+  args.monitored = inode_is_monitored(inode_get(&args.inode), inode_get(&args.parent_inode));
+
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  submit_acl_event(&args, acl_name, kacl);
+  return 0;
+}
+
 SEC("lsm/path_rmdir")
 int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();

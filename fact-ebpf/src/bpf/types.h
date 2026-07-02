@@ -58,6 +58,18 @@ typedef enum monitored_t {
 // For the time being we just keep a char.
 typedef char inode_value_t;
 
+#define FACT_MAX_ACL_ENTRIES 32
+
+// ACL type constants matching the xattr names
+#define FACT_ACL_TYPE_ACCESS 0
+#define FACT_ACL_TYPE_DEFAULT 1
+
+struct acl_entry_t {
+  short e_tag;
+  unsigned short e_perm;
+  unsigned int e_id;
+};
+
 typedef enum file_activity_type_t {
   FILE_ACTIVITY_INIT = -1,
   FILE_ACTIVITY_OPEN = 0,
@@ -70,6 +82,7 @@ typedef enum file_activity_type_t {
   DIR_ACTIVITY_UNLINK,
   FILE_ACTIVITY_SETXATTR,
   FILE_ACTIVITY_REMOVEXATTR,
+  FILE_ACTIVITY_ACL_SET,
 } file_activity_type_t;
 
 struct event_t {
@@ -99,6 +112,11 @@ struct event_t {
     struct {
       char name[XATTR_NAME_MAX_LEN];
     } xattr;
+    struct {
+      unsigned int count;
+      unsigned int acl_type;
+      struct acl_entry_t entries[FACT_MAX_ACL_ENTRIES];
+    } acl;
   };
 };
 
@@ -143,4 +161,5 @@ struct metrics_t {
   struct metrics_by_hook_t path_rmdir;
   struct metrics_by_hook_t inode_setxattr;
   struct metrics_by_hook_t inode_removexattr;
+  struct metrics_by_hook_t inode_set_acl;
 };

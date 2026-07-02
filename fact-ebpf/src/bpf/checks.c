@@ -13,3 +13,9 @@ int BPF_PROG(check_path_unlink_supports_bpf_d_path, struct path* dir, struct den
   bpf_printk("dir: %s", p->path);
   return 0;
 }
+
+SEC("lsm/inode_set_acl")
+int BPF_PROG(check_inode_set_acl, struct mnt_idmap* idmap, struct dentry* dentry, const char* acl_name,
+             struct posix_acl* kacl) {
+  return 0;
+}

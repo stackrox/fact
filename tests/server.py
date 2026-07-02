@@ -15,6 +15,15 @@ if TYPE_CHECKING:
     from event import Event
 
 
+# Mapping from friendly skip names to protobuf oneof field names.
+SKIP_EVENT_TYPES: dict[str, tuple[str, ...]] = {
+    'xattr': ('xattr_set', 'xattr_remove'),
+    'acl': ('acl',),
+}
+
+DEFAULT_SKIP = ('xattr', 'acl')
+
+
 class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
     """
     GRPC server for the File Activity Service.
@@ -92,7 +101,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         self,
         events: list[Event],
         strict: bool,
-        skip_xattr: bool,
+        skip_oneof_names: frozenset[str],
         cancel: ThreadingEvent,
     ):
         while self.is_running() and not cancel.is_set():
@@ -103,10 +112,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
 
             print(f'Got event: {msg}')
 
-            if skip_xattr and msg.WhichOneof('file') in (
-                'xattr_set',
-                'xattr_remove',
-            ):
+            if msg.WhichOneof('file') in skip_oneof_names:
                 continue
 
             # Check if msg matches the next expected event
@@ -122,7 +128,7 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         self,
         events: list[Event],
         strict: bool = True,
-        skip_xattr: bool = True,
+        skip: tuple[str, ...] = DEFAULT_SKIP,
     ):
         """
         Continuously checks the server for incoming events until the
@@ -131,17 +137,22 @@ class FileActivityService(sfa_iservice_pb2_grpc.FileActivityServiceServicer):
         Args:
             events (list['Event']): The events to search for.
             strict (bool): Fail if an unexpected event is detected.
+            skip: Event categories to silently ignore (e.g. 'xattr',
+                'acl'). Pass an empty tuple to receive all events.
 
         Raises:
             TimeoutError: If the required events are not found in 5 seconds.
         """
+        skip_oneof_names = frozenset(
+            name for key in skip for name in SKIP_EVENT_TYPES.get(key, (key,))
+        )
         print('Waiting for events:', *events, sep='\n')
         cancel = ThreadingEvent()
         fs = self.executor.submit(
             self._wait_events,
             events,
             strict,
-            skip_xattr,
+            skip_oneof_names,
             cancel,
         )
         try:

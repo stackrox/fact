@@ -26,6 +26,7 @@ const RINGBUFFER_NAME: &str = "rb";
 
 pub struct Bpf {
     obj: Ebpf,
+    checks: Checks,
 
     tx: mpsc::Sender<Event>,
 
@@ -64,6 +65,7 @@ impl Bpf {
         let paths = Vec::new();
         let mut bpf = Bpf {
             obj,
+            checks,
             tx,
             paths,
             paths_config,
@@ -178,28 +180,38 @@ impl Bpf {
             let Some(hook) = name.strip_prefix("trace_") else {
                 bail!("Invalid hook name: {name}");
             };
+
+            // Skip hooks that the kernel doesn't support
+            if hook == "inode_set_acl" && !self.checks.supports_inode_set_acl {
+                info!("Skipping {hook}: not supported on this kernel");
+                continue;
+            }
+
             match prog {
                 Program::Lsm(prog) => prog.load(hook, btf)?,
                 u => unimplemented!("{u:?}"),
-            }
+            };
         }
         Ok(())
     }
 
-    /// Attaches all BPF programs. If any attach fails, all previously
-    /// attached programs are automatically detached via drop.
+    /// Attaches all loaded BPF programs. Programs that were not loaded
+    /// (e.g. optional hooks on unsupported kernels) are skipped.
+    /// If any attach fails, all previously attached programs are
+    /// automatically detached via drop.
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        self.links = self
-            .obj
-            .programs_mut()
-            .map(|(_, prog)| match prog {
+        for (_, prog) in self.obj.programs_mut() {
+            match prog {
                 Program::Lsm(prog) => {
+                    if prog.fd().is_err() {
+                        continue;
+                    }
                     let link_id = prog.attach()?;
-                    prog.take_link(link_id)
+                    self.links.push(prog.take_link(link_id)?);
                 }
                 u => unimplemented!("{u:?}"),
-            })
-            .collect::<Result<_, _>>()?;
+            }
+        }
         Ok(())
     }
 

@@ -48,6 +48,20 @@ class EventType(Enum):
     RENAME = 6
     XATTR_SET = 7
     XATTR_REMOVE = 8
+    ACL = 9
+
+
+# POSIX ACL type values matching the AclType proto enum.
+ACL_TYPE_ACCESS = 1
+ACL_TYPE_DEFAULT = 2
+
+# POSIX ACL tag values matching the AclTag proto enum.
+ACL_TAG_USER_OBJ = 1
+ACL_TAG_USER = 2
+ACL_TAG_GROUP_OBJ = 3
+ACL_TAG_GROUP = 4
+ACL_TAG_MASK = 5
+ACL_TAG_OTHER = 6
 
 
 class Process:
@@ -236,6 +250,8 @@ class Event:
         old_file: str | Pattern[str] | None = None,
         old_host_path: str | Pattern[str] | None = None,
         xattr_name: str | None = None,
+        acl_type: int | None = None,
+        acl_entries: list[dict] | None = None,
     ):
         self._type: EventType = event_type
         self._process: Process = process
@@ -247,6 +263,8 @@ class Event:
         self._old_file: str | Pattern[str] | None = old_file
         self._old_host_path: str | Pattern[str] | None = old_host_path
         self._xattr_name: str | None = xattr_name
+        self._acl_type: int | None = acl_type
+        self._acl_entries: list[dict] | None = acl_entries
 
     @property
     def event_type(self) -> EventType:
@@ -287,6 +305,14 @@ class Event:
     @property
     def xattr_name(self) -> str | None:
         return self._xattr_name
+
+    @property
+    def acl_type(self) -> int | None:
+        return self._acl_type
+
+    @property
+    def acl_entries(self) -> list[dict] | None:
+        return self._acl_entries
 
     @classmethod
     def _diff_field(cls, diff: dict, name: str, expected: Any, actual: Any):
@@ -403,6 +429,28 @@ class Event:
                 self.xattr_name,
                 event_field.xattr_name,
             )
+        elif self.event_type == EventType.ACL:
+            Event._diff_field(
+                diff,
+                'acl_type',
+                self.acl_type,
+                event_field.acl_type,
+            )
+            if self.acl_entries is not None:
+                actual_entries = [
+                    {
+                        'tag': e.tag,
+                        'perm': e.perm,
+                        'id': e.id,
+                    }
+                    for e in event_field.entries
+                ]
+                Event._diff_field(
+                    diff,
+                    'acl_entries',
+                    self.acl_entries,
+                    actual_entries,
+                )
 
         return diff if diff else None
 
@@ -428,6 +476,10 @@ class Event:
 
         if self.event_type in (EventType.XATTR_SET, EventType.XATTR_REMOVE):
             s += f', xattr_name="{self.xattr_name}"'
+
+        if self.event_type == EventType.ACL:
+            s += f', acl_type={self.acl_type}'
+            s += f', acl_entries={self.acl_entries}'
 
         s += ')'
 

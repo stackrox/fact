@@ -78,6 +78,28 @@ def rust_style_join(args: list[str]):
     return ' '.join(rust_style_quote(arg) for arg in args)
 
 
+def btf_has_symbol(symbol: str) -> bool:
+    """Check whether the running kernel's BTF contains a given symbol.
+
+    Searches /sys/kernel/btf/vmlinux for the symbol name. Reads in
+    chunks to avoid loading the entire file into memory.
+    """
+    needle = symbol.encode()
+    chunk_size = 64 * 1024
+    try:
+        with open('/sys/kernel/btf/vmlinux', 'rb') as f:
+            # Read in chunks, keeping an overlap to catch matches
+            # that span chunk boundaries.
+            prev = b''
+            while chunk := f.read(chunk_size):
+                if needle in prev + chunk:
+                    return True
+                prev = chunk[-len(needle) :]
+        return False
+    except OSError:
+        return False
+
+
 def get_metric_value(
     fact_config: tuple[dict, str],
     metric_name: str,
