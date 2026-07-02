@@ -1,6 +1,6 @@
 use std::{borrow::BorrowMut, io::Write, str::FromStr};
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use bpf::Bpf;
 use host_info::{SystemInfo, get_distro, get_hostname};
 use host_scanner::HostScanner;
@@ -10,6 +10,7 @@ use rate_limiter::RateLimiter;
 use tokio::{
     signal::unix::{SignalKind, signal},
     sync::watch,
+    task::JoinError,
 };
 
 mod bpf;
@@ -64,6 +65,19 @@ pub fn log_system_information() {
     info!("Hostname: {}", get_hostname());
 }
 
+fn flatten_task_result(
+    component: &str,
+    res: Result<anyhow::Result<()>, JoinError>,
+) -> anyhow::Result<()> {
+    match res {
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err(e)) => {
+            bail!("{component} worker errored out: {e:?}");
+        }
+        Err(e) => bail!("{component} task errored out: {e:?}"),
+    }
+}
+
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     // Log system information as early as possible so we have it
     // available in case of a crash
@@ -99,13 +113,13 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         exporter.metrics.rate_limiter.clone(),
     )?;
 
-    output::start(
+    let mut output_handle = output::start(
         rx,
         running.subscribe(),
         exporter.metrics.output.clone(),
         reloader.grpc(),
         reloader.config().json(),
-    )?;
+    );
     let mut host_scanner_handle = host_scanner.start();
     let mut rate_limiter_handle = rate_limiter.start();
     endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
@@ -114,43 +128,28 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sighup = signal(SignalKind::hangup())?;
-    loop {
+    let res = loop {
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => break,
-            _ = sigterm.recv() => break,
+            _ = tokio::signal::ctrl_c() => break Ok(()),
+            _ = sigterm.recv() => break Ok(()),
             _ = sighup.recv() => config_trigger.notify_one(),
-            res = bpf_handle.borrow_mut() => {
-                match res {
-                    Ok(res) => if let Err(e) = res {
-                        warn!("BPF worker errored out: {e:?}");
-                    }
-                    Err(e) => warn!("BPF task errored out: {e:?}"),
-                }
-                break;
+            task_res = bpf_handle.borrow_mut() => {
+                break flatten_task_result("BPF", task_res);
             }
-            res = host_scanner_handle.borrow_mut() => {
-                match res {
-                    Ok(res) => if let Err(e) = res {
-                        warn!("HostScanner worker errored out: {e:?}");
-                    }
-                    Err(e) => warn!("HostScanner task errored out: {e:?}"),
-                }
-                break;
+            task_res = host_scanner_handle.borrow_mut() => {
+                break flatten_task_result("HostScanner", task_res);
             }
-            res = rate_limiter_handle.borrow_mut() => {
-                match res {
-                    Ok(res) => if let Err(e) = res {
-                        warn!("Rate limiter worker errored out: {e:?}");
-                    }
-                    Err(e) => warn!("Rate limiter task errored out: {e:?}"),
-                }
-                break;
+            task_res = rate_limiter_handle.borrow_mut() => {
+                break flatten_task_result("Rate limiter", task_res);
+            }
+            task_res = output_handle.borrow_mut() => {
+                break flatten_task_result("Output", task_res);
             }
         }
-    }
+    };
 
     running.send(false)?;
     info!("Exiting...");
 
-    Ok(())
+    res
 }
