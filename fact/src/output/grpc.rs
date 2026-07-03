@@ -9,7 +9,7 @@ use native_tls::{Certificate, Identity};
 use openssl::{ec::EcKey, pkey::PKey};
 use tokio::{
     fs,
-    sync::{broadcast, watch},
+    sync::{mpsc, oneshot, watch},
     task::JoinHandle,
     time::sleep,
 };
@@ -21,8 +21,8 @@ use tonic::transport::Channel;
 
 use crate::{
     config::{BackoffConfig, GrpcConfig},
-    event::Event,
     metrics::EventCounter,
+    output::EventReceiver,
 };
 
 struct Backoff {
@@ -104,7 +104,7 @@ impl From<&BackoffConfig> for Backoff {
 }
 
 pub struct Client {
-    rx: broadcast::Receiver<Arc<Event>>,
+    subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
     running: watch::Receiver<bool>,
     config: watch::Receiver<GrpcConfig>,
     metrics: EventCounter,
@@ -112,13 +112,13 @@ pub struct Client {
 
 impl Client {
     pub fn new(
-        rx: broadcast::Receiver<Arc<Event>>,
+        subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
         running: watch::Receiver<bool>,
         metrics: EventCounter,
         config: watch::Receiver<GrpcConfig>,
     ) -> Self {
         Client {
-            rx,
+            subscriber,
             running,
             config,
             metrics,
@@ -230,19 +230,21 @@ impl Client {
             let mut client = FileActivityServiceClient::new(channel);
 
             let metrics = self.metrics.clone();
-            let rx =
-                BroadcastStream::new(self.rx.resubscribe()).filter_map(move |event| match event {
-                    Ok(event) => {
-                        metrics.added();
-                        let event = Arc::unwrap_or_clone(event);
-                        Some(event.into())
-                    }
-                    Err(BroadcastStreamRecvError::Lagged(n)) => {
-                        warn!("gRPC stream lagged, dropped {n} events");
-                        metrics.dropped_n(n);
-                        None
-                    }
-                });
+            let (tx, rx) = oneshot::channel();
+            self.subscriber.send(tx).await?;
+            let rx = rx.await?;
+            let rx = BroadcastStream::new(rx).filter_map(move |event| match event {
+                Ok(event) => {
+                    metrics.added();
+                    let event = Arc::unwrap_or_clone(event);
+                    Some(event.into())
+                }
+                Err(BroadcastStreamRecvError::Lagged(n)) => {
+                    warn!("gRPC stream lagged, dropped {n} events");
+                    metrics.dropped_n(n);
+                    None
+                }
+            });
 
             tokio::select! {
                 res = client.communicate(rx) => {
