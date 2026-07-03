@@ -448,27 +448,13 @@ impl FileData {
             }
             file_activity_type_t::FILE_ACTIVITY_ACL_SET => {
                 let acl = unsafe { &extra_data.acl };
-                let acl_type = if acl.acl_type == fact_ebpf::FACT_ACL_TYPE_DEFAULT {
+                let acl_type = if acl.acl_type == fact_ebpf::acl_type_t::FACT_ACL_TYPE_DEFAULT {
                     AclType::Default
                 } else {
                     AclType::Access
                 };
                 let count = acl.count.min(fact_ebpf::FACT_MAX_ACL_ENTRIES) as usize;
-                let mut entries = Vec::with_capacity(count);
-                for i in 0..count {
-                    let entry = &acl.entries[i];
-                    let tag = AclTag::from_kernel(entry.e_tag);
-                    let id = if tag.has_qualifier() {
-                        Some(entry.e_id)
-                    } else {
-                        None
-                    };
-                    entries.push(AclEntry {
-                        tag,
-                        perm: entry.e_perm,
-                        id,
-                    });
-                }
+                let entries = acl.entries[0..count].iter().map(AclEntry::new).collect();
                 FileData::AclSet(AclSetFileData {
                     inner,
                     acl_type,
@@ -544,6 +530,7 @@ impl PartialEq for FileData {
             (FileData::RmDir(this), FileData::RmDir(other)) => this == other,
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
             (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
+            (FileData::Chown(this), FileData::Chown(other)) => this == other,
             (FileData::Rename(this), FileData::Rename(other)) => this == other,
             (FileData::SetXattr(this), FileData::SetXattr(other)) => this == other,
             (FileData::RemoveXattr(this), FileData::RemoveXattr(other)) => this == other,
@@ -639,6 +626,17 @@ pub struct ChownFileData {
     old_gid: u32,
 }
 
+#[cfg(test)]
+impl PartialEq for ChownFileData {
+    fn eq(&self, other: &Self) -> bool {
+        self.new_uid == other.new_uid
+            && self.new_gid == other.new_gid
+            && self.old_uid == other.old_uid
+            && self.old_gid == other.old_gid
+            && self.inner == other.inner
+    }
+}
+
 impl From<ChownFileData> for fact_api::FileOwnershipChange {
     fn from(value: ChownFileData) -> Self {
         let ChownFileData {
@@ -675,19 +673,21 @@ pub enum AclTag {
     Unknown(i16),
 }
 
-impl AclTag {
-    fn from_kernel(tag: i16) -> Self {
+impl From<fact_ebpf::acl_tag_t> for AclTag {
+    fn from(tag: fact_ebpf::acl_tag_t) -> Self {
         match tag {
-            0x01 => AclTag::UserObj,
-            0x02 => AclTag::User,
-            0x04 => AclTag::GroupObj,
-            0x08 => AclTag::Group,
-            0x10 => AclTag::Mask,
-            0x20 => AclTag::Other,
-            other => AclTag::Unknown(other),
+            fact_ebpf::acl_tag_t::FACT_ACL_TAG_USER_OBJ => AclTag::UserObj,
+            fact_ebpf::acl_tag_t::FACT_ACL_TAG_USER => AclTag::User,
+            fact_ebpf::acl_tag_t::FACT_ACL_TAG_GROUP_OBJ => AclTag::GroupObj,
+            fact_ebpf::acl_tag_t::FACT_ACL_TAG_GROUP => AclTag::Group,
+            fact_ebpf::acl_tag_t::FACT_ACL_TAG_MASK => AclTag::Mask,
+            fact_ebpf::acl_tag_t::FACT_ACL_TAG_OTHER => AclTag::Other,
+            other => AclTag::Unknown(other.0 as i16),
         }
     }
+}
 
+impl AclTag {
     /// Whether this tag type carries a meaningful uid/gid.
     fn has_qualifier(&self) -> bool {
         matches!(self, AclTag::User | AclTag::Group)
@@ -696,9 +696,21 @@ impl AclTag {
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct AclEntry {
-    pub tag: AclTag,
-    pub perm: u16,
-    pub id: Option<u32>,
+    tag: AclTag,
+    perm: u16,
+    id: Option<u32>,
+}
+
+impl AclEntry {
+    fn new(entry: &fact_ebpf::acl_entry_t) -> Self {
+        let tag = AclTag::from(entry.e_tag);
+        let id = tag.has_qualifier().then_some(entry.e_id);
+        AclEntry {
+            tag,
+            perm: entry.e_perm,
+            id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
@@ -710,8 +722,8 @@ pub enum AclType {
 #[derive(Debug, Clone, Serialize)]
 pub struct AclSetFileData {
     inner: BaseFileData,
-    pub acl_type: AclType,
-    pub entries: Vec<AclEntry>,
+    acl_type: AclType,
+    entries: Vec<AclEntry>,
 }
 
 impl From<RenameFileData> for fact_api::FileRename {
@@ -739,6 +751,16 @@ impl From<AclTag> for i32 {
     }
 }
 
+impl From<AclEntry> for fact_api::AclEntry {
+    fn from(entry: AclEntry) -> Self {
+        fact_api::AclEntry {
+            tag: i32::from(entry.tag),
+            perm: entry.perm as u32,
+            id: entry.id.unwrap_or(u32::MAX),
+        }
+    }
+}
+
 impl From<AclSetFileData> for fact_api::FileAclChange {
     fn from(value: AclSetFileData) -> Self {
         let activity = fact_api::FileActivityBase::from(value.inner);
@@ -749,13 +771,7 @@ impl From<AclSetFileData> for fact_api::FileAclChange {
         let entries = value
             .entries
             .into_iter()
-            .map(|e| fact_api::AclEntry {
-                tag: i32::from(e.tag),
-                perm: e.perm as u32,
-                // ACL_UNDEFINED_ID (0xFFFFFFFF) for entries that don't
-                // carry a uid/gid (USER_OBJ, GROUP_OBJ, MASK, OTHER).
-                id: e.id.unwrap_or(0xFFFFFFFF),
-            })
+            .map(fact_api::AclEntry::from)
             .collect();
         fact_api::FileAclChange {
             activity: Some(activity),

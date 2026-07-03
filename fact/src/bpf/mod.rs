@@ -200,6 +200,7 @@ impl Bpf {
     /// If any attach fails, all previously attached programs are
     /// automatically detached via drop.
     fn attach_progs(&mut self) -> anyhow::Result<()> {
+        self.links.clear();
         for (_, prog) in self.obj.programs_mut() {
             match prog {
                 Program::Lsm(prog) => {

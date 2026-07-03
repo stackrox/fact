@@ -58,14 +58,46 @@ typedef enum monitored_t {
 // For the time being we just keep a char.
 typedef char inode_value_t;
 
+// Generic xattr values are capped at XATTR_SIZE_MAX (64KiB), which bounds
+// a POSIX ACL xattr (4 byte header + 8 bytes per entry) to ~8191 entries
+// in theory:
+// https://github.com/torvalds/linux/blob/d2c9a99135da931377240942d44f3dea104cedb8/include/uapi/linux/limits.h#L16
+// In practice, individual filesystems impose much lower limits tied to
+// their own xattr/block storage (e.g. ext4 caps out in the low hundreds
+// for a typical 4K xattr block). 32 comfortably covers real-world ACLs
+// (a handful of named users/groups plus the standard entries); raise it
+// if we ever see it hit in practice.
 #define FACT_MAX_ACL_ENTRIES 32
 
-// ACL type constants matching the xattr names
-#define FACT_ACL_TYPE_ACCESS 0
-#define FACT_ACL_TYPE_DEFAULT 1
+// Sentinel used by the kernel for ACL entries that don't carry a uid/gid
+// (USER_OBJ, GROUP_OBJ, MASK, OTHER). Kernel defines this as (-1), which
+// is 0xFFFFFFFF once read as the unsigned e_id we store it in.
+// https://github.com/torvalds/linux/blob/d2c9a99135da931377240942d44f3dea104cedb8/include/uapi/linux/posix_acl.h#L21
+#define ACL_UNDEFINED_ID 0xFFFFFFFF
+
+// ACL type, matching the xattr name the change came in on:
+// "system.posix_acl_access" vs "system.posix_acl_default". These are the
+// only two POSIX ACL xattrs the kernel supports, so a small enum is
+// sufficient here rather than keeping the full xattr name around.
+typedef enum acl_type_t {
+  FACT_ACL_TYPE_ACCESS = 0,
+  FACT_ACL_TYPE_DEFAULT = 1,
+} acl_type_t;
+
+// Mirrors the kernel's ACL tag bit values so we can encode/compare
+// against them without magic numbers, both here and on the Rust side.
+// https://github.com/torvalds/linux/blob/d2c9a99135da931377240942d44f3dea104cedb8/include/uapi/linux/posix_acl.h#L28-L33
+typedef enum acl_tag_t {
+  FACT_ACL_TAG_USER_OBJ = 0x01,
+  FACT_ACL_TAG_USER = 0x02,
+  FACT_ACL_TAG_GROUP_OBJ = 0x04,
+  FACT_ACL_TAG_GROUP = 0x08,
+  FACT_ACL_TAG_MASK = 0x10,
+  FACT_ACL_TAG_OTHER = 0x20,
+} acl_tag_t;
 
 struct acl_entry_t {
-  short e_tag;
+  acl_tag_t e_tag;
   unsigned short e_perm;
   unsigned int e_id;
 };
@@ -114,7 +146,7 @@ struct event_t {
     } xattr;
     struct {
       unsigned int count;
-      unsigned int acl_type;
+      acl_type_t acl_type;
       struct acl_entry_t entries[FACT_MAX_ACL_ENTRIES];
     } acl;
   };

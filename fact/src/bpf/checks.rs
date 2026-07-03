@@ -38,6 +38,12 @@ impl Checks {
         let Ok(prog): Result<&mut Lsm, _> = prog.try_into() else {
             return false;
         };
-        prog.load(hook, btf).is_ok()
+        match prog.load(hook, btf) {
+            Ok(()) => true,
+            Err(e) => {
+                debug!("Probe {prog_name} failed to load for hook {hook}: {e:#}");
+                false
+            }
+        }
     }
 }

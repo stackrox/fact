@@ -31,7 +31,8 @@ from utils import btf_has_symbol
 _ACL_VERSION = 2
 _ACL_UNDEFINED_ID = 0xFFFFFFFF
 
-# Kernel ACL tag values (from include/uapi/linux/posix_acl.h)
+# Kernel ACL tag values (e_tag field in struct posix_acl_entry).
+# https://github.com/torvalds/linux/blob/d2c9a99135da931377240942d44f3dea104cedb8/include/uapi/linux/posix_acl.h#L28-L33
 _ACL_USER_OBJ = 0x01
 _ACL_USER = 0x02
 _ACL_GROUP_OBJ = 0x04
@@ -111,10 +112,7 @@ def test_set_default_acl(
 ):
     """Test setting a default ACL on a monitored directory.
 
-    The monitored_dir fixture is tracked by path prefix, but since
-    the ACL hook only monitors by inode, we need the directory to
-    be inode-tracked. monitored_dir is included in fact's paths
-    config, so fact tracks it by inode after the initial scan.
+    ACL changes are only detected on inode-tracked paths.
     """
     process = Process.from_proc()
 
@@ -276,17 +274,38 @@ def test_ignored_path(
     )
     os.setxattr(ignored_file, 'system.posix_acl_access', acl)
 
-    # Verify the server is working by doing a chmod on a monitored file
+    # Verify the server is working by setting an ACL on a monitored file.
+    # We use an ACL event (not chmod) so that this test cannot silently
+    # pass if ACL events specifically are broken or filtered.
     process = Process.from_proc()
-    mode = 0o644
-    os.chmod(test_file, mode)
+    monitored_acl = _make_acl_xattr(
+        [
+            (_ACL_USER_OBJ, 6, _ACL_UNDEFINED_ID),
+            (_ACL_GROUP_OBJ, 4, _ACL_UNDEFINED_ID),
+            (_ACL_OTHER, 4, _ACL_UNDEFINED_ID),
+        ]
+    )
+    os.setxattr(test_file, 'system.posix_acl_access', monitored_acl)
 
     event = Event(
         process=process,
-        event_type=EventType.PERMISSION,
-        file=test_file,
+        event_type=EventType.ACL,
+        file='',
         host_path=test_file,
-        mode=mode,
+        acl_type=ACL_TYPE_ACCESS,
+        acl_entries=[
+            {
+                'tag': ACL_TAG_USER_OBJ,
+                'perm': 6,
+                'id': _ACL_UNDEFINED_ID,
+            },
+            {
+                'tag': ACL_TAG_GROUP_OBJ,
+                'perm': 4,
+                'id': _ACL_UNDEFINED_ID,
+            },
+            {'tag': ACL_TAG_OTHER, 'perm': 4, 'id': _ACL_UNDEFINED_ID},
+        ],
     )
 
     server.wait_events([event], skip=())
