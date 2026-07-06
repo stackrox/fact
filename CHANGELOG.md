@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* feat(output): add basic opentelemetry output (#971)
 * feat(grpc): add exponential backoff for reconnection attempts (#789)
 * feat: run integration tests on more platforms (#760)
 * ROX-34502: reload mTLS certificates on each gRPC connection attempt (#788)
