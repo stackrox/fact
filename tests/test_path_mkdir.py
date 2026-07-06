@@ -5,7 +5,7 @@ import os
 import pytest
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 
 
 @pytest.mark.parametrize(
@@ -19,7 +19,7 @@ from server import FileActivityService
 )
 def test_mkdir_nested(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     dirname: str,
 ):
     """
@@ -58,7 +58,7 @@ def test_mkdir_nested(
 def test_mkdir_ignored(
     monitored_dir: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that directories created outside monitored paths are ignored.

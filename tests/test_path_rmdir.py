@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 from utils import get_metric_value
 
 
@@ -71,7 +71,7 @@ def get_kernel_rmdir_processed(fact_config: tuple[dict, str]):
 )
 def test_rmdir_empty(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     fact_config: tuple[dict, str],
     dirname: str,
 ):
@@ -161,7 +161,7 @@ def test_rmdir_empty(
 )
 def test_rmdir_recursive(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     fact_config: tuple[dict, str],
 ):
     """
@@ -278,7 +278,7 @@ def test_rmdir_recursive(
 def test_rmdir_ignored(
     monitored_dir: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     fact_config: tuple[dict, str],
 ):
     """
@@ -372,7 +372,7 @@ def test_rmdir_ignored(
 
 def test_rmdir_with_parent_inode(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     fact_config: tuple[dict, str],
 ):
     """

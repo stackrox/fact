@@ -8,7 +8,7 @@ import docker.models.containers
 import pytest
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 from utils import join_path_with_filename, path_to_string
 
 
@@ -25,7 +25,7 @@ from utils import join_path_with_filename, path_to_string
 )
 def test_remove(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     filename: str | bytes,
 ):
     """
@@ -73,7 +73,7 @@ def test_remove(
     server.wait_events(events)
 
 
-def test_multiple(monitored_dir: str, server: FileActivityService):
+def test_multiple(monitored_dir: str, server: EventServer):
     """
     Tests the removal of multiple files and verifies the corresponding
     events are captured by the server.
@@ -112,7 +112,7 @@ def test_multiple(monitored_dir: str, server: FileActivityService):
     server.wait_events(events)
 
 
-def test_ignored(test_file: str, ignored_dir: str, server: FileActivityService):
+def test_ignored(test_file: str, ignored_dir: str, server: EventServer):
     """
     Tests that unlink events on ignored files are not captured by the
     server.
@@ -152,7 +152,7 @@ def do_test(fut: str, stop_event: MpEvent):
     stop_event.wait()
 
 
-def test_external_process(monitored_dir: str, server: FileActivityService):
+def test_external_process(monitored_dir: str, server: EventServer):
     """
     Tests the removal of a file by an external process and verifies that
     the corresponding event is captured by the server.
@@ -192,7 +192,7 @@ def test_external_process(monitored_dir: str, server: FileActivityService):
 
 def test_overlay(
     test_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert test_container.id is not None
     # File Under Test
@@ -235,7 +235,7 @@ def test_overlay(
 def test_mounted_dir(
     test_container: docker.models.containers.Container,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert test_container.id is not None
     # File Under Test
@@ -279,7 +279,7 @@ def test_mounted_dir(
 def test_unmonitored_mounted_dir(
     test_container: docker.models.containers.Container,
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert test_container.id is not None
     # File Under Test

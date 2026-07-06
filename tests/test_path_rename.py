@@ -6,7 +6,7 @@ import docker.models.containers
 import pytest
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 from utils import join_path_with_filename, path_to_string
 
 
@@ -23,7 +23,7 @@ from utils import join_path_with_filename, path_to_string
 )
 def test_rename(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     filename: str | bytes,
 ):
     """
@@ -79,7 +79,7 @@ def test_rename(
 def test_ignored(
     monitored_dir: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that rename events on ignored files are not captured by the
@@ -134,9 +134,7 @@ def test_ignored(
     )
 
 
-def test_rename_dir(
-    monitored_dir: str, ignored_dir: str, server: FileActivityService
-):
+def test_rename_dir(monitored_dir: str, ignored_dir: str, server: EventServer):
     """
     Test renaming a directory is caught
 
@@ -249,7 +247,7 @@ def test_rename_overwrite(
     to_monitored: bool,
     monitored_dir: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     events = []
     p = Process.from_proc()
@@ -314,7 +312,7 @@ def test_rename_overwrite(
 
 def test_overlay(
     test_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert test_container.id is not None
     # File Under Test
@@ -360,7 +358,7 @@ def test_overlay(
 def test_mounted_dir(
     test_container: docker.models.containers.Container,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert test_container.id is not None
     # File Under Test
@@ -407,7 +405,7 @@ def test_mounted_dir(
 def test_cross_mountpoints(
     test_container: docker.models.containers.Container,
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Attempt to rename files/directories across mountpoints

@@ -5,12 +5,12 @@ import re
 import docker.models.containers
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 
 
 def test_sed(
     vi_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert vi_container.id is not None
     # File Under Test
@@ -73,7 +73,7 @@ def test_sed(
 
 def test_sed_ovfs(
     vi_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert vi_container.id is not None
     # File Under Test

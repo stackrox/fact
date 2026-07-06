@@ -58,10 +58,12 @@ def rust_style_quote(s: str):
     """
     if not s:
         return "''"
-    if re.search(r'[^a-zA-Z0-9_.:/-]', s):
-        # Try to match the behavior of shlex.try_join()
-        if "'" in s and '"' not in s:
-            return f'"{s}"'
+    if re.search(r'[^a-zA-Z0-9_.:\-/+@\]]', s):
+        # Backslash and single-quote cannot appear in single-quoted
+        # strings in Rust's shlex, use double-quoting instead.
+        if ('\\' in s or "'" in s) and '`' not in s and '$' not in s:
+            escaped = s.replace('\\', '\\\\').replace('"', '\\"')
+            return f'"{escaped}"'
         escaped = s.replace("'", "\\'")
         return f"'{escaped}'"
     return s

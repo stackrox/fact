@@ -24,7 +24,7 @@ from event import (
     EventType,
     Process,
 )
-from server import FileActivityService
+from server import EventServer
 from utils import btf_has_symbol
 
 # POSIX ACL xattr wire format constants
@@ -57,7 +57,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_set_access_acl(
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """Test setting an access ACL on a monitored file.
 
@@ -108,7 +108,7 @@ def test_set_access_acl(
 
 def test_set_default_acl(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """Test setting a default ACL on a monitored directory.
 
@@ -143,7 +143,7 @@ def test_set_default_acl(
 
 def test_remove_acl(
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """Test setting and then removing ACLs from a monitored file."""
     process = Process.from_proc()
@@ -204,7 +204,7 @@ def test_remove_acl(
 
 def test_multiple_entries(
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """Test setting multiple ACL entries on a single file."""
     process = Process.from_proc()
@@ -256,7 +256,7 @@ def test_multiple_entries(
 def test_ignored_path(
     test_file: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """Test that ACL changes on ignored paths are not captured."""
     ignored_file = os.path.join(ignored_dir, 'ignored_acl.txt')

@@ -15,8 +15,6 @@ except ImportError:
 
 
 import utils
-from internalapi.sensor.collector_pb2 import ProcessSignal
-from internalapi.sensor.sfa_pb2 import FileActivity
 
 
 def extract_container_id(cgroup: str) -> str:
@@ -191,25 +189,26 @@ class Process:
     def loginuid(self) -> int:
         return self._loginuid
 
-    def diff(self, other: ProcessSignal) -> dict | None:
+    def diff(self, other: Process) -> dict | None:
         """
-        Compare this Process with a ProcessSignal protobuf message.
+        Compare this Process with another Process instance.
+
+        PID comparison is skipped if self.pid is None.
 
         Args:
-            other: ProcessSignal protobuf message to compare against
+            other: Process instance to compare against.
 
         Returns:
-            None if identical, dict of differences if not matching
+            None if identical, dict of differences if not matching.
         """
         diff = {}
 
-        # Compare each field
         if self.pid is not None:
             Event._diff_field(diff, 'pid', self.pid, other.pid)
 
         Event._diff_field(diff, 'uid', self.uid, other.uid)
         Event._diff_field(diff, 'gid', self.gid, other.gid)
-        Event._diff_field(diff, 'exe_path', self.exe_path, other.exec_file_path)
+        Event._diff_field(diff, 'exe_path', self.exe_path, other.exe_path)
         Event._diff_field(diff, 'args', self.args, other.args)
         Event._diff_field(diff, 'name', self.name, other.name)
         Event._diff_field(
@@ -218,7 +217,7 @@ class Process:
             self.container_id,
             other.container_id,
         )
-        Event._diff_field(diff, 'loginuid', self.loginuid, other.login_uid)
+        Event._diff_field(diff, 'loginuid', self.loginuid, other.loginuid)
 
         return diff if diff else None
 
@@ -328,128 +327,91 @@ class Event:
         diff: dict,
         name: str,
         expected: str | Pattern[str] | None,
-        actual: str,
+        actual: str | Pattern[str] | None,
     ):
         """
         Compare paths with regex pattern support.
+
+        When expected is a compiled regex pattern, actual must be a
+        string that matches it. Otherwise a simple equality check is
+        performed.
         """
         if isinstance(expected, Pattern):
-            if not expected.match(actual):
+            if not isinstance(actual, str) or not expected.match(actual):
                 diff[name] = {'expected': f'{expected}', 'actual': actual}
         elif expected != actual:
             diff[name] = {'expected': expected, 'actual': actual}
 
-    def diff(self, other: FileActivity) -> dict | None:
+    def diff(self, other: Event) -> dict | None:
         """
-        Compare this Event with a FileActivity protobuf message.
+        Compare this Event with another Event instance.
+
+        Both gRPC and OTLP servers translate their native messages
+        into Event objects, so this method provides a single
+        protocol-agnostic comparison path.
 
         Args:
-            other: FileActivity protobuf message to compare against
+            other: Event instance to compare against.
 
         Returns:
-            None if identical, dict of differences if not matching
+            None if identical, dict of differences if not matching.
         """
         diff = {}
 
-        # Check process differences first
         process_diff = self.process.diff(other.process)
         if process_diff is not None:
             diff['process'] = process_diff
 
-        # Check event type
-        event_type_expected = self.event_type.name.lower()
-        event_type_actual = other.WhichOneof('file')
-
         Event._diff_field(
             diff,
             'event_type',
-            event_type_expected,
-            event_type_actual,
+            self.event_type,
+            other.event_type,
         )
         if diff:
             return diff
 
-        # Get the appropriate event field based on type
-        event_field = getattr(other, event_type_expected)
-
         # Rename handling is a bit different to the rest, since it has
         # new and old paths.
-        if self.event_type == EventType.RENAME:
-            Event._diff_path(diff, 'new_file', self.file, event_field.new.path)
+        if self.event_type != EventType.RENAME:
+            Event._diff_path(diff, 'file', self.file, other.file)
+            Event._diff_path(diff, 'host_path', self.host_path, other.host_path)
+        else:
+            Event._diff_path(diff, 'new_file', self.file, other.file)
             Event._diff_path(
-                diff,
-                'new_host_path',
-                self.host_path,
-                event_field.new.host_path,
+                diff, 'new_host_path', self.host_path, other.host_path
             )
+            Event._diff_path(diff, 'old_file', self.old_file, other.old_file)
             Event._diff_path(
-                diff,
-                'old_file',
-                self.old_file,
-                event_field.old.path,
+                diff, 'old_host_path', self.old_host_path, other.old_host_path
             )
-            Event._diff_path(
-                diff,
-                'old_host_path',
-                self.old_host_path,
-                event_field.old.host_path,
-            )
-            return diff if diff else None
-
-        # Compare file and host_path (common to all event types)
-        # All event types have .activity.path and .activity.host_path
-        # accessed differently
-        Event._diff_path(diff, 'file', self.file, event_field.activity.path)
-        Event._diff_path(
-            diff,
-            'host_path',
-            self.host_path,
-            event_field.activity.host_path,
-        )
 
         if self.event_type == EventType.PERMISSION:
-            Event._diff_field(diff, 'mode', self.mode, event_field.mode)
+            Event._diff_field(diff, 'mode', self.mode, other.mode)
         elif self.event_type == EventType.OWNERSHIP:
             Event._diff_field(
-                diff,
-                'owner_uid',
-                self.owner_uid,
-                event_field.uid,
+                diff, 'owner_uid', self.owner_uid, other.owner_uid
             )
             Event._diff_field(
-                diff,
-                'owner_gid',
-                self.owner_gid,
-                event_field.gid,
+                diff, 'owner_gid', self.owner_gid, other.owner_gid
             )
         elif self.event_type in (EventType.XATTR_SET, EventType.XATTR_REMOVE):
             Event._diff_field(
-                diff,
-                'xattr_name',
-                self.xattr_name,
-                event_field.xattr_name,
+                diff, 'xattr_name', self.xattr_name, other.xattr_name
             )
         elif self.event_type == EventType.ACL:
             Event._diff_field(
                 diff,
                 'acl_type',
                 self.acl_type,
-                event_field.acl_type,
+                other.acl_type,
             )
             if self.acl_entries is not None:
-                actual_entries = [
-                    {
-                        'tag': e.tag,
-                        'perm': e.perm,
-                        'id': e.id,
-                    }
-                    for e in event_field.entries
-                ]
                 Event._diff_field(
                     diff,
                     'acl_entries',
                     self.acl_entries,
-                    actual_entries,
+                    other.acl_entries,
                 )
 
         return diff if diff else None

@@ -3,13 +3,13 @@ from __future__ import annotations
 import docker.models.containers
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 from test_editors.commons import get_vi_test_file
 
 
 def test_new_file(
     vi_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert vi_container.id is not None
     fut = '/mounted/test.txt'
@@ -78,7 +78,7 @@ def test_new_file(
 
 def test_new_file_ovfs(
     vi_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert vi_container.id is not None
     fut = '/container-dir/test.txt'
@@ -147,7 +147,7 @@ def test_new_file_ovfs(
 
 def test_open_file(
     vi_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert vi_container.id is not None
     fut = '/mounted/test.txt'
@@ -281,7 +281,7 @@ def test_open_file(
 
 def test_open_file_ovfs(
     vi_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     assert vi_container.id is not None
     fut = '/container-dir/test.txt'

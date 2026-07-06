@@ -10,7 +10,7 @@ import requests
 import yaml
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer, GrpcServer
 
 DEFAULT_URL = 'http://127.0.0.1:9000'
 
@@ -96,10 +96,10 @@ ALTERNATE_PORT = '9998'
 @pytest.fixture
 def alternate_server():
     """
-    Fixture to start and stop a FileActivityService on an alternate
+    Fixture to start and stop a GrpcServer on an alternate
     address.
     """
-    s = FileActivityService()
+    s = GrpcServer()
     s.serve(f'0.0.0.0:{ALTERNATE_PORT}')
     yield s
     s.stop()
@@ -109,13 +109,16 @@ def test_output_grpc_address_change(
     fact: docker.models.containers.Container,
     fact_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
-    alternate_server: FileActivityService,
+    server: EventServer,
+    alternate_server: EventServer,
 ):
     """
     Tests we can receive events on a new endpoint after a configuration
     change.
     """
+    if server.output_mode != 'grpc':
+        pytest.skip('gRPC-specific test')
+
     # File Under Test
     fut = os.path.join(monitored_dir, 'test2.txt')
     with open(fut, 'w') as f:
@@ -154,7 +157,7 @@ def test_paths(
     fact_config: tuple[dict, str],
     monitored_dir: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     p = Process.from_proc()
 
@@ -199,7 +202,7 @@ def test_no_paths_then_add(
     fact: docker.models.containers.Container,
     fact_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Start with no paths configured, verify no events are produced,
@@ -238,7 +241,7 @@ def test_paths_then_remove(
     fact: docker.models.containers.Container,
     fact_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Start with paths configured, verify events are produced,
@@ -274,7 +277,7 @@ def test_paths_addition(
     fact_config: tuple[dict, str],
     monitored_dir: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     p = Process.from_proc()
 

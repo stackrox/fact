@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def wildcard_config(
 def test_extension_wildcard(
     wildcard_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     process = Process.from_proc()
 
@@ -64,7 +64,7 @@ def test_extension_wildcard(
 def test_prefix_wildcard(
     wildcard_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     process = Process.from_proc()
 
@@ -93,7 +93,7 @@ def test_prefix_wildcard(
 def test_recursive_wildcard(
     wildcard_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     process = Process.from_proc()
 
@@ -137,7 +137,7 @@ def test_recursive_wildcard(
 def test_nonrecursive_wildcard(
     wildcard_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     process = Process.from_proc()
 
@@ -161,7 +161,7 @@ def test_nonrecursive_wildcard(
 def test_multiple_patterns(
     wildcard_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     process = Process.from_proc()
 

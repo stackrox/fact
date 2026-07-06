@@ -20,6 +20,15 @@ image:
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
 
+image-otel:
+	$(DOCKER) build \
+		-f Containerfile \
+		--build-arg FACT_VERSION=$(FACT_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg CARGO_ARGS="--features otel" \
+		-t $(FACT_IMAGE_NAME)-otel \
+		$(CURDIR)
+
 licenses:THIRD_PARTY_LICENSES.html
 
 THIRD_PARTY_LICENSES.html:Cargo.lock
@@ -54,4 +63,4 @@ format:
 	make -C fact-ebpf format
 	ruff format tests/
 
-.PHONY: tag mock-server integration-tests image image-name licenses coverage lint clean
+.PHONY: tag mock-server integration-tests image image-otel image-name licenses coverage lint clean
