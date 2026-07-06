@@ -17,17 +17,12 @@ image:
 		-f Containerfile \
 		--build-arg FACT_VERSION=$(FACT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg CARGO_ARGS="$(CARGO_ARGS)" \
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
 
-image-otel:
-	$(DOCKER) build \
-		-f Containerfile \
-		--build-arg FACT_VERSION=$(FACT_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg CARGO_ARGS="--features otel" \
-		-t $(FACT_IMAGE_NAME)-otel \
-		$(CURDIR)
+image-otel: CARGO_ARGS = --features otel
+image-otel: image
 
 licenses:THIRD_PARTY_LICENSES.html
 

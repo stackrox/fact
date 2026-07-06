@@ -50,4 +50,5 @@ jobs:
       registry: quay.io/rhacs-eng/release-fact
       tag: ${{ needs.init.outputs.fact-tag }}
       job-tag: konf
+      vms: '["fedora-coreos", "fcarm", "rhel", "rhel-arm64", "rhcos", "rhcos-arm64"]'
     secrets: inherit

@@ -16,7 +16,16 @@ on:
       job-tag:
         description: Additional tag to prevent collision on GCP VM naming
         type: string
-        default: ''
+        default: 'main'
+      vms:
+        description: JSON encoded list of vms to run tests on
+        type: string
+        required: true
+      output-type:
+        description: The output type to be used in the tests
+        type: string
+        required: false
+        default: grpc
 
 jobs:
   integration-tests:
@@ -24,13 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        vm:
-          - fedora-coreos
-          - fcarm
-          - rhel
-          - rhel-arm64
-          - rhcos
-          - rhcos-arm64
+        vm: ${{ fromJson(inputs.vms) }}
 
     steps:
     - uses: actions/checkout@v4
@@ -73,6 +76,7 @@ jobs:
         FACT_VERSION: ${{ inputs.version }}
         FACT_REGISTRY: ${{ inputs.registry }}
         FACT_TAG: ${{ inputs.tag }}
+        OUTPUT_TYPE: ${{ inputs.output-type }}
       run: |
         FACT_IMAGE_NAME="$(make -sC "${GITHUB_WORKSPACE}/fact" image-name)"
         cat << EOF > vars.yml
@@ -81,6 +85,7 @@ jobs:
         fact:
           image: ${FACT_IMAGE_NAME}
           version: ${FACT_VERSION}
+        output_type: ${OUTPUT_TYPE}
         quay:
           username: ${{ secrets.QUAY_RHACS_ENG_RO_USERNAME }}
           password: ${{ secrets.QUAY_RHACS_ENG_RO_PASSWORD }}
@@ -147,7 +152,7 @@ jobs:
       continue-on-error: true
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.vm }}-test-logs
+        name: ${{ matrix.vm }}-${{ inputs.job-tag }}-test-logs
         path: |
           /tmp/fact/tests/logs
           /tmp/fact/tests/*-results.xml

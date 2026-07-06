@@ -1,8 +1,6 @@
 ---
 - name: Run integration tests
   hosts: "platform_*:&job_id_{{ job_id }}"
-  environment:
-    FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
 
   tasks:
     - name: Clone the repo
@@ -44,6 +42,8 @@
         become: true
         environment:
           DOCKER_HOST: "{{ runtime_host }}"
+          FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
+          OUTPUT_TYPE: "{{ output_type | default('grpc') }}"
         ansible.builtin.shell:
           cmd: |
             set -euo pipefail
@@ -65,7 +65,7 @@
                 ../third_party/stackrox/proto/internalapi/sensor/sfa_iservice.proto
 
             # Run the tests
-            pytest --image="${FACT_IMAGE_NAME}" --junit-xml=results.xml
+            pytest --image="${FACT_IMAGE_NAME}" --junit-xml=results.xml --output="${OUTPUT_TYPE}"
 
       always:
       - name: Make logs directories
