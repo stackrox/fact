@@ -197,8 +197,9 @@ impl Bpf {
 
     /// Attaches all loaded BPF programs. Programs that were not loaded
     /// (e.g. optional hooks on unsupported kernels) are skipped.
-    /// If any attach fails, all previously attached programs are
-    /// automatically detached via drop.
+    /// If any attach fails, programs that were already attached during
+    /// this call remain attached (they are not rolled back); callers
+    /// should treat an `Err` here as fatal.
     fn attach_progs(&mut self) -> anyhow::Result<()> {
         self.links.clear();
         for (_, prog) in self.obj.programs_mut() {
