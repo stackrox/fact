@@ -42,6 +42,7 @@ pub struct FactConfig {
     hotreload: Option<bool>,
     scan_interval: Option<Duration>,
     rate_limit: Option<u64>,
+    replay: Option<PathBuf>,
 }
 
 impl FactConfig {
@@ -108,6 +109,10 @@ impl FactConfig {
         if let Some(rate_limit) = from.rate_limit {
             self.rate_limit = Some(rate_limit);
         }
+
+        if let Some(replay) = from.replay.as_deref() {
+            self.replay = Some(replay.to_path_buf());
+        }
     }
 
     pub fn paths(&self) -> &[PathBuf] {
@@ -132,6 +137,10 @@ impl FactConfig {
 
     pub fn rate_limit(&self) -> u64 {
         self.rate_limit.unwrap_or(0)
+    }
+
+    pub fn replay(&self) -> Option<&Path> {
+        self.replay.as_deref()
     }
 
     #[cfg(test)]
@@ -246,6 +255,12 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                         bail!("invalid rate_limit: {rate_limit}");
                     }
                     config.rate_limit = Some(rate_limit as u64);
+                }
+                "replay" => {
+                    let Some(replay) = v.as_str() else {
+                        bail!("replay field has incorrect type: {v:?}")
+                    };
+                    config.replay = Some(PathBuf::from(replay));
                 }
                 name => bail!("Invalid field '{name}' with value: {v:?}"),
             }
@@ -760,6 +775,13 @@ pub struct FactCli {
     /// Default value is 0 (unlimited)
     #[arg(long, short = 'l', env = "FACT_RATE_LIMIT")]
     rate_limit: Option<u64>,
+
+    /// Replay events from a JSONL file instead of loading eBPF programs.
+    ///
+    /// This mode skips BPF loading and HostScanner, reading pre-recorded
+    /// events for profiling purposes (e.g. valgrind, DHAT).
+    #[arg(long, env = "FACT_REPLAY")]
+    replay: Option<PathBuf>,
 }
 
 impl FactCli {
@@ -794,6 +816,7 @@ impl FactCli {
             hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),
             scan_interval: self.scan_interval,
             rate_limit: self.rate_limit,
+            replay: self.replay.clone(),
         }
     }
 }

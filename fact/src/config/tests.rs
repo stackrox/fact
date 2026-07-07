@@ -394,6 +394,13 @@ fn parsing() {
             },
         ),
         (
+            "replay: /some/path",
+            FactConfig {
+                replay: Some(PathBuf::from("/some/path")),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
@@ -420,6 +427,7 @@ fn parsing() {
             hotreload: false
             scan_interval: 60
             rate_limit: 50000
+            replay: /some/path.jsonl
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -451,6 +459,7 @@ fn parsing() {
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
                 rate_limit: Some(50000),
+                replay: Some(PathBuf::from("/some/path.jsonl")),
             },
         ),
     ];
@@ -790,6 +799,10 @@ paths:
             "rate_limit field has incorrect type: Real(\"1000.0\")",
         ),
         ("rate_limit: -1000", "invalid rate_limit: -1000"),
+        (
+            "replay: true",
+            "replay field has incorrect type: Boolean(true)",
+        ),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
     for (input, expected) in tests {
@@ -1601,6 +1614,25 @@ fn update() {
             },
         ),
         (
+            "replay: /some/path.jsonl",
+            FactConfig::default(),
+            FactConfig {
+                replay: Some("/some/path.jsonl".into()),
+                ..Default::default()
+            },
+        ),
+        (
+            "replay: /some/path.jsonl",
+            FactConfig {
+                replay: Some("/initial/path.jsonl".into()),
+                ..Default::default()
+            },
+            FactConfig {
+                replay: Some("/some/path.jsonl".into()),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
@@ -1658,6 +1690,7 @@ fn update() {
                 hotreload: Some(true),
                 scan_interval: Some(Duration::from_secs(30)),
                 rate_limit: Some(5000),
+                replay: None,
             },
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -1689,6 +1722,7 @@ fn update() {
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
                 rate_limit: Some(1000),
+                replay: None,
             },
         ),
     ];
@@ -1728,6 +1762,7 @@ fn defaults() {
     assert_eq!(config.otel.endpoint(), None);
     assert_eq!(config.scan_interval(), Duration::from_secs(30));
     assert_eq!(config.rate_limit(), 0);
+    assert!(config.replay().is_none());
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());

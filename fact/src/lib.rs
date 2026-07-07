@@ -1,6 +1,6 @@
-use std::{borrow::BorrowMut, io::Write, str::FromStr};
+use std::{io::Write, str::FromStr, time::Duration};
 
-use anyhow::{Context, bail};
+use anyhow::{Context, Result};
 use bpf::Bpf;
 use host_info::{SystemInfo, get_distro, get_hostname};
 use host_scanner::HostScanner;
@@ -9,8 +9,9 @@ use metrics::exporter::Exporter;
 use rate_limiter::RateLimiter;
 use tokio::{
     signal::unix::{SignalKind, signal},
-    sync::watch,
-    task::JoinError,
+    sync::{mpsc, watch},
+    task::JoinSet,
+    time::timeout,
 };
 
 mod bpf;
@@ -23,9 +24,12 @@ mod metrics;
 mod output;
 mod pre_flight;
 mod rate_limiter;
+mod replay;
 
 use config::FactConfig;
 use pre_flight::pre_flight;
+
+use crate::event::Event;
 
 pub fn init_log() -> anyhow::Result<()> {
     let log_level = std::env::var("FACT_LOGLEVEL").unwrap_or("info".to_owned());
@@ -66,91 +70,130 @@ pub fn log_system_information() {
 }
 
 fn flatten_task_result(
-    component: &str,
-    res: Result<anyhow::Result<()>, JoinError>,
+    task_res: Result<anyhow::Result<()>, impl Into<anyhow::Error>>,
 ) -> anyhow::Result<()> {
-    match res {
+    match task_res {
         Ok(Ok(_)) => Ok(()),
-        Ok(Err(e)) => {
-            bail!("{component} worker errored out: {e:?}");
-        }
-        Err(e) => bail!("{component} task errored out: {e:?}"),
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err(e.into()),
     }
+}
+
+async fn join_all_tasks(task_set: JoinSet<anyhow::Result<()>>) -> anyhow::Result<()> {
+    task_set
+        .join_all()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(())
 }
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     // Log system information as early as possible so we have it
     // available in case of a crash
     log_system_information();
-    let (running, _) = watch::channel(true);
-
-    if !config.skip_pre_flight() {
-        debug!("Performing pre-flight checks");
-        pre_flight().context("Pre-flight checks failed")?;
-    } else {
-        debug!("Skipping pre-flight checks");
-    }
-
+    let (running_pipeline_tx, running_pipeline_rx) = watch::channel(true);
+    let (running_helpers, _) = watch::channel(true);
     let reloader = config::reloader::Reloader::from(config);
     let config_trigger = reloader.get_trigger();
+    let mut task_set = JoinSet::new();
 
+    let (exporter, rx) = setup_input(&mut task_set, &reloader, running_pipeline_rx)?;
+    let (rate_limiter, rx) = RateLimiter::new(
+        rx,
+        reloader.rate_limit(),
+        exporter.metrics.rate_limiter.clone(),
+    )?;
+
+    output::start(
+        &mut task_set,
+        rx,
+        exporter.metrics.output.clone(),
+        reloader.grpc(),
+        reloader.otel(),
+        reloader.config().json(),
+    );
+
+    rate_limiter.start(&mut task_set);
+    endpoints::Server::new(
+        exporter.clone(),
+        reloader.endpoint(),
+        running_helpers.subscribe(),
+    )
+    .start();
+    reloader.start(running_helpers.subscribe());
+
+    let mut sigterm = signal(SignalKind::terminate())?;
+    let mut sighup = signal(SignalKind::hangup())?;
+    let mut res = loop {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => break Ok(()),
+            _ = sigterm.recv() => break Ok(()),
+            _ = sighup.recv() => config_trigger.notify_one(),
+            task_res = task_set.join_next() => {
+                let Some(task_res) = task_res else {
+                    unreachable!("No task in task_set");
+                };
+                break flatten_task_result(task_res);
+            }
+        }
+    };
+
+    // Stop the input of the pipeline, this will cascade as the sender
+    // ends of the channels used for communication are dropped, causing
+    // elements in the pipeline to be stopped as they empty their
+    // receivers.
+    let _ = running_pipeline_tx.send(false);
+    if res.is_ok() {
+        let join_res = timeout(Duration::from_secs(5), join_all_tasks(task_set)).await;
+        res = flatten_task_result(join_res);
+    }
+    let _ = running_helpers.send(false);
+
+    info!("Exiting...");
+    res
+}
+
+fn setup_input(
+    task_set: &mut JoinSet<anyhow::Result<()>>,
+    reloader: &config::reloader::Reloader,
+    running: watch::Receiver<bool>,
+) -> anyhow::Result<(Exporter, mpsc::Receiver<Event>)> {
+    match reloader.config().replay() {
+        Some(replay_file) => {
+            let rx = replay::start(task_set, replay_file, running)?;
+            Ok((Exporter::new(None), rx))
+        }
+        None => {
+            if !reloader.config().skip_pre_flight() {
+                debug!("Performing pre-flight checks");
+                pre_flight().context("Pre-flight checks failed")?;
+            } else {
+                debug!("Skipping pre-flight checks");
+            }
+
+            bpf_input(task_set, reloader, running)
+        }
+    }
+}
+
+fn bpf_input(
+    task_set: &mut JoinSet<anyhow::Result<()>>,
+    reloader: &config::reloader::Reloader,
+    running: watch::Receiver<bool>,
+) -> anyhow::Result<(Exporter, mpsc::Receiver<Event>)> {
     let (mut bpf, rx) = Bpf::new(reloader.paths(), &reloader.config().bpf)?;
-    let exporter = Exporter::new(bpf.take_metrics()?);
+    let exporter = Exporter::new(Some(bpf.take_metrics()?));
 
     let (host_scanner, rx) = HostScanner::new(
         &mut bpf,
         rx,
         reloader.paths(),
         reloader.scan_interval(),
-        running.subscribe(),
         exporter.metrics.host_scanner.clone(),
     )?;
 
-    let (rate_limiter, rx) = RateLimiter::new(
-        rx,
-        reloader.rate_limit(),
-        running.subscribe(),
-        exporter.metrics.rate_limiter.clone(),
-    )?;
-
-    let mut output_handle = output::start(
-        rx,
-        running.subscribe(),
-        exporter.metrics.output.clone(),
-        reloader.grpc(),
-        reloader.otel(),
-        reloader.config().json(),
-    );
-    let mut host_scanner_handle = host_scanner.start();
-    let mut rate_limiter_handle = rate_limiter.start();
-    endpoints::Server::new(exporter.clone(), reloader.endpoint(), running.subscribe()).start();
-    let mut bpf_handle = bpf.start(running.subscribe(), exporter.metrics.bpf_worker.clone());
-    reloader.start(running.subscribe());
-
-    let mut sigterm = signal(SignalKind::terminate())?;
-    let mut sighup = signal(SignalKind::hangup())?;
-    let res = loop {
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => break Ok(()),
-            _ = sigterm.recv() => break Ok(()),
-            _ = sighup.recv() => config_trigger.notify_one(),
-            task_res = bpf_handle.borrow_mut() => {
-                break flatten_task_result("BPF", task_res);
-            }
-            task_res = host_scanner_handle.borrow_mut() => {
-                break flatten_task_result("HostScanner", task_res);
-            }
-            task_res = rate_limiter_handle.borrow_mut() => {
-                break flatten_task_result("Rate limiter", task_res);
-            }
-            task_res = output_handle.borrow_mut() => {
-                break flatten_task_result("Output", task_res);
-            }
-        }
-    };
-
-    running.send(false)?;
-    info!("Exiting...");
-
-    res
+    bpf.start(task_set, running, exporter.metrics.bpf_worker.clone());
+    host_scanner.start(task_set);
+    Ok((exporter, rx))
 }

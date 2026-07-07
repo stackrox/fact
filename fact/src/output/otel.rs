@@ -99,7 +99,10 @@ impl Client {
                             }
                             logger.emit(record);
                         }
-                        Err(RecvError::Closed) => break Err(anyhow::anyhow!("oTel: event stream closed")),
+                        Err(RecvError::Closed) => {
+                            info!("Channel closed, stopping oTel output...");
+                            break Ok(false);
+                        }
                         Err(RecvError::Lagged(n)) => {
                             warn!("oTel stream lagged, dropped {n} events");
                             self.metrics.dropped_n(n);

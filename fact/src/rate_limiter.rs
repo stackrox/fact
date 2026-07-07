@@ -3,10 +3,12 @@ use governor::{
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
-use log::warn;
+use log::{debug, warn};
 use std::num::NonZeroU32;
-use tokio::sync::{mpsc, watch};
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::{mpsc, watch},
+    task::JoinSet,
+};
 
 use crate::event::Event;
 use crate::metrics::EventCounter;
@@ -20,7 +22,6 @@ pub struct RateLimiter {
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
     rate_config: watch::Receiver<u64>,
-    running: watch::Receiver<bool>,
     metrics: EventCounter,
 }
 
@@ -28,7 +29,6 @@ impl RateLimiter {
     pub fn new(
         rx: mpsc::Receiver<Event>,
         rate_config: watch::Receiver<u64>,
-        running: watch::Receiver<bool>,
         metrics: EventCounter,
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let limiter = Self::build_limiter(*rate_config.borrow());
@@ -39,7 +39,6 @@ impl RateLimiter {
             rx,
             tx,
             rate_config,
-            running,
             metrics,
         };
 
@@ -63,12 +62,13 @@ impl RateLimiter {
         Ok(())
     }
 
-    pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
-        tokio::spawn(async move {
+    pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
+        task_set.spawn(async move {
+            debug!("Starting rate limiter...");
             loop {
                 tokio::select! {
                     event = self.rx.recv() => {
-                        let Some(event) = event else { break;};
+                        let Some(event) = event else { break; };
 
                         if let Some(limiter) = &self.limiter && limiter.check().is_err() {
                             self.metrics.dropped();
@@ -84,14 +84,10 @@ impl RateLimiter {
                     _ = self.rate_config.changed() => {
                         self.reload_limiter()?;
                     },
-                    _ = self.running.changed() => {
-                        if !*self.running.borrow() {
-                            break;
-                        }
-                    },
                 }
             }
+            debug!("Stopping rate limiter...");
             Ok(())
-        })
+        });
     }
 }

@@ -250,6 +250,10 @@ impl Client {
                 res = client.communicate(rx) => {
                     match res {
                         Ok(_) => info!("gRPC stream ended"),
+                        Err(_) if self.subscriber.is_closed() => {
+                            info!("Channel closed, stopping gRPC output...");
+                            return Ok(false);
+                        }
                         Err(e) => warn!("gRPC stream error: {e:?}"),
                     }
                 }

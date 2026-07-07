@@ -37,7 +37,7 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
 use tokio::{
     sync::{Notify, mpsc, watch},
-    task::JoinHandle,
+    task::JoinSet,
 };
 
 use crate::{
@@ -53,7 +53,6 @@ pub struct HostScanner {
 
     paths: watch::Receiver<Vec<PathBuf>>,
     scan_interval: watch::Receiver<Duration>,
-    running: watch::Receiver<bool>,
 
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
@@ -69,7 +68,6 @@ impl HostScanner {
         rx: mpsc::Receiver<Event>,
         paths: watch::Receiver<Vec<PathBuf>>,
         scan_interval: watch::Receiver<Duration>,
-        running: watch::Receiver<bool>,
         metrics: HostScannerMetrics,
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
@@ -82,7 +80,6 @@ impl HostScanner {
             inode_map,
             paths,
             scan_interval,
-            running,
             rx,
             tx,
             metrics,
@@ -392,8 +389,7 @@ You can increase this limit with:
     /// `tokio::select` with other events that trigger more often, the
     /// tick will never happen. This way we have a separate task that
     /// will reliably send a notification to the main one.
-    fn start_scan_notifier(&self, scan_trigger: Arc<Notify>) {
-        let mut running = self.running.clone();
+    fn start_scan_notifier(&self, scan_trigger: Arc<Notify>, mut running: watch::Receiver<bool>) {
         let mut scan_interval = self.scan_interval.clone();
         tokio::spawn(async move {
             while *running.borrow() {
@@ -409,17 +405,18 @@ You can increase this limit with:
         });
     }
 
-    pub fn start(mut self) -> JoinHandle<anyhow::Result<()>> {
+    pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
         let scan_interval_value = *self.scan_interval.borrow();
         let scan_trigger = Arc::new(Notify::new());
+        let (running, running_rx) = watch::channel(true);
 
         if scan_interval_value.is_zero() {
             warn!("Host scanner periodic scans permanently disabled (scan_interval is 0)");
         } else {
-            self.start_scan_notifier(scan_trigger.clone());
+            self.start_scan_notifier(scan_trigger.clone(), running_rx);
         }
 
-        tokio::spawn(async move {
+        task_set.spawn(async move {
             info!("Starting host scanner...");
 
             loop {
@@ -481,16 +478,13 @@ You can increase this limit with:
                             self.paths_globset = HostScanner::build_globset(self.paths.borrow().as_slice())?;
                             self.scan()?;
                         }
-                    _ = self.running.changed() => {
-                        if !*self.running.borrow() {
-                            break;
-                        }
-                    }
                 }
             }
 
+            let _ = running.send(false);
+
             info!("Stopping host scanner");
             Ok(())
-        })
+        });
     }
 }
