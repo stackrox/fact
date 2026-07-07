@@ -155,6 +155,9 @@ impl_metrics_t!(
     path_mkdir,
     path_rmdir,
     d_instantiate,
+    inode_setxattr,
+    inode_removexattr,
+    inode_set_acl,
 );
 
 unsafe impl Pod for metrics_t {}
