@@ -1,25 +1,16 @@
-use std::sync::Arc;
-
 use log::{info, warn};
-use tokio::sync::{
-    broadcast::{self, error::RecvError},
-    watch,
-};
+use tokio::sync::{broadcast::error::RecvError, watch};
 
-use crate::{event::Event, metrics::EventCounter};
+use crate::{metrics::EventCounter, output::EventReceiver};
 
 pub struct Client {
-    rx: broadcast::Receiver<Arc<Event>>,
+    rx: EventReceiver,
     running: watch::Receiver<bool>,
     metrics: EventCounter,
 }
 
 impl Client {
-    pub fn new(
-        rx: broadcast::Receiver<Arc<Event>>,
-        running: watch::Receiver<bool>,
-        metrics: EventCounter,
-    ) -> Self {
+    pub fn new(rx: EventReceiver, running: watch::Receiver<bool>, metrics: EventCounter) -> Self {
         Client {
             rx,
             running,
