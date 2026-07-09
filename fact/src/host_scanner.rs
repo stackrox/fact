@@ -426,6 +426,17 @@ You can increase this limit with:
         }
     }
 
+    /// Handle a mount being modified in a monitored directory.
+    ///
+    /// This should really do a partial scan of the directory where the
+    /// mount is being changed, but we don't have an easy way to do that
+    /// at the moment, so we trigger a full scan instead.
+    fn handle_mount_event(&self) {
+        if let Err(e) = self.scan() {
+            warn!("Host scan failed: {e:?}");
+        }
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -478,6 +489,12 @@ You can increase this limit with:
                             let Err(e) = self.handle_creation_event(&event) {
                                 warn!("Failed to handle creation event: {e}");
                             }
+
+                        // Handle mount events and move on.
+                        if event.is_mount_related() {
+                            self.handle_mount_event();
+                            continue;
+                        }
 
                         if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);

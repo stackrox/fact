@@ -76,4 +76,7 @@ define_kernel_metrics!(
     inode_setxattr,
     inode_removexattr,
     inode_set_acl,
+    sb_mount,
+    sb_umount,
+    move_mount,
 );
