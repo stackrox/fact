@@ -38,8 +38,12 @@ __always_inline static struct bound_path_t* _path_read(struct path* path, bound_
   return bound_path;
 }
 
-__always_inline static struct bound_path_t* path_read_unchecked(struct path* path) {
-  return _path_read(path, BOUND_PATH_MAIN, true);
+__always_inline static struct bound_path_t* path_read_unchecked(struct path* path, bool use_bpf_d_path) {
+  return _path_read(path, BOUND_PATH_MAIN, use_bpf_d_path);
+}
+
+__always_inline static struct bound_path_t* path_read_alt_unchecked(struct path* path, bool use_bpf_d_path) {
+  return _path_read(path, BOUND_PATH_ALTERNATE, use_bpf_d_path);
 }
 
 __always_inline static struct bound_path_t* path_read(struct path* path) {

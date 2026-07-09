@@ -54,7 +54,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
     }
   }
 
-  struct bound_path_t* path = path_read_unchecked(&file->f_path);
+  struct bound_path_t* path = path_read_unchecked(&file->f_path, true);
   if (path == NULL) {
     bpf_printk("Failed to read path");
     m->file_open.error++;
@@ -482,5 +482,112 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
   }
 
   submit_rmdir_event(&args);
+  return 0;
+}
+
+SEC("lsm/sb_mount")
+int BPF_PROG(trace_sb_mount, const char* dev_name, struct path* path, const char* type, unsigned long flags, void* data) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->sb_mount};
+  args.metrics->total++;
+
+  struct bound_path_t* bound_path = path_read_unchecked(path, true);
+  if (bound_path == NULL) {
+    bpf_printk("Failed to read mount directory");
+    args.metrics->error++;
+    return 0;
+  }
+  args.filename = bound_path->path;
+
+  args.inode = inode_to_key(path->dentry->d_inode);
+
+  struct dentry* parent_dentry = BPF_CORE_READ(path, dentry, d_parent);
+  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  args.parent_inode = inode_to_key(parent_inode_ptr);
+
+  args.monitored = is_monitored(&args.inode, bound_path, &args.parent_inode);
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  submit_mount_event(&args);
+
+  return 0;
+}
+
+SEC("lsm/sb_umount")
+int BPF_PROG(trace_sb_umount, struct vfsmount* mnt, int flags) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->sb_mount};
+  args.metrics->total++;
+
+  struct path p = {.dentry = BPF_CORE_READ(mnt, mnt_root), .mnt = mnt};
+  struct bound_path_t* bound_path = _path_read(&p, BOUND_PATH_MAIN, false);
+  if (bound_path == NULL) {
+    bpf_printk("Failed to read umount directory");
+    args.metrics->error++;
+    return 0;
+  }
+  args.filename = bound_path->path;
+
+  args.inode = inode_to_key(mnt->mnt_root->d_inode);
+
+  struct dentry* parent_dentry = BPF_CORE_READ(mnt, mnt_root, d_parent);
+  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  args.parent_inode = inode_to_key(parent_inode_ptr);
+
+  args.monitored = is_monitored(&args.inode, bound_path, &args.parent_inode);
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  submit_umount_event(&args);
+
+  return 0;
+}
+
+SEC("lsm/move_mount")
+int BPF_PROG(trace_move_mount, struct path* from, struct path* to) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->move_mount};
+
+  args.metrics->total++;
+
+  struct bound_path_t* to_path = path_read_unchecked(to, false);
+  if (to_path == NULL) {
+    bpf_printk("Failed to read to_path");
+    goto error;
+  }
+  args.filename = to_path->path;
+
+  struct bound_path_t* from_path = path_read_alt_unchecked(from, false);
+  if (from_path == NULL) {
+    bpf_printk("Failed to read from_path");
+    goto error;
+  }
+
+  args.inode = inode_to_key(to->dentry->d_inode);
+  args.parent_inode = inode_to_key(to->dentry->d_inode);
+  args.monitored = is_monitored(&args.inode, to_path, &args.parent_inode);
+
+  inode_key_t from_inode = inode_to_key(from->dentry->d_inode);
+  monitored_t from_monitored = is_monitored(&from_inode, from_path, NULL);
+
+  submit_move_mount_event(&args, from_path->path, &from_inode, from_monitored);
+  return 0;
+
+error:
+  args.metrics->error++;
   return 0;
 }

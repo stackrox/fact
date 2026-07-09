@@ -113,16 +113,13 @@ impl Event {
                 };
                 FileData::Chmod(data)
             }
-            EventTestData::Rename(old_path) => {
-                let data = RenameFileData {
-                    new: inner,
-                    old: BaseFileData {
-                        filename: old_path,
-                        ..Default::default()
-                    },
-                };
-                FileData::Rename(data)
-            }
+            EventTestData::Rename(old_path) => FileData::Rename {
+                new: inner,
+                old: BaseFileData {
+                    filename: old_path,
+                    ..Default::default()
+                },
+            },
         };
 
         Ok(Event {
@@ -154,7 +151,19 @@ impl Event {
     }
 
     pub fn is_rename(&self) -> bool {
-        matches!(self.file, FileData::Rename(_))
+        matches!(self.file, FileData::Rename { .. })
+    }
+
+    pub fn is_mount(&self) -> bool {
+        matches!(self.file, FileData::Mount(_))
+    }
+
+    pub fn is_umount(&self) -> bool {
+        matches!(self.file, FileData::Umount(_))
+    }
+
+    pub fn is_move_mount(&self) -> bool {
+        matches!(self.file, FileData::MoveMount { .. })
     }
 
     /// Unwrap the inner FileData and return the inode that triggered
@@ -164,14 +173,17 @@ impl Event {
     /// the 'new' inode will be returned.
     pub fn get_inode(&self) -> &inode_key_t {
         match &self.file {
-            FileData::Open(data) => &data.inode,
-            FileData::Creation(data) => &data.inode,
-            FileData::MkDir(data) => &data.inode,
-            FileData::RmDir(data) => &data.inode,
-            FileData::Unlink(data) => &data.inode,
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data)
+            | FileData::Rename { new: data, .. }
+            | FileData::MoveMount { to: data, .. }
+            | FileData::Mount(data)
+            | FileData::Umount(data) => &data.inode,
             FileData::Chmod(data) => &data.inner.inode,
             FileData::Chown(data) => &data.inner.inode,
-            FileData::Rename(data) => &data.new.inode,
             FileData::SetXattr(data) => &data.inner.inode,
             FileData::RemoveXattr(data) => &data.inner.inode,
             FileData::AclSet(data) => &data.inner.inode,
@@ -181,14 +193,17 @@ impl Event {
     /// Get the parent inode for the file in this event.
     pub fn get_parent_inode(&self) -> &inode_key_t {
         match &self.file {
-            FileData::Open(data) => &data.parent_inode,
-            FileData::Creation(data) => &data.parent_inode,
-            FileData::MkDir(data) => &data.parent_inode,
-            FileData::RmDir(data) => &data.parent_inode,
-            FileData::Unlink(data) => &data.parent_inode,
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data)
+            | FileData::Rename { new: data, .. }
+            | FileData::MoveMount { to: data, .. }
+            | FileData::Mount(data)
+            | FileData::Umount(data) => &data.parent_inode,
             FileData::Chmod(data) => &data.inner.parent_inode,
             FileData::Chown(data) => &data.inner.parent_inode,
-            FileData::Rename(data) => &data.new.parent_inode,
             FileData::SetXattr(data) => &data.inner.parent_inode,
             FileData::RemoveXattr(data) => &data.inner.parent_inode,
             FileData::AclSet(data) => &data.inner.parent_inode,
@@ -200,21 +215,26 @@ impl Event {
     /// will be returned.
     pub fn get_old_inode(&self) -> Option<&inode_key_t> {
         match &self.file {
-            FileData::Rename(data) => Some(&data.old.inode),
+            FileData::Rename { old: data, .. } | FileData::MoveMount { from: data, .. } => {
+                Some(&data.inode)
+            }
             _ => None,
         }
     }
 
     pub fn get_filename(&self) -> &PathBuf {
         match &self.file {
-            FileData::Open(data) => &data.filename,
-            FileData::Creation(data) => &data.filename,
-            FileData::MkDir(data) => &data.filename,
-            FileData::RmDir(data) => &data.filename,
-            FileData::Unlink(data) => &data.filename,
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data)
+            | FileData::Rename { new: data, .. }
+            | FileData::MoveMount { to: data, .. }
+            | FileData::Mount(data)
+            | FileData::Umount(data) => &data.filename,
             FileData::Chmod(data) => &data.inner.filename,
             FileData::Chown(data) => &data.inner.filename,
-            FileData::Rename(data) => &data.new.filename,
             FileData::SetXattr(data) => &data.inner.filename,
             FileData::RemoveXattr(data) => &data.inner.filename,
             FileData::AclSet(data) => &data.inner.filename,
@@ -223,21 +243,26 @@ impl Event {
 
     pub fn get_old_filename(&self) -> Option<&PathBuf> {
         match &self.file {
-            FileData::Rename(data) => Some(&data.old.filename),
+            FileData::Rename { old: data, .. } | FileData::MoveMount { from: data, .. } => {
+                Some(&data.filename)
+            }
             _ => None,
         }
     }
 
     pub fn get_host_path(&self) -> &PathBuf {
         match &self.file {
-            FileData::Open(data) => &data.host_file,
-            FileData::Creation(data) => &data.host_file,
-            FileData::MkDir(data) => &data.host_file,
-            FileData::RmDir(data) => &data.host_file,
-            FileData::Unlink(data) => &data.host_file,
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data)
+            | FileData::Rename { new: data, .. }
+            | FileData::MoveMount { to: data, .. }
+            | FileData::Mount(data)
+            | FileData::Umount(data) => &data.host_file,
             FileData::Chmod(data) => &data.inner.host_file,
             FileData::Chown(data) => &data.inner.host_file,
-            FileData::Rename(data) => &data.new.host_file,
             FileData::SetXattr(data) => &data.inner.host_file,
             FileData::RemoveXattr(data) => &data.inner.host_file,
             FileData::AclSet(data) => &data.inner.host_file,
@@ -246,7 +271,9 @@ impl Event {
 
     pub fn get_old_host_path(&self) -> Option<&PathBuf> {
         match &self.file {
-            FileData::Rename(data) => Some(&data.old.host_file),
+            FileData::Rename { old: data, .. } | FileData::MoveMount { from: data, .. } => {
+                Some(&data.host_file)
+            }
             _ => None,
         }
     }
@@ -257,14 +284,17 @@ impl Event {
     /// the 'new' host_file will be set.
     pub fn set_host_path(&mut self, host_path: PathBuf) {
         match &mut self.file {
-            FileData::Open(data) => data.host_file = host_path,
-            FileData::Creation(data) => data.host_file = host_path,
-            FileData::MkDir(data) => data.host_file = host_path,
-            FileData::RmDir(data) => data.host_file = host_path,
-            FileData::Unlink(data) => data.host_file = host_path,
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data)
+            | FileData::Rename { new: data, .. }
+            | FileData::MoveMount { to: data, .. }
+            | FileData::Mount(data)
+            | FileData::Umount(data) => data.host_file = host_path,
             FileData::Chmod(data) => data.inner.host_file = host_path,
             FileData::Chown(data) => data.inner.host_file = host_path,
-            FileData::Rename(data) => data.new.host_file = host_path,
             FileData::SetXattr(data) => data.inner.host_file = host_path,
             FileData::RemoveXattr(data) => data.inner.host_file = host_path,
             FileData::AclSet(data) => data.inner.host_file = host_path,
@@ -274,21 +304,27 @@ impl Event {
     /// Same as `set_host_path` but setting the 'old' host_file for
     /// operations that have one, like rename.
     pub fn set_old_host_path(&mut self, host_path: PathBuf) {
-        if let FileData::Rename(data) = &mut self.file {
-            data.old.host_file = host_path
+        match &mut self.file {
+            FileData::Rename { old: data, .. } | FileData::MoveMount { from: data, .. } => {
+                data.host_file = host_path
+            }
+            _ => unreachable!("Called set_old_host_path on invalid type"),
         }
     }
 
     pub fn get_monitored(&self) -> monitored_t {
         match &self.file {
-            FileData::Open(data) => data.monitored,
-            FileData::Creation(data) => data.monitored,
-            FileData::MkDir(data) => data.monitored,
-            FileData::RmDir(data) => data.monitored,
-            FileData::Unlink(data) => data.monitored,
+            FileData::Open(data)
+            | FileData::Creation(data)
+            | FileData::MkDir(data)
+            | FileData::RmDir(data)
+            | FileData::Unlink(data)
+            | FileData::Rename { new: data, .. }
+            | FileData::MoveMount { to: data, .. }
+            | FileData::Mount(data)
+            | FileData::Umount(data) => data.monitored,
             FileData::Chmod(data) => data.inner.monitored,
             FileData::Chown(data) => data.inner.monitored,
-            FileData::Rename(data) => data.new.monitored,
             FileData::SetXattr(data) => data.inner.monitored,
             FileData::RemoveXattr(data) => data.inner.monitored,
             FileData::AclSet(data) => data.inner.monitored,
@@ -297,7 +333,9 @@ impl Event {
 
     pub fn get_old_monitored(&self) -> Option<monitored_t> {
         match &self.file {
-            FileData::Rename(data) => Some(data.old.monitored),
+            FileData::Rename { old: data, .. } | FileData::MoveMount { from: data, .. } => {
+                Some(data.monitored)
+            }
             _ => None,
         }
     }
@@ -400,10 +438,19 @@ pub enum FileData {
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
     Chown(ChownFileData),
-    Rename(RenameFileData),
+    Rename {
+        new: BaseFileData,
+        old: BaseFileData,
+    },
     SetXattr(XattrFileData),
     RemoveXattr(XattrFileData),
     AclSet(AclSetFileData),
+    Mount(BaseFileData),
+    MoveMount {
+        to: BaseFileData,
+        from: BaseFileData,
+    },
+    Umount(BaseFileData),
 }
 
 impl FileData {
@@ -415,6 +462,16 @@ impl FileData {
         monitored: monitored_t,
         extra_data: fact_ebpf::event_t__bindgen_ty_1,
     ) -> anyhow::Result<Self> {
+        fn read_from_data(
+            extra_data: fact_ebpf::event_t__bindgen_ty_1,
+        ) -> anyhow::Result<BaseFileData> {
+            let filename = unsafe { extra_data.from.filename };
+            let inode = unsafe { extra_data.from.inode };
+            let monitored = unsafe { extra_data.from.monitored };
+
+            BaseFileData::new(filename, inode, Default::default(), monitored)
+        }
+
         let inner = BaseFileData::new(filename, inode, parent_inode, monitored)?;
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
@@ -441,19 +498,8 @@ impl FileData {
                 FileData::Chown(data)
             }
             file_activity_type_t::FILE_ACTIVITY_RENAME => {
-                let old_filename = unsafe { extra_data.rename.filename };
-                let old_inode = unsafe { extra_data.rename.inode };
-                let old_monitored = unsafe { extra_data.rename.monitored };
-                let data = RenameFileData {
-                    new: inner,
-                    old: BaseFileData::new(
-                        old_filename,
-                        old_inode,
-                        Default::default(),
-                        old_monitored,
-                    )?,
-                };
-                FileData::Rename(data)
+                let old = read_from_data(extra_data)?;
+                FileData::Rename { new: inner, old }
             }
             file_activity_type_t::FILE_ACTIVITY_SETXATTR => {
                 let xattr_name = slice_to_string(
@@ -482,6 +528,12 @@ impl FileData {
                     entries,
                 })
             }
+            file_activity_type_t::FILE_ACTIVITY_MOUNT => FileData::Mount(inner),
+            file_activity_type_t::FILE_ACTIVITY_UMOUNT => FileData::Umount(inner),
+            file_activity_type_t::FILE_ACTIVITY_MOVE_MOUNT => {
+                let from = read_from_data(extra_data)?;
+                FileData::MoveMount { to: inner, from }
+            }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
 
@@ -498,10 +550,13 @@ impl FileData {
             FileData::Unlink(_) => "unlink",
             FileData::Chmod(_) => "permission",
             FileData::Chown(_) => "ownership",
-            FileData::Rename(_) => "rename",
+            FileData::Rename { .. } => "rename",
             FileData::SetXattr(_) => "xattr_set",
             FileData::RemoveXattr(_) => "xattr_remove",
             FileData::AclSet(_) => "acl",
+            FileData::Mount(_) => "mount",
+            FileData::MoveMount { .. } => "move_mount",
+            FileData::Umount(_) => "umount",
         }
     }
 }
@@ -546,13 +601,25 @@ impl From<FileData> for fact_api::file_activity::File {
                 let f_act = fact_api::FileOwnershipChange::from(event);
                 fact_api::file_activity::File::Ownership(f_act)
             }
-            FileData::Rename(event) => {
-                let f_act = fact_api::FileRename::from(event);
+            FileData::Rename { new, old } => {
+                let f_act = fact_api::FileRename {
+                    new: Some(new.into()),
+                    old: Some(old.into()),
+                };
                 fact_api::file_activity::File::Rename(f_act)
             }
             FileData::AclSet(event) => {
                 let f_act = fact_api::FileAclChange::from(event);
                 fact_api::file_activity::File::Acl(f_act)
+            }
+            FileData::Mount(_) => {
+                unreachable!("Mount event reached protobuf conversion");
+            }
+            FileData::MoveMount { .. } => {
+                unreachable!("MoveMount event reached protobuf conversion");
+            }
+            FileData::Umount(_) => {
+                unreachable!("Umount event reached protobuf conversion");
             }
         }
     }
@@ -567,10 +634,19 @@ impl From<FileData> for opentelemetry::logs::AnyValue {
             | FileData::Creation(data)
             | FileData::MkDir(data)
             | FileData::RmDir(data)
+            | FileData::Mount(data)
+            | FileData::Umount(data)
             | FileData::Unlink(data) => AnyValue::from(data),
             FileData::Chmod(data) => AnyValue::from(data),
             FileData::Chown(data) => AnyValue::from(data),
-            FileData::Rename(data) => AnyValue::from(data),
+            FileData::MoveMount { to, from } | FileData::Rename { new: to, old: from } => {
+                let map = HashMap::from([
+                    ("to".into(), AnyValue::from(to)),
+                    ("from".into(), AnyValue::from(from)),
+                ]);
+
+                AnyValue::Map(Box::new(map))
+            }
             FileData::SetXattr(data) | FileData::RemoveXattr(data) => AnyValue::from(data),
             FileData::AclSet(data) => AnyValue::from(data),
         }) else {
@@ -594,7 +670,16 @@ impl PartialEq for FileData {
             (FileData::Unlink(this), FileData::Unlink(other)) => this == other,
             (FileData::Chmod(this), FileData::Chmod(other)) => this == other,
             (FileData::Chown(this), FileData::Chown(other)) => this == other,
-            (FileData::Rename(this), FileData::Rename(other)) => this == other,
+            (
+                FileData::Rename {
+                    new: l_new,
+                    old: l_old,
+                },
+                FileData::Rename {
+                    new: r_new,
+                    old: r_old,
+                },
+            ) => l_new == r_new && l_old == r_old,
             (FileData::SetXattr(this), FileData::SetXattr(other)) => this == other,
             (FileData::RemoveXattr(this), FileData::RemoveXattr(other)) => this == other,
             (FileData::AclSet(this), FileData::AclSet(other)) => {
@@ -767,34 +852,6 @@ impl From<ChownFileData> for opentelemetry::logs::AnyValue {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct RenameFileData {
-    new: BaseFileData,
-    old: BaseFileData,
-}
-
-impl From<RenameFileData> for fact_api::FileRename {
-    fn from(RenameFileData { new, old }: RenameFileData) -> Self {
-        let new = fact_api::FileActivityBase::from(new);
-        let old = fact_api::FileActivityBase::from(old);
-        fact_api::FileRename {
-            old: Some(old),
-            new: Some(new),
-        }
-    }
-}
-
-#[cfg(feature = "otel")]
-impl From<RenameFileData> for opentelemetry::logs::AnyValue {
-    fn from(value: RenameFileData) -> Self {
-        let AnyValue::Map(mut map) = value.new.into() else {
-            unreachable!("new value did not serialize to map");
-        };
-        map.insert("old".into(), value.old.into());
-        AnyValue::Map(map)
-    }
-}
-
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 pub enum AclTag {
     UserObj,
@@ -958,13 +1015,6 @@ impl From<AclSetFileData> for opentelemetry::logs::AnyValue {
         map.insert("entries".into(), AnyValue::ListAny(Box::new(entries)));
 
         AnyValue::Map(map)
-    }
-}
-
-#[cfg(test)]
-impl PartialEq for RenameFileData {
-    fn eq(&self, other: &Self) -> bool {
-        self.new == other.new && self.old == other.old
     }
 }
 

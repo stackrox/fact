@@ -384,6 +384,70 @@ You can increase this limit with:
         }
     }
 
+    fn handle_mount_inner(&self, path: &Path, monitored: monitored_t) {
+        if monitored != monitored_t::MONITORED_BY_INODE || path.as_os_str().is_empty() {
+            return;
+        }
+
+        if let Err(e) = self.scan() {
+            warn!("Host scan failed: {e:?}");
+        }
+    }
+
+    /// Handle a mount being created in a monitored directory.
+    ///
+    /// This should really do a partial scan of the directory where the
+    /// mount is being created, but we don't have an easy way to do that
+    /// at the moment, so we trigger a full scan instead.
+    fn handle_mount_event(&self, event: &Event) {
+        self.handle_mount_inner(event.get_host_path(), event.get_monitored());
+    }
+
+    fn handle_umount_inner(&self, prefix: &Path, monitored: monitored_t) {
+        if monitored != monitored_t::MONITORED_BY_INODE || prefix.as_os_str().is_empty() {
+            return;
+        }
+
+        // Cleanup any items that are no longer mounted
+        self.inode_map.borrow_mut().retain(|inode, path| {
+            if path.starts_with(prefix) && path != prefix {
+                if let Err(e) = self.kernel_inode_map.borrow_mut().remove(inode) {
+                    warn!(
+                        "Failed to remove kernel entry for {}: {e:?}",
+                        path.display()
+                    );
+                }
+                false
+            } else {
+                true
+            }
+        });
+    }
+
+    /// Handle a monitored directory being unmounted.
+    ///
+    /// Iterates over the inode_map entries finding files that have a
+    /// prefix that matches the host path in the event and removing them.
+    fn handle_umount_event(&self, event: &Event) {
+        self.handle_umount_inner(event.get_host_path(), event.get_monitored());
+    }
+
+    /// Handle a move mount event.
+    ///
+    /// In practise, a move mount event behaves as a mount at the 'to'
+    /// location and a umount at the 'from' location, so this method
+    /// behaves just like that.
+    fn handle_move_mount_event(&self, event: &Event) {
+        self.handle_mount_inner(event.get_host_path(), event.get_monitored());
+
+        // unwrap is safe here because get_old_* always return Some()
+        // for move mount events.
+        self.handle_umount_inner(
+            event.get_old_host_path().unwrap(),
+            event.get_old_monitored().unwrap(),
+        );
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -456,6 +520,19 @@ You can increase this limit with:
                         if event.is_mkdir() || event.is_rmdir() {
                             continue;
                         }
+
+                        // Handle mount events and move on.
+                        if event.is_mount() {
+                            self.handle_mount_event(&event);
+                            continue;
+                        } else if event.is_umount() {
+                            self.handle_umount_event(&event);
+                            continue;
+                        } else if event.is_move_mount() {
+                            self.handle_move_mount_event(&event);
+                            continue;
+                        }
+
 
                         if event.is_rename() { self.handle_rename_event(&mut event); }
 
