@@ -263,7 +263,7 @@ def fact(
             with open(metric_log, 'w') as f:
                 f.write(resp.text)
 
-    container.stop(timeout=2)
+    container.stop(timeout=5)
     exit_status = container.wait(timeout=2)
     dump_logs(container, container_log)
     dump_container_inspect(container, os.path.join(logs_dir, 'container.json'))
