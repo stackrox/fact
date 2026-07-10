@@ -1,6 +1,10 @@
+#[cfg(feature = "otel")]
+use std::collections::HashMap;
 use std::{ffi::CStr, path::PathBuf};
 
 use fact_ebpf::{lineage_t, process_t};
+#[cfg(feature = "otel")]
+use opentelemetry::logs::AnyValue;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -35,6 +39,19 @@ impl From<Lineage> for fact_api::process_signal::LineageInfo {
             parent_uid: uid,
             parent_exec_file_path: exe_path.to_string_lossy().to_string(),
         }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<Lineage> for opentelemetry::logs::AnyValue {
+    fn from(value: Lineage) -> Self {
+        AnyValue::Map(Box::new(HashMap::from([
+            ("uid".into(), value.uid.into()),
+            (
+                "exec_path".into(),
+                value.exe_path.to_string_lossy().to_string().into(),
+            ),
+        ])))
     }
 }
 
@@ -217,6 +234,45 @@ impl From<Process> for fact_api::ProcessSignal {
             username: username.to_owned(),
             in_root_mount_ns,
         }
+    }
+}
+
+#[cfg(feature = "otel")]
+impl From<Process> for opentelemetry::logs::AnyValue {
+    fn from(value: Process) -> Self {
+        let args = value
+            .args
+            .into_iter()
+            .map(AnyValue::from)
+            .collect::<Vec<_>>();
+
+        let lineage = value
+            .lineage
+            .into_iter()
+            .map(AnyValue::from)
+            .collect::<Vec<_>>();
+
+        let mut map = HashMap::from([
+            ("comm".into(), value.comm.into()),
+            ("args".into(), AnyValue::ListAny(Box::new(args))),
+            (
+                "exe_path".into(),
+                value.exe_path.to_string_lossy().to_string().into(),
+            ),
+            ("pid".into(), value.pid.into()),
+            ("uid".into(), value.uid.into()),
+            ("gid".into(), value.gid.into()),
+            ("login_uid".into(), value.login_uid.into()),
+            ("username".into(), value.username.into()),
+            ("in_root_mount_ns".into(), value.in_root_mount_ns.into()),
+            ("lineage".into(), AnyValue::ListAny(Box::new(lineage))),
+        ]);
+
+        if let Some(container_id) = value.container_id {
+            map.insert("container_id".into(), container_id.into());
+        }
+
+        AnyValue::Map(Box::new(map))
     }
 }
 

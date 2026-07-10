@@ -51,6 +51,144 @@ fn parsing() {
         ),
         (
             r#"
+            grpc:
+              backoff:
+                initial: 2
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs(2)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                max: 30
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        max: Some(Duration::from_secs(30)),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                jitter: false
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        jitter: Some(false),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                multiplier: 2
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(2.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                multiplier: 3.5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        multiplier: Some(3.5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                retries: 5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        retries_max: Some(5),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            grpc:
+              backoff:
+                initial: 0.5
+                max: 120
+                jitter: false
+                multiplier: 2
+                retries: 5
+            "#,
+            FactConfig {
+                grpc: GrpcConfig {
+                    backoff: BackoffConfig {
+                        initial: Some(Duration::from_secs_f64(0.5)),
+                        max: Some(Duration::from_secs(120)),
+                        jitter: Some(false),
+                        multiplier: Some(2.0),
+                        retries_max: Some(5),
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            otel:
+              endpoint: http://localhost:4317
+            "#,
+            FactConfig {
+                otel: OTelConfig {
+                    endpoint: Some("http://localhost:4317".into()),
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
             endpoint:
               address: 0.0.0.0:8080
             "#,
@@ -257,134 +395,10 @@ fn parsing() {
         ),
         (
             r#"
-            grpc:
-              backoff:
-                initial: 2
-            "#,
-            FactConfig {
-                grpc: GrpcConfig {
-                    backoff: BackoffConfig {
-                        initial: Some(Duration::from_secs(2)),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ),
-        (
-            r#"
-            grpc:
-              backoff:
-                max: 30
-            "#,
-            FactConfig {
-                grpc: GrpcConfig {
-                    backoff: BackoffConfig {
-                        max: Some(Duration::from_secs(30)),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ),
-        (
-            r#"
-            grpc:
-              backoff:
-                jitter: false
-            "#,
-            FactConfig {
-                grpc: GrpcConfig {
-                    backoff: BackoffConfig {
-                        jitter: Some(false),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ),
-        (
-            r#"
-            grpc:
-              backoff:
-                multiplier: 2
-            "#,
-            FactConfig {
-                grpc: GrpcConfig {
-                    backoff: BackoffConfig {
-                        multiplier: Some(2.0),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ),
-        (
-            r#"
-            grpc:
-              backoff:
-                multiplier: 3.5
-            "#,
-            FactConfig {
-                grpc: GrpcConfig {
-                    backoff: BackoffConfig {
-                        multiplier: Some(3.5),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ),
-        (
-            r#"
-            grpc:
-              backoff:
-                retries: 5
-            "#,
-            FactConfig {
-                grpc: GrpcConfig {
-                    backoff: BackoffConfig {
-                        retries_max: Some(5),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ),
-        (
-            r#"
-            grpc:
-              backoff:
-                initial: 0.5
-                max: 120
-                jitter: false
-                multiplier: 2
-                retries: 5
-            "#,
-            FactConfig {
-                grpc: GrpcConfig {
-                    backoff: BackoffConfig {
-                        initial: Some(Duration::from_secs_f64(0.5)),
-                        max: Some(Duration::from_secs(120)),
-                        jitter: Some(false),
-                        multiplier: Some(2.0),
-                        retries_max: Some(5),
-                    },
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-        ),
-        (
-            r#"
             paths:
             - /etc
+            otel:
+              endpoint: 'http://localhost:4317'
             grpc:
               url: 'https://svc.sensor.stackrox:9090'
               certs: /etc/stackrox/certs
@@ -418,6 +432,9 @@ fn parsing() {
                         multiplier: Some(2.0),
                         retries_max: Some(5),
                     },
+                },
+                otel: OTelConfig {
+                    endpoint: Some("http://localhost:4317".into()),
                 },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
@@ -595,6 +612,26 @@ paths:
                 unknown: 4
             "#,
             "Invalid field 'grpc.backoff.unknown' with value: Integer(4)",
+        ),
+        (
+            r#"
+            otel: 5
+            "#,
+            "Invalid field 'otel' with value: Integer(5)",
+        ),
+        (
+            r#"
+            otel:
+              something: true
+            "#,
+            "Invalid field 'otel.something' with value: Boolean(true)",
+        ),
+        (
+            r#"
+            otel:
+              endpoint: false
+            "#,
+            "otel.endpoint field has incorrect type: Boolean(false)",
         ),
         (
             "endpoint: true",
@@ -1150,6 +1187,37 @@ fn update() {
         ),
         (
             r#"
+            otel:
+              endpoint: 'http://localhost:4317'
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                otel: OTelConfig {
+                    endpoint: Some(String::from("http://localhost:4317")),
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            otel:
+              endpoint: 'http://localhost:4317'
+            "#,
+            FactConfig {
+                otel: OTelConfig {
+                    endpoint: Some(String::from("http://localhost:1234")),
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                otel: OTelConfig {
+                    endpoint: Some(String::from("http://localhost:4317")),
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
             endpoint:
               expose_metrics: true
             "#,
@@ -1516,6 +1584,8 @@ fn update() {
                 jitter: false
                 multiplier: 3.0
                 retries: 5
+            otel:
+              endpoint: 'http://localhost:4317'
             endpoint:
               address: 127.0.0.1:8080
               expose_metrics: true
@@ -1540,6 +1610,9 @@ fn update() {
                         multiplier: Some(2.0),
                         retries_max: Some(20),
                     },
+                },
+                otel: OTelConfig {
+                    endpoint: Some(String::from("http://localhost:1234")),
                 },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
@@ -1568,6 +1641,9 @@ fn update() {
                         multiplier: Some(3.0),
                         retries_max: Some(5),
                     },
+                },
+                otel: OTelConfig {
+                    endpoint: Some(String::from("http://localhost:4317")),
                 },
                 endpoint: EndpointConfig {
                     address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
@@ -1619,6 +1695,7 @@ fn defaults() {
     assert!(config.grpc.backoff.jitter());
     assert_eq!(config.grpc.backoff.multiplier(), 1.5);
     assert_eq!(config.grpc.backoff.retries(), 10);
+    assert_eq!(config.otel.endpoint(), None);
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
@@ -1678,7 +1755,7 @@ impl Display for EnvVar {
 
 fn with_env_var(env: EnvVar) -> Result<FactConfig, clap::Error> {
     let _guard = env.set();
-    FactCli::try_parse_from(["fact"]).map(|cli| cli.to_config())
+    FactCli::try_parse_from(["fact"]).map(|cli| cli.into_config())
 }
 
 #[test]
@@ -1868,6 +1945,18 @@ fn env_vars() {
         ),
         (
             EnvVar {
+                name: "FACT_OTEL_ENDPOINT",
+                value: "http://localhost:4317",
+            },
+            FactConfig {
+                otel: OTelConfig {
+                    endpoint: Some(String::from("http://localhost:4317")),
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
                 name: "FACT_ENDPOINT_ADDRESS",
                 value: "0.0.0.0:8080",
             },
@@ -2007,6 +2096,22 @@ fn env_vars_override_yaml() {
                         ..Default::default()
                     },
                     ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_OTEL_ENDPOINT",
+                value: "http://localhost:4317",
+            },
+            r#"
+            otel:
+              endpoint: 'http://localhost:1234'
+            "#,
+            FactConfig {
+                otel: OTelConfig {
+                    endpoint: Some(String::from("http://localhost:4317")),
                 },
                 ..Default::default()
             },
