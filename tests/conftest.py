@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from shutil import rmtree
 from tempfile import NamedTemporaryFile, mkdtemp
@@ -107,6 +108,18 @@ def dump_logs(container: docker.models.containers.Container, file: str):
     logs = container.logs().decode('utf-8')
     with open(file, 'w') as f:
         f.write(logs)
+
+
+def dump_container_inspect(
+    container: docker.models.containers.Container, file: str
+):
+    assert container.id is not None
+    client = docker.APIClient(
+        base_url=os.environ.get('DOCKER_HOST', 'unix:///var/run/docker.sock')
+    )
+    container_inspect = client.inspect_container(container.id)
+    with open(file, 'w') as f:
+        json.dump(container_inspect, f, indent=2)
 
 
 @pytest.fixture
@@ -253,6 +266,7 @@ def fact(
     container.stop(timeout=2)
     exit_status = container.wait(timeout=2)
     dump_logs(container, container_log)
+    dump_container_inspect(container, os.path.join(logs_dir, 'container.json'))
     container.remove()
     assert exit_status['StatusCode'] == 0
 
