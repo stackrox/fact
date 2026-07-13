@@ -99,7 +99,7 @@ This directory contains a minimal Loki configuration in
 ```sh
 docker run -d --name loki \
   --network fact-loki \
-  -p 3100:3100 \
+  -p 127.0.0.1:3100:3100 \
   -v ./docs/otel/loki-config.yaml:/etc/loki/config.yaml:ro,z \
   docker.io/grafana/loki:3.7.3
 ```
@@ -117,7 +117,7 @@ via provisioning files:
 ```sh
 docker run -d --name grafana \
   --network fact-loki \
-  -p 3000:3000 \
+  -p 127.0.0.1:3000:3000 \
   -e GF_AUTH_ANONYMOUS_ENABLED=true \
   -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
   -v ./docs/otel/grafana-datasource.yaml:/etc/grafana/provisioning/datasources/loki.yaml:ro,z \
