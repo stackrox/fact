@@ -26,13 +26,16 @@ jobs:
       with:
         submodules: true
         fetch-depth: 0
+        persist-credentials: false
 
     - id: vars
+      env:
+        TAG_SUFFIX: ${{ inputs.tag-suffix }}
       run: |
         cat << EOF >> "$GITHUB_OUTPUT"
-        tag=$(make tag)${{ inputs.tag-suffix }}
-        stackrox-io-image=$(make image-name)${{ inputs.tag-suffix }}
-        rhacs-eng-image=$(FACT_REGISTRY="quay.io/rhacs-eng/fact" make image-name)${{ inputs.tag-suffix }}
+        tag=$(make tag)${TAG_SUFFIX}
+        stackrox-io-image=$(make image-name)${TAG_SUFFIX}
+        rhacs-eng-image=$(FACT_REGISTRY="quay.io/rhacs-eng/fact" make image-name)${TAG_SUFFIX}
         EOF
 
   container:
@@ -54,6 +57,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: true
+        persist-credentials: false
 
     - name: Build image
       env:
