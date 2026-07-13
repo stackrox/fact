@@ -3,7 +3,13 @@ include ../constants.mk
 all: pytest
 
 pytest: grpc-gen
-	pytest --image="${FACT_IMAGE_NAME}" --junit-xml=results.xml
+	pytest --image="${FACT_IMAGE_NAME}" --output=grpc --junit-xml=results.xml
+
+pytest-otlp: grpc-gen
+	pytest --image="${FACT_IMAGE_NAME}" --output=otlp --junit-xml=results.xml
+
+pytest-all: grpc-gen
+	pytest --image="${FACT_IMAGE_NAME}-otel" --output=all --junit-xml=results.xml
 
 PYOUT = $(CURDIR)
 
@@ -29,4 +35,4 @@ clean:
 	rm -rf logs.tar.gz
 	rm -f results.xml
 
-.PHONY: all pytest grpc-gen lint clean
+.PHONY: all pytest pytest-otlp pytest-all grpc-gen lint clean

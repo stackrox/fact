@@ -40,9 +40,10 @@ COPY . .
 FROM builder AS build
 
 ARG FACT_VERSION
+ARG CARGO_ARGS=""
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target \
-    cargo build --release && \
+    cargo build --release $CARGO_ARGS && \
     cp target/release/fact fact
 
 FROM ubi-micro-base

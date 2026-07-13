@@ -4,7 +4,7 @@ import docker.models.containers
 import pytest
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 from utils import path_to_string, rust_style_quote
 
 # Tests here have to use a container to do 'chown',
@@ -28,7 +28,7 @@ TEST_GID = 2345
 )
 def test_chown(
     test_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
     filename: str | bytes,
 ):
     """
@@ -88,7 +88,7 @@ def test_chown(
 
 def test_multiple(
     test_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests ownership operations on multiple files and verifies the corresponding
@@ -146,7 +146,7 @@ def test_multiple(
 
 def test_ignored(
     test_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that ownership events on ignored files are not captured by the
@@ -204,7 +204,7 @@ def test_ignored(
 
 def test_no_change(
     test_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that chown to the same UID/GID triggers events for all calls.

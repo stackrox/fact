@@ -13,7 +13,7 @@ import pytest
 import requests
 import yaml
 
-from server import FileActivityService
+from server import EventServer, GrpcServer, OtlpServer
 
 # Declare files holding fixtures
 pytest_plugins = ['test_editors.commons']
@@ -68,12 +68,34 @@ def docker_client():
     return docker.from_env()
 
 
+def _get_output_modes(config: pytest.Config) -> list[str]:
+    output = config.getoption('--output')
+    assert isinstance(output, str)
+    if output == 'all':
+        return ['grpc', 'otlp']
+    return [output]
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc):
+    if 'server' in metafunc.fixturenames:
+        modes = _get_output_modes(metafunc.config)
+        metafunc.parametrize('server', modes, indirect=True)
+
+
 @pytest.fixture
-def server():
+def server(request: pytest.FixtureRequest):
     """
-    Fixture to start and stop the FileActivityService.
+    Start and stop an event server.
+
+    Parameterised via --output to create either a GrpcServer or an
+    OtlpServer. When --output=all, every test that uses this fixture
+    runs once per output mode.
     """
-    s = FileActivityService()
+    mode = request.param
+    if mode == 'otlp':
+        s: EventServer = OtlpServer()
+    else:
+        s = GrpcServer()
     s.serve()
     yield s
     s.stop()
@@ -126,18 +148,16 @@ def fact_config(
     request: pytest.FixtureRequest,
     monitored_dir: str,
     logs_dir: str,
+    server: EventServer,
 ):
     cwd = os.getcwd()
-    config = {
+    config: dict = {
         'paths': [
             f'{monitored_dir}',
             f'{monitored_dir}/**/*',
             '/mounted/**/*',
             '/container-dir/**/*',
         ],
-        'grpc': {
-            'url': 'http://127.0.0.1:9999',
-        },
         'endpoint': {
             'address': '127.0.0.1:9000',
             'expose_metrics': True,
@@ -146,6 +166,12 @@ def fact_config(
         'json': True,
         'scan_interval': 0,
     }
+
+    if server.output_mode == 'otlp':
+        config['otel'] = {'endpoint': 'http://127.0.0.1:4318/v1/logs'}
+    else:
+        config['grpc'] = {'url': 'http://127.0.0.1:9999'}
+
     config_file = NamedTemporaryFile(  # noqa: SIM115
         prefix='fact-config-',
         suffix='.yml',
@@ -202,7 +228,7 @@ def fact(
     request: pytest.FixtureRequest,
     docker_client: docker.DockerClient,
     fact_config: tuple[dict, str],
-    server: FileActivityService,
+    server: EventServer,
     logs_dir: str,
     test_file: str,
 ):
@@ -218,6 +244,8 @@ def fact(
         environment={
             'FACT_LOGLEVEL': 'debug',
             'FACT_HOST_MOUNT': '/host',
+            'OTEL_BLRP_SCHEDULE_DELAY': '100',
+            'OTEL_BLRP_MAX_EXPORT_BATCH_SIZE': '1',
         },
         name='fact',
         network_mode='host',
@@ -280,4 +308,11 @@ def pytest_addoption(parser: pytest.Parser):
         action='store',
         default='quay.io/stackrox-io/fact:latest',
         help='The image to be used for testing',
+    )
+    parser.addoption(
+        '--output',
+        action='store',
+        default='grpc',
+        choices=['grpc', 'otlp', 'all'],
+        help='Output mode to test: grpc, otlp, or all (default: grpc)',
     )

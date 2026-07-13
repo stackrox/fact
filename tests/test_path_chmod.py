@@ -8,7 +8,7 @@ import docker.models.containers
 import pytest
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 from utils import join_path_with_filename, path_to_string
 
 
@@ -25,7 +25,7 @@ from utils import join_path_with_filename, path_to_string
 )
 def test_chmod(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     filename: str | bytes,
 ):
     """
@@ -70,7 +70,7 @@ def test_chmod(
     server.wait_events(events)
 
 
-def test_multiple(monitored_dir: str, server: FileActivityService):
+def test_multiple(monitored_dir: str, server: EventServer):
     """
     Tests modifying permissions on multiple files.
 
@@ -109,7 +109,7 @@ def test_multiple(monitored_dir: str, server: FileActivityService):
     server.wait_events(events)
 
 
-def test_ignored(test_file: str, ignored_dir: str, server: FileActivityService):
+def test_ignored(test_file: str, ignored_dir: str, server: EventServer):
     """
     Tests that permission events on ignored files are not captured.
 
@@ -150,7 +150,7 @@ def do_test(fut: str, mode: int, stop_event: MpEvent):
     stop_event.wait()
 
 
-def test_external_process(monitored_dir: str, server: FileActivityService):
+def test_external_process(monitored_dir: str, server: EventServer):
     """
     Tests permission change of a file by an external process and
     verifies that the corresponding event is captured by the server.
@@ -193,7 +193,7 @@ def test_external_process(monitored_dir: str, server: FileActivityService):
 
 def test_overlay(
     test_container: docker.models.containers.Container,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Test permission changes on an overlayfs file (inside a container)
@@ -245,7 +245,7 @@ def test_overlay(
 def test_mounted_dir(
     test_container: docker.models.containers.Container,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Test permission changes on a file bind mounted into a container
@@ -300,7 +300,7 @@ def test_mounted_dir(
 def test_unmonitored_mounted_dir(
     test_container: docker.models.containers.Container,
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Test permission changes on a file bind mounted to a container and

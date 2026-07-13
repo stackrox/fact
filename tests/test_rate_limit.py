@@ -10,7 +10,7 @@ import requests
 import yaml
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def rate_limited_config(
 def test_rate_limit_drops_events(
     rate_limited_config: tuple[dict, str],
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Test that the rate limiter drops events when the rate limit is exceeded.
@@ -98,7 +98,7 @@ def test_rate_limit_drops_events(
 
 def test_rate_limit_unlimited(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     fact_config: tuple[dict, str],
 ):
     """

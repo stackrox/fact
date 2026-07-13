@@ -7,7 +7,7 @@ import tempfile
 import pytest
 
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 from utils import join_path_with_filename, path_to_string
 
 
@@ -38,7 +38,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_setxattr(
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that setting a user xattr on a monitored file generates
@@ -71,7 +71,7 @@ def test_setxattr(
 
 def test_xattr_set_and_remove(
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that setting and then removing a user xattr from a monitored
@@ -109,7 +109,7 @@ def test_xattr_set_and_remove(
 
 def test_xattr_multiple(
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that setting and removing multiple xattrs on a monitored file
@@ -180,7 +180,7 @@ def test_xattr_multiple(
 def test_xattr_ignored(
     test_file: str,
     ignored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that xattr changes on unmonitored files are not tracked,
@@ -233,7 +233,7 @@ def test_xattr_ignored(
 
 def test_xattr_new_file(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
 ):
     """
     Tests that xattr tracking works for files created while fact is
@@ -301,7 +301,7 @@ def test_xattr_new_file(
 )
 def test_xattr_utf8_filenames(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     filename: str | bytes,
 ):
     """
@@ -371,7 +371,7 @@ def test_xattr_utf8_filenames(
 )
 def test_xattr_utf8_names(
     test_file: str,
-    server: FileActivityService,
+    server: EventServer,
     xattr_name: str,
 ):
     """

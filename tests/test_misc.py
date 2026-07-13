@@ -9,7 +9,7 @@ import pytest
 
 from conftest import dump_logs
 from event import Event, EventType, Process
-from server import FileActivityService
+from server import EventServer
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def run_self_deleter(
 
 def test_d_path_sanitization(
     monitored_dir: str,
-    server: FileActivityService,
+    server: EventServer,
     run_self_deleter: docker.models.containers.Container,
     docker_client: docker.DockerClient,
 ):
