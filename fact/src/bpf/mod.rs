@@ -50,16 +50,9 @@ impl Bpf {
 
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
-        let obj = aya::EbpfLoader::new()
-            .override_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
-            .override_global(
-                "path_hooks_support_bpf_d_path",
-                &(checks.path_hooks_support_bpf_d_path as u8),
-                true,
-            )
-            .map_max_entries(RINGBUFFER_NAME, bpf_config.ringbuf_size() * 1024)
-            .map_max_entries("inode_map", bpf_config.inodes_max())
-            .load(fact_ebpf::EBPF_OBJ)?;
+        let obj = Bpf::load_ebpf(&checks, bpf_config)?;
+
+        Bpf::validate_config(&obj, bpf_config);
 
         let (tx, rx) = mpsc::channel(100);
         let paths = Vec::new();
@@ -73,7 +66,7 @@ impl Bpf {
             links: Vec::new(),
         };
 
-        bpf.load_progs(&btf)?;
+        bpf.load_progs(&btf, bpf_config)?;
         bpf.load_paths()?;
 
         Ok((bpf, rx))
@@ -94,6 +87,22 @@ impl Bpf {
             );
         }
         Ok(())
+    }
+
+    fn load_ebpf(checks: &Checks, bpf_config: &BpfConfig) -> anyhow::Result<Ebpf> {
+        // Include the BPF object as raw bytes at compile-time and load it
+        // at runtime.
+        aya::EbpfLoader::new()
+            .override_global("host_mount_ns", &host_info::get_host_mount_ns(), true)
+            .override_global(
+                "path_hooks_support_bpf_d_path",
+                &(checks.path_hooks_support_bpf_d_path as u8),
+                true,
+            )
+            .map_max_entries(RINGBUFFER_NAME, bpf_config.ringbuf_size() * 1024)
+            .map_max_entries("inode_map", bpf_config.inodes_max())
+            .load(fact_ebpf::EBPF_OBJ)
+            .context("failed to load eBPF object")
     }
 
     pub fn take_inode_map(
@@ -172,7 +181,7 @@ impl Bpf {
         Ok(())
     }
 
-    fn load_progs(&mut self, btf: &Btf) -> anyhow::Result<()> {
+    fn load_progs(&mut self, btf: &Btf, bpf_config: &BpfConfig) -> anyhow::Result<()> {
         for (name, prog) in self.obj.programs_mut() {
             // The format used for our hook names is `trace_<hook>`, so
             // we can just strip trace_ to get the hook name we need for
@@ -181,8 +190,13 @@ impl Bpf {
                 bail!("Invalid hook name: {name}");
             };
 
+            if !bpf_config.program_is_enabled(hook) {
+                info!("Skipping {hook} loading");
+                continue;
+            }
+
             // Skip hooks that the kernel doesn't support
-            if hook == "inode_set_acl" && !self.checks.supports_inode_set_acl {
+            if self.checks.is_unsupported_hook(hook) {
                 info!("Skipping {hook}: not supported on this kernel");
                 continue;
             }
@@ -195,31 +209,57 @@ impl Bpf {
         Ok(())
     }
 
+    /// Attaches the supplied BPF program if it is loaded into the kernel.
+    fn attach_prog(prog: &mut Program) -> Result<LsmLink, BpfAttachError> {
+        match prog {
+            Program::Lsm(prog) if prog.fd().is_ok() => {
+                let link_id = prog.attach()?;
+                Ok(prog.take_link(link_id)?)
+            }
+            Program::Lsm(_) => Err(BpfAttachError::NotLoaded),
+            u => unimplemented!("{u:?}"),
+        }
+    }
+
     /// Attaches all loaded BPF programs. Programs that were not loaded
     /// (e.g. optional hooks on unsupported kernels) are skipped.
+    ///
     /// If any attach fails, programs that were already attached during
-    /// this call remain attached (they are not rolled back); callers
-    /// should treat an `Err` here as fatal.
+    /// this call are dropped.
     fn attach_progs(&mut self) -> anyhow::Result<()> {
-        self.links.clear();
-        for (_, prog) in self.obj.programs_mut() {
-            match prog {
-                Program::Lsm(prog) => {
-                    if prog.fd().is_err() {
-                        continue;
-                    }
-                    let link_id = prog.attach()?;
-                    self.links.push(prog.take_link(link_id)?);
-                }
-                u => unimplemented!("{u:?}"),
-            }
-        }
+        self.links = self
+            .obj
+            .programs_mut()
+            .filter_map(|(_, prog)| match Bpf::attach_prog(prog) {
+                Ok(link) => Some(Ok(link)),
+                Err(BpfAttachError::NotLoaded) => None,
+                Err(e) => Some(Err(e)),
+            })
+            .collect::<Result<Vec<_>, BpfAttachError>>()?;
+
         Ok(())
     }
 
     /// Detaches all BPF programs by dropping owned links.
     fn detach_progs(&mut self) {
         self.links.clear();
+    }
+
+    /// Verify the current configuration for errors.
+    ///
+    /// Checks for hooks that are not implemented.
+    fn validate_config(obj: &Ebpf, bpf_config: &BpfConfig) -> bool {
+        let mut is_valid = true;
+
+        for name in bpf_config.programs.keys() {
+            let hook = "trace_".to_string() + name;
+            if obj.program(&hook).is_none() {
+                warn!("{name} is not a known program");
+                is_valid = false;
+            }
+        }
+
+        is_valid
     }
 
     // Gather events from the ring buffer and print them out.
@@ -287,15 +327,23 @@ impl Bpf {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+enum BpfAttachError {
+    #[error("attempted to attach unloaded program")]
+    NotLoaded,
+    #[error("program error: {0:?}")]
+    ProgramError(#[from] aya::programs::ProgramError),
+}
+
 #[cfg(all(test, feature = "bpf-test"))]
 mod bpf_tests {
-    use std::{env, os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};
+    use std::{collections, env, os::unix::fs::PermissionsExt, path::PathBuf, time::Duration};
 
     use tempfile::NamedTempFile;
     use tokio::{sync::watch, time::timeout};
 
     use crate::{
-        config::{FactConfig, reloader::Reloader},
+        config::{BpfProgConfig, FactConfig, reloader::Reloader},
         event::{EventTestData, process::Process},
         host_info,
         metrics::exporter::Exporter,
@@ -416,5 +464,70 @@ mod bpf_tests {
         }
 
         run_tx.send(false).unwrap();
+    }
+
+    #[test]
+    fn test_validate_config() {
+        let tests = [
+            (collections::HashMap::new(), true),
+            (
+                collections::HashMap::from([("file_open".into(), BpfProgConfig::default())]),
+                true,
+            ),
+            (
+                collections::HashMap::from([(
+                    "file_open".into(),
+                    BpfProgConfig {
+                        enabled: Some(true),
+                    },
+                )]),
+                true,
+            ),
+            (
+                collections::HashMap::from([(
+                    "file_open".into(),
+                    BpfProgConfig {
+                        enabled: Some(false),
+                    },
+                )]),
+                true,
+            ),
+            (
+                collections::HashMap::from([
+                    (
+                        "file_open".into(),
+                        BpfProgConfig {
+                            enabled: Some(false),
+                        },
+                    ),
+                    (
+                        "path_rename".into(),
+                        BpfProgConfig {
+                            enabled: Some(true),
+                        },
+                    ),
+                    ("path_unlink".into(), BpfProgConfig::default()),
+                ]),
+                true,
+            ),
+            (
+                collections::HashMap::from([("gibberish".into(), BpfProgConfig::default())]),
+                false,
+            ),
+        ];
+
+        let btf = Btf::from_sys_fs().expect("Failed to read BTF symbols");
+        let checks = Checks::new(&btf).expect("Failed to create `checks`");
+        let obj =
+            Bpf::load_ebpf(&checks, &BpfConfig::default()).expect("Failed to load eBPF object");
+
+        for (programs, expected) in tests {
+            let mut bpf_config = BpfConfig::default();
+            bpf_config.programs = programs.clone();
+
+            let res = Bpf::validate_config(&obj, &bpf_config);
+
+            assert_eq!(res, expected, "input: {programs:#?}");
+        }
     }
 }

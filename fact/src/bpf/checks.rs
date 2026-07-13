@@ -4,7 +4,7 @@ use log::debug;
 
 pub(super) struct Checks {
     pub(super) path_hooks_support_bpf_d_path: bool,
-    pub(super) supports_inode_set_acl: bool,
+    supports_inode_set_acl: bool,
 }
 
 impl Checks {
@@ -39,5 +39,9 @@ impl Checks {
             return false;
         };
         prog.load(hook, btf).is_ok()
+    }
+
+    pub(super) fn is_unsupported_hook(&self, hook: &str) -> bool {
+        hook == "inode_set_acl" && !self.supports_inode_set_acl
     }
 }
