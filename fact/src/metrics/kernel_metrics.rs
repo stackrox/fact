@@ -15,20 +15,23 @@ macro_rules! define_kernel_metrics {
         }
 
         impl KernelMetrics {
-            pub fn new(reg: &mut Registry, kernel_metrics: PerCpuArray<MapData, metrics_t>) -> Self {
+            pub fn new(kernel_metrics: PerCpuArray<MapData, metrics_t>) -> Self {
                 $(
                     let $hook = EventCounter::new(
                         concat!("kernel_", stringify!($hook), "_events"),
                         concat!("Events processed by the ", stringify!($hook), " LSM hook"),
                         &[],
                     );
-                    $hook.register(reg);
                 )+
 
                 KernelMetrics {
                     $($hook,)+
                     map: kernel_metrics,
                 }
+            }
+
+            pub fn register(&self, reg: &mut Registry) {
+                $(self.$hook.register(reg);)+
             }
 
             pub fn collect(&self) -> anyhow::Result<()> {
