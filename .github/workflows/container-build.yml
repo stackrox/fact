@@ -1,0 +1,127 @@
+name: Build container
+on:
+  workflow_call:
+    inputs:
+      tag-suffix:
+        required: false
+        default: ''
+        type: string
+      make-target:
+        required: false
+        default: 'image'
+        type: string
+    outputs:
+      tag:
+        value: ${{ jobs.vars.outputs.tag }}
+
+jobs:
+  vars:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      stackrox-io-image: ${{ steps.vars.outputs.stackrox-io-image }}
+      rhacs-eng-image: ${{ steps.vars.outputs.rhacs-eng-image }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+        persist-credentials: false
+
+    - id: vars
+      env:
+        TAG_SUFFIX: ${{ inputs.tag-suffix }}
+      run: |
+        cat << EOF >> "$GITHUB_OUTPUT"
+        tag=$(make tag)${TAG_SUFFIX}
+        stackrox-io-image=$(make image-name)${TAG_SUFFIX}
+        rhacs-eng-image=$(FACT_REGISTRY="quay.io/rhacs-eng/fact" make image-name)${TAG_SUFFIX}
+        EOF
+
+  container:
+    needs:
+    - vars
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - arm64
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
+    env:
+      FACT_TAG: ${{ needs.vars.outputs.tag }}-${{ matrix.arch }}
+      FACT_VERSION: ${{ needs.vars.outputs.tag }}
+      STACKROX_IO_IMAGE: ${{ needs.vars.outputs.stackrox-io-image }}-${{ matrix.arch }}
+      RHACS_ENG_IMAGE: ${{ needs.vars.outputs.rhacs-eng-image }}-${{ matrix.arch }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+        persist-credentials: false
+
+    - name: Build image
+      env:
+        MAKE_TARGET: ${{ inputs.make-target }}
+      run: DOCKER=podman make "${MAKE_TARGET}"
+
+    - name: Login to quay.io/stackrox-io
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
+        password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
+
+    - run: podman push "${STACKROX_IO_IMAGE}"
+
+    - name: Login to quay.io/rhacs-eng
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_RHACS_ENG_RW_USERNAME }}
+        password: ${{ secrets.QUAY_RHACS_ENG_RW_PASSWORD }}
+
+    - name: Tag and push to rhacs-eng
+      run: |
+        podman tag "${STACKROX_IO_IMAGE}" "${RHACS_ENG_IMAGE}"
+        podman push "${RHACS_ENG_IMAGE}"
+
+  manifest-stackrox-io:
+    runs-on: ubuntu-24.04
+    needs:
+      - container
+      - vars
+    steps:
+      - uses: redhat-actions/podman-login@v1
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_STACKROX_IO_RW_USERNAME }}
+          password: ${{ secrets.QUAY_STACKROX_IO_RW_PASSWORD }}
+
+      - name: Create multiarch manifest
+        run: |
+          podman manifest create ${{ needs.vars.outputs.stackrox-io-image }} \
+            ${{ needs.vars.outputs.stackrox-io-image }}-amd64 \
+            ${{ needs.vars.outputs.stackrox-io-image }}-arm64
+          podman manifest inspect ${{ needs.vars.outputs.stackrox-io-image }}
+          podman manifest push ${{ needs.vars.outputs.stackrox-io-image }}
+
+  manifest-rhacs-eng:
+    runs-on: ubuntu-24.04
+    needs:
+      - container
+      - vars
+    steps:
+      - uses: redhat-actions/podman-login@v1
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_RHACS_ENG_RW_USERNAME }}
+          password: ${{ secrets.QUAY_RHACS_ENG_RW_PASSWORD }}
+
+      - name: Create multiarch manifest
+        run: |
+          podman manifest create ${{ needs.vars.outputs.rhacs-eng-image }} \
+            ${{ needs.vars.outputs.rhacs-eng-image }}-amd64 \
+            ${{ needs.vars.outputs.rhacs-eng-image }}-arm64
+          podman manifest inspect ${{ needs.vars.outputs.rhacs-eng-image }}
+          podman manifest push ${{ needs.vars.outputs.rhacs-eng-image }}
+
