@@ -419,6 +419,7 @@ fn parsing() {
                 inodes_max: 64
             hotreload: false
             scan_interval: 60
+            rate_limit: 50000
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -449,7 +450,7 @@ fn parsing() {
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
-                rate_limit: None,
+                rate_limit: Some(50000),
             },
         ),
     ];
@@ -780,6 +781,15 @@ paths:
             "scan_interval: -128.5",
             "invalid scan_interval: Real(\"-128.5\")",
         ),
+        (
+            "rate_limit: true",
+            "rate_limit field has incorrect type: Boolean(true)",
+        ),
+        (
+            "rate_limit: 1000.0",
+            "rate_limit field has incorrect type: Real(\"1000.0\")",
+        ),
+        ("rate_limit: -1000", "invalid rate_limit: -1000"),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
     for (input, expected) in tests {
@@ -1572,6 +1582,25 @@ fn update() {
             },
         ),
         (
+            "rate_limit: 1000",
+            FactConfig::default(),
+            FactConfig {
+                rate_limit: Some(1000),
+                ..Default::default()
+            },
+        ),
+        (
+            "rate_limit: 1000",
+            FactConfig {
+                rate_limit: Some(50000),
+                ..Default::default()
+            },
+            FactConfig {
+                rate_limit: Some(1000),
+                ..Default::default()
+            },
+        ),
+        (
             r#"
             paths:
             - /etc
@@ -1597,6 +1626,7 @@ fn update() {
               inodes_max: 8192
             hotreload: false
             scan_interval: 60
+            rate_limit: 1000
             "#,
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
@@ -1627,7 +1657,7 @@ fn update() {
                 },
                 hotreload: Some(true),
                 scan_interval: Some(Duration::from_secs(30)),
-                rate_limit: None,
+                rate_limit: Some(5000),
             },
             FactConfig {
                 paths: Some(vec![PathBuf::from("/etc")]),
@@ -1658,7 +1688,7 @@ fn update() {
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
-                rate_limit: None,
+                rate_limit: Some(1000),
             },
         ),
     ];
@@ -1696,6 +1726,8 @@ fn defaults() {
     assert_eq!(config.grpc.backoff.multiplier(), 1.5);
     assert_eq!(config.grpc.backoff.retries(), 10);
     assert_eq!(config.otel.endpoint(), None);
+    assert_eq!(config.scan_interval(), Duration::from_secs(30));
+    assert_eq!(config.rate_limit(), 0);
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());
