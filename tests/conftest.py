@@ -246,6 +246,7 @@ def fact(
             'FACT_HOST_MOUNT': '/host',
             'OTEL_BLRP_SCHEDULE_DELAY': '100',
             'OTEL_BLRP_MAX_EXPORT_BATCH_SIZE': '1',
+            'RUST_BACKTRACE': '1',
         },
         name='fact',
         network_mode='host',
