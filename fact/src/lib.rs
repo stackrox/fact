@@ -79,12 +79,10 @@ fn flatten_task_result(
     }
 }
 
-async fn join_all_tasks(task_set: JoinSet<anyhow::Result<()>>) -> anyhow::Result<()> {
-    task_set
-        .join_all()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+async fn join_all_tasks(mut task_set: JoinSet<anyhow::Result<()>>) -> anyhow::Result<()> {
+    while let Some(task_res) = task_set.join_next().await {
+        flatten_task_result(task_res)?;
+    }
     Ok(())
 }
 
