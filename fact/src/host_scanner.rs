@@ -38,6 +38,7 @@ use log::{debug, info, warn};
 use tokio::{
     sync::{Notify, mpsc, watch},
     task::JoinHandle,
+    time::Instant,
 };
 
 use crate::{
@@ -112,7 +113,8 @@ impl HostScanner {
     }
 
     fn scan(&self) -> anyhow::Result<()> {
-        debug!("Host scan started");
+        info!("Host scan started");
+        let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
         let config = self.paths.borrow();
 
@@ -136,7 +138,11 @@ impl HostScanner {
             let path = host_info::prepend_host_mount(pattern);
             self.scan_inner(&path)?;
         }
-        debug!("Host scan done");
+        let duration = start.elapsed();
+        info!(
+            "Host scan done, took {duration:?}. Inodes tracked: {}",
+            self.inode_map.borrow().len()
+        );
 
         Ok(())
     }
