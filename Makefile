@@ -9,8 +9,14 @@ version:
 image-name:
 	@echo "$(FACT_IMAGE_NAME)"
 
+operator-name:
+	@echo "$(FACT_OPERATOR_NAME)"
+
 mock-server:
 	make -C mock-server
+
+BUILD_TARGET ?= fact
+IMAGE_NAME ?= $(FACT_IMAGE_NAME)
 
 image:
 	$(DOCKER) build \
@@ -18,11 +24,16 @@ image:
 		--build-arg FACT_VERSION=$(FACT_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg CARGO_ARGS="$(CARGO_ARGS)" \
-		-t $(FACT_IMAGE_NAME) \
+		--target $(BUILD_TARGET) \
+		-t $(IMAGE_NAME) \
 		$(CURDIR)
 
 image-otel: CARGO_ARGS = --features otel
 image-otel: image
+
+operator: BUILD_TARGET = fact-operator
+operator: IMAGE_NAME = $(FACT_OPERATOR_NAME)
+operator: image
 
 licenses:THIRD_PARTY_LICENSES.html
 
@@ -58,4 +69,5 @@ format:
 	make -C fact-ebpf format
 	ruff format tests/
 
-.PHONY: tag mock-server integration-tests image image-otel image-name licenses coverage lint clean
+.PHONY: tag mock-server integration-tests image image-otel image-name
+.PHONY: operator operator-name licenses coverage lint clean

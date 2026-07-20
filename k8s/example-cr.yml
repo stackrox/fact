@@ -1,0 +1,21 @@
+apiVersion: fact.stackrox.io/v1alpha1
+kind: Fact
+metadata:
+  name: fact
+  namespace: default
+spec:
+  image: quay.io/mmoltras/fact:operator-test
+  logLevel: debug
+  config:
+    rateLimit: 50000
+    paths:
+    - /etc
+    - /etc/**/*
+    - /bin
+    - /bin/**/*
+    - /sbin
+    - /sbin/**/*
+    - /usr/bin
+    - /usr/bin/**/*
+    - /usr/sbin
+    - /usr/sbin/**/*

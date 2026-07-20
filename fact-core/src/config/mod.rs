@@ -10,6 +10,8 @@ use std::{
 use anyhow::{Context, bail};
 use clap::Parser;
 use log::info;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use yaml_rust2::{Yaml, YamlLoader, yaml};
 
 pub mod reloader;
@@ -30,12 +32,25 @@ fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
         .map(Duration::from_secs_f64)
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
+fn duration_to_yaml(v: Duration) -> Yaml {
+    let v = v.as_secs_f64();
+    if v.fract() != 0.0 {
+        Yaml::Real(v.to_string())
+    } else {
+        Yaml::Integer(v as i64)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct FactConfig {
     paths: Option<Vec<PathBuf>>,
+    #[serde(default)]
     pub grpc: GrpcConfig,
+    #[serde(default)]
     pub otel: OTelConfig,
+    #[serde(default)]
     pub endpoint: EndpointConfig,
+    #[serde(default)]
     pub bpf: BpfConfig,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
@@ -134,9 +149,67 @@ impl FactConfig {
         self.rate_limit.unwrap_or(0)
     }
 
-    #[cfg(test)]
     pub fn set_paths(&mut self, paths: Vec<PathBuf>) {
         self.paths = Some(paths);
+    }
+
+    pub fn to_yaml(&self) -> Yaml {
+        let mut config = yaml::Hash::new();
+
+        if let Some(paths) = &self.paths {
+            let paths = paths
+                .iter()
+                .filter_map(|p| p.to_str().map(|p| Yaml::String(p.to_string())))
+                .collect::<Vec<_>>();
+            config.insert(Yaml::String("paths".into()), Yaml::Array(paths));
+        }
+
+        if let Some(grpc) = self.grpc.to_yaml() {
+            config.insert(Yaml::String("grpc".into()), grpc);
+        }
+
+        if let Some(otel) = self.otel.to_yaml() {
+            config.insert(Yaml::String("otel".into()), otel);
+        }
+
+        if let Some(endpoint) = self.endpoint.to_yaml() {
+            config.insert(Yaml::String("endpoint".into()), endpoint);
+        }
+
+        if let Some(bpf) = self.bpf.to_yaml() {
+            config.insert(Yaml::String("bpf".into()), bpf);
+        }
+
+        if let Some(skip_pre_flight) = self.skip_pre_flight {
+            config.insert(
+                Yaml::String("skip_pre_flight".into()),
+                Yaml::Boolean(skip_pre_flight),
+            );
+        }
+
+        if let Some(json) = self.json {
+            config.insert(Yaml::String("json".into()), Yaml::Boolean(json));
+        }
+
+        if let Some(hotreload) = self.hotreload {
+            config.insert(Yaml::String("hotreload".into()), Yaml::Boolean(hotreload));
+        }
+
+        if let Some(scan_interval) = self.scan_interval {
+            config.insert(
+                Yaml::String("scan_interval".into()),
+                duration_to_yaml(scan_interval),
+            );
+        }
+
+        if let Some(rate_limit) = self.rate_limit {
+            config.insert(
+                Yaml::String("rate_limit".into()),
+                Yaml::Integer(rate_limit as i64),
+            );
+        }
+
+        Yaml::Hash(config)
     }
 }
 
@@ -218,10 +291,8 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.json = Some(json);
                 }
-                "bpf" => {
-                    let Some(bpf) = v.as_hash() else {
-                        bail!("bpf section has incorrect type: {v:#?}");
-                    };
+                "bpf" if v.is_hash() => {
+                    let bpf = v.as_hash().unwrap();
                     config.bpf = BpfConfig::try_from(bpf)?;
                 }
                 "hotreload" => {
@@ -255,7 +326,7 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct EndpointConfig {
     address: Option<SocketAddr>,
     expose_metrics: Option<bool>,
@@ -288,6 +359,37 @@ impl EndpointConfig {
 
     pub fn health_check(&self) -> bool {
         self.health_check.unwrap_or(false)
+    }
+
+    fn to_yaml(&self) -> Option<Yaml> {
+        let mut endpoint = yaml::Hash::new();
+
+        if let Some(address) = self.address {
+            endpoint.insert(
+                Yaml::String("address".into()),
+                Yaml::String(address.to_string()),
+            );
+        }
+
+        if let Some(expose_metrics) = self.expose_metrics {
+            endpoint.insert(
+                Yaml::String("expose_metrics".into()),
+                Yaml::Boolean(expose_metrics),
+            );
+        }
+
+        if let Some(health_check) = self.health_check {
+            endpoint.insert(
+                Yaml::String("health_check".into()),
+                Yaml::Boolean(health_check),
+            );
+        }
+
+        if !endpoint.is_empty() {
+            Some(Yaml::Hash(endpoint))
+        } else {
+            None
+        }
     }
 }
 
@@ -332,7 +434,7 @@ impl TryFrom<&yaml::Hash> for EndpointConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct BackoffConfig {
     initial: Option<Duration>,
     max: Option<Duration>,
@@ -378,6 +480,42 @@ impl BackoffConfig {
 
     pub fn retries(&self) -> u64 {
         self.retries_max.unwrap_or(10)
+    }
+
+    fn to_yaml(&self) -> Option<Yaml> {
+        let mut backoff = yaml::Hash::new();
+
+        if let Some(initial) = self.initial {
+            backoff.insert(Yaml::String("initial".into()), duration_to_yaml(initial));
+        }
+
+        if let Some(max) = self.max {
+            backoff.insert(Yaml::String("max".into()), duration_to_yaml(max));
+        }
+
+        if let Some(jitter) = self.jitter {
+            backoff.insert(Yaml::String("jitter".into()), Yaml::Boolean(jitter));
+        }
+
+        if let Some(multiplier) = self.multiplier {
+            backoff.insert(
+                Yaml::String("multiplier".into()),
+                Yaml::Real(multiplier.to_string()),
+            );
+        }
+
+        if let Some(retries_max) = self.retries_max {
+            backoff.insert(
+                Yaml::String("retries_max".into()),
+                Yaml::Integer(retries_max as i64),
+            );
+        }
+
+        if !backoff.is_empty() {
+            Some(Yaml::Hash(backoff))
+        } else {
+            None
+        }
     }
 }
 
@@ -432,7 +570,7 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct GrpcConfig {
     url: Option<String>,
     certs: Option<PathBuf>,
@@ -458,6 +596,30 @@ impl GrpcConfig {
 
     pub fn certs(&self) -> Option<&Path> {
         self.certs.as_deref()
+    }
+
+    fn to_yaml(&self) -> Option<Yaml> {
+        let mut grpc = yaml::Hash::new();
+
+        if let Some(url) = &self.url {
+            grpc.insert(Yaml::String("url".into()), Yaml::String(url.clone()));
+        }
+
+        if let Some(certs) = &self.certs
+            && let Some(certs) = certs.to_str()
+        {
+            grpc.insert(Yaml::String("certs".into()), Yaml::String(certs.into()));
+        }
+
+        if let Some(backoff) = self.backoff.to_yaml() {
+            grpc.insert(Yaml::String("backoff".into()), backoff);
+        }
+
+        if !grpc.is_empty() {
+            Some(Yaml::Hash(grpc))
+        } else {
+            None
+        }
     }
 }
 
@@ -498,7 +660,7 @@ impl TryFrom<&yaml::Hash> for GrpcConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct OTelConfig {
     endpoint: Option<String>,
 }
@@ -512,6 +674,23 @@ impl OTelConfig {
 
     pub fn endpoint(&self) -> Option<&str> {
         self.endpoint.as_deref()
+    }
+
+    fn to_yaml(&self) -> Option<Yaml> {
+        let mut otel = yaml::Hash::new();
+
+        if let Some(endpoint) = &self.endpoint {
+            otel.insert(
+                Yaml::String("endpoint".into()),
+                Yaml::String(endpoint.clone()),
+            );
+        }
+
+        if !otel.is_empty() {
+            Some(Yaml::Hash(otel))
+        } else {
+            None
+        }
     }
 }
 
@@ -540,7 +719,7 @@ impl TryFrom<&yaml::Hash> for OTelConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct BpfConfig {
     ringbuf_size: Option<u32>,
     inodes_max: Option<u32>,
@@ -563,6 +742,30 @@ impl BpfConfig {
 
     pub fn inodes_max(&self) -> u32 {
         self.inodes_max.unwrap_or(65536)
+    }
+
+    fn to_yaml(&self) -> Option<Yaml> {
+        let mut bpf = yaml::Hash::new();
+
+        if let Some(ringbuf_size) = self.ringbuf_size {
+            bpf.insert(
+                Yaml::String("ringbuf_size".into()),
+                Yaml::Integer(ringbuf_size as i64),
+            );
+        }
+
+        if let Some(inodes_max) = self.inodes_max {
+            bpf.insert(
+                Yaml::String("inodes_max".into()),
+                Yaml::Integer(inodes_max as i64),
+            );
+        }
+
+        if !bpf.is_empty() {
+            Some(Yaml::Hash(bpf))
+        } else {
+            None
+        }
     }
 }
 
