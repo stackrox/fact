@@ -20,6 +20,7 @@
 
 use std::{
     cell::RefCell,
+    fs::Metadata,
     io,
     os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
@@ -156,14 +157,28 @@ impl HostScanner {
         };
 
         for entry in glob::glob(glob_str)? {
-            let path = entry?;
-            if path.is_file() {
+            let path = match entry {
+                Ok(p) => p,
+                Err(e) => {
+                    debug!("Glob expansion failed: {e:?}");
+                    continue;
+                }
+            };
+            let metadata = match path.metadata() {
+                Ok(p) => p,
+                Err(e) => {
+                    debug!("Failed to get metadata for {}: {e:?}", path.display());
+                    continue;
+                }
+            };
+
+            if metadata.is_file() {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
-                self.update_entry(path.as_path())
+                self.update_entry(path.as_path(), &metadata)
                     .with_context(|| format!("Failed to update entry for {}", path.display()))?;
-            } else if path.is_dir() {
+            } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                self.update_entry(path.as_path())
+                self.update_entry(path.as_path(), &metadata)
                     .with_context(|| format!("Failed to update entry for {}", path.display()))?;
             } else {
                 self.metrics.scan_inc(ScanLabels::FsItemIgnored);
@@ -172,14 +187,7 @@ impl HostScanner {
         Ok(())
     }
 
-    fn update_entry(&self, path: &Path) -> anyhow::Result<()> {
-        if !path.exists() {
-            // If path does not exist, we don't have anything to update
-            self.metrics.scan_inc(ScanLabels::FileRemoved);
-            return Ok(());
-        }
-
-        let metadata = path.metadata()?;
+    fn update_entry(&self, path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
         let inode = inode_key_t {
             inode: metadata.st_ino(),
             dev: metadata.st_dev(),
