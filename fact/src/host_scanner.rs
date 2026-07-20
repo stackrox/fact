@@ -202,8 +202,24 @@ impl HostScanner {
 
     /// Similar to update_entry except we are are directly using the inode instead of the path.
     fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
+        let mut inode_map = self.inode_map.borrow_mut();
+        match inode_map.get_mut(&inode) {
+            Some(p) => {
+                // inode is already tracked.
+                if path != *p {
+                    *p = path;
+                    self.metrics.scan_inc(ScanLabels::FileUpdated);
+                }
+                return Ok(());
+            }
+            None => {
+                self.metrics.scan_inc(ScanLabels::FileUpdated);
+                inode_map.insert(inode, path.clone());
+            }
+        };
+
         match self.kernel_inode_map.borrow_mut().insert(inode, 0, 0) {
-            Ok(_) => {}
+            Ok(_) => Ok(()),
             Err(MapError::SyscallError(SyscallError { io_error, .. }))
                 if io_error.kind() == io::ErrorKind::ArgumentListTooLong =>
             {
@@ -215,20 +231,8 @@ You can increase this limit with:
 * The --inodes-max argument."#,
                 )
             }
-            e => {
-                return e.with_context(|| {
-                    format!("Failed to insert kernel entry for {}", path.display())
-                });
-            }
+            e => e.with_context(|| format!("Failed to insert kernel entry for {}", path.display())),
         }
-
-        let mut inode_map = self.inode_map.borrow_mut();
-        let entry = inode_map.entry(inode).or_default();
-        *entry = path;
-
-        self.metrics.scan_inc(ScanLabels::FileUpdated);
-
-        Ok(())
     }
 
     fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
