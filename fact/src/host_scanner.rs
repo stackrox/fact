@@ -203,6 +203,7 @@ impl HostScanner {
                 Ok(p) => p,
                 Err(e) => {
                     debug!("Glob expansion failed: {e:?}");
+                    self.metrics.scan_inc(ScanLabels::GlobFailed);
                     continue;
                 }
             };
@@ -210,6 +211,7 @@ impl HostScanner {
                 Ok(p) => p,
                 Err(e) => {
                     debug!("Failed to get metadata for {}: {e:?}", path.display());
+                    self.metrics.scan_inc(ScanLabels::FsMetadataFailed);
                     continue;
                 }
             };
