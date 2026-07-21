@@ -139,6 +139,7 @@ impl HostScanner {
             self.scan_inner(&path)?;
         }
         let duration = start.elapsed();
+        self.metrics.scan_duration.observe(duration.as_secs_f64());
         info!(
             "Host scan done, took {duration:?}. Inodes tracked: {}",
             self.inode_map.borrow().len()
