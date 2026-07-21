@@ -17,6 +17,8 @@ pub enum ScanLabels {
     FileRemoved,
     FileUpdated,
     FsItemIgnored,
+    FsMetadataFailed,
+    GlobFailed,
 }
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelSet)]
@@ -57,6 +59,8 @@ impl HostScannerMetrics {
             ScanLabels::FileRemoved,
             ScanLabels::FileUpdated,
             ScanLabels::FsItemIgnored,
+            ScanLabels::FsMetadataFailed,
+            ScanLabels::GlobFailed,
         ] {
             let _ = scan.get_or_create(&ScanEvents { label });
         }
