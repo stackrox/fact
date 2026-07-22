@@ -115,6 +115,9 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_SETXATTR,
   FILE_ACTIVITY_REMOVEXATTR,
   FILE_ACTIVITY_ACL_SET,
+  FILE_ACTIVITY_MOUNT,
+  FILE_ACTIVITY_UMOUNT,
+  FILE_ACTIVITY_MOVE_MOUNT,
 } file_activity_type_t;
 
 struct event_t {
@@ -140,7 +143,7 @@ struct event_t {
       char filename[PATH_MAX];
       inode_key_t inode;
       monitored_t monitored;
-    } rename;
+    } from;  // Used by events that have two paths (like rename or move_mount).
     struct {
       char name[XATTR_NAME_MAX_LEN];
     } xattr;
@@ -194,4 +197,7 @@ struct metrics_t {
   struct metrics_by_hook_t inode_setxattr;
   struct metrics_by_hook_t inode_removexattr;
   struct metrics_by_hook_t inode_set_acl;
+  struct metrics_by_hook_t sb_mount;
+  struct metrics_by_hook_t sb_umount;
+  struct metrics_by_hook_t move_mount;
 };

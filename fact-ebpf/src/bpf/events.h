@@ -123,9 +123,9 @@ __always_inline static void submit_rename_event(struct submit_event_args_t* args
   }
 
   args->event->type = FILE_ACTIVITY_RENAME;
-  bpf_probe_read_str(args->event->rename.filename, PATH_MAX, old_filename);
-  inode_copy(&args->event->rename.inode, old_inode);
-  args->event->rename.monitored = old_monitored;
+  bpf_probe_read_str(args->event->from.filename, PATH_MAX, old_filename);
+  inode_copy(&args->event->from.inode, old_inode);
+  args->event->from.monitored = old_monitored;
 
   __submit_event(args, path_hooks_support_bpf_d_path);
 }
@@ -210,5 +210,38 @@ __always_inline static void submit_acl_event(struct submit_event_args_t* args,
   }
 
   // inode_set_acl does not support bpf_d_path (no struct path available)
+  __submit_event(args, false);
+}
+
+__always_inline static void submit_mount_event(struct submit_event_args_t* args) {
+  if (!reserve_event(args)) {
+    return;
+  }
+  args->event->type = FILE_ACTIVITY_MOUNT;
+
+  __submit_event(args, true);
+}
+
+__always_inline static void submit_umount_event(struct submit_event_args_t* args) {
+  if (!reserve_event(args)) {
+    return;
+  }
+  args->event->type = FILE_ACTIVITY_UMOUNT;
+
+  __submit_event(args, true);
+}
+
+__always_inline static void submit_move_mount_event(struct submit_event_args_t* args,
+                                                    const char from_filename[PATH_MAX],
+                                                    inode_key_t* from_inode,
+                                                    monitored_t from_monitored) {
+  if (!reserve_event(args)) {
+    return;
+  }
+  args->event->type = FILE_ACTIVITY_MOVE_MOUNT;
+  bpf_probe_read_str(args->event->from.filename, PATH_MAX, from_filename);
+  inode_copy(&args->event->from.inode, from_inode);
+  args->event->from.monitored = from_monitored;
+
   __submit_event(args, false);
 }
