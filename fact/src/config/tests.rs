@@ -352,6 +352,64 @@ fn parsing() {
             },
         ),
         (
+            r#"
+            bpf:
+                programs:
+                    file_open:
+                        enabled: false
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    programs: HashMap::from([(
+                        "file_open".into(),
+                        BpfProgConfig {
+                            enabled: Some(false),
+                        },
+                    )]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+                programs:
+                    file_open:
+                        enabled: false
+                    path_unlink:
+                        enabled: true
+                    giberish:
+                        enabled: false
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    programs: HashMap::from([
+                        (
+                            "file_open".into(),
+                            BpfProgConfig {
+                                enabled: Some(false),
+                            },
+                        ),
+                        (
+                            "path_unlink".into(),
+                            BpfProgConfig {
+                                enabled: Some(true),
+                            },
+                        ),
+                        (
+                            "giberish".into(),
+                            BpfProgConfig {
+                                enabled: Some(false),
+                            },
+                        ),
+                    ]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
             "hotreload: true",
             FactConfig {
                 hotreload: Some(true),
@@ -417,6 +475,13 @@ fn parsing() {
             bpf:
                 ringbuf_size: 8192
                 inodes_max: 64
+                programs:
+                    file_open:
+                        enabled: false
+                    path_unlink:
+                        enabled: true
+                    giberish:
+                        enabled: false
             hotreload: false
             scan_interval: 60
             rate_limit: 50000
@@ -447,6 +512,26 @@ fn parsing() {
                 bpf: BpfConfig {
                     ringbuf_size: Some(8192),
                     inodes_max: Some(64),
+                    programs: HashMap::from([
+                        (
+                            "file_open".into(),
+                            BpfProgConfig {
+                                enabled: Some(false),
+                            },
+                        ),
+                        (
+                            "path_unlink".into(),
+                            BpfProgConfig {
+                                enabled: Some(true),
+                            },
+                        ),
+                        (
+                            "giberish".into(),
+                            BpfProgConfig {
+                                enabled: Some(false),
+                            },
+                        ),
+                    ]),
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
@@ -764,6 +849,48 @@ paths:
               inodes_max: true
             "#,
             "inodes_max field has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"
+            bpf:
+              programs: file_open
+            "#,
+            "bpf.programs field has incorrect type: String(\"file_open\")",
+        ),
+        (
+            r#"
+            bpf:
+              programs:
+                true:
+                    enabled: true
+            "#,
+            "bpf program name is not string: Boolean(true)",
+        ),
+        (
+            r#"
+            bpf:
+              programs:
+                file_open: something
+            "#,
+            "bpf.programs.file_open has wrong type: String(\"something\")",
+        ),
+        (
+            r#"
+            bpf:
+              programs:
+                file_open:
+                  something: true
+            "#,
+            "bpf.programs.file_open parsing failed: Invalid field 'something' with value: Boolean(true)",
+        ),
+        (
+            r#"
+            bpf:
+              programs:
+                file_open:
+                  enabled: 5
+            "#,
+            "bpf.programs.file_open parsing failed: enabled field has wrong type: Integer(5)",
         ),
         (
             "hotreload: 4",
@@ -1503,6 +1630,59 @@ fn update() {
             },
         ),
         (
+            r#"
+            bpf:
+              programs:
+                file_open:
+                  enabled: true
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                bpf: BpfConfig {
+                    programs: HashMap::from([(
+                        "file_open".into(),
+                        BpfProgConfig {
+                            enabled: Some(true),
+                        },
+                    )]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+              programs:
+                file_open:
+                  enabled: true
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    programs: HashMap::from([(
+                        "file_open".into(),
+                        BpfProgConfig {
+                            enabled: Some(false),
+                        },
+                    )]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    programs: HashMap::from([(
+                        "file_open".into(),
+                        BpfProgConfig {
+                            enabled: Some(true),
+                        },
+                    )]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
             "hotreload: false",
             FactConfig::default(),
             FactConfig {
@@ -1624,6 +1804,9 @@ fn update() {
             bpf:
               ringbuf_size: 16384
               inodes_max: 8192
+              programs:
+                file_open:
+                  enabled: false
             hotreload: false
             scan_interval: 60
             rate_limit: 1000
@@ -1654,6 +1837,12 @@ fn update() {
                 bpf: BpfConfig {
                     ringbuf_size: Some(64),
                     inodes_max: Some(4096),
+                    programs: HashMap::from([(
+                        "path_unlink".into(),
+                        BpfProgConfig {
+                            enabled: Some(false),
+                        },
+                    )]),
                 },
                 hotreload: Some(true),
                 scan_interval: Some(Duration::from_secs(30)),
@@ -1685,6 +1874,20 @@ fn update() {
                 bpf: BpfConfig {
                     ringbuf_size: Some(16384),
                     inodes_max: Some(8192),
+                    programs: HashMap::from([
+                        (
+                            "path_unlink".into(),
+                            BpfProgConfig {
+                                enabled: Some(false),
+                            },
+                        ),
+                        (
+                            "file_open".into(),
+                            BpfProgConfig {
+                                enabled: Some(false),
+                            },
+                        ),
+                    ]),
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
@@ -1728,6 +1931,55 @@ fn defaults() {
     assert_eq!(config.otel.endpoint(), None);
     assert_eq!(config.scan_interval(), Duration::from_secs(30));
     assert_eq!(config.rate_limit(), 0);
+}
+
+#[test]
+fn bpf_prog_defaults() {
+    let config = BpfProgConfig::default();
+    assert!(config.enabled());
+}
+
+#[test]
+fn bpf_prog_enabled() {
+    const PROGRAM: &str = "file_open";
+    let tests = [
+        (
+            BpfConfig {
+                programs: HashMap::new(),
+                ..Default::default()
+            },
+            true,
+        ),
+        (
+            BpfConfig {
+                programs: HashMap::from([(
+                    PROGRAM.into(),
+                    BpfProgConfig {
+                        enabled: Some(true),
+                    },
+                )]),
+                ..Default::default()
+            },
+            true,
+        ),
+        (
+            BpfConfig {
+                programs: HashMap::from([(
+                    PROGRAM.into(),
+                    BpfProgConfig {
+                        enabled: Some(false),
+                    },
+                )]),
+                ..Default::default()
+            },
+            false,
+        ),
+    ];
+
+    for (bpf_config, expected) in tests {
+        let is_enabled = bpf_config.program_is_enabled(PROGRAM);
+        assert_eq!(is_enabled, expected)
+    }
 }
 
 static ENV_MUTEX: Mutex<()> = Mutex::new(());

@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* feat(config): configurable loaded BPF programs (#1086)
 * feat(output): add basic opentelemetry output (#971)
 * feat(grpc): add exponential backoff for reconnection attempts (#789)
 * feat: run integration tests on more platforms (#760)

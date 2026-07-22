@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::read_to_string,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -544,6 +545,7 @@ impl TryFrom<&yaml::Hash> for OTelConfig {
 pub struct BpfConfig {
     ringbuf_size: Option<u32>,
     inodes_max: Option<u32>,
+    pub programs: HashMap<String, BpfProgConfig>,
 }
 
 impl BpfConfig {
@@ -555,6 +557,10 @@ impl BpfConfig {
         if let Some(inodes_max) = from.inodes_max {
             self.inodes_max = Some(inodes_max);
         }
+
+        for (k, v) in &from.programs {
+            self.programs.entry(k.clone()).or_default().update(v);
+        }
     }
 
     pub fn ringbuf_size(&self) -> u32 {
@@ -564,44 +570,112 @@ impl BpfConfig {
     pub fn inodes_max(&self) -> u32 {
         self.inodes_max.unwrap_or(65536)
     }
+
+    pub fn program_is_enabled(&self, name: &str) -> bool {
+        self.programs.get(name).map(|c| c.enabled()).unwrap_or(true)
+    }
 }
 
 impl TryFrom<&yaml::Hash> for BpfConfig {
     type Error = anyhow::Error;
 
     fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
-        value
-            .iter()
-            .try_fold(BpfConfig::default(), |mut bpf, (k, v)| {
-                let Some(k) = k.as_str() else {
-                    bail!("key is not string: {k:?}");
-                };
+        let mut bpf = BpfConfig::default();
+        for (k, v) in value {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}");
+            };
 
-                match k {
-                    "ringbuf_size" => {
-                        let Some(rb_size) = v.as_i64() else {
-                            bail!("ringbuf_size field has incorrect type: {v:?}");
-                        };
-                        if rb_size < 64 || rb_size > (u32::MAX / 1024) as i64 {
-                            bail!("ringbuf_size out of range: {rb_size}");
-                        }
-                        let rb_size = rb_size as u32;
-                        if rb_size.count_ones() != 1 {
-                            bail!("ringbuf_size is not a power of 2: {rb_size}");
-                        }
-                        bpf.ringbuf_size = Some(rb_size);
+            match k {
+                "ringbuf_size" => {
+                    let Some(rb_size) = v.as_i64() else {
+                        bail!("ringbuf_size field has incorrect type: {v:?}");
+                    };
+                    if rb_size < 64 || rb_size > (u32::MAX / 1024) as i64 {
+                        bail!("ringbuf_size out of range: {rb_size}");
                     }
-                    "inodes_max" => {
-                        let Some(inode_max) = v.as_i64() else {
-                            bail!("inodes_max field has incorrect type: {v:?}");
-                        };
-                        bpf.inodes_max = Some(inode_max as u32);
+                    let rb_size = rb_size as u32;
+                    if rb_size.count_ones() != 1 {
+                        bail!("ringbuf_size is not a power of 2: {rb_size}");
                     }
-                    name => bail!("Invalid field 'bpf.{name}' with value: {v:?}"),
+                    bpf.ringbuf_size = Some(rb_size);
                 }
+                "inodes_max" => {
+                    let Some(inode_max) = v.as_i64() else {
+                        bail!("inodes_max field has incorrect type: {v:?}");
+                    };
+                    bpf.inodes_max = Some(inode_max as u32);
+                }
+                "programs" => {
+                    let Some(programs) = v.as_hash() else {
+                        bail!("bpf.programs field has incorrect type: {v:?}");
+                    };
+                    bpf.programs = programs
+                        .iter()
+                        .map(|(name, config)| {
+                            let Some(name) = name.as_str() else {
+                                bail!("bpf program name is not string: {name:?}");
+                            };
+                            let Some(config) = config.as_hash() else {
+                                bail!("bpf.programs.{name} has wrong type: {config:?}");
+                            };
+                            let config = match BpfProgConfig::try_from(config) {
+                                Ok(c) => c,
+                                Err(e) => {
+                                    bail!("bpf.programs.{name} parsing failed: {e:?}");
+                                }
+                            };
 
-                Ok(bpf)
-            })
+                            Ok((name.into(), config))
+                        })
+                        .collect::<Result<HashMap<_, _>, _>>()?;
+                }
+                name => bail!("Invalid field 'bpf.{name}' with value: {v:?}"),
+            }
+        }
+        Ok(bpf)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+pub struct BpfProgConfig {
+    pub enabled: Option<bool>,
+}
+
+impl BpfProgConfig {
+    fn update(&mut self, from: &BpfProgConfig) {
+        if let Some(enabled) = from.enabled {
+            self.enabled = Some(enabled);
+        }
+    }
+
+    pub fn enabled(&self) -> bool {
+        self.enabled.unwrap_or(true)
+    }
+}
+
+impl TryFrom<&yaml::Hash> for BpfProgConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
+        let mut bpf_prog_config = BpfProgConfig::default();
+        for (k, v) in value.iter() {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}");
+            };
+
+            match k {
+                "enabled" => {
+                    let Some(enabled) = v.as_bool() else {
+                        bail!("enabled field has wrong type: {v:?}");
+                    };
+                    bpf_prog_config.enabled = Some(enabled);
+                }
+                name => bail!("Invalid field '{name}' with value: {v:?}"),
+            }
+        }
+
+        Ok(bpf_prog_config)
     }
 }
 
@@ -788,6 +862,7 @@ impl FactCli {
             bpf: BpfConfig {
                 ringbuf_size: self.ringbuf_size,
                 inodes_max: self.inodes_max,
+                programs: HashMap::new(),
             },
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),
