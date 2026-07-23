@@ -145,6 +145,30 @@ impl Reloader {
         res
     }
 
+    /// Compare endpoint configurations and figure out if reloading is
+    /// needed.
+    ///
+    /// EndpointConfig has non-reloadable fields, its PartialEq
+    /// implementation still has all fields so unit tests can check
+    /// properly.
+    ///
+    /// The first argument is destructured here so the compiler
+    /// complains when new fields are added, making sure we fix this
+    /// with things that need to be reloaded.
+    fn endpoint_should_reload(
+        &EndpointConfig {
+            address: l_address,
+            expose_metrics: l_expose_metrics,
+            health_check: l_health_check,
+            introspection: _,
+        }: &EndpointConfig,
+        right: &EndpointConfig,
+    ) -> bool {
+        l_address != right.address
+            || l_expose_metrics != right.expose_metrics
+            || l_health_check != right.health_check
+    }
+
     /// Recreate the configuration and notify of changes to any
     /// subscribers.
     fn reload(&mut self) {
@@ -162,7 +186,7 @@ impl Reloader {
         info!("Updated configuration: {new:#?}");
 
         self.endpoint.send_if_modified(|old| {
-            if *old != new.endpoint {
+            if Reloader::endpoint_should_reload(old, &new.endpoint) {
                 debug!("Sending new endpoint configuration...");
                 *old = new.endpoint.clone();
                 true

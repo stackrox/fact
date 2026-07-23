@@ -271,7 +271,7 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
     }
 }
 
-#[derive(Debug, Default, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct EndpointConfig {
     address: Option<SocketAddr>,
     expose_metrics: Option<bool>,
@@ -313,14 +313,6 @@ impl EndpointConfig {
 
     pub fn introspection(&self) -> bool {
         self.introspection.unwrap_or(false)
-    }
-}
-
-impl PartialEq for EndpointConfig {
-    fn eq(&self, other: &Self) -> bool {
-        self.address == other.address
-            && self.expose_metrics == other.expose_metrics
-            && self.health_check == other.health_check
     }
 }
 
