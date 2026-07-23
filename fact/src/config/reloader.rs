@@ -314,6 +314,7 @@ mod tests {
     #[test]
     fn test_reloading_endpoint() {
         let tests = [
+            (FactConfig::default(), FactConfig::default(), None),
             (
                 FactConfig::default(),
                 FactConfig {
@@ -323,10 +324,10 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     address: Some(([127, 0, 0, 1], 8080).into()),
                     ..Default::default()
-                },
+                }),
             ),
             (
                 FactConfig {
@@ -343,10 +344,10 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     address: Some(([127, 0, 0, 1], 8080).into()),
                     ..Default::default()
-                },
+                }),
             ),
             (
                 FactConfig::default(),
@@ -357,10 +358,10 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     expose_metrics: Some(true),
                     ..Default::default()
-                },
+                }),
             ),
             (
                 FactConfig {
@@ -377,10 +378,10 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     expose_metrics: Some(false),
                     ..Default::default()
-                },
+                }),
             ),
             (
                 FactConfig::default(),
@@ -391,10 +392,10 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     health_check: Some(true),
                     ..Default::default()
-                },
+                }),
             ),
             (
                 FactConfig {
@@ -411,10 +412,10 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     health_check: Some(false),
                     ..Default::default()
-                },
+                }),
             ),
             (
                 FactConfig::default(),
@@ -425,10 +426,7 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
-                    introspection: None,
-                    ..Default::default()
-                },
+                None,
             ),
             (
                 FactConfig {
@@ -445,10 +443,7 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
-                    introspection: Some(true),
-                    ..Default::default()
-                },
+                None,
             ),
             (
                 FactConfig::default(),
@@ -461,12 +456,12 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     address: Some(([127, 0, 0, 1], 8080).into()),
                     introspection: None,
                     expose_metrics: Some(true),
                     health_check: Some(true),
-                },
+                }),
             ),
             (
                 FactConfig {
@@ -487,22 +482,38 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                EndpointConfig {
+                Some(EndpointConfig {
                     address: Some(([127, 0, 0, 1], 8080).into()),
                     introspection: Some(true),
                     expose_metrics: Some(false),
                     health_check: Some(false),
-                },
+                }),
             ),
         ];
 
-        for (config, new, expected) in tests {
-            let reloader = Reloader::from(config);
+        for (old, new, expected) in tests {
+            let reloader = Reloader::from(old);
             let endpoint = reloader.endpoint();
+            let assert_has_changed = |has_changed: bool| {
+                assert!(
+                    has_changed,
+                    "\ninput: {:?}\nnew: {:?}",
+                    reloader.config().endpoint,
+                    new.endpoint
+                );
+            };
 
             reloader.send_updates(&new);
 
-            assert_eq!(*endpoint.borrow(), expected);
+            match expected {
+                Some(expected) => {
+                    assert_has_changed(endpoint.has_changed().unwrap());
+                    assert_eq!(*endpoint.borrow(), expected);
+                }
+                None => {
+                    assert_has_changed(!endpoint.has_changed().unwrap());
+                }
+            }
         }
     }
 }
