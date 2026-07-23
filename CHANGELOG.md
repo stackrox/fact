@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* feat(endpoints): add inodes introspection endpoint (#1273)
 * feat: add --replay mode for JSONL event replay without eBPF (#1010)
 * feat(config): configurable loaded BPF programs (#1086)
 * feat(output): add basic opentelemetry output (#971)
