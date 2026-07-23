@@ -20,7 +20,9 @@
 
 use std::{
     cell::RefCell,
+    collections::HashMap,
     io,
+    ops::{Deref, DerefMut},
     os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::Arc,
@@ -35,8 +37,9 @@ use aya::{
 use fact_ebpf::{inode_key_t, inode_value_t, monitored_t};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
+use serde::{Serialize, ser::SerializeMap};
 use tokio::{
-    sync::{Notify, mpsc, watch},
+    sync::{Notify, mpsc, oneshot, watch},
     task::JoinSet,
 };
 
@@ -47,15 +50,55 @@ use crate::{
     metrics::host_scanner::{HostScannerMetrics, ScanLabels},
 };
 
+struct InodeMap(HashMap<inode_key_t, PathBuf>);
+
+impl InodeMap {
+    fn new() -> Self {
+        InodeMap(HashMap::new())
+    }
+}
+
+impl Deref for InodeMap {
+    type Target = HashMap<inode_key_t, PathBuf>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for InodeMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Serialize for InodeMap {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.len()))?;
+        for (k, v) in &self.0 {
+            // In order to be able to serialize InodeMap to JSON, we use
+            // a string key. This enables us to send this type over HTTP
+            // as part of the "/inodes" introspection endpoint, while
+            // keeping the existing inode_key_t Serialize implementation.
+            map.serialize_entry(&format!("{}:{}", k.dev, k.inode), v)?;
+        }
+        map.end()
+    }
+}
+
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
-    inode_map: RefCell<std::collections::HashMap<inode_key_t, PathBuf>>,
+    inode_map: RefCell<InodeMap>,
 
     paths: watch::Receiver<Vec<PathBuf>>,
     scan_interval: watch::Receiver<Duration>,
 
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
+    introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
 
     metrics: HostScannerMetrics,
 
@@ -69,9 +112,10 @@ impl HostScanner {
         paths: watch::Receiver<Vec<PathBuf>>,
         scan_interval: watch::Receiver<Duration>,
         metrics: HostScannerMetrics,
+        introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
-        let inode_map = RefCell::new(std::collections::HashMap::new());
+        let inode_map = RefCell::new(InodeMap::new());
         let (tx, output) = mpsc::channel(100);
         let paths_globset = HostScanner::build_globset(paths.borrow().as_slice())?;
 
@@ -82,6 +126,7 @@ impl HostScanner {
             scan_interval,
             rx,
             tx,
+            introspection,
             metrics,
             paths_globset,
         };
@@ -473,6 +518,16 @@ You can increase this limit with:
                             warn!("Failed to send event: {e}");
                         }
                     },
+                    req = self.introspection.recv() => {
+                        let Some(req) = req else {
+                            continue;
+                        };
+
+                        let resp = serde_json::to_string(&*self.inode_map.borrow());
+                        if let Err(e) = req.send(resp) {
+                            warn!("Failed to reply introspection query: {e:?}");
+                        }
+                    }
                     _ = scan_trigger.notified() => self.scan()?,
                     _ = self.paths.changed() => {
                             self.paths_globset = HostScanner::build_globset(self.paths.borrow().as_slice())?;

@@ -9,7 +9,7 @@ use metrics::exporter::Exporter;
 use rate_limiter::RateLimiter;
 use tokio::{
     signal::unix::{SignalKind, signal},
-    sync::{mpsc, watch},
+    sync::{mpsc, oneshot, watch},
     task::JoinSet,
     time::timeout,
 };
@@ -102,6 +102,7 @@ struct SetupArgs<'a> {
 
     // BPF mode
     bpf_config: BpfConfig,
+    host_scanner_intro: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
 }
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
@@ -110,6 +111,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     log_system_information();
     let (running_pipeline_tx, running_pipeline_rx) = watch::channel(true);
     let (running_helpers, _) = watch::channel(true);
+    let (host_scanner_intro_tx, host_scanner_intro_rx) = mpsc::channel(10);
 
     let stdout_enabled = config.json();
     let skip_pre_flight = config.skip_pre_flight();
@@ -119,6 +121,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let metrics_userspace = Metrics::new();
     let mut task_set = JoinSet::new();
     let reloader = config::reloader::Reloader::from(config);
+    let config_trigger = reloader.get_trigger();
 
     let setup_args = SetupArgs {
         skip_pre_flight,
@@ -128,9 +131,8 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         metrics: &metrics_userspace,
         replay,
         bpf_config,
+        host_scanner_intro: host_scanner_intro_rx,
     };
-
-    let config_trigger = reloader.get_trigger();
 
     let (metrics_kernelspace, rx) = setup_input(setup_args)?;
     let (rate_limiter, rx) = RateLimiter::new(
@@ -150,7 +152,13 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     rate_limiter.start(&mut task_set);
     let exporter = Exporter::new(&metrics_userspace, metrics_kernelspace);
-    endpoints::Server::new(exporter, reloader.endpoint(), running_helpers.subscribe()).start();
+    endpoints::Server::new(
+        exporter,
+        reloader.endpoint(),
+        running_helpers.subscribe(),
+        host_scanner_intro_tx,
+    )
+    .start();
     reloader.start(running_helpers.subscribe());
 
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -218,6 +226,7 @@ fn bpf_input(args: SetupArgs) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Re
         args.reloader.paths(),
         args.reloader.scan_interval(),
         args.metrics.host_scanner.clone(),
+        args.host_scanner_intro,
     )?;
 
     bpf.start(args.task_set);

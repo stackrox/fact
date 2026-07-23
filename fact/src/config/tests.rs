@@ -514,6 +514,7 @@ fn parsing() {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
                     expose_metrics: Some(true),
                     health_check: Some(true),
+                    introspection: None,
                 },
                 skip_pre_flight: Some(false),
                 json: Some(false),
@@ -1863,6 +1864,7 @@ fn update() {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
                     expose_metrics: Some(false),
                     health_check: Some(false),
+                    introspection: None,
                 },
                 skip_pre_flight: Some(true),
                 json: Some(true),
@@ -1901,6 +1903,7 @@ fn update() {
                     address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
                     expose_metrics: Some(true),
                     health_check: Some(true),
+                    introspection: None,
                 },
                 skip_pre_flight: Some(false),
                 json: Some(false),
@@ -1952,6 +1955,7 @@ fn defaults() {
     );
     assert!(!config.endpoint.expose_metrics());
     assert!(!config.endpoint.health_check());
+    assert!(!config.endpoint.introspection());
     assert!(!config.skip_pre_flight());
     assert!(!config.json());
     assert_eq!(config.bpf.ringbuf_size(), 8192);
@@ -2308,6 +2312,19 @@ fn env_vars() {
             FactConfig {
                 endpoint: EndpointConfig {
                     health_check: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_INTROSPECTION",
+                value: "true",
+            },
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
                     ..Default::default()
                 },
                 ..Default::default()

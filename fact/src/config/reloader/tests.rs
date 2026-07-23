@@ -255,6 +255,7 @@ generate_endpoint_test! {
             address: Some(ENDPOINT_ADDRESS_DEFAULT),
             expose_metrics: Some(true),
             health_check: Some(true),
+            introspection: Some(true),
         },
         ..Default::default()
     },
@@ -263,6 +264,7 @@ generate_endpoint_test! {
             address: Some(ENDPOINT_ADDRESS_DEFAULT),
             expose_metrics: Some(true),
             health_check: Some(true),
+            introspection: Some(true),
         },
         paths: Some(vec!["/etc".into()]),
         ..Default::default()
