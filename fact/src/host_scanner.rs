@@ -20,6 +20,7 @@
 
 use std::{
     cell::RefCell,
+    fs::Metadata,
     io,
     os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
@@ -38,6 +39,7 @@ use log::{debug, info, warn};
 use tokio::{
     sync::{Notify, mpsc, watch},
     task::JoinHandle,
+    time::Instant,
 };
 
 use crate::{
@@ -112,7 +114,8 @@ impl HostScanner {
     }
 
     fn scan(&self) -> anyhow::Result<()> {
-        debug!("Host scan started");
+        info!("Host scan started");
+        let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
         let config = self.paths.borrow();
 
@@ -136,7 +139,12 @@ impl HostScanner {
             let path = host_info::prepend_host_mount(pattern);
             self.scan_inner(&path)?;
         }
-        debug!("Host scan done");
+        let duration = start.elapsed();
+        self.metrics.scan_duration.observe(duration.as_secs_f64());
+        info!(
+            "Host scan done, took {duration:?}. Inodes tracked: {}",
+            self.inode_map.borrow().len()
+        );
 
         Ok(())
     }
@@ -149,14 +157,30 @@ impl HostScanner {
         };
 
         for entry in glob::glob(glob_str)? {
-            let path = entry?;
-            if path.is_file() {
+            let path = match entry {
+                Ok(p) => p,
+                Err(e) => {
+                    debug!("Glob expansion failed: {e:?}");
+                    self.metrics.scan_inc(ScanLabels::GlobFailed);
+                    continue;
+                }
+            };
+            let metadata = match path.metadata() {
+                Ok(p) => p,
+                Err(e) => {
+                    debug!("Failed to get metadata for {}: {e:?}", path.display());
+                    self.metrics.scan_inc(ScanLabels::FsMetadataFailed);
+                    continue;
+                }
+            };
+
+            if metadata.is_file() {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
-                self.update_entry(path.as_path())
+                self.update_entry(path.as_path(), &metadata)
                     .with_context(|| format!("Failed to update entry for {}", path.display()))?;
-            } else if path.is_dir() {
+            } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                self.update_entry(path.as_path())
+                self.update_entry(path.as_path(), &metadata)
                     .with_context(|| format!("Failed to update entry for {}", path.display()))?;
             } else {
                 self.metrics.scan_inc(ScanLabels::FsItemIgnored);
@@ -165,14 +189,7 @@ impl HostScanner {
         Ok(())
     }
 
-    fn update_entry(&self, path: &Path) -> anyhow::Result<()> {
-        if !path.exists() {
-            // If path does not exist, we don't have anything to update
-            self.metrics.scan_inc(ScanLabels::FileRemoved);
-            return Ok(());
-        }
-
-        let metadata = path.metadata()?;
+    fn update_entry(&self, path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
         let inode = inode_key_t {
             inode: metadata.st_ino(),
             dev: metadata.st_dev(),
@@ -187,8 +204,24 @@ impl HostScanner {
 
     /// Similar to update_entry except we are are directly using the inode instead of the path.
     fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
+        let mut inode_map = self.inode_map.borrow_mut();
+        match inode_map.get_mut(&inode) {
+            Some(p) => {
+                // inode is already tracked.
+                if path != *p {
+                    *p = path;
+                    self.metrics.scan_inc(ScanLabels::FileUpdated);
+                }
+                return Ok(());
+            }
+            None => {
+                self.metrics.scan_inc(ScanLabels::FileUpdated);
+                inode_map.insert(inode, path.clone());
+            }
+        };
+
         match self.kernel_inode_map.borrow_mut().insert(inode, 0, 0) {
-            Ok(_) => {}
+            Ok(_) => Ok(()),
             Err(MapError::SyscallError(SyscallError { io_error, .. }))
                 if io_error.kind() == io::ErrorKind::ArgumentListTooLong =>
             {
@@ -200,20 +233,8 @@ You can increase this limit with:
 * The --inodes-max argument."#,
                 )
             }
-            e => {
-                return e.with_context(|| {
-                    format!("Failed to insert kernel entry for {}", path.display())
-                });
-            }
+            e => e.with_context(|| format!("Failed to insert kernel entry for {}", path.display())),
         }
-
-        let mut inode_map = self.inode_map.borrow_mut();
-        let entry = inode_map.entry(inode).or_default();
-        *entry = path;
-
-        self.metrics.scan_inc(ScanLabels::FileUpdated);
-
-        Ok(())
     }
 
     fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
