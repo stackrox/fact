@@ -271,11 +271,12 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Eq, Clone)]
 pub struct EndpointConfig {
     address: Option<SocketAddr>,
     expose_metrics: Option<bool>,
     health_check: Option<bool>,
+    introspection: Option<bool>,
 }
 
 impl EndpointConfig {
@@ -291,6 +292,10 @@ impl EndpointConfig {
         if let Some(health_check) = from.health_check {
             self.health_check = Some(health_check);
         }
+
+        if let Some(introspection) = from.introspection {
+            self.introspection = Some(introspection);
+        }
     }
 
     pub fn address(&self) -> SocketAddr {
@@ -304,6 +309,18 @@ impl EndpointConfig {
 
     pub fn health_check(&self) -> bool {
         self.health_check.unwrap_or(false)
+    }
+
+    pub fn introspection(&self) -> bool {
+        self.introspection.unwrap_or(false)
+    }
+}
+
+impl PartialEq for EndpointConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.address == other.address
+            && self.expose_metrics == other.expose_metrics
+            && self.health_check == other.health_check
     }
 }
 
@@ -339,6 +356,12 @@ impl TryFrom<&yaml::Hash> for EndpointConfig {
                         bail!("endpoint.health_check field has incorrect type: {v:?}");
                     };
                     endpoint.health_check = Some(hc);
+                }
+                "introspection" => {
+                    let Some(i) = v.as_bool() else {
+                        bail!("endpoint.introspection field has incorrect type: {v:?}");
+                    };
+                    endpoint.introspection = Some(i);
                 }
                 name => bail!("Invalid field 'endpoint.{name}' with value: {v:?}"),
             }
@@ -792,6 +815,16 @@ pub struct FactCli {
     #[arg(long, overrides_with = "health_check", hide(true))]
     no_health_check: bool,
 
+    /// Whether the introspection endpoints should be enabled
+    #[arg(
+        long,
+        overrides_with("no_introspection"),
+        env = "FACT_ENDPOINT_INTROSPECTION"
+    )]
+    introspection: bool,
+    #[arg(long, overrides_with = "introspection", hide(true))]
+    no_introspection: bool,
+
     /// Whether to perform a pre flight check
     #[arg(
         long,
@@ -880,6 +913,7 @@ impl FactCli {
                 address: self.address,
                 expose_metrics: resolve_bool_arg(self.expose_metrics, self.no_expose_metrics),
                 health_check: resolve_bool_arg(self.health_check, self.no_health_check),
+                introspection: resolve_bool_arg(self.introspection, self.no_introspection),
             },
             bpf: BpfConfig {
                 ringbuf_size: self.ringbuf_size,

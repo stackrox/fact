@@ -9,7 +9,11 @@ use hyper::{
 };
 use hyper_util::rt::TokioIo;
 use log::{info, warn};
-use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, oneshot, watch},
+    task::JoinHandle,
+};
 
 use crate::{config::EndpointConfig, metrics::exporter::Exporter};
 
@@ -18,6 +22,8 @@ pub struct Server {
     metrics: Exporter,
     config: watch::Receiver<EndpointConfig>,
     running: watch::Receiver<bool>,
+
+    host_scanner_intro: mpsc::Sender<oneshot::Sender<serde_json::Result<String>>>,
 }
 
 impl Server {
@@ -25,11 +31,13 @@ impl Server {
         metrics: Exporter,
         config: watch::Receiver<EndpointConfig>,
         running: watch::Receiver<bool>,
+        host_scanner_intro: mpsc::Sender<oneshot::Sender<serde_json::Result<String>>>,
     ) -> Self {
         Server {
             metrics,
             config,
             running,
+            host_scanner_intro,
         }
     }
 
@@ -95,7 +103,7 @@ impl Server {
     /// Check if there are active endpoints to serve.
     fn is_active(&self) -> bool {
         let config = self.config.borrow();
-        config.health_check() || config.expose_metrics()
+        config.health_check() || config.expose_metrics() || config.introspection()
     }
 
     fn health_check_is_active(&self) -> bool {
@@ -108,17 +116,17 @@ impl Server {
 
     fn make_response(
         res: StatusCode,
-        body: String,
+        body: impl Into<Bytes>,
     ) -> Result<Response<Full<Bytes>>, anyhow::Error> {
         Ok(Response::builder()
             .status(res)
-            .body(Full::new(Bytes::from(body)))
+            .body(Full::new(body.into()))
             .unwrap())
     }
 
     fn handle_metrics(&self) -> Result<Response<Full<Bytes>>, anyhow::Error> {
         if !self.metrics_is_active() {
-            return Server::make_response(StatusCode::SERVICE_UNAVAILABLE, String::new());
+            return Server::make_response(StatusCode::SERVICE_UNAVAILABLE, "");
         }
 
         self.metrics.encode().map(|buf| {
@@ -139,7 +147,29 @@ impl Server {
         } else {
             StatusCode::SERVICE_UNAVAILABLE
         };
-        Server::make_response(res, String::new())
+        Server::make_response(res, "")
+    }
+
+    async fn handle_inodes(&self) -> anyhow::Result<Response<Full<Bytes>>> {
+        if !self.config.borrow().introspection() {
+            return Server::make_response(StatusCode::SERVICE_UNAVAILABLE, "");
+        }
+
+        let (tx, rx) = oneshot::channel();
+        if let Err(e) = self.host_scanner_intro.send(tx).await {
+            return Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+        }
+        match rx.await {
+            Ok(Ok(b)) => Response::builder()
+                .header(
+                    hyper::header::CONTENT_TYPE,
+                    "application/json; charset=utf-8",
+                )
+                .body(Full::new(Bytes::from(b)))
+                .map_err(anyhow::Error::new),
+            Ok(Err(e)) => Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            Err(e) => Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+        }
     }
 }
 
@@ -154,7 +184,8 @@ impl Service<Request<Incoming>> for Server {
             match (req.method(), req.uri().path()) {
                 (&Method::GET, "/metrics") => s.handle_metrics(),
                 (&Method::GET, "/health_check") => s.handle_health_check(),
-                _ => Server::make_response(StatusCode::NOT_FOUND, String::new()),
+                (&Method::GET, "/inodes") => s.handle_inodes().await,
+                _ => Server::make_response(StatusCode::NOT_FOUND, ""),
             }
         })
     }
