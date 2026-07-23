@@ -207,6 +207,11 @@ impl Client {
     async fn run(&mut self) -> anyhow::Result<bool> {
         let mut backoff = Backoff::from(&self.config.borrow().backoff);
         loop {
+            if self.subscriber.is_closed() {
+                info!("Channel closed, stopping gRPC output...");
+                return Ok(false);
+            }
+
             // Re-read certs on each connection attempt so rotated certificates
             // on disk are picked up on the next reconnect.
             let connector = self.get_connector().await?;
@@ -250,6 +255,10 @@ impl Client {
                 res = client.communicate(rx) => {
                     match res {
                         Ok(_) => info!("gRPC stream ended"),
+                        Err(_) if self.subscriber.is_closed() => {
+                            info!("Channel closed, stopping gRPC output...");
+                            return Ok(false);
+                        }
                         Err(e) => warn!("gRPC stream error: {e:?}"),
                     }
                 }

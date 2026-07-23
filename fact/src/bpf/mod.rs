@@ -13,7 +13,7 @@ use log::{error, info, warn};
 use tokio::{
     io::unix::AsyncFd,
     sync::{mpsc, watch},
-    task::JoinHandle,
+    task::JoinSet,
 };
 
 use crate::{config::BpfConfig, event::Event, host_info, metrics::EventCounter};
@@ -265,12 +265,13 @@ impl Bpf {
     // Gather events from the ring buffer and print them out.
     pub fn start(
         mut self,
+        task_set: &mut JoinSet<anyhow::Result<()>>,
         mut running: watch::Receiver<bool>,
         event_counter: EventCounter,
-    ) -> JoinHandle<anyhow::Result<()>> {
+    ) {
         info!("Starting BPF worker...");
 
-        tokio::spawn(async move {
+        task_set.spawn(async move {
             let rb = self.take_ringbuffer()?;
             let mut fd = AsyncFd::new(rb)?;
 
@@ -323,7 +324,7 @@ impl Bpf {
             }
 
             Ok(())
-        })
+        });
     }
 }
 
@@ -370,9 +371,10 @@ mod bpf_tests {
             Bpf::new(reloader.paths(), &reloader.config().bpf).expect("Failed to load BPF code");
         let (run_tx, run_rx) = watch::channel(true);
         // Create a metrics exporter, but don't start it
-        let exporter = Exporter::new(bpf.take_metrics().unwrap());
+        let exporter = Exporter::new(Some(bpf.take_metrics().unwrap()));
+        let mut task_set = JoinSet::new();
 
-        let handle = bpf.start(run_rx, exporter.metrics.bpf_worker.clone());
+        bpf.start(&mut task_set, run_rx, exporter.metrics.bpf_worker.clone());
 
         tokio::time::sleep(Duration::from_millis(500)).await;
 
@@ -460,7 +462,7 @@ mod bpf_tests {
 
         tokio::select! {
             res = wait => res.unwrap(),
-            res = handle => res.unwrap().unwrap(),
+            res = task_set.join_next() => res.unwrap().unwrap().unwrap(),
         }
 
         run_tx.send(false).unwrap();

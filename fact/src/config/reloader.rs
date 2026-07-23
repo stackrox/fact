@@ -5,7 +5,6 @@ use std::{
 use log::{debug, info, warn};
 use tokio::{
     sync::{Notify, watch},
-    task::JoinHandle,
     time::interval,
 };
 
@@ -34,13 +33,13 @@ impl Reloader {
     ///
     /// If hotreload is disabled on startup the task will not be
     /// spawned.
-    pub fn start(mut self, mut running: watch::Receiver<bool>) -> Option<JoinHandle<()>> {
+    pub fn start(mut self, mut running: watch::Receiver<bool>) {
         if !self.config.hotreload() {
             info!("Configuration hotreload is disabled, changes will require a restart.");
-            return None;
+            return;
         }
 
-        let handle = tokio::spawn(async move {
+        tokio::spawn(async move {
             let mut ticker = interval(Duration::from_secs(10));
             loop {
                 tokio::select! {
@@ -55,7 +54,6 @@ impl Reloader {
                 }
             }
         });
-        Some(handle)
     }
 
     pub fn config(&self) -> &FactConfig {

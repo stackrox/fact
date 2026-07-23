@@ -3,12 +3,13 @@ use std::sync::Arc;
 use log::{debug, warn};
 use tokio::{
     sync::{broadcast, mpsc, watch},
-    task::{JoinHandle, JoinSet},
+    task::JoinSet,
 };
 
 use crate::{
     config::{GrpcConfig, OTelConfig},
     event::Event,
+    flatten_task_result, join_all_tasks,
     metrics::OutputMetrics,
 };
 
@@ -24,21 +25,21 @@ type EventReceiver = broadcast::Receiver<Arc<Event>>;
 /// Each task is responsible for managing its lifetime, handling
 /// incoming events and reloading configuration.
 pub fn start(
+    task_set: &mut JoinSet<anyhow::Result<()>>,
     mut rx: mpsc::Receiver<Event>,
-    running: watch::Receiver<bool>,
     metrics: OutputMetrics,
     grpc_config: watch::Receiver<GrpcConfig>,
     #[allow(unused)] otel_config: watch::Receiver<OTelConfig>,
     stdout_enabled: bool,
-) -> JoinHandle<anyhow::Result<()>> {
+) {
     let (broad_tx, _) = broadcast::channel(100);
     let (subs_req, mut subs_rx) = mpsc::channel(10);
-    let mut run = running.clone();
+    let (running, _) = watch::channel(true);
     let mut handles = JoinSet::new();
 
     let grpc_client = grpc::Client::new(
         subs_req.clone(),
-        running.clone(),
+        running.subscribe(),
         metrics.grpc.clone(),
         grpc_config,
     );
@@ -50,7 +51,7 @@ pub fn start(
     {
         let otel_client = otel::Client::new(
             subs_req.clone(),
-            running.clone(),
+            running.subscribe(),
             metrics.otel.clone(),
             otel_config,
         );
@@ -63,13 +64,13 @@ pub fn start(
     if stdout_enabled || !non_stdout_enabled {
         stdout::Client::new(
             broad_tx.subscribe(),
-            running.clone(),
+            running.subscribe(),
             metrics.stdout.clone(),
         )
-        .start();
+        .start(&mut handles);
     }
 
-    tokio::spawn(async move {
+    task_set.spawn(async move {
         debug!("Starting output component...");
         let res = loop {
             tokio::select! {
@@ -95,16 +96,31 @@ pub fn start(
                     let Some(res) = res else {
                         unreachable!("output handles should always have a task");
                     };
-                    match res {
-                        Ok(Ok(_)) => break Ok(()),
-                        Ok(Err(e)) => break Err(e),
-                        Err(e) => break Err(e.into()),
-                    }
+                    break flatten_task_result(res);
                 }
-                _ = run.changed() => if !*run.borrow() { break Ok(()); }
             }
         };
         debug!("Stopping output component...");
-        res
-    })
+
+        if res.is_ok() {
+            // Wait for outputs to empty their channels before exiting
+            // ourselves.
+            let receiver_count = broad_tx.receiver_count();
+            drop(subs_rx);
+            drop(broad_tx);
+
+            for _ in 0..receiver_count {
+                let Some(task_res) = handles.join_next().await else {
+                    break;
+                };
+                flatten_task_result(task_res)?;
+            }
+
+            // Force idle outputs to stop
+            let _ = running.send(false);
+            join_all_tasks(handles).await
+        } else {
+            res
+        }
+    });
 }

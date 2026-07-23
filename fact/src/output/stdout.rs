@@ -1,5 +1,8 @@
 use log::{info, warn};
-use tokio::sync::{broadcast::error::RecvError, watch};
+use tokio::{
+    sync::{broadcast::error::RecvError, watch},
+    task::JoinSet,
+};
 
 use crate::{metrics::EventCounter, output::EventReceiver};
 
@@ -18,8 +21,8 @@ impl Client {
         }
     }
 
-    pub fn start(mut self) {
-        tokio::spawn(async move {
+    pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
+        task_set.spawn(async move {
             loop {
                 tokio::select! {
                     event = self.rx.recv() => {
@@ -27,7 +30,7 @@ impl Client {
                             Ok(event) => event,
                             Err(RecvError::Closed) => {
                                 info!("Channel closed, stopping stdout output...");
-                                return;
+                                return Ok(());
                             }
                             Err(RecvError::Lagged(n)) => {
                                 self.metrics.dropped_n(n);
@@ -49,7 +52,7 @@ impl Client {
                     _ = self.running.changed() => {
                         if !*self.running.borrow() {
                             info!("Stopping stdout output...");
-                            return;
+                            return Ok(());
                         }
                     }
                 }

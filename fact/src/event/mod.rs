@@ -11,7 +11,7 @@ use std::{
 use globset::GlobSet;
 #[cfg(feature = "otel")]
 use opentelemetry::logs::AnyValue;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use fact_ebpf::{
     PATH_MAX, XATTR_NAME_MAX_LEN, event_t, file_activity_type_t, inode_key_t, monitored_t,
@@ -74,9 +74,10 @@ pub(crate) enum EventTestData {
     Rename(PathBuf),
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     timestamp: u64,
+    #[serde(skip_deserializing)]
     hostname: &'static str,
     process: Process,
     file: FileData,
@@ -391,7 +392,7 @@ impl PartialEq for Event {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FileData {
     Open(BaseFileData),
     Creation(BaseFileData),
@@ -607,7 +608,7 @@ impl PartialEq for FileData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BaseFileData {
     pub filename: PathBuf,
     host_file: PathBuf,
@@ -665,7 +666,7 @@ impl From<BaseFileData> for opentelemetry::logs::AnyValue {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChmodFileData {
     inner: BaseFileData,
     new_mode: u16,
@@ -711,7 +712,7 @@ impl PartialEq for ChmodFileData {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChownFileData {
     inner: BaseFileData,
     new_uid: u32,
@@ -767,7 +768,7 @@ impl From<ChownFileData> for opentelemetry::logs::AnyValue {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenameFileData {
     new: BaseFileData,
     old: BaseFileData,
@@ -795,7 +796,7 @@ impl From<RenameFileData> for opentelemetry::logs::AnyValue {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AclTag {
     UserObj,
     User,
@@ -842,7 +843,7 @@ impl AclTag {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AclEntry {
     tag: AclTag,
     perm: u16,
@@ -876,7 +877,7 @@ impl From<AclEntry> for opentelemetry::logs::AnyValue {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AclType {
     Access,
     Default,
@@ -892,7 +893,7 @@ impl From<AclType> for opentelemetry::logs::AnyValue {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AclSetFileData {
     inner: BaseFileData,
     acl_type: AclType,
@@ -968,7 +969,7 @@ impl PartialEq for RenameFileData {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XattrFileData {
     inner: BaseFileData,
     xattr_name: String,

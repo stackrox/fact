@@ -4,7 +4,11 @@ use std::{error::Error, ffi::c_char, fmt::Display, hash::Hash, path::PathBuf};
 
 use aya::{maps::lpm_trie, Pod};
 use libc::memcpy;
-use serde::{ser::SerializeStruct, Serialize};
+use serde::{
+    de::{self, MapAccess, Visitor},
+    ser::SerializeStruct,
+    Deserialize, Serialize,
+};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -101,6 +105,51 @@ impl Serialize for inode_key_t {
     }
 }
 
+impl<'de> Deserialize<'de> for inode_key_t {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct InodeKeyVisitor;
+
+        impl<'de> Visitor<'de> for InodeKeyVisitor {
+            type Value = inode_key_t;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a struct with inode and dev fields")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut inode = None;
+                let mut dev = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "inode" => inode = Some(map.next_value()?),
+                        "dev" => dev = Some(map.next_value()?),
+                        _ => {
+                            map.next_value::<de::IgnoredAny>()?;
+                        }
+                    }
+                }
+
+                let Some(inode) = inode else {
+                    return Err(de::Error::missing_field("inode"));
+                };
+                let Some(dev) = dev else {
+                    return Err(de::Error::missing_field("dev"));
+                };
+
+                Ok(inode_key_t { inode, dev })
+            }
+        }
+
+        deserializer.deserialize_struct("inode_key_t", &["inode", "dev"], InodeKeyVisitor)
+    }
+}
+
 unsafe impl Pod for inode_key_t {}
 
 impl Default for monitored_t {
@@ -120,6 +169,25 @@ impl Serialize for monitored_t {
             monitored_t::MONITORED_BY_PATH => "by path".serialize(serializer),
             monitored_t::MONITORED_BY_PARENT => "by parent".serialize(serializer),
             _ => unreachable!("Invalid monitored_t value: {self:?}"),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for monitored_t {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "not monitored" => Ok(monitored_t::NOT_MONITORED),
+            "by inode" => Ok(monitored_t::MONITORED_BY_INODE),
+            "by path" => Ok(monitored_t::MONITORED_BY_PATH),
+            "by parent" => Ok(monitored_t::MONITORED_BY_PARENT),
+            _ => Err(de::Error::unknown_variant(
+                &s,
+                &["not monitored", "by inode", "by path", "by parent"],
+            )),
         }
     }
 }

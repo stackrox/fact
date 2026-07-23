@@ -5,14 +5,14 @@ use std::{ffi::CStr, path::PathBuf};
 use fact_ebpf::{lineage_t, process_t};
 #[cfg(feature = "otel")]
 use opentelemetry::logs::AnyValue;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::host_info;
 
 use super::{sanitize_d_path, slice_to_string};
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Lineage {
     uid: u32,
     exe_path: PathBuf,
@@ -55,13 +55,14 @@ impl From<Lineage> for opentelemetry::logs::AnyValue {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Process {
     comm: String,
     args: Vec<String>,
     exe_path: PathBuf,
     container_id: Option<String>,
     uid: u32,
+    #[serde(skip_deserializing)]
     username: &'static str,
     gid: u32,
     login_uid: u32,
