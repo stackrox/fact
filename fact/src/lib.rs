@@ -9,7 +9,7 @@ use metrics::exporter::Exporter;
 use rate_limiter::RateLimiter;
 use tokio::{
     signal::unix::{SignalKind, signal},
-    sync::{mpsc, watch},
+    sync::{mpsc, oneshot, watch},
     task::JoinSet,
     time::timeout,
 };
@@ -99,12 +99,14 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let config_trigger = reloader.get_trigger();
     let mut task_set = JoinSet::new();
     let metrics_userspace = Metrics::new();
+    let (host_scanner_intro_tx, host_scanner_intro_rx) = mpsc::channel(10);
 
     let (metrics_kernelspace, rx) = setup_input(
         &mut task_set,
         &reloader,
         &metrics_userspace,
         running_pipeline_rx,
+        host_scanner_intro_rx,
     )?;
     let (rate_limiter, rx) = RateLimiter::new(
         rx,
@@ -123,7 +125,13 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     rate_limiter.start(&mut task_set);
     let exporter = Exporter::new(&metrics_userspace, metrics_kernelspace);
-    endpoints::Server::new(exporter, reloader.endpoint(), running_helpers.subscribe()).start();
+    endpoints::Server::new(
+        exporter,
+        reloader.endpoint(),
+        running_helpers.subscribe(),
+        host_scanner_intro_tx,
+    )
+    .start();
     reloader.start(running_helpers.subscribe());
 
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -162,6 +170,7 @@ fn setup_input(
     reloader: &config::reloader::Reloader,
     metrics: &Metrics,
     running: watch::Receiver<bool>,
+    hs_introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
 ) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
     match reloader.config().replay() {
         Some(replay_file) => {
@@ -176,7 +185,7 @@ fn setup_input(
                 debug!("Skipping pre-flight checks");
             }
 
-            bpf_input(task_set, reloader, running, metrics)
+            bpf_input(task_set, reloader, running, metrics, hs_introspection)
         }
     }
 }
@@ -186,6 +195,7 @@ fn bpf_input(
     reloader: &config::reloader::Reloader,
     running: watch::Receiver<bool>,
     metrics_userspace: &Metrics,
+    hs_introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
 ) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
     let (mut bpf, rx) = Bpf::new(
         reloader.paths(),
@@ -201,6 +211,7 @@ fn bpf_input(
         reloader.paths(),
         reloader.scan_interval(),
         metrics_userspace.host_scanner.clone(),
+        hs_introspection,
     )?;
 
     bpf.start(task_set);

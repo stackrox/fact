@@ -145,26 +145,39 @@ impl Reloader {
         res
     }
 
-    /// Recreate the configuration and notify of changes to any
-    /// subscribers.
-    fn reload(&mut self) {
-        if !self.update_cache() {
-            return;
-        }
+    /// Compare endpoint configurations and figure out if reloading is
+    /// needed.
+    ///
+    /// EndpointConfig has non-reloadable fields, its PartialEq
+    /// implementation still has all fields so unit tests can check
+    /// properly.
+    ///
+    /// The first argument is destructured here so the compiler
+    /// complains when new fields are added, making sure we fix this
+    /// with things that need to be reloaded.
+    fn endpoint_should_reload(
+        &EndpointConfig {
+            address: l_address,
+            expose_metrics: l_expose_metrics,
+            health_check: l_health_check,
+            introspection: _,
+        }: &EndpointConfig,
+        right: &EndpointConfig,
+    ) -> bool {
+        l_address != right.address
+            || l_expose_metrics != right.expose_metrics
+            || l_health_check != right.health_check
+    }
 
-        let new = match FactConfig::build() {
-            Ok(config) => config,
-            Err(e) => {
-                warn!("Configuration reloading failed: {e}");
-                return;
-            }
-        };
-        info!("Updated configuration: {new:#?}");
-
+    /// Propagate configuration changes to all subscribers that need it
+    fn send_updates(&self, new: &FactConfig) {
         self.endpoint.send_if_modified(|old| {
-            if *old != new.endpoint {
+            if Reloader::endpoint_should_reload(old, &new.endpoint) {
                 debug!("Sending new endpoint configuration...");
-                *old = new.endpoint.clone();
+                *old = EndpointConfig {
+                    introspection: old.introspection,
+                    ..new.endpoint
+                };
                 true
             } else {
                 false
@@ -227,6 +240,25 @@ impl Reloader {
         if self.config.hotreload() != new.hotreload() {
             warn!("Changes to the hotreload field only take effect on startup");
         }
+    }
+
+    /// Recreate the configuration and notify of changes to any
+    /// subscribers.
+    fn reload(&mut self) {
+        if !self.update_cache() {
+            return;
+        }
+
+        let new = match FactConfig::build() {
+            Ok(config) => config,
+            Err(e) => {
+                warn!("Configuration reloading failed: {e}");
+                return;
+            }
+        };
+        info!("Updated configuration: {new:#?}");
+
+        self.send_updates(&new);
 
         self.config = new;
     }
@@ -271,6 +303,217 @@ impl From<FactConfig> for Reloader {
             rate_limit,
             files,
             trigger,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reloading_endpoint() {
+        let tests = [
+            (FactConfig::default(), FactConfig::default(), None),
+            (
+                FactConfig::default(),
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        address: Some(([127, 0, 0, 1], 8080).into()),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    address: Some(([127, 0, 0, 1], 8080).into()),
+                    ..Default::default()
+                }),
+            ),
+            (
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        address: Some(([0, 0, 0, 0], 9090).into()),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        address: Some(([127, 0, 0, 1], 8080).into()),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    address: Some(([127, 0, 0, 1], 8080).into()),
+                    ..Default::default()
+                }),
+            ),
+            (
+                FactConfig::default(),
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        expose_metrics: Some(true),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    expose_metrics: Some(true),
+                    ..Default::default()
+                }),
+            ),
+            (
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        expose_metrics: Some(true),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        expose_metrics: Some(false),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    expose_metrics: Some(false),
+                    ..Default::default()
+                }),
+            ),
+            (
+                FactConfig::default(),
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        health_check: Some(true),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    health_check: Some(true),
+                    ..Default::default()
+                }),
+            ),
+            (
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        health_check: Some(true),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        health_check: Some(false),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    health_check: Some(false),
+                    ..Default::default()
+                }),
+            ),
+            (
+                FactConfig::default(),
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        introspection: Some(true),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                None,
+            ),
+            (
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        introspection: Some(true),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        introspection: Some(false),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                None,
+            ),
+            (
+                FactConfig::default(),
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        address: Some(([127, 0, 0, 1], 8080).into()),
+                        introspection: Some(true),
+                        expose_metrics: Some(true),
+                        health_check: Some(true),
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    address: Some(([127, 0, 0, 1], 8080).into()),
+                    introspection: None,
+                    expose_metrics: Some(true),
+                    health_check: Some(true),
+                }),
+            ),
+            (
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        address: Some(([0, 0, 0, 0], 9090).into()),
+                        introspection: Some(true),
+                        expose_metrics: Some(true),
+                        health_check: Some(true),
+                    },
+                    ..Default::default()
+                },
+                FactConfig {
+                    endpoint: EndpointConfig {
+                        address: Some(([127, 0, 0, 1], 8080).into()),
+                        introspection: Some(false),
+                        expose_metrics: Some(false),
+                        health_check: Some(false),
+                    },
+                    ..Default::default()
+                },
+                Some(EndpointConfig {
+                    address: Some(([127, 0, 0, 1], 8080).into()),
+                    introspection: Some(true),
+                    expose_metrics: Some(false),
+                    health_check: Some(false),
+                }),
+            ),
+        ];
+
+        for (old, new, expected) in tests {
+            let reloader = Reloader::from(old);
+            let endpoint = reloader.endpoint();
+            let assert_has_changed = |has_changed: bool| {
+                assert!(
+                    has_changed,
+                    "\ninput: {:?}\nnew: {:?}",
+                    reloader.config().endpoint,
+                    new.endpoint
+                );
+            };
+
+            reloader.send_updates(&new);
+
+            match expected {
+                Some(expected) => {
+                    assert_has_changed(endpoint.has_changed().unwrap());
+                    assert_eq!(*endpoint.borrow(), expected);
+                }
+                None => {
+                    assert_has_changed(!endpoint.has_changed().unwrap());
+                }
+            }
         }
     }
 }

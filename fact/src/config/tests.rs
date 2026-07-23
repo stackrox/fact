@@ -298,6 +298,32 @@ fn parsing() {
             },
         ),
         (
+            r#"
+            endpoint:
+              introspection: true
+            "#,
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            endpoint:
+              introspection: false
+            "#,
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(false),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
             "skip_pre_flight: true",
             FactConfig {
                 skip_pre_flight: Some(true),
@@ -477,6 +503,7 @@ fn parsing() {
               address: 0.0.0.0:8080
               expose_metrics: true
               health_check: true
+              introspection: true
             skip_pre_flight: false
             json: false
             bpf:
@@ -514,6 +541,7 @@ fn parsing() {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 8080))),
                     expose_metrics: Some(true),
                     health_check: Some(true),
+                    introspection: Some(true),
                 },
                 skip_pre_flight: Some(false),
                 json: Some(false),
@@ -801,6 +829,13 @@ paths:
               health_check: 4
             "#,
             "endpoint.health_check field has incorrect type: Integer(4)",
+        ),
+        (
+            r#"
+            endpoint:
+              introspection: 4
+            "#,
+            "endpoint.introspection field has incorrect type: Integer(4)",
         ),
         (
             r#"
@@ -1475,6 +1510,60 @@ fn update() {
             },
         ),
         (
+            r#"
+            endpoint:
+              introspection: true
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            endpoint:
+              introspection: true
+            "#,
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(false),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            endpoint:
+              introspection: true
+            "#,
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
             "skip_pre_flight: true",
             FactConfig::default(),
             FactConfig {
@@ -1831,6 +1920,7 @@ fn update() {
               address: 127.0.0.1:8080
               expose_metrics: true
               health_check: true
+              introspection: true
             skip_pre_flight: false
             json: false
             bpf:
@@ -1863,6 +1953,7 @@ fn update() {
                     address: Some(SocketAddr::from(([0, 0, 0, 0], 9000))),
                     expose_metrics: Some(false),
                     health_check: Some(false),
+                    introspection: Some(false),
                 },
                 skip_pre_flight: Some(true),
                 json: Some(true),
@@ -1901,6 +1992,7 @@ fn update() {
                     address: Some(SocketAddr::from(([127, 0, 0, 1], 8080))),
                     expose_metrics: Some(true),
                     health_check: Some(true),
+                    introspection: Some(true),
                 },
                 skip_pre_flight: Some(false),
                 json: Some(false),
@@ -1952,6 +2044,7 @@ fn defaults() {
     );
     assert!(!config.endpoint.expose_metrics());
     assert!(!config.endpoint.health_check());
+    assert!(!config.endpoint.introspection());
     assert!(!config.skip_pre_flight());
     assert!(!config.json());
     assert_eq!(config.bpf.ringbuf_size(), 8192);
@@ -2315,6 +2408,19 @@ fn env_vars() {
         ),
         (
             EnvVar {
+                name: "FACT_ENDPOINT_INTROSPECTION",
+                value: "true",
+            },
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
                 name: "FACT_SKIP_PRE_FLIGHT",
                 value: "true",
             },
@@ -2530,6 +2636,20 @@ fn env_vars_override_yaml() {
             FactConfig {
                 endpoint: EndpointConfig {
                     health_check: Some(true),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_ENDPOINT_INTROSPECTION",
+                value: "true",
+            },
+            "endpoint:\n  introspection: false",
+            FactConfig {
+                endpoint: EndpointConfig {
+                    introspection: Some(true),
                     ..Default::default()
                 },
                 ..Default::default()
