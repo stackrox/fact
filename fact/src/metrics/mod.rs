@@ -8,7 +8,7 @@ use host_scanner::HostScannerMetrics;
 
 pub mod exporter;
 pub mod host_scanner;
-mod kernel_metrics;
+pub mod kernel_metrics;
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelValue, Copy)]
 enum LabelValues {
@@ -145,7 +145,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    fn new(registry: &mut Registry) -> Self {
+    pub fn new() -> Self {
         let bpf_worker = EventCounter::new(
             "bpf_events",
             "Events processed by the BPF worker",
@@ -155,26 +155,25 @@ impl Metrics {
                 LabelValues::Ignored,
             ],
         );
-        bpf_worker.register(registry);
 
         let rate_limiter = EventCounter::new(
             "rate_limiter_events",
             "Events processed by the rate limiter",
             &[LabelValues::Added, LabelValues::Dropped, LabelValues::Error],
         );
-        rate_limiter.register(registry);
-
-        let output_metrics = OutputMetrics::new();
-        output_metrics.register(registry);
-
-        let host_scanner = HostScannerMetrics::new();
-        host_scanner.register(registry);
 
         Metrics {
             bpf_worker,
             rate_limiter,
-            output: output_metrics,
-            host_scanner,
+            output: OutputMetrics::new(),
+            host_scanner: HostScannerMetrics::new(),
         }
+    }
+
+    fn register(&self, reg: &mut Registry) {
+        self.bpf_worker.register(reg);
+        self.rate_limiter.register(reg);
+        self.output.register(reg);
+        self.host_scanner.register(reg);
     }
 }

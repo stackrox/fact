@@ -36,12 +36,17 @@ pub struct Bpf {
     paths_globset: GlobSet,
 
     links: Vec<LsmLink>,
+
+    running: watch::Receiver<bool>,
+    metrics: EventCounter,
 }
 
 impl Bpf {
     pub fn new(
         paths_config: watch::Receiver<Vec<PathBuf>>,
         bpf_config: &BpfConfig,
+        running: watch::Receiver<bool>,
+        metrics: EventCounter,
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         Bpf::bump_memlock_rlimit()?;
 
@@ -64,6 +69,8 @@ impl Bpf {
             paths_config,
             paths_globset: GlobSet::empty(),
             links: Vec::new(),
+            running,
+            metrics,
         };
 
         bpf.load_progs(&btf, bpf_config)?;
@@ -263,12 +270,7 @@ impl Bpf {
     }
 
     // Gather events from the ring buffer and print them out.
-    pub fn start(
-        mut self,
-        task_set: &mut JoinSet<anyhow::Result<()>>,
-        mut running: watch::Receiver<bool>,
-        event_counter: EventCounter,
-    ) {
+    pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
         info!("Starting BPF worker...");
 
         task_set.spawn(async move {
@@ -291,19 +293,19 @@ impl Bpf {
                                     // decision there.
                                     if !event.is_monitored_by_parent() &&
                                             event.is_ignored(&self.paths_globset) {
-                                        event_counter.dropped();
+                                        self.metrics.dropped();
                                         continue;
                                     }
                                     event
                                 },
                                 Err(e) => {
                                     error!("Failed to parse event: '{e}'");
-                                    event_counter.dropped();
+                                    self.metrics.dropped();
                                     continue;
                                 }
                             };
 
-                            event_counter.added();
+                            self.metrics.added();
                             if self.tx.send(event).await.is_err() {
                                 info!("No BPF consumers left, stopping...");
                                 break;
@@ -314,8 +316,8 @@ impl Bpf {
                     _ = self.paths_config.changed() => {
                         self.load_paths().context("Failed to load paths")?;
                     },
-                    _ = running.changed() => {
-                        if !*running.borrow() {
+                    _ = self.running.changed() => {
+                        if !*self.running.borrow() {
                             info!("Stopping BPF worker...");
                             break;
                         }
@@ -347,7 +349,7 @@ mod bpf_tests {
         config::{BpfProgConfig, FactConfig, reloader::Reloader},
         event::{EventTestData, process::Process},
         host_info,
-        metrics::exporter::Exporter,
+        metrics::Metrics,
     };
 
     use super::*;
@@ -367,14 +369,18 @@ mod bpf_tests {
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let reloader = Reloader::from(config);
-        let (mut bpf, mut rx) =
-            Bpf::new(reloader.paths(), &reloader.config().bpf).expect("Failed to load BPF code");
+        let metrics = Metrics::new();
         let (run_tx, run_rx) = watch::channel(true);
-        // Create a metrics exporter, but don't start it
-        let exporter = Exporter::new(Some(bpf.take_metrics().unwrap()));
+        let (bpf, mut rx) = Bpf::new(
+            reloader.paths(),
+            &reloader.config().bpf,
+            run_rx,
+            metrics.bpf_worker.clone(),
+        )
+        .expect("Failed to load BPF code");
         let mut task_set = JoinSet::new();
 
-        bpf.start(&mut task_set, run_rx, exporter.metrics.bpf_worker.clone());
+        bpf.start(&mut task_set);
 
         tokio::time::sleep(Duration::from_millis(500)).await;
 

@@ -29,7 +29,10 @@ mod replay;
 use config::FactConfig;
 use pre_flight::pre_flight;
 
-use crate::event::Event;
+use crate::{
+    event::Event,
+    metrics::{Metrics, kernel_metrics::KernelMetrics},
+};
 
 pub fn init_log() -> anyhow::Result<()> {
     let log_level = std::env::var("FACT_LOGLEVEL").unwrap_or("info".to_owned());
@@ -95,30 +98,32 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let reloader = config::reloader::Reloader::from(config);
     let config_trigger = reloader.get_trigger();
     let mut task_set = JoinSet::new();
+    let metrics_userspace = Metrics::new();
 
-    let (exporter, rx) = setup_input(&mut task_set, &reloader, running_pipeline_rx)?;
+    let (metrics_kernelspace, rx) = setup_input(
+        &mut task_set,
+        &reloader,
+        &metrics_userspace,
+        running_pipeline_rx,
+    )?;
     let (rate_limiter, rx) = RateLimiter::new(
         rx,
         reloader.rate_limit(),
-        exporter.metrics.rate_limiter.clone(),
+        metrics_userspace.rate_limiter.clone(),
     )?;
 
     output::start(
         &mut task_set,
         rx,
-        exporter.metrics.output.clone(),
+        metrics_userspace.output.clone(),
         reloader.grpc(),
         reloader.otel(),
         reloader.config().json(),
     );
 
     rate_limiter.start(&mut task_set);
-    endpoints::Server::new(
-        exporter.clone(),
-        reloader.endpoint(),
-        running_helpers.subscribe(),
-    )
-    .start();
+    let exporter = Exporter::new(&metrics_userspace, metrics_kernelspace);
+    endpoints::Server::new(exporter, reloader.endpoint(), running_helpers.subscribe()).start();
     reloader.start(running_helpers.subscribe());
 
     let mut sigterm = signal(SignalKind::terminate())?;
@@ -155,12 +160,13 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 fn setup_input(
     task_set: &mut JoinSet<anyhow::Result<()>>,
     reloader: &config::reloader::Reloader,
+    metrics: &Metrics,
     running: watch::Receiver<bool>,
-) -> anyhow::Result<(Exporter, mpsc::Receiver<Event>)> {
+) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
     match reloader.config().replay() {
         Some(replay_file) => {
             let rx = replay::start(task_set, replay_file, running)?;
-            Ok((Exporter::new(None), rx))
+            Ok((None, rx))
         }
         None => {
             if !reloader.config().skip_pre_flight() {
@@ -170,7 +176,7 @@ fn setup_input(
                 debug!("Skipping pre-flight checks");
             }
 
-            bpf_input(task_set, reloader, running)
+            bpf_input(task_set, reloader, running, metrics)
         }
     }
 }
@@ -179,19 +185,25 @@ fn bpf_input(
     task_set: &mut JoinSet<anyhow::Result<()>>,
     reloader: &config::reloader::Reloader,
     running: watch::Receiver<bool>,
-) -> anyhow::Result<(Exporter, mpsc::Receiver<Event>)> {
-    let (mut bpf, rx) = Bpf::new(reloader.paths(), &reloader.config().bpf)?;
-    let exporter = Exporter::new(Some(bpf.take_metrics()?));
+    metrics_userspace: &Metrics,
+) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
+    let (mut bpf, rx) = Bpf::new(
+        reloader.paths(),
+        &reloader.config().bpf,
+        running.clone(),
+        metrics_userspace.bpf_worker.clone(),
+    )?;
+    let metrics_kernelspace = KernelMetrics::new(bpf.take_metrics()?);
 
     let (host_scanner, rx) = HostScanner::new(
         &mut bpf,
         rx,
         reloader.paths(),
         reloader.scan_interval(),
-        exporter.metrics.host_scanner.clone(),
+        metrics_userspace.host_scanner.clone(),
     )?;
 
-    bpf.start(task_set, running, exporter.metrics.bpf_worker.clone());
+    bpf.start(task_set);
     host_scanner.start(task_set);
-    Ok((exporter, rx))
+    Ok((Some(metrics_kernelspace), rx))
 }
