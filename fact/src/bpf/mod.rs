@@ -368,12 +368,13 @@ mod bpf_tests {
         let paths = vec![PathBuf::from(format!("{}/**/*", monitored_path.display()))];
         let mut config = FactConfig::default();
         config.set_paths(paths);
+        let bpf_config = config.bpf.clone();
         let reloader = Reloader::from(config);
         let metrics = Metrics::new();
         let (run_tx, run_rx) = watch::channel(true);
         let (bpf, mut rx) = Bpf::new(
             reloader.paths(),
-            &reloader.config().bpf,
+            &bpf_config,
             run_rx,
             metrics.bpf_worker.clone(),
         )
