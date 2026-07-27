@@ -13,7 +13,8 @@ use crate::config::OTelConfig;
 use super::{CONFIG_FILES, EndpointConfig, FactConfig, GrpcConfig};
 
 pub struct Reloader {
-    config: FactConfig,
+    enabled: bool,
+
     endpoint: watch::Sender<EndpointConfig>,
     grpc: watch::Sender<GrpcConfig>,
     otel: watch::Sender<OTelConfig>,
@@ -23,6 +24,9 @@ pub struct Reloader {
     rate_limit: watch::Sender<u64>,
     trigger: Arc<Notify>,
 }
+
+#[cfg(test)]
+mod tests;
 
 impl Reloader {
     /// Consume the reloader into a task
@@ -34,7 +38,7 @@ impl Reloader {
     /// If hotreload is disabled on startup the task will not be
     /// spawned.
     pub fn start(mut self, mut running: watch::Receiver<bool>) {
-        if !self.config.hotreload() {
+        if !self.enabled {
             info!("Configuration hotreload is disabled, changes will require a restart.");
             return;
         }
@@ -54,10 +58,6 @@ impl Reloader {
                 }
             }
         });
-    }
-
-    pub fn config(&self) -> &FactConfig {
-        &self.config
     }
 
     /// Subscribe to get notifications when endpoint configuration is
@@ -145,52 +145,8 @@ impl Reloader {
         res
     }
 
-    /// Recreate the configuration and notify of changes to any
-    /// subscribers.
-    fn reload(&mut self) {
-        if !self.update_cache() {
-            return;
-        }
-
-        let new = match FactConfig::build() {
-            Ok(config) => config,
-            Err(e) => {
-                warn!("Configuration reloading failed: {e}");
-                return;
-            }
-        };
-        info!("Updated configuration: {new:#?}");
-
-        self.endpoint.send_if_modified(|old| {
-            if *old != new.endpoint {
-                debug!("Sending new endpoint configuration...");
-                *old = new.endpoint.clone();
-                true
-            } else {
-                false
-            }
-        });
-
-        self.grpc.send_if_modified(|old| {
-            if *old != new.grpc {
-                debug!("Sending new gRPC configuration...");
-                *old = new.grpc.clone();
-                true
-            } else {
-                false
-            }
-        });
-
-        self.otel.send_if_modified(|old| {
-            if *old != new.otel {
-                debug!("Sending new OTel configuration...");
-                *old = new.otel.clone();
-                true
-            } else {
-                false
-            }
-        });
-
+    /// Propagate configuration changes to all subscribers that need it
+    fn send_updates(&self, new: FactConfig) {
         self.paths.send_if_modified(|old| {
             let new = new.paths();
             if *old != new {
@@ -224,11 +180,65 @@ impl Reloader {
             }
         });
 
-        if self.config.hotreload() != new.hotreload() {
+        if self.enabled != new.hotreload() {
             warn!("Changes to the hotreload field only take effect on startup");
         }
 
-        self.config = new;
+        let FactConfig {
+            endpoint,
+            grpc,
+            otel,
+            ..
+        } = new;
+
+        self.endpoint.send_if_modified(|old| {
+            if *old != endpoint {
+                debug!("Sending new endpoint configuration...");
+                *old = endpoint;
+                true
+            } else {
+                false
+            }
+        });
+
+        self.grpc.send_if_modified(|old| {
+            if *old != grpc {
+                debug!("Sending new gRPC configuration...");
+                *old = grpc;
+                true
+            } else {
+                false
+            }
+        });
+
+        self.otel.send_if_modified(|old| {
+            if *old != otel {
+                debug!("Sending new OTel configuration...");
+                *old = otel;
+                true
+            } else {
+                false
+            }
+        });
+    }
+
+    /// Recreate the configuration and notify of changes to any
+    /// subscribers.
+    fn reload(&mut self) {
+        if !self.update_cache() {
+            return;
+        }
+
+        let new = match FactConfig::build() {
+            Ok(config) => config,
+            Err(e) => {
+                warn!("Configuration reloading failed: {e}");
+                return;
+            }
+        };
+        info!("Updated configuration: {new:#?}");
+
+        self.send_updates(new);
     }
 }
 
@@ -253,16 +263,26 @@ impl From<FactConfig> for Reloader {
                 }
             })
             .collect();
-        let (endpoint, _) = watch::channel(config.endpoint.clone());
-        let (grpc, _) = watch::channel(config.grpc.clone());
-        let (otel, _) = watch::channel(config.otel.clone());
+
+        let enabled = config.hotreload();
         let (paths, _) = watch::channel(config.paths().to_vec());
         let (scan_interval, _) = watch::channel(config.scan_interval());
         let (rate_limit, _) = watch::channel(config.rate_limit());
+
+        let FactConfig {
+            endpoint,
+            grpc,
+            otel,
+            ..
+        } = config;
+
+        let (endpoint, _) = watch::channel(endpoint);
+        let (grpc, _) = watch::channel(grpc);
+        let (otel, _) = watch::channel(otel);
         let trigger = Arc::new(Notify::new());
 
         Reloader {
-            config,
+            enabled,
             endpoint,
             grpc,
             otel,

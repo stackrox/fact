@@ -1,4 +1,4 @@
-use std::{io::Write, str::FromStr, time::Duration};
+use std::{io::Write, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{Context, Result};
 use bpf::Bpf;
@@ -30,6 +30,7 @@ use config::FactConfig;
 use pre_flight::pre_flight;
 
 use crate::{
+    config::BpfConfig,
     event::Event,
     metrics::{Metrics, kernel_metrics::KernelMetrics},
 };
@@ -89,23 +90,49 @@ async fn join_all_tasks(mut task_set: JoinSet<anyhow::Result<()>>) -> anyhow::Re
     Ok(())
 }
 
+struct SetupArgs<'a> {
+    skip_pre_flight: bool,
+    running: watch::Receiver<bool>,
+    task_set: &'a mut JoinSet<anyhow::Result<()>>,
+    reloader: &'a config::reloader::Reloader,
+    metrics: &'a Metrics,
+
+    // Replay mode
+    replay: Option<PathBuf>,
+
+    // BPF mode
+    bpf_config: BpfConfig,
+}
+
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     // Log system information as early as possible so we have it
     // available in case of a crash
     log_system_information();
     let (running_pipeline_tx, running_pipeline_rx) = watch::channel(true);
     let (running_helpers, _) = watch::channel(true);
-    let reloader = config::reloader::Reloader::from(config);
-    let config_trigger = reloader.get_trigger();
-    let mut task_set = JoinSet::new();
-    let metrics_userspace = Metrics::new();
 
-    let (metrics_kernelspace, rx) = setup_input(
-        &mut task_set,
-        &reloader,
-        &metrics_userspace,
-        running_pipeline_rx,
-    )?;
+    let stdout_enabled = config.json();
+    let skip_pre_flight = config.skip_pre_flight();
+    let replay = config.replay().map(PathBuf::from);
+    let bpf_config = config.bpf.clone();
+
+    let metrics_userspace = Metrics::new();
+    let mut task_set = JoinSet::new();
+    let reloader = config::reloader::Reloader::from(config);
+
+    let setup_args = SetupArgs {
+        skip_pre_flight,
+        running: running_pipeline_rx.clone(),
+        task_set: &mut task_set,
+        reloader: &reloader,
+        metrics: &metrics_userspace,
+        replay,
+        bpf_config,
+    };
+
+    let config_trigger = reloader.get_trigger();
+
+    let (metrics_kernelspace, rx) = setup_input(setup_args)?;
     let (rate_limiter, rx) = RateLimiter::new(
         rx,
         reloader.rate_limit(),
@@ -118,7 +145,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         metrics_userspace.output.clone(),
         reloader.grpc(),
         reloader.otel(),
-        reloader.config().json(),
+        stdout_enabled,
     );
 
     rate_limiter.start(&mut task_set);
@@ -157,53 +184,43 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     res
 }
 
-fn setup_input(
-    task_set: &mut JoinSet<anyhow::Result<()>>,
-    reloader: &config::reloader::Reloader,
-    metrics: &Metrics,
-    running: watch::Receiver<bool>,
-) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
-    match reloader.config().replay() {
+fn setup_input(args: SetupArgs) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
+    match args.replay {
         Some(replay_file) => {
-            let rx = replay::start(task_set, replay_file, running)?;
+            let rx = replay::start(args.task_set, &replay_file, args.running)?;
             Ok((None, rx))
         }
         None => {
-            if !reloader.config().skip_pre_flight() {
+            if !args.skip_pre_flight {
                 debug!("Performing pre-flight checks");
                 pre_flight().context("Pre-flight checks failed")?;
             } else {
                 debug!("Skipping pre-flight checks");
             }
 
-            bpf_input(task_set, reloader, running, metrics)
+            bpf_input(args)
         }
     }
 }
 
-fn bpf_input(
-    task_set: &mut JoinSet<anyhow::Result<()>>,
-    reloader: &config::reloader::Reloader,
-    running: watch::Receiver<bool>,
-    metrics_userspace: &Metrics,
-) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
+fn bpf_input(args: SetupArgs) -> anyhow::Result<(Option<KernelMetrics>, mpsc::Receiver<Event>)> {
     let (mut bpf, rx) = Bpf::new(
-        reloader.paths(),
-        &reloader.config().bpf,
-        running.clone(),
-        metrics_userspace.bpf_worker.clone(),
+        args.reloader.paths(),
+        &args.bpf_config,
+        args.running.clone(),
+        args.metrics.bpf_worker.clone(),
     )?;
     let metrics_kernelspace = KernelMetrics::new(bpf.take_metrics()?);
 
     let (host_scanner, rx) = HostScanner::new(
         &mut bpf,
         rx,
-        reloader.paths(),
-        reloader.scan_interval(),
-        metrics_userspace.host_scanner.clone(),
+        args.reloader.paths(),
+        args.reloader.scan_interval(),
+        args.metrics.host_scanner.clone(),
     )?;
 
-    bpf.start(task_set);
-    host_scanner.start(task_set);
+    bpf.start(args.task_set);
+    host_scanner.start(args.task_set);
     Ok((Some(metrics_kernelspace), rx))
 }
