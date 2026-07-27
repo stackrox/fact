@@ -25,6 +25,9 @@ pub struct Reloader {
     trigger: Arc<Notify>,
 }
 
+#[cfg(test)]
+mod tests;
+
 impl Reloader {
     /// Consume the reloader into a task
     ///
@@ -142,22 +145,8 @@ impl Reloader {
         res
     }
 
-    /// Recreate the configuration and notify of changes to any
-    /// subscribers.
-    fn reload(&mut self) {
-        if !self.update_cache() {
-            return;
-        }
-
-        let new = match FactConfig::build() {
-            Ok(config) => config,
-            Err(e) => {
-                warn!("Configuration reloading failed: {e}");
-                return;
-            }
-        };
-        info!("Updated configuration: {new:#?}");
-
+    /// Propagate configuration changes to all subscribers that need it
+    fn send_updates(&self, new: FactConfig) {
         self.paths.send_if_modified(|old| {
             let new = new.paths();
             if *old != new {
@@ -231,6 +220,25 @@ impl Reloader {
                 false
             }
         });
+    }
+
+    /// Recreate the configuration and notify of changes to any
+    /// subscribers.
+    fn reload(&mut self) {
+        if !self.update_cache() {
+            return;
+        }
+
+        let new = match FactConfig::build() {
+            Ok(config) => config,
+            Err(e) => {
+                warn!("Configuration reloading failed: {e}");
+                return;
+            }
+        };
+        info!("Updated configuration: {new:#?}");
+
+        self.send_updates(new);
     }
 }
 
