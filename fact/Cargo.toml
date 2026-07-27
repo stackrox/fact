@@ -37,6 +37,7 @@ serde_json = { workspace = true }
 shlex = { workspace = true }
 uuid = { workspace = true }
 yaml-rust2 = { workspace = true }
+io-uring = { workspace = true }
 
 fact-api = { path = "../fact-api" }
 fact-ebpf = { path = "../fact-ebpf" }
