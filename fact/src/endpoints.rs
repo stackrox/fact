@@ -11,7 +11,9 @@ use hyper_util::rt::TokioIo;
 use log::{info, warn};
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
 
-use crate::{config::EndpointConfig, metrics::exporter::Exporter};
+use crate::metrics::exporter::Exporter;
+
+use fact_core::config::EndpointConfig;
 
 #[derive(Clone)]
 pub struct Server {
