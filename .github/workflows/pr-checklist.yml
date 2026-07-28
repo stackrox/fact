@@ -15,7 +15,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - name: Verify PR Checklist is Complete
-        if: github.actor != 'red-hat-konflux[bot]'
+        if: github.event.pull_request.user.login != 'red-hat-konflux[bot]'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
@@ -30,6 +30,6 @@ jobs:
           fi
 
       - name: Skip check for MintMaker
-        if: github.actor == 'red-hat-konflux[bot]'
+        if: github.event.pull_request.user.login  == 'red-hat-konflux[bot]'
         run: |
           echo "MintMaker PRs are exempted from this check"
