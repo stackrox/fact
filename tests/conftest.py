@@ -14,6 +14,7 @@ import pytest
 import requests
 import yaml
 
+from metrics import MetricsSnapshot
 from server import EventServer, GrpcServer, OtlpServer
 
 pytest_plugins = ['test_editors.commons']
@@ -317,6 +318,7 @@ def fact_config(
     reload_fact(fact, config, fact_config_file)
 
     test_start = datetime.now(tz=timezone.utc)
+    metrics_before = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
 
     yield config, fact_config_file
 
@@ -327,6 +329,14 @@ def fact_config(
         open(fact_config_file) as src,
     ):
         out.write(src.read())
+
+    try:
+        metrics_after = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
+        metrics_delta = metrics_before.delta(metrics_after)
+        with open(os.path.join(logs_dir, 'metrics'), 'w') as f:
+            f.write(metrics_delta.to_text())
+    except Exception:
+        pass
 
     try:
         log_bytes = fact.logs(since=test_start, until=test_end)
