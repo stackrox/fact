@@ -1,4 +1,3 @@
-import json
 import os
 import subprocess
 from time import sleep
@@ -14,7 +13,7 @@ pytestmark = pytest.mark.skipif(
 
 def get_inodes() -> dict[str, str]:
     FACT_INTROSPECTION_INODES = 'http://127.0.0.1:9000/inodes'
-    res = requests.get(FACT_INTROSPECTION_INODES)
+    res = requests.get(FACT_INTROSPECTION_INODES, timeout=5)
     res.raise_for_status()
     return res.json()
 
@@ -22,15 +21,14 @@ def get_inodes() -> dict[str, str]:
 def assert_tracked_path(monitored_dir: str):
     stat = os.stat(monitored_dir)
     inode = f'{stat.st_dev}:{stat.st_ino}'
-    res = get_inodes()
 
     for _ in range(3):
         try:
+            res = get_inodes()
             assert res[inode] == monitored_dir
             return
         except KeyError as e:
             print(f'Failed to find inode: {e}')
-            print(f'{json.dumps(res)}')
             sleep(1)
 
     raise TimeoutError
