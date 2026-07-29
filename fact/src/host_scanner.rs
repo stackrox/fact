@@ -40,12 +40,22 @@ use tokio::{
     task::JoinSet,
 };
 
+use io_uring::{IoUring, opcode, types};
+use std::ffi::CString;
+use std::os::unix::ffi::OsStrExt;
+
 use crate::{
     bpf::Bpf,
     event::Event,
     host_info,
     metrics::host_scanner::{HostScannerMetrics, ScanLabels},
 };
+
+struct IoUringStatx {
+    path: PathBuf,
+    pathbuf: CString,
+    statxbuf: libc::statx,
+}
 
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
@@ -145,20 +155,70 @@ impl HostScanner {
             bail!("invalid path {}", path.display());
         };
 
-        for entry in glob::glob(glob_str)? {
-            let path = entry?;
-            if path.is_file() {
-                self.metrics.scan_inc(ScanLabels::FileScanned);
-                self.update_entry(path.as_path())
-                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
-            } else if path.is_dir() {
-                self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                self.update_entry(path.as_path())
-                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
-            } else {
-                self.metrics.scan_inc(ScanLabels::FsItemIgnored);
+        let mut ring = IoUring::new(128)?;
+
+        let statx = glob::glob(glob_str)?
+            .map(|entry| {
+                let path = entry.expect("FAIL entry");
+                debug!("Processing path {:?}", path);
+
+                let statxbuf: libc::statx = unsafe { std::mem::zeroed() };
+                let pathbuf = CString::new(path.as_os_str().as_bytes()).expect("FAIL CString");
+
+                let mut buf = Box::new(IoUringStatx {
+                    path,
+                    pathbuf,
+                    statxbuf,
+                });
+
+                let op = opcode::Statx::new(
+                    types::Fd(libc::AT_FDCWD),
+                    buf.pathbuf.as_ptr(),
+                    &mut buf.statxbuf as *mut libc::statx as *mut _,
+                )
+                .mask(libc::STATX_TYPE | libc::STATX_INO)
+                .build()
+                .user_data(0x99);
+
+                (op, buf)
+            })
+            .collect::<Vec<_>>();
+
+        for batch in statx.chunks(128) {
+            for (op, _) in batch.iter() {
+                unsafe {
+                    ring.submission()
+                        .push(op)
+                        .expect("submission queue is full");
+                }
+            }
+
+            ring.submit_and_wait(batch.len())?;
+
+            for cqe in ring.completion() {
+                debug!("IoUring CQE {:?}, {:?}", cqe.user_data(), cqe.result());
+            }
+
+            for (_, buf) in batch {
+                let IoUringStatx { path, statxbuf, .. } = &**buf;
+
+                let is_dir = (statxbuf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFDIR;
+                let is_file = (statxbuf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFREG;
+
+                if is_file {
+                    self.metrics.scan_inc(ScanLabels::FileScanned);
+                    self.update_entry(path.as_path()).with_context(|| {
+                        format!("Failed to update entry for {}", path.display())
+                    })?;
+                } else if is_dir {
+                    self.metrics.scan_inc(ScanLabels::DirectoryScanned);
+                    self.update_entry(path.as_path()).with_context(|| {
+                        format!("Failed to update entry for {}", path.display())
+                    })?;
+                }
             }
         }
+
         Ok(())
     }
 

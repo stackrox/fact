@@ -38,6 +38,7 @@ shlex = { workspace = true }
 thiserror = { version = "2.0.18" }
 uuid = { workspace = true }
 yaml-rust2 = { workspace = true }
+io-uring = { workspace = true }
 
 fact-api = { path = "../fact-api" }
 fact-ebpf = { path = "../fact-ebpf" }
