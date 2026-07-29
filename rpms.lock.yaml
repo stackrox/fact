@@ -298,20 +298,20 @@ arches:
     name: chkconfig
     evr: 1.19.2-1.el8
     sourcerpm: chkconfig-1.19.2-1.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/c/coreutils-8.30-17.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/c/coreutils-8.30-20.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 1245164
-    checksum: sha256:cf8ff29da514f66ae471ee3f80055f722a420d81f4a53f3a34264631b285d89f
+    size: 1245424
+    checksum: sha256:c0259c55239e52a8755c17590581f37336c753029a0f74265a1387e454adc071
     name: coreutils
-    evr: 8.30-17.el8_10
-    sourcerpm: coreutils-8.30-17.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/c/coreutils-common-8.30-17.el8_10.aarch64.rpm
+    evr: 8.30-20.el8_10
+    sourcerpm: coreutils-8.30-20.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/c/coreutils-common-8.30-20.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 2091972
-    checksum: sha256:892a04f7ae1c57c68e544f1e5e88d01921b2e2960a51f9ee07b50bfb43bdfd66
+    size: 2092328
+    checksum: sha256:749c68f0138bcffd72858c79986b510270368ba1a4584ae12797b7ec0bcd8dca
     name: coreutils-common
-    evr: 8.30-17.el8_10
-    sourcerpm: coreutils-8.30-17.el8_10.src.rpm
+    evr: 8.30-20.el8_10
+    sourcerpm: coreutils-8.30-20.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/c/cpio-2.12-11.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 266436
@@ -641,13 +641,13 @@ arches:
     name: grub2-tools-minimal
     evr: 1:2.02-170.el8_10.2
     sourcerpm: grub2-2.02-170.el8_10.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/grubby-8.40-49.el8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/grubby-8.40-51.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 51500
-    checksum: sha256:6227cb54826021b57ba2f8b46b4b12c76de78681290c9bcd44f29e2663bcf45e
+    size: 50724
+    checksum: sha256:e6928df60de843e15cd51001005c9f7f1ae09bccd46caf685901b3320519729d
     name: grubby
-    evr: 8.40-49.el8
-    sourcerpm: grubby-8.40-49.el8.src.rpm
+    evr: 8.40-51.el8_10
+    sourcerpm: grubby-8.40-51.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/g/gzip-1.9-13.el8_5.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 168636
@@ -704,13 +704,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.147.1.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.148.1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 12501320
-    checksum: sha256:cf5c0051894f13b7458c3c68f5126b132016e0c345b2157c5b29a2e75dddc031
+    size: 12501428
+    checksum: sha256:2b091e2a2836799df69e01c4c1811445f211031de70fda661cb2f6070bfa2907
     name: kernel-headers
-    evr: 4.18.0-553.147.1.el8_10
-    sourcerpm: kernel-4.18.0-553.147.1.el8_10.src.rpm
+    evr: 4.18.0-553.148.1.el8_10
+    sourcerpm: kernel-4.18.0-553.148.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 34656
@@ -886,13 +886,13 @@ arches:
     name: libgcc
     evr: 8.5.0-28.el8_10
     sourcerpm: gcc-8.5.0-28.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libgcrypt-1.8.5-7.el8_6.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libgcrypt-1.8.5-8.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 400616
-    checksum: sha256:821780ed5e37ef027ea154d497a80e44f874669e3a89ad11f18bd9a09bf23f64
+    size: 399600
+    checksum: sha256:237b6e412cfb770bb064add9bc559ae3e34f308cb6d1c95af175c1238888361c
     name: libgcrypt
-    evr: 1.8.5-7.el8_6
-    sourcerpm: libgcrypt-1.8.5-7.el8_6.src.rpm
+    evr: 1.8.5-8.el8_10
+    sourcerpm: libgcrypt-1.8.5-8.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libgomp-8.5.0-28.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 205940
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/d3e54bdbe335333e783af1ff036140b6a08f3ac641f36423b26824b0eae87463-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/bc562021b3dd64734486d15ec942fa9782c4748fc8d014b1ecc6564dd1c01bca-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 815652
-    checksum: sha256:d3e54bdbe335333e783af1ff036140b6a08f3ac641f36423b26824b0eae87463
+    size: 815956
+    checksum: sha256:bc562021b3dd64734486d15ec942fa9782c4748fc8d014b1ecc6564dd1c01bca
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -1944,20 +1944,20 @@ arches:
     name: chkconfig
     evr: 1.19.2-1.el8
     sourcerpm: chkconfig-1.19.2-1.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/c/coreutils-8.30-17.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/c/coreutils-8.30-20.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 1272600
-    checksum: sha256:b45913c79a76047e2211975fd7b406d7df57cf9baf7d264f845ec0056ac713f6
+    size: 1273172
+    checksum: sha256:b7408750a522d756acfcb72c039467a4c151b671b1cad9cf854de4b66e32fc8b
     name: coreutils
-    evr: 8.30-17.el8_10
-    sourcerpm: coreutils-8.30-17.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/c/coreutils-common-8.30-17.el8_10.x86_64.rpm
+    evr: 8.30-20.el8_10
+    sourcerpm: coreutils-8.30-20.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/c/coreutils-common-8.30-20.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 2092000
-    checksum: sha256:72f3c755b0135b5ad3beaeaf0147d1ce662a9420687e1991d899de65426879e4
+    size: 2092356
+    checksum: sha256:f8f10da90d7817d9a00a5e49fa4baf565dfe710abe62b8eccaee34b82c49ebba
     name: coreutils-common
-    evr: 8.30-17.el8_10
-    sourcerpm: coreutils-8.30-17.el8_10.src.rpm
+    evr: 8.30-20.el8_10
+    sourcerpm: coreutils-8.30-20.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/c/cpio-2.12-11.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 272056
@@ -2287,13 +2287,13 @@ arches:
     name: grub2-tools-minimal
     evr: 1:2.02-170.el8_10.2
     sourcerpm: grub2-2.02-170.el8_10.2.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/grubby-8.40-49.el8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/grubby-8.40-51.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 51660
-    checksum: sha256:bc1f0a9e3206829b9528437ed6de4afc011d7ad392dfff720f39c4ec661f3610
+    size: 50900
+    checksum: sha256:faf5f658b4f5c3b9ac9e84937531d3d5df4e7f383a89f5af9f497fe86c726d3d
     name: grubby
-    evr: 8.40-49.el8
-    sourcerpm: grubby-8.40-49.el8.src.rpm
+    evr: 8.40-51.el8_10
+    sourcerpm: grubby-8.40-51.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/g/gzip-1.9-13.el8_5.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 170828
@@ -2350,13 +2350,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.147.1.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.148.1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 12532872
-    checksum: sha256:2ac1b3f7bfcf0ca22901c7a724a2daae9d776b5bedfde94c9d5b63dc61689c22
+    size: 12533120
+    checksum: sha256:5c968411dc381baee3b170c76db85934200d1990af9df007590d9f47ac9999c8
     name: kernel-headers
-    evr: 4.18.0-553.147.1.el8_10
-    sourcerpm: kernel-4.18.0-553.147.1.el8_10.src.rpm
+    evr: 4.18.0-553.148.1.el8_10
+    sourcerpm: kernel-4.18.0-553.148.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 34816
@@ -2525,13 +2525,13 @@ arches:
     name: libgcc
     evr: 8.5.0-28.el8_10
     sourcerpm: gcc-8.5.0-28.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libgcrypt-1.8.5-7.el8_6.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libgcrypt-1.8.5-8.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 473908
-    checksum: sha256:8af1caa726c0b3b398eed421511ff26222f3ddfa131b90fedaa4fe464216338c
+    size: 472964
+    checksum: sha256:efff0ccb63fbdaf0e23242e8e3b282b8329ad4e7753f268cf848d00b2738301e
     name: libgcrypt
-    evr: 1.8.5-7.el8_6
-    sourcerpm: libgcrypt-1.8.5-7.el8_6.src.rpm
+    evr: 1.8.5-8.el8_10
+    sourcerpm: libgcrypt-1.8.5-8.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libgomp-8.5.0-28.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 213900
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/a71dd1df087b51de6c8396b282b0d301c5c3d5904e4251c7bbf157bdcd42fe49-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/07f34e054a1d7e2824f93980a65ac04bf100b9767afab2f000f4854181a26233-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 835567
-    checksum: sha256:a71dd1df087b51de6c8396b282b0d301c5c3d5904e4251c7bbf157bdcd42fe49
+    size: 835783
+    checksum: sha256:07f34e054a1d7e2824f93980a65ac04bf100b9767afab2f000f4854181a26233
