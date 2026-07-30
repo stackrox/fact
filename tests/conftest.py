@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+import time
 from shutil import rmtree
 from tempfile import NamedTemporaryFile, mkdtemp
 from time import sleep
@@ -297,6 +297,8 @@ def fact_config(
     fact does not fire on directory cleanup, and captures
     timestamp-sliced container logs for the test.
     """
+    test_start = time.time()
+
     config = base_config()
     if server.output_mode == 'otlp':
         config['otel'] = {'endpoint': 'http://127.0.0.1:4318/v1/logs'}
@@ -312,12 +314,9 @@ def fact_config(
     server.drain()
     reload_fact(fact, config, fact_config_file)
 
-    test_start = datetime.now(tz=timezone.utc)
     metrics_before = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
 
     yield config, fact_config_file
-
-    test_end = datetime.now(tz=timezone.utc)
 
     with (
         open(os.path.join(logs_dir, 'fact.yml'), 'w') as out,
@@ -334,13 +333,14 @@ def fact_config(
         pass
 
     try:
+        test_end = time.time()
         log_bytes = fact.logs(since=test_start, until=test_end)
         with open(os.path.join(logs_dir, 'fact.log'), 'wb') as f:
             f.write(log_bytes)
     except Exception:
         pass
 
-    config['paths'] = []
+    config = base_config()
     reload_fact(fact, config, fact_config_file)
 
 
