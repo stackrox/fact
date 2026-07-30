@@ -244,6 +244,7 @@ def fact(
         environment={
             'FACT_LOGLEVEL': 'debug',
             'FACT_HOST_MOUNT': '/host',
+            'FACT_ENDPOINT_INTROSPECTION': 'true',
             'OTEL_BLRP_SCHEDULE_DELAY': '100',
             'OTEL_BLRP_MAX_EXPORT_BATCH_SIZE': '1',
             'RUST_BACKTRACE': '1',
@@ -254,7 +255,7 @@ def fact(
         volumes={
             '/': {
                 'bind': '/host',
-                'mode': 'ro',
+                'mode': 'ro,rslave',
             },
             config_file: {
                 'bind': '/etc/stackrox/fact.yml',

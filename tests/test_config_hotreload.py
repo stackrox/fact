@@ -71,8 +71,8 @@ def test_endpoint_disable_all(
     }
     reload_config(fact, config, config_file)
 
-    with pytest.raises(requests.ConnectionError):
-        requests.get(f'{DEFAULT_URL}/metrics')
+    resp = requests.get(f'{DEFAULT_URL}/metrics')
+    assert resp.status_code == 503
 
 
 def test_endpoint_address_change(

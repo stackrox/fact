@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* ROX-33036: add mount-related operations (#1059)
 * feat(endpoints): add inodes introspection endpoint (#1273)
 * feat: add --replay mode for JSONL event replay without eBPF (#1010)
 * feat(config): configurable loaded BPF programs (#1086)
