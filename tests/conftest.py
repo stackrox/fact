@@ -23,8 +23,8 @@ pytest_plugins = ['test_editors.commons']
 ENDPOINT_ADDRESS = '127.0.0.1:9000'
 
 
-def base_config() -> dict:
-    return {
+def base_config(output_mode: str = 'grpc') -> dict:
+    config = {
         'paths': [],
         'endpoint': {
             'address': ENDPOINT_ADDRESS,
@@ -34,6 +34,13 @@ def base_config() -> dict:
         'json': True,
         'scan_interval': 0,
     }
+
+    if output_mode == 'otlp':
+        config['otel'] = {'endpoint': 'http://127.0.0.1:4318/v1/logs'}
+    else:
+        config['grpc'] = {'url': 'http://127.0.0.1:9999'}
+
+    return config
 
 
 @pytest.fixture
@@ -100,24 +107,39 @@ def pytest_generate_tests(metafunc: pytest.Metafunc):
 
 
 @pytest.fixture(scope='session')
-def server(request: pytest.FixtureRequest):
-    """
-    Start and stop an event server.
+def _servers(request: pytest.FixtureRequest):
+    """Start all event servers needed for this session.
 
-    Parameterised via --output to create either a GrpcServer or an
+    Servers are started before the fact container so that fact can
+    connect on startup.  The parametrised ``server`` fixture looks
+    up the right instance from here.
+    """
+    modes = _get_output_modes(request.config)
+    servers: dict[str, EventServer] = {}
+    for mode in modes:
+        s: EventServer = OtlpServer() if mode == 'otlp' else GrpcServer()
+        s.serve()
+        servers[mode] = s
+    yield servers
+    for s in servers.values():
+        s.stop()
+
+
+@pytest.fixture(scope='session')
+def server(
+    request: pytest.FixtureRequest,
+    _servers: dict[str, EventServer],
+):
+    """Select the event server for the current test.
+
+    Parameterised via --output to pick either the GrpcServer or the
     OtlpServer.  When --output=all, every test that directly
     requests this fixture runs once per output mode.  Tests that
     only get it transitively (via autouse ``fact_config``) default
     to grpc.
     """
     mode = getattr(request, 'param', 'grpc')
-    if mode == 'otlp':
-        s: EventServer = OtlpServer()
-    else:
-        s = GrpcServer()
-    s.serve()
-    yield s
-    s.stop()
+    return _servers[mode]
 
 
 @pytest.fixture
@@ -188,6 +210,7 @@ def fact(
     request: pytest.FixtureRequest,
     docker_client: docker.DockerClient,
     fact_config_file: str,
+    _servers: dict[str, EventServer],
 ):
     """
     Session-scoped fact container shared across all tests.
@@ -300,11 +323,7 @@ def fact_config(
     """
     test_start = time.time()
 
-    config = base_config()
-    if server.output_mode == 'otlp':
-        config['otel'] = {'endpoint': 'http://127.0.0.1:4318/v1/logs'}
-    else:
-        config['grpc'] = {'url': 'http://127.0.0.1:9999'}
+    config = base_config(server.output_mode)
     config['paths'] = [
         monitored_dir,
         f'{monitored_dir}/**/*',
@@ -341,7 +360,7 @@ def fact_config(
     except Exception:
         pass
 
-    config = base_config()
+    config = base_config(server.output_mode)
     reload_fact(fact, config, fact_config_file)
 
 
