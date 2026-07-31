@@ -20,6 +20,7 @@
 
 use std::{
     cell::RefCell,
+    ffi::OsStr,
     io,
     os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
@@ -51,10 +52,19 @@ use crate::{
     metrics::host_scanner::{HostScannerMetrics, ScanLabels},
 };
 
-struct IoUringStatx {
-    path: PathBuf,
-    pathbuf: CString,
-    statxbuf: libc::statx,
+#[derive(Debug, Clone)]
+struct IoUringOp {
+    path: CString,
+    buf: libc::statx,
+}
+
+impl Default for IoUringOp {
+    fn default() -> Self {
+        Self {
+            path: Default::default(),
+            buf: unsafe { std::mem::zeroed() },
+        }
+    }
 }
 
 pub struct HostScanner {
@@ -158,64 +168,70 @@ impl HostScanner {
             bail!("invalid path {}", path.display());
         };
 
-        let mut ring = IoUring::new(128)?;
-
-        let statx = glob::glob(glob_str)?
+        let mut paths = glob::glob(glob_str)?
             .map(|entry| {
                 let path = entry.expect("FAIL entry");
                 debug!("Processing path {:?}", path);
+                CString::new(path.as_os_str().as_bytes()).expect("FAIL CString")
+            })
+            .peekable();
 
-                let statxbuf: libc::statx = unsafe { std::mem::zeroed() };
-                let pathbuf = CString::new(path.as_os_str().as_bytes()).expect("FAIL CString");
+        let mut ring = IoUring::new(128)?;
+        let mut ops = vec![IoUringOp::default(); 128];
 
-                let mut buf = Box::new(IoUringStatx {
-                    path,
-                    pathbuf,
-                    statxbuf,
-                });
+        while paths.peek().is_some() {
+            let mut op_count = 0;
+            for b in ops.iter_mut() {
+                let Some(path) = paths.next() else {
+                    // no more paths to process
+                    break;
+                };
+                b.path = path;
 
                 let op = opcode::Statx::new(
                     types::Fd(libc::AT_FDCWD),
-                    buf.pathbuf.as_ptr(),
-                    &mut buf.statxbuf as *mut libc::statx as *mut _,
+                    b.path.as_ptr(),
+                    &mut b.buf as *mut libc::statx as *mut _,
                 )
                 .mask(libc::STATX_TYPE | libc::STATX_INO)
                 .build()
-                .user_data(0x99);
+                .user_data(b as *const _ as u64);
 
-                (op, buf)
-            })
-            .collect::<Vec<_>>();
-
-        for batch in statx.chunks(128) {
-            for (op, _) in batch.iter() {
                 unsafe {
                     ring.submission()
-                        .push(op)
+                        .push(&op)
                         .expect("submission queue is full");
                 }
+                op_count += 1;
             }
 
-            ring.submit_and_wait(batch.len())?;
+            ring.submit_and_wait(op_count)?;
 
             for cqe in ring.completion() {
                 debug!("IoUring CQE {:?}, {:?}", cqe.user_data(), cqe.result());
-            }
 
-            for (_, buf) in batch {
-                let IoUringStatx { path, statxbuf, .. } = &**buf;
+                let op = unsafe {
+                    let ptr = cqe.user_data() as *const IoUringOp;
+                    if ptr.is_null() {
+                        continue;
+                    }
 
-                let is_dir = (statxbuf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFDIR;
-                let is_file = (statxbuf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFREG;
+                    &*ptr
+                };
+
+                let path = OsStr::from_bytes(op.path.as_bytes());
+                let path = path.as_ref();
+                let is_dir = (op.buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFDIR;
+                let is_file = (op.buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFREG;
 
                 if is_file {
                     self.metrics.scan_inc(ScanLabels::FileScanned);
-                    self.update_entry(path.as_path()).with_context(|| {
+                    self.update_entry(path).with_context(|| {
                         format!("Failed to update entry for {}", path.display())
                     })?;
                 } else if is_dir {
                     self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                    self.update_entry(path.as_path()).with_context(|| {
+                    self.update_entry(path).with_context(|| {
                         format!("Failed to update entry for {}", path.display())
                     })?;
                 }
