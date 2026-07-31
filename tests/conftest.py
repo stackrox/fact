@@ -200,6 +200,7 @@ def fact_config_file():
         mode='w',
     )
     yaml.dump(config, f)
+    f.flush()
     yield f.name
     f.close()
 
