@@ -22,7 +22,6 @@ use std::{
     cell::RefCell,
     ffi::OsStr,
     io,
-    os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -230,15 +229,20 @@ impl HostScanner {
                 let path = path.as_ref();
                 let is_dir = (op.buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFDIR;
                 let is_file = (op.buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFREG;
+                let dev = (op.buf.stx_dev_major & 0xFFF) << 8 | (op.buf.stx_dev_minor & 0xFF);
+                let inode = inode_key_t {
+                    inode: op.buf.stx_ino,
+                    dev: dev as u64,
+                };
 
                 if is_file {
                     self.metrics.scan_inc(ScanLabels::FileScanned);
-                    self.update_entry(path).with_context(|| {
+                    self.update_entry(path, inode).with_context(|| {
                         format!("Failed to update entry for {}", path.display())
                     })?;
                 } else if is_dir {
                     self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                    self.update_entry(path).with_context(|| {
+                    self.update_entry(path, inode).with_context(|| {
                         format!("Failed to update entry for {}", path.display())
                     })?;
                 }
@@ -248,19 +252,7 @@ impl HostScanner {
         Ok(())
     }
 
-    fn update_entry(&self, path: &Path) -> anyhow::Result<()> {
-        if !path.exists() {
-            // If path does not exist, we don't have anything to update
-            self.metrics.scan_inc(ScanLabels::FileRemoved);
-            return Ok(());
-        }
-
-        let metadata = path.metadata()?;
-        let inode = inode_key_t {
-            inode: metadata.st_ino(),
-            dev: metadata.st_dev(),
-        };
-
+    fn update_entry(&self, path: &Path, inode: inode_key_t) -> anyhow::Result<()> {
         let host_path = host_info::remove_host_mount(path);
         self.update_entry_with_inode(inode, host_path)?;
 
