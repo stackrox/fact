@@ -187,7 +187,7 @@ impl HostScanner {
 
         while paths.peek().is_some() {
             let mut op_count = 0;
-            for b in ops.iter_mut() {
+            for (i, b) in ops.iter_mut().enumerate() {
                 let Some(path) = paths.next() else {
                     // no more paths to process
                     break;
@@ -201,7 +201,7 @@ impl HostScanner {
                 )
                 .mask(libc::STATX_TYPE | libc::STATX_INO)
                 .build()
-                .user_data(b as *const _ as u64);
+                .user_data(i as u64);
 
                 unsafe {
                     ring.submission()
@@ -216,15 +216,9 @@ impl HostScanner {
             for cqe in ring.completion() {
                 debug!("IoUring CQE {:?}, {:?}", cqe.user_data(), cqe.result());
 
-                let op = unsafe {
-                    let ptr = cqe.user_data() as *const IoUringOp;
-                    if ptr.is_null() {
-                        continue;
-                    }
-
-                    &*ptr
+                let Some(op) = ops.get(cqe.user_data() as usize) else {
+                    unreachable!("Invalid ops index {}", cqe.user_data());
                 };
-
                 let path = OsStr::from_bytes(op.path.as_bytes());
                 let path = path.as_ref();
                 let is_dir = (op.buf.stx_mode as u32 & libc::S_IFMT) == libc::S_IFDIR;
