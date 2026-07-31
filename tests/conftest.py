@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from shutil import rmtree
 from tempfile import NamedTemporaryFile, mkdtemp
 from time import sleep
@@ -13,10 +14,32 @@ import pytest
 import requests
 import yaml
 
+from metrics import MetricsSnapshot
 from server import EventServer, GrpcServer, OtlpServer
 
-# Declare files holding fixtures
 pytest_plugins = ['test_editors.commons']
+
+ENDPOINT_ADDRESS = '127.0.0.1:9000'
+
+
+def base_config(output_mode: str = 'grpc') -> dict:
+    config = {
+        'paths': [],
+        'endpoint': {
+            'address': ENDPOINT_ADDRESS,
+            'expose_metrics': True,
+            'health_check': True,
+        },
+        'json': True,
+        'scan_interval': 0,
+    }
+
+    if output_mode == 'otlp':
+        config['otel'] = {'endpoint': 'http://127.0.0.1:4318/v1/logs'}
+    else:
+        config['grpc'] = {'url': 'http://127.0.0.1:9999'}
+
+    return config
 
 
 @pytest.fixture
@@ -33,7 +56,7 @@ def monitored_dir():
 @pytest.fixture
 def test_file(monitored_dir: str):
     """
-    Create a temporary file for tests
+    Create a temporary file for tests.
 
     This file needs to exist when fact starts up for the inode tracking
     algorithm to work.
@@ -77,28 +100,45 @@ def _get_output_modes(config: pytest.Config) -> list[str]:
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
-    if 'server' in metafunc.fixturenames:
+    if 'server' in metafunc.definition._fixtureinfo.argnames:
         modes = _get_output_modes(metafunc.config)
         metafunc.parametrize('server', modes, indirect=True)
 
 
-@pytest.fixture
-def server(request: pytest.FixtureRequest):
-    """
-    Start and stop an event server.
+@pytest.fixture(scope='session')
+def _servers(request: pytest.FixtureRequest):
+    """Start all event servers needed for this session.
 
-    Parameterised via --output to create either a GrpcServer or an
-    OtlpServer. When --output=all, every test that uses this fixture
-    runs once per output mode.
+    Servers are started before the fact container so that fact can
+    connect on startup.  The parametrised ``server`` fixture looks
+    up the right instance from here.
     """
-    mode = request.param
-    if mode == 'otlp':
-        s: EventServer = OtlpServer()
-    else:
-        s = GrpcServer()
-    s.serve()
-    yield s
-    s.stop()
+    modes = _get_output_modes(request.config)
+    servers: dict[str, EventServer] = {}
+    for mode in modes:
+        s: EventServer = OtlpServer() if mode == 'otlp' else GrpcServer()
+        s.serve()
+        servers[mode] = s
+    yield servers
+    for s in servers.values():
+        s.stop()
+
+
+@pytest.fixture(scope='session')
+def server(
+    request: pytest.FixtureRequest,
+    _servers: dict[str, EventServer],
+):
+    """Select the event server for the current test.
+
+    Parameterised via --output to pick either the GrpcServer or the
+    OtlpServer.  When --output=all, every test that directly
+    requests this fixture runs once per output mode.  Tests that
+    only get it transitively (via autouse ``fact_config``) default
+    to grpc.
+    """
+    mode = getattr(request, 'param', 'grpc')
+    return _servers[mode]
 
 
 @pytest.fixture
@@ -143,50 +183,185 @@ def dump_container_inspect(
         json.dump(container_inspect, f, indent=2)
 
 
-@pytest.fixture
-def fact_config(
-    request: pytest.FixtureRequest,
-    monitored_dir: str,
-    logs_dir: str,
-    server: EventServer,
-):
+@pytest.fixture(scope='session')
+def fact_config_file():
+    """
+    Session-scoped config file shared across all tests.
+
+    The file is created once with a baseline config and rewritten
+    by the per-test ``fact_config`` fixture before each test.
+    """
     cwd = os.getcwd()
-    config: dict = {
-        'paths': [
-            f'{monitored_dir}',
-            f'{monitored_dir}/**/*',
-            '/mounted/**/*',
-            '/container-dir/**/*',
-        ],
-        'endpoint': {
-            'address': '127.0.0.1:9000',
-            'expose_metrics': True,
-            'health_check': True,
-        },
-        'json': True,
-        'scan_interval': 0,
-    }
-
-    if server.output_mode == 'otlp':
-        config['otel'] = {'endpoint': 'http://127.0.0.1:4318/v1/logs'}
-    else:
-        config['grpc'] = {'url': 'http://127.0.0.1:9999'}
-
-    config_file = NamedTemporaryFile(  # noqa: SIM115
+    config = base_config()
+    f = NamedTemporaryFile(  # noqa: SIM115
         prefix='fact-config-',
         suffix='.yml',
         dir=cwd,
         mode='w',
     )
-    yaml.dump(config, config_file)
+    yaml.dump(config, f)
+    f.flush()
+    yield f.name
+    f.close()
 
-    yield config, config_file.name
+
+@pytest.fixture(scope='session', autouse=True)
+def fact(
+    request: pytest.FixtureRequest,
+    docker_client: docker.DockerClient,
+    fact_config_file: str,
+    _servers: dict[str, EventServer],
+):
+    """
+    Session-scoped fact container shared across all tests.
+
+    The container is started once and kept alive for the entire test
+    session.  Between tests the ``fact_config`` fixture rewrites the
+    config file and sends SIGHUP so that fact picks up new paths.
+    """
+    image = request.config.getoption('--image')
+    assert isinstance(image, str)
+    container = docker_client.containers.run(
+        image,
+        detach=True,
+        environment={
+            'FACT_LOGLEVEL': 'debug',
+            'FACT_HOST_MOUNT': '/host',
+            'OTEL_BLRP_SCHEDULE_DELAY': '100',
+            'OTEL_BLRP_MAX_EXPORT_BATCH_SIZE': '1',
+            'RUST_BACKTRACE': '1',
+        },
+        name='fact',
+        network_mode='host',
+        privileged=True,
+        volumes={
+            '/': {
+                'bind': '/host',
+                'mode': 'ro',
+            },
+            fact_config_file: {
+                'bind': '/etc/stackrox/fact.yml',
+                'mode': 'ro',
+            },
+        },
+    )
+
+    session_logs = os.path.join(os.getcwd(), 'logs')
+    container_log = os.path.join(session_logs, 'fact.log')
+
+    os.makedirs(session_logs, exist_ok=True)
+
+    for _ in range(10):
+        try:
+            resp = requests.get(f'http://{ENDPOINT_ADDRESS}/health_check')
+            if resp.status_code == 200:
+                break
+        except (requests.RequestException, requests.ConnectionError) as e:
+            print(e)
+        sleep(1)
+    else:
+        container.stop(timeout=1)
+        dump_logs(container, container_log)
+        container.remove()
+        pytest.fail('fact failed to start')
+
+    yield container
+
+    try:
+        resp = requests.get(f'http://{ENDPOINT_ADDRESS}/metrics')
+        if resp.status_code == 200:
+            with open(os.path.join(session_logs, 'metrics'), 'w') as f:
+                f.write(resp.text)
+    except requests.RequestException:
+        pass
+
+    container.stop(timeout=5)
+    exit_status = container.wait(timeout=2)
+    try:
+        dump_logs(container, container_log)
+        dump_container_inspect(
+            docker_client,
+            container,
+            os.path.join(session_logs, 'container.json'),
+        )
+    finally:
+        container.remove()
+    assert exit_status['StatusCode'] == 0
+
+
+def reload_fact(
+    container: docker.models.containers.Container,
+    config: dict,
+    config_file: str,
+    delay: float = 0.1,
+):
+    with open(config_file, 'w') as f:
+        yaml.dump(config, f)
+    container.kill('SIGHUP')
+    sleep(delay)
+
+
+@pytest.fixture(autouse=True)
+def fact_config(
+    fact: docker.models.containers.Container,
+    fact_config_file: str,
+    monitored_dir: str,
+    server: EventServer,
+    logs_dir: str,
+    test_file: str,
+):
+    """
+    Per-test config that hot-reloads fact via SIGHUP.
+
+    On setup: writes a config with the test's ``monitored_dir`` paths,
+    drains stale events from the server queue, and signals fact to
+    reload.
+
+    On teardown: restores the baseline config (empty paths) so that
+    fact does not fire on directory cleanup, and captures
+    timestamp-sliced container logs for the test.
+    """
+    test_start = time.time()
+
+    config = base_config(server.output_mode)
+    config['paths'] = [
+        monitored_dir,
+        f'{monitored_dir}/**/*',
+        '/mounted/**/*',
+        '/container-dir/**/*',
+    ]
+
+    server.drain()
+    reload_fact(fact, config, fact_config_file)
+
+    metrics_before = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
+
+    yield config, fact_config_file
+
     with (
-        open(os.path.join(logs_dir, 'fact.yml'), 'w') as f,
-        open(config_file.name) as r,
+        open(os.path.join(logs_dir, 'fact.yml'), 'w') as out,
+        open(fact_config_file) as src,
     ):
-        f.write(r.read())
-    config_file.close()
+        out.write(src.read())
+
+    try:
+        metrics_after = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
+        metrics_delta = metrics_before.delta(metrics_after)
+        with open(os.path.join(logs_dir, 'metrics'), 'w') as f:
+            f.write(metrics_delta.to_text())
+    except Exception:
+        pass
+
+    try:
+        test_end = time.time()
+        log_bytes = fact.logs(since=test_start, until=test_end)
+        with open(os.path.join(logs_dir, 'fact.log'), 'wb') as f:
+            f.write(log_bytes)
+    except Exception:
+        pass
+
+    config = base_config(server.output_mode)
+    reload_fact(fact, config, fact_config_file)
 
 
 @pytest.fixture
@@ -221,86 +396,6 @@ def test_container(
 
     container.stop(timeout=1)
     container.remove()
-
-
-@pytest.fixture(autouse=True)
-def fact(
-    request: pytest.FixtureRequest,
-    docker_client: docker.DockerClient,
-    fact_config: tuple[dict, str],
-    server: EventServer,
-    logs_dir: str,
-    test_file: str,
-):
-    """
-    Run the fact docker container for integration tests.
-    """
-    config, config_file = fact_config
-    image = request.config.getoption('--image')
-    assert isinstance(image, str)
-    container = docker_client.containers.run(
-        image,
-        detach=True,
-        environment={
-            'FACT_LOGLEVEL': 'debug',
-            'FACT_HOST_MOUNT': '/host',
-            'OTEL_BLRP_SCHEDULE_DELAY': '100',
-            'OTEL_BLRP_MAX_EXPORT_BATCH_SIZE': '1',
-            'RUST_BACKTRACE': '1',
-        },
-        name='fact',
-        network_mode='host',
-        privileged=True,
-        volumes={
-            '/': {
-                'bind': '/host',
-                'mode': 'ro',
-            },
-            config_file: {
-                'bind': '/etc/stackrox/fact.yml',
-                'mode': 'ro',
-            },
-        },
-    )
-
-    container_log = os.path.join(logs_dir, 'fact.log')
-    # Wait for container to be ready
-    for _ in range(10):
-        try:
-            resp = requests.get(
-                f'http://{config["endpoint"]["address"]}/health_check'
-            )
-            if resp.status_code == 200:
-                break
-        except (requests.RequestException, requests.ConnectionError) as e:
-            print(e)
-        sleep(1)
-    else:
-        container.stop(timeout=1)
-        dump_logs(container, container_log)
-        container.remove()
-        pytest.fail('fact failed to start')
-
-    yield container
-
-    # Capture prometheus metrics before stopping the container
-    if config['endpoint']['expose_metrics']:
-        metric_log = os.path.join(logs_dir, 'metrics')
-        resp = requests.get(f'http://{config["endpoint"]["address"]}/metrics')
-        if resp.status_code == 200:
-            with open(metric_log, 'w') as f:
-                f.write(resp.text)
-
-    container.stop(timeout=5)
-    exit_status = container.wait(timeout=2)
-    try:
-        dump_logs(container, container_log)
-        dump_container_inspect(
-            docker_client, container, os.path.join(logs_dir, 'container.json')
-        )
-    finally:
-        container.remove()
-    assert exit_status['StatusCode'] == 0
 
 
 def pytest_addoption(parser: pytest.Parser):

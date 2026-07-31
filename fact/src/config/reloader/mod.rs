@@ -116,7 +116,7 @@ impl Reloader {
             let path = PathBuf::from(file);
             if path.exists() {
                 let mtime = match path.metadata() {
-                    Ok(m) => m.mtime(),
+                    Ok(m) => m.mtime_nsec(),
                     Err(e) => {
                         warn!("Failed to stat {file}: {e}");
                         warn!("Configuration reloading may not work");
