@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 {
 	struct io_uring ring;
 	struct io_uring_sqe *sqe;
-	int ret, fd;
+	int result = 3, ret, fd;
 
 	if (argc != 3) {
 		fprintf(stderr, "Usage: %s <file> <content>\n", argv[0]);
@@ -72,10 +72,8 @@ int main(int argc, char *argv[])
 	if (ret < 0)
 		goto err;
 
-	io_uring_queue_exit(&ring);
-	return 0;
-
+	result = 0;
 err:
 	io_uring_queue_exit(&ring);
-	return 3;
+	return result;
 }
