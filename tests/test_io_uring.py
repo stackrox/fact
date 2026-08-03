@@ -1,38 +1,56 @@
 from __future__ import annotations
 
 import os
-import subprocess
 
+import docker
+import docker.models.containers
+import docker.models.images
 import pytest
 
 from event import Event, EventType, Process
 from server import EventServer
 
-IO_URING_SRC = os.path.join(os.path.dirname(__file__), 'io_uring_write_raw.c')
-IO_URING_BIN = os.path.join(os.path.dirname(__file__), 'io_uring_write_raw')
-
 
 @pytest.fixture(scope='session')
-def io_uring_helper():
-    """Compile the raw io_uring helper statically. Skips if glibc-static is unavailable."""
-    result = subprocess.run(
-        ['cc', '-static', '-o', IO_URING_BIN, IO_URING_SRC],
-        capture_output=True,
+def io_uring_image(docker_client: docker.DockerClient):
+    image, _ = docker_client.images.build(
+        path='containers/io-uring',
+        tag='io-uring:latest',
+        dockerfile='Containerfile',
     )
-    if result.returncode != 0:
-        pytest.skip(
-            'io_uring helper compilation failed (glibc-static missing?): '
-            + result.stderr.decode()
-        )
-    yield IO_URING_BIN
-    if os.path.exists(IO_URING_BIN):
-        os.unlink(IO_URING_BIN)
+    return image
+
+
+@pytest.fixture
+def get_io_uring_container(
+    io_uring_image: docker.models.images.Image,
+    docker_client: docker.DockerClient,
+    monitored_dir: str,
+):
+    container = docker_client.containers.run(
+        io_uring_image.tags[0],
+        detach=True,
+        tty=True,
+        name='io-uring',
+        security_opt=['seccomp=unconfined'],
+        volumes={
+            monitored_dir: {
+                'bind': '/data',
+                'mode': 'z',
+            },
+        },
+    )
+
+    yield container
+
+    container.stop(timeout=1)
+    container.remove()
 
 
 def test_io_uring_write(
     monitored_dir: str,
     server: EventServer,
-    io_uring_helper: str,
+    get_io_uring_container: docker.models.containers.Container,
 ):
     """
     Verifies that io_uring write operations modify files but are not
@@ -58,18 +76,13 @@ def test_io_uring_write(
     )
     server.wait_events([creation])
 
-    # Modify the file using io_uring (bypasses normal syscall path).
-    result = subprocess.run(
-        [io_uring_helper, fut, 'bye'],
-        capture_output=True,
+    # Modify the file using io_uring inside the container.
+    exit_code, output = get_io_uring_container.exec_run(
+        ['io_uring_write_raw', '/data/io_uring_test.txt', 'bye'],
     )
-    if result.returncode == 2:
-        pytest.skip(
-            f'io_uring not supported: {result.stderr.decode()}'
-        )
-    assert result.returncode == 0, (
-        f'io_uring write failed: {result.stderr.decode()}'
-    )
+    if exit_code == 2:
+        pytest.skip(f'io_uring not supported: {output.decode()}')
+    assert exit_code == 0, f'io_uring write failed: {output.decode()}'
 
     # Create a sentinel file via normal I/O to verify event ordering.
     # With strict=True (the default), any unexpected event appearing
