@@ -16,11 +16,28 @@
 #include <stdio.h>
 #include <string.h>
 
+static int submit_wait(struct io_uring *ring, const char *op)
+{
+	struct io_uring_cqe *cqe;
+	int ret;
+
+	io_uring_submit(ring);
+	ret = io_uring_wait_cqe(ring, &cqe);
+	if (ret < 0) {
+		fprintf(stderr, "wait %s: %s\n", op, strerror(-ret));
+		return ret;
+	}
+	ret = cqe->res;
+	if (ret < 0)
+		fprintf(stderr, "%s: %s\n", op, strerror(-ret));
+	io_uring_cqe_seen(ring, cqe);
+	return ret;
+}
+
 int main(int argc, char *argv[])
 {
 	struct io_uring ring;
 	struct io_uring_sqe *sqe;
-	struct io_uring_cqe *cqe;
 	int ret, fd;
 
 	if (argc != 3) {
@@ -37,46 +54,23 @@ int main(int argc, char *argv[])
 	/* Open file via io_uring */
 	sqe = io_uring_get_sqe(&ring);
 	io_uring_prep_openat(sqe, AT_FDCWD, argv[1], O_WRONLY | O_TRUNC, 0);
-	io_uring_submit(&ring);
-	ret = io_uring_wait_cqe(&ring, &cqe);
-	if (ret < 0) {
-		fprintf(stderr, "wait openat: %s\n", strerror(-ret));
+	fd = submit_wait(&ring, "openat");
+	if (fd < 0)
 		goto err;
-	}
-	if (cqe->res < 0) {
-		fprintf(stderr, "openat: %s\n", strerror(-cqe->res));
-		io_uring_cqe_seen(&ring, cqe);
-		goto err;
-	}
-	fd = cqe->res;
-	io_uring_cqe_seen(&ring, cqe);
 
 	/* Write content via io_uring */
 	sqe = io_uring_get_sqe(&ring);
 	io_uring_prep_write(sqe, fd, argv[2], strlen(argv[2]), 0);
-	io_uring_submit(&ring);
-	ret = io_uring_wait_cqe(&ring, &cqe);
-	if (ret < 0) {
-		fprintf(stderr, "wait write: %s\n", strerror(-ret));
+	ret = submit_wait(&ring, "write");
+	if (ret < 0)
 		goto err;
-	}
-	if (cqe->res < 0) {
-		fprintf(stderr, "write: %s\n", strerror(-cqe->res));
-		io_uring_cqe_seen(&ring, cqe);
-		goto err;
-	}
-	io_uring_cqe_seen(&ring, cqe);
 
 	/* Close file via io_uring */
 	sqe = io_uring_get_sqe(&ring);
 	io_uring_prep_close(sqe, fd);
-	io_uring_submit(&ring);
-	ret = io_uring_wait_cqe(&ring, &cqe);
-	if (ret < 0) {
-		fprintf(stderr, "wait close: %s\n", strerror(-ret));
+	ret = submit_wait(&ring, "close");
+	if (ret < 0)
 		goto err;
-	}
-	io_uring_cqe_seen(&ring, cqe);
 
 	io_uring_queue_exit(&ring);
 	return 0;
