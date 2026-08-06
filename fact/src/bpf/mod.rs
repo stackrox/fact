@@ -30,8 +30,8 @@ pub struct Bpf {
 
     tx: mpsc::Sender<Event>,
 
-    paths: Vec<path_prefix_t>,
     paths_config: watch::Receiver<Vec<PathBuf>>,
+    paths_lpm_map: LpmTrie<MapData, [c_char; LPM_SIZE_MAX as usize], c_char>,
 
     paths_globset: GlobSet,
 
@@ -55,19 +55,19 @@ impl Bpf {
 
         // Include the BPF object as raw bytes at compile-time and load it
         // at runtime.
-        let obj = Bpf::load_ebpf(&checks, bpf_config)?;
+        let mut obj = Bpf::load_ebpf(&checks, bpf_config)?;
 
         Bpf::validate_config(&obj, bpf_config);
+        let paths_lpm_map = Bpf::take_path_prefix(&mut obj);
 
         let (tx, rx) = mpsc::channel(100);
-        let paths = Vec::new();
         let mut bpf = Bpf {
             obj,
             checks,
             tx,
-            paths,
             paths_config,
             paths_globset: GlobSet::empty(),
+            paths_lpm_map,
             links: Vec::new(),
             running,
             metrics,
@@ -129,6 +129,19 @@ impl Bpf {
         Ok(PerCpuArray::try_from(metrics)?)
     }
 
+    fn take_path_prefix(
+        obj: &mut Ebpf,
+    ) -> LpmTrie<MapData, [c_char; LPM_SIZE_MAX as usize], c_char> {
+        let Some(paths_lpm_prefix) = obj.take_map("path_prefix") else {
+            unreachable!("path_prefix map not found");
+        };
+
+        match paths_lpm_prefix.try_into() {
+            Ok(map) => map,
+            Err(_) => unreachable!("path_prefix map is not LpmTrie"),
+        }
+    }
+
     fn take_ringbuffer(&mut self) -> anyhow::Result<RingBuf<MapData>> {
         let ringbuf = match self.obj.take_map(RINGBUFFER_NAME) {
             Some(r) => r,
@@ -137,10 +150,34 @@ impl Bpf {
         Ok(RingBuf::try_from(ringbuf)?)
     }
 
+    fn cleanup_lpm_map(&mut self, new_paths: &[path_prefix_t]) -> anyhow::Result<()> {
+        let to_be_removed = self
+            .paths_lpm_map
+            .keys()
+            .filter_map(|p| match p {
+                Ok(p) => {
+                    let p = path_prefix_t::from(p);
+                    if !new_paths.contains(&p) {
+                        Some(Ok(p))
+                    } else {
+                        None
+                    }
+                }
+                Err(e) => Some(Err(e)),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for p in to_be_removed {
+            self.paths_lpm_map.remove(&p.into())?;
+        }
+
+        Ok(())
+    }
+
     fn load_paths(&mut self) -> anyhow::Result<()> {
         if self.paths_config.borrow().is_empty() {
             self.detach_progs();
-            self.paths.clear();
+            self.cleanup_lpm_map(&[])?;
             self.paths_globset = GlobSet::empty();
             return Ok(());
         }
@@ -149,41 +186,29 @@ impl Bpf {
             self.attach_progs()?;
         }
 
-        let Some(path_prefix) = self.obj.map_mut("path_prefix") else {
-            bail!("path_prefix map not found");
-        };
-        let mut path_prefix: LpmTrie<&mut MapData, [c_char; LPM_SIZE_MAX as usize], c_char> =
-            LpmTrie::try_from(path_prefix)?;
-
         // Add the new prefixes
-        let paths_config = self.paths_config.borrow();
-        let mut new_paths = Vec::with_capacity(paths_config.len());
-        let mut builder = GlobSetBuilder::new();
-        for p in paths_config.iter() {
-            let Some(glob_str) = p.to_str() else {
-                bail!("failed to convert path {} to string", p.display());
-            };
+        let new_paths = {
+            let paths_config = self.paths_config.borrow();
+            let mut new_paths = Vec::with_capacity(paths_config.len());
+            let mut builder = GlobSetBuilder::new();
+            for p in paths_config.iter() {
+                let Some(glob_str) = p.to_str() else {
+                    bail!("failed to convert path {} to string", p.display());
+                };
 
-            builder.add(
-                Glob::new(glob_str)
-                    .with_context(|| format!("invalid glob {}", glob_str))
-                    .unwrap(),
-            );
+                builder.add(
+                    Glob::new(glob_str).with_context(|| format!("invalid glob {}", glob_str))?,
+                );
 
-            let prefix = path_prefix_t::try_from(p)?;
-            path_prefix.insert(&prefix.into(), 0, 0)?;
-            new_paths.push(prefix);
-        }
-        self.paths_globset = builder.build()?;
-
-        // Remove old prefixes
-        for p in self.paths.iter().filter(|p| !new_paths.contains(p)) {
-            if let Err(e) = path_prefix.remove(&(*p).into()) {
-                warn!("Failed to remove path prefix: {e:#?}");
+                let prefix = path_prefix_t::try_from(p)?;
+                self.paths_lpm_map.insert(&prefix.into(), 0, 0)?;
+                new_paths.push(prefix);
             }
-        }
+            self.paths_globset = builder.build()?;
+            new_paths
+        };
 
-        self.paths = new_paths;
+        self.cleanup_lpm_map(&new_paths)?;
 
         Ok(())
     }
