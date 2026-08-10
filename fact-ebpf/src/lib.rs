@@ -64,6 +64,15 @@ impl From<path_prefix_t> for lpm_trie::Key<[c_char; LPM_SIZE_MAX as usize]> {
     }
 }
 
+impl From<lpm_trie::Key<[c_char; LPM_SIZE_MAX as usize]>> for path_prefix_t {
+    fn from(value: lpm_trie::Key<[c_char; LPM_SIZE_MAX as usize]>) -> Self {
+        path_prefix_t {
+            bit_len: value.prefix_len(),
+            path: value.data(),
+        }
+    }
+}
+
 impl PartialEq for path_prefix_t {
     fn eq(&self, other: &Self) -> bool {
         self.bit_len == other.bit_len && self.path == other.path
