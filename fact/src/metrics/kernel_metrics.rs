@@ -79,4 +79,5 @@ define_kernel_metrics!(
     sb_mount,
     sb_umount,
     move_mount,
+    path_symlink,
 );

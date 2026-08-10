@@ -162,6 +162,10 @@ impl Event {
         )
     }
 
+    pub fn is_symlink(&self) -> bool {
+        matches!(self.file, FileData::Symlink { .. })
+    }
+
     /// Unwrap the inner FileData and return the inode that triggered
     /// the event.
     ///
@@ -180,6 +184,7 @@ impl Event {
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
             | FileData::Umount(inner)
+            | FileData::Symlink { inner, .. }
             | FileData::SetXattr(XattrFileData { inner, .. })
             | FileData::RemoveXattr(XattrFileData { inner, .. })
             | FileData::AclSet(AclSetFileData { inner, .. }) => &inner.inode,
@@ -200,6 +205,7 @@ impl Event {
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
             | FileData::Umount(inner)
+            | FileData::Symlink { inner, .. }
             | FileData::SetXattr(XattrFileData { inner, .. })
             | FileData::RemoveXattr(XattrFileData { inner, .. })
             | FileData::AclSet(AclSetFileData { inner, .. }) => &inner.parent_inode,
@@ -231,6 +237,7 @@ impl Event {
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
             | FileData::Umount(inner)
+            | FileData::Symlink { inner, .. }
             | FileData::SetXattr(XattrFileData { inner, .. })
             | FileData::RemoveXattr(XattrFileData { inner, .. })
             | FileData::AclSet(AclSetFileData { inner, .. }) => &inner.filename,
@@ -259,6 +266,7 @@ impl Event {
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
             | FileData::Umount(inner)
+            | FileData::Symlink { inner, .. }
             | FileData::SetXattr(XattrFileData { inner, .. })
             | FileData::RemoveXattr(XattrFileData { inner, .. })
             | FileData::AclSet(AclSetFileData { inner, .. }) => &inner.host_file,
@@ -291,6 +299,7 @@ impl Event {
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
             | FileData::Umount(inner)
+            | FileData::Symlink { inner, .. }
             | FileData::SetXattr(XattrFileData { inner, .. })
             | FileData::RemoveXattr(XattrFileData { inner, .. })
             | FileData::AclSet(AclSetFileData { inner, .. }) => inner.host_file = host_path,
@@ -308,6 +317,30 @@ impl Event {
         }
     }
 
+    /// Set the `inode` field of the event to the one provided.
+    ///
+    /// This is useful in events that come with empty inodes from the
+    /// kernel, but can later be queried in userspace.
+    pub fn set_inode(&mut self, inode: inode_key_t) {
+        match &mut self.file {
+            FileData::Open(inner)
+            | FileData::Creation(inner)
+            | FileData::MkDir(inner)
+            | FileData::RmDir(inner)
+            | FileData::Unlink(inner)
+            | FileData::Chmod(ChmodFileData { inner, .. })
+            | FileData::Chown(ChownFileData { inner, .. })
+            | FileData::Rename { new: inner, .. }
+            | FileData::SetXattr(XattrFileData { inner, .. })
+            | FileData::RemoveXattr(XattrFileData { inner, .. })
+            | FileData::AclSet(AclSetFileData { inner, .. })
+            | FileData::Mount(inner)
+            | FileData::MoveMount { to: inner, .. }
+            | FileData::Umount(inner)
+            | FileData::Symlink { inner, .. } => inner.inode = inode,
+        }
+    }
+
     pub fn get_monitored(&self) -> monitored_t {
         match &self.file {
             FileData::Open(inner)
@@ -321,6 +354,7 @@ impl Event {
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
             | FileData::Umount(inner)
+            | FileData::Symlink { inner, .. }
             | FileData::SetXattr(XattrFileData { inner, .. })
             | FileData::RemoveXattr(XattrFileData { inner, .. })
             | FileData::AclSet(AclSetFileData { inner, .. }) => inner.monitored,
@@ -447,6 +481,10 @@ pub enum FileData {
         from: BaseFileData,
     },
     Umount(BaseFileData),
+    Symlink {
+        inner: BaseFileData,
+        target: PathBuf,
+    },
 }
 
 impl FileData {
@@ -528,6 +566,11 @@ impl FileData {
                 let from = read_from_data(extra_data);
                 FileData::MoveMount { to: inner, from }
             }
+            file_activity_type_t::FILE_ACTIVITY_SYMLINK => {
+                let target = unsafe { extra_data.from.filename };
+                let target = sanitize_d_path(&target);
+                FileData::Symlink { inner, target }
+            }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
         };
 
@@ -551,6 +594,7 @@ impl FileData {
             FileData::Mount(_) => "mount",
             FileData::MoveMount { .. } => "move_mount",
             FileData::Umount(_) => "umount",
+            FileData::Symlink { .. } => "symlink",
         }
     }
 }
@@ -558,7 +602,7 @@ impl FileData {
 impl From<FileData> for fact_api::file_activity::File {
     fn from(event: FileData) -> Self {
         match event {
-            FileData::Open(event) => {
+            FileData::Open(event) | FileData::Symlink { inner: event, .. } => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileOpen { activity };
                 fact_api::file_activity::File::Open(f_act)
@@ -643,6 +687,14 @@ impl From<FileData> for opentelemetry::logs::AnyValue {
             }
             FileData::SetXattr(data) | FileData::RemoveXattr(data) => AnyValue::from(data),
             FileData::AclSet(data) => AnyValue::from(data),
+            FileData::Symlink { inner, target } => {
+                let AnyValue::Map(mut map) = AnyValue::from(inner) else {
+                    unreachable!("to value did not serialize to map");
+                };
+                map.insert("target".into(), target.to_string_lossy().to_string().into());
+
+                AnyValue::Map(map)
+            }
         }) else {
             unreachable!("event data did not serialize to map");
         };

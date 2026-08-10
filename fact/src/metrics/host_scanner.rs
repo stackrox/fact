@@ -14,6 +14,7 @@ pub enum ScanLabels {
     InodeHit,
     DirectoryScanned,
     FileScanned,
+    SymlinkScanned,
     FileRemoved,
     FileUpdated,
     FsItemIgnored,

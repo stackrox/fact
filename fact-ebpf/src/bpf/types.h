@@ -118,6 +118,7 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_MOUNT,
   FILE_ACTIVITY_UMOUNT,
   FILE_ACTIVITY_MOVE_MOUNT,
+  FILE_ACTIVITY_SYMLINK,
 } file_activity_type_t;
 
 struct event_t {
@@ -200,4 +201,5 @@ struct metrics_t {
   struct metrics_by_hook_t sb_mount;
   struct metrics_by_hook_t sb_umount;
   struct metrics_by_hook_t move_mount;
+  struct metrics_by_hook_t path_symlink;
 };

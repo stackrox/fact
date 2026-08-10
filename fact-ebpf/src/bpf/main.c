@@ -601,3 +601,36 @@ error:
   args.metrics->error++;
   return 0;
 }
+
+SEC("lsm/path_symlink")
+int BPF_PROG(trace_path_symlink, struct path* dir, struct dentry* dentry, const char* old_name) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->path_symlink};
+
+  args.metrics->total++;
+
+  struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
+  if (path == NULL) {
+    bpf_printk("Failed to read path");
+    m->path_symlink.error++;
+    return 0;
+  }
+  args.filename = path->path;
+
+  args.parent_inode = inode_to_key(dir->dentry->d_inode);
+  // The inode for the symlink has not been created yet, so we can't use
+  // it here.
+  args.monitored = is_monitored(NULL, path, &args.parent_inode);
+
+  if (args.monitored == NOT_MONITORED) {
+    args.metrics->ignored++;
+    return 0;
+  }
+
+  submit_symlink_event(&args, old_name);
+
+  return 0;
+}

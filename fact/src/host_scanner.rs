@@ -207,7 +207,7 @@ impl HostScanner {
                     continue;
                 }
             };
-            let metadata = match path.metadata() {
+            let metadata = match path.symlink_metadatametadata() {
                 Ok(p) => p,
                 Err(e) => {
                     debug!("Failed to get metadata for {}: {e:?}", path.display());
@@ -218,15 +218,17 @@ impl HostScanner {
 
             if metadata.is_file() {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
-                self.update_entry(path.as_path(), &metadata)
-                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
+            } else if metadata.is_symlink() {
+                self.metrics.scan_inc(ScanLabels::SymlinkScanned);
             } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                self.update_entry(path.as_path(), &metadata)
-                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
             } else {
                 self.metrics.scan_inc(ScanLabels::FsItemIgnored);
+                continue;
             }
+
+            self.update_entry(&path, &metadata)
+                .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
     }
@@ -285,6 +287,19 @@ You can increase this limit with:
         self.inode_map.borrow().get(inode?).cloned()
     }
 
+    fn build_host_path(&self, event: &Event) -> Option<PathBuf> {
+        let parent_inode = event.get_parent_inode();
+
+        if !parent_inode.empty()
+            && let Some(filename) = event.get_filename().file_name()
+            && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
+        {
+            Some(parent_host_path.join(filename))
+        } else {
+            None
+        }
+    }
+
     /// Handle file creation events by adding new inodes to the map.
     ///
     /// We use the parent inode provided by the eBPF code
@@ -292,25 +307,22 @@ You can increase this limit with:
     /// path by appending the new file's name.
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
         let inode = event.get_inode();
-        let parent_inode = event.get_parent_inode();
-        if self.get_host_path(Some(inode)).is_some() || parent_inode.empty() {
+        if self.get_host_path(Some(inode)).is_some() {
             return Ok(());
         }
 
-        if let Some(filename) = event.get_filename().file_name()
-            && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
-        {
-            let host_path = parent_host_path.join(filename);
-            self.update_entry_with_inode(*inode, host_path)
+        match self.build_host_path(event) {
+            Some(host_path) => self
+                .update_entry_with_inode(*inode, host_path)
                 .with_context(|| {
                     format!(
                         "Failed to add creation event entry for {}",
-                        filename.display()
+                        event.get_filename().display(),
                     )
-                })?;
-        }
+                }),
 
-        Ok(())
+            None => Ok(()),
+        }
     }
 
     /// Handle unlink events by removing the inode from the inode->path map.
@@ -458,6 +470,38 @@ You can increase this limit with:
         }
     }
 
+    /// Handle a symlink being created/modified in a monitored directory.
+    ///
+    /// Symlinks arrive with no information about their inode, so we
+    /// need to build the host path and query the OS directly.
+    fn handle_symlink_event(&self, event: &mut Event) -> anyhow::Result<()> {
+        let Some(host_path) = self.build_host_path(event) else {
+            // No parent information available for building the host path.
+            return Ok(());
+        };
+
+        let host_path_from_mount = host_info::prepend_host_mount(&host_path);
+
+        // Set the host path for the event here, if we fail to query
+        // the inode because it moved, this will let the event go through
+        event.set_host_path(host_path);
+
+        let metadata = match host_path_from_mount.symlink_metadata() {
+            Ok(m) => m,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                // The symlink was moved before we could query it
+                return Ok(());
+            }
+            Err(e) => return Err(e.into()),
+        };
+        event.set_inode(inode_key_t {
+            inode: metadata.st_ino(),
+            dev: metadata.st_dev(),
+        });
+
+        self.update_entry(&host_path_from_mount, &metadata)
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -509,6 +553,11 @@ You can increase this limit with:
                         if event.is_creation() &&
                             let Err(e) = self.handle_creation_event(&event) {
                                 warn!("Failed to handle creation event: {e}");
+                            }
+
+                        if event.is_symlink() &&
+                            let Err(e) = self.handle_symlink_event(&mut event) {
+                                warn!("Failed to handle symlink event: {e}");
                             }
 
                         // Handle mount events and move on.
