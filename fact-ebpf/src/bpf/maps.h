@@ -83,12 +83,55 @@ struct {
   __uint(map_flags, BPF_F_NO_PREALLOC);
 } inode_map SEC(".maps");
 
+// Context for correlating mkdir operations
+struct d_instantiate_ctx_t {
+  struct bound_path_t path;
+  inode_key_t parent_inode;
+  monitored_t monitored;
+  file_activity_type_t event_type;
+  char symlink_target[PATH_MAX];
+};
+
 struct {
   __uint(type, BPF_MAP_TYPE_LRU_HASH);
   __type(key, __u64);
-  __type(value, struct mkdir_context_t);
+  __type(value, struct d_instantiate_ctx_t);
   __uint(max_entries, 16384);
-} mkdir_context SEC(".maps");
+} d_instantiate_ctx SEC(".maps");
+
+__always_inline static struct d_instantiate_ctx_t* get_d_instantiate_ctx() {
+  __u64 pid = bpf_get_current_pid_tgid();
+  return bpf_map_lookup_elem(&d_instantiate_ctx, &pid);
+}
+
+__always_inline static long delete_d_instantiate_ctx() {
+  __u64 pid = bpf_get_current_pid_tgid();
+  return bpf_map_delete_elem(&d_instantiate_ctx, &pid);
+}
+
+__always_inline static struct d_instantiate_ctx_t* get_or_insert_d_instantiate_ctx() {
+  static const struct d_instantiate_ctx_t empty_ctx = {
+    .event_type = FILE_ACTIVITY_INIT,
+  };
+
+  __u64 pid = bpf_get_current_pid_tgid();
+  struct d_instantiate_ctx_t* ctx = bpf_map_lookup_elem(&d_instantiate_ctx, &pid);
+  if (ctx != NULL) {
+    // Clear the event type so `d_instantiate` doesn't trigger by accident
+    ctx->event_type = FILE_ACTIVITY_INIT;
+    return ctx;
+  }
+
+  if (bpf_map_update_elem(&d_instantiate_ctx, &pid, &empty_ctx, BPF_NOEXIST) != 0) {
+    return NULL;
+  }
+
+  ctx = bpf_map_lookup_elem(&d_instantiate_ctx, &pid);
+  if (ctx == NULL) {
+    return NULL;
+  }
+  return ctx;
+}
 
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);

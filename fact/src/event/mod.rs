@@ -132,7 +132,10 @@ impl Event {
     }
 
     pub fn is_creation(&self) -> bool {
-        matches!(self.file, FileData::Creation(_) | FileData::MkDir(_))
+        matches!(
+            self.file,
+            FileData::Creation(_) | FileData::MkDir(_) | FileData::Symlink { .. }
+        )
     }
 
     pub fn is_xattr(&self) -> bool {

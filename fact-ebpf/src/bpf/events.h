@@ -254,5 +254,5 @@ __always_inline static void submit_symlink_event(struct submit_event_args_t* arg
   args->event->type = FILE_ACTIVITY_SYMLINK;
   bpf_probe_read_str(args->event->from.filename, PATH_MAX, from_filename);
 
-  __submit_event(args, path_hooks_support_bpf_d_path);
+  __submit_event(args, false);
 }

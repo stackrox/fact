@@ -170,13 +170,6 @@ struct path_prefix_t {
   const char path[LPM_SIZE_MAX];
 };
 
-// Context for correlating mkdir operations
-struct mkdir_context_t {
-  char path[PATH_MAX];
-  inode_key_t parent_inode;
-  monitored_t monitored;
-};
-
 // Metrics types
 struct metrics_by_hook_t {
   unsigned long long total;
