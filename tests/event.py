@@ -47,6 +47,7 @@ class EventType(Enum):
     XATTR_SET = 7
     XATTR_REMOVE = 8
     ACL = 9
+    SYMLINK = 10
 
 
 # POSIX ACL type values matching the AclType proto enum.
@@ -78,12 +79,12 @@ class Process:
         container_id: str,
         loginuid: int,
     ):
-        self._pid: int | None = pid
+        self.pid: int | None = pid
         self._uid: int = uid
         self._gid: int = gid
-        self._exe_path: str = exe_path
-        self._args: str = args
-        self._name: str = name
+        self.exe_path: str = exe_path
+        self.args: str = args
+        self.name: str = name
         self._container_id: str = container_id
         self._loginuid: int = loginuid
 
@@ -164,22 +165,6 @@ class Process:
     @property
     def gid(self) -> int:
         return self._gid
-
-    @property
-    def pid(self) -> int | None:
-        return self._pid
-
-    @property
-    def exe_path(self) -> str:
-        return self._exe_path
-
-    @property
-    def args(self) -> str:
-        return self._args
-
-    @property
-    def name(self) -> str:
-        return self._name
 
     @property
     def container_id(self) -> str:
