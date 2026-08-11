@@ -601,13 +601,13 @@ int BPF_PROG(trace_path_symlink, struct path* dir, struct dentry* dentry, const 
   if (m == NULL) {
     return 0;
   }
+  m->path_symlink.total++;
+
   struct d_instantiate_ctx_t* symlink_ctx = get_or_insert_d_instantiate_ctx();
   if (symlink_ctx == NULL) {
     bpf_printk("Failed to get d_instantiate context entry");
     goto error;
   }
-
-  m->path_symlink.total++;
 
   if (path_read_into_append_d_entry(dir, dentry, &symlink_ctx->path, path_hooks_support_bpf_d_path) == NULL) {
     bpf_printk("Failed to read path");

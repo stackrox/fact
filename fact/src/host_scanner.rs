@@ -207,11 +207,11 @@ impl HostScanner {
                     continue;
                 }
             };
-            let metadata = match path.symlink_metadatametadata() {
-                Ok(p) => p,
+            let metadata = match path.symlink_metadata() {
+                Ok(m) => m,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
                 Err(e) => {
-                    debug!("Failed to get metadata for {}: {e:?}", path.display());
-                    self.metrics.scan_inc(ScanLabels::FsMetadataFailed);
+                    warn!("Failed to get metadata for {}: {e}", path.display());
                     continue;
                 }
             };

@@ -83,7 +83,7 @@ struct {
   __uint(map_flags, BPF_F_NO_PREALLOC);
 } inode_map SEC(".maps");
 
-// Context for correlating mkdir operations
+// Context for correlating operations in d_instantiate
 struct d_instantiate_ctx_t {
   struct bound_path_t path;
   inode_key_t parent_inode;

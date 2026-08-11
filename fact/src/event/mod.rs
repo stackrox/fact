@@ -320,30 +320,6 @@ impl Event {
         }
     }
 
-    /// Set the `inode` field of the event to the one provided.
-    ///
-    /// This is useful in events that come with empty inodes from the
-    /// kernel, but can later be queried in userspace.
-    pub fn set_inode(&mut self, inode: inode_key_t) {
-        match &mut self.file {
-            FileData::Open(inner)
-            | FileData::Creation(inner)
-            | FileData::MkDir(inner)
-            | FileData::RmDir(inner)
-            | FileData::Unlink(inner)
-            | FileData::Chmod(ChmodFileData { inner, .. })
-            | FileData::Chown(ChownFileData { inner, .. })
-            | FileData::Rename { new: inner, .. }
-            | FileData::SetXattr(XattrFileData { inner, .. })
-            | FileData::RemoveXattr(XattrFileData { inner, .. })
-            | FileData::AclSet(AclSetFileData { inner, .. })
-            | FileData::Mount(inner)
-            | FileData::MoveMount { to: inner, .. }
-            | FileData::Umount(inner)
-            | FileData::Symlink { inner, .. } => inner.inode = inode,
-        }
-    }
-
     pub fn get_monitored(&self) -> monitored_t {
         match &self.file {
             FileData::Open(inner)
