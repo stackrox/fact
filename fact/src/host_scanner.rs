@@ -220,6 +220,7 @@ impl HostScanner {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
             } else if metadata.is_symlink() {
                 self.metrics.scan_inc(ScanLabels::SymlinkScanned);
+                self.scan_symlink(&path);
             } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
             } else {
@@ -231,6 +232,36 @@ impl HostScanner {
                 .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
+    }
+
+    fn scan_symlink(&self, path: &Path) {
+        let target = match path.read_link() {
+            Ok(p) => {
+                if p.has_root() {
+                    &host_info::prepend_host_mount(&p)
+                } else {
+                    path
+                }
+            }
+            Err(e) => {
+                warn!("Failed to read symlink path: {e}");
+                return;
+            }
+        };
+
+        match target.metadata() {
+            Ok(metadata) => {
+                if let Err(e) = self.update_entry(path, &metadata) {
+                    warn!("Failed to update symlink entry for {}: {e}", path.display());
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to read metadata for symlink target {}: {e}",
+                    target.display()
+                );
+            }
+        }
     }
 
     fn update_entry(&self, path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
@@ -470,6 +501,15 @@ You can increase this limit with:
         }
     }
 
+    /// Handle symlink events by scanning the filesystem
+    fn handle_symlink_event(&self) -> anyhow::Result<()> {
+        // Since `glob` follows symlinks unconditionally, we need to do
+        // so as well.
+        //
+        // TODO: do a partial scan of the symlink, rather than a full scan
+        self.scan()
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -521,6 +561,11 @@ You can increase this limit with:
                         if event.is_creation() &&
                             let Err(e) = self.handle_creation_event(&event) {
                                 warn!("Failed to handle creation event: {e}");
+                            }
+
+                        if event.is_symlink() &&
+                            let Err(e) = self.handle_symlink_event() {
+                                warn!("Failed to handle symlink event: {e:?}");
                             }
 
                         // Handle mount events and move on.
