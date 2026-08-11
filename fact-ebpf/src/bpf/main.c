@@ -358,18 +358,29 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
 
   args.inode = inode_to_key(inode);
 
-  if (inode_add(&args.inode) == 0) {
-    args.metrics->added++;
-  } else {
-    args.metrics->error++;
-  }
-
   switch (d_inst_ctx->event_type) {
     case DIR_ACTIVITY_CREATION:
+      if (inode_add(&args.inode) == 0) {
+        args.metrics->added++;
+      } else {
+        args.metrics->error++;
+      }
+
       submit_mkdir_event(&args);
       break;
     case FILE_ACTIVITY_SYMLINK:
-      submit_symlink_event(&args, d_inst_ctx->symlink_target);
+      args.monitored = is_monitored(&args.inode, &d_inst_ctx->path, &args.parent_inode);
+      if (args.monitored == MONITORED_BY_PARENT) {
+        if (inode_add(&args.inode) == 0) {
+          args.metrics->added++;
+        } else {
+          args.metrics->error++;
+        }
+      }
+
+      if (args.monitored != NOT_MONITORED) {
+        submit_symlink_event(&args, d_inst_ctx->symlink_target);
+      }
       break;
     default:
       bpf_printk("Unexpected event type: %d", d_inst_ctx->event_type);
@@ -615,15 +626,6 @@ int BPF_PROG(trace_path_symlink, struct path* dir, struct dentry* dentry, const 
   }
 
   symlink_ctx->parent_inode = inode_to_key(dir->dentry->d_inode);
-  // The inode for the symlink has not been created yet, so we can't use
-  // it here.
-  symlink_ctx->monitored = is_monitored(NULL, &symlink_ctx->path, &symlink_ctx->parent_inode);
-
-  if (symlink_ctx->monitored == NOT_MONITORED) {
-    delete_d_instantiate_ctx();
-    m->path_symlink.ignored++;
-    return 0;
-  }
   symlink_ctx->event_type = FILE_ACTIVITY_SYMLINK;
 
   if (bpf_probe_read_str(symlink_ctx->symlink_target, PATH_MAX, old_name) < 0) {
