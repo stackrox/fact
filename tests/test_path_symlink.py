@@ -65,7 +65,7 @@ def overwrite_symlink(file: str, link: str) -> list[Event]:
             process=proc,
             event_type=EventType.OPEN,
             file=new_link,
-            host_path=link,
+            host_path=new_link,
         ),
         Event(
             process=proc,

@@ -563,11 +563,6 @@ You can increase this limit with:
                                 warn!("Failed to handle creation event: {e}");
                             }
 
-                        if event.is_symlink() &&
-                            let Err(e) = self.handle_symlink_event() {
-                                warn!("Failed to handle symlink event: {e:?}");
-                            }
-
                         // Handle mount events and move on.
                         if event.is_mount_related() {
                             self.handle_mount_event();
@@ -593,6 +588,11 @@ You can increase this limit with:
                         if event.is_mkdir() || event.is_rmdir() {
                             continue;
                         }
+
+                        if event.is_symlink() &&
+                            let Err(e) = self.handle_symlink_event() {
+                                warn!("Failed to handle symlink event: {e:?}");
+                            }
 
                         if event.is_rename() { self.handle_rename_event(&mut event); }
 
