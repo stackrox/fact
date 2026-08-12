@@ -360,9 +360,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
 
   switch (d_inst_ctx->event_type) {
     case DIR_ACTIVITY_CREATION:
-      if (inode_add(&args.inode) == 0) {
-        args.metrics->added++;
-      } else {
+      if (inode_add(&args.inode) != 0) {
         args.metrics->error++;
       }
 
@@ -371,9 +369,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
     case FILE_ACTIVITY_SYMLINK:
       args.monitored = is_monitored(&args.inode, &d_inst_ctx->path, &args.parent_inode);
       if (args.monitored == MONITORED_BY_PARENT) {
-        if (inode_add(&args.inode) == 0) {
-          args.metrics->added++;
-        } else {
+        if (inode_add(&args.inode) != 0) {
           args.metrics->error++;
         }
       }
