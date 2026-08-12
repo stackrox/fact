@@ -69,13 +69,16 @@ def overwrite_symlink(file: str, link: str) -> list[Event]:
             file=new_link,
             host_path=new_link,
         ),
+        # The host paths in the following event depend on the order the
+        # temporary symlink and the actual symlink are scanned, so we
+        # need to check for some patterns in there.
         Event(
             process=proc,
             event_type=EventType.RENAME,
             file=link,
-            host_path='',
+            host_path=re.compile(rf'{link}|'),
             old_file=new_link,
-            old_host_path=link,
+            old_host_path=re.compile(rf'{link}|{new_link_pattern}'),
         ),
     ]
 
