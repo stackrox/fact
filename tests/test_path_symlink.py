@@ -86,7 +86,7 @@ def overwrite_symlink(file: str, link: str) -> list[Event]:
         pytest.param('файл.txt', 'лйаф.txt', id='Cyrillic'),
         pytest.param('测试.txt', '试测.txt', id='Chinese'),
         pytest.param('🚀rocket.txt', 'rocket🚀.txt', id='Emoji'),
-        pytest.param(b'test\xff\xfe.txt', '\xff\xfetest.txt', id='Invalid'),
+        pytest.param(b'test\xff\xfe.txt', b'\xff\xfetest.txt', id='Invalid'),
     ],
 )
 def test_create_symlink(

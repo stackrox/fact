@@ -54,13 +54,13 @@ __always_inline static struct bound_path_t* path_read_into(struct path* path,
     return NULL;
   }
 
-  bound_path->len = d_path(path, bound_path->path, PATH_MAX, use_bpf_d_path);
-  if (bound_path->len <= 0) {
+  long len = d_path(path, bound_path->path, PATH_MAX, use_bpf_d_path);
+  if (len <= 0) {
     return NULL;
   }
 
   // Ensure length is within PATH_MAX for the verifier
-  bound_path->len = PATH_LEN_CLAMP(bound_path->len);
+  bound_path->len = PATH_LEN_CLAMP(len);
 
   return bound_path;
 }
