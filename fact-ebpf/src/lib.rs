@@ -201,7 +201,25 @@ impl<'de> Deserialize<'de> for monitored_t {
     }
 }
 
-impl metrics_by_hook_t {
+pub enum KernelMetricLabel {
+    Total,
+    Added,
+    Dropped,
+    Ignored,
+    Error,
+    RingbufferFull,
+
+    // d_instantiate specific metrics
+    AddedMkDir,
+    AddedSymlink,
+}
+
+pub trait KernelMetric {
+    fn accumulate(self, other: &Self) -> Self;
+    fn encode(&self) -> impl Iterator<Item = (KernelMetricLabel, u64)>;
+}
+
+impl KernelMetric for metrics_by_hook_t {
     fn accumulate(mut self, other: &metrics_by_hook_t) -> metrics_by_hook_t {
         self.total += other.total;
         self.added += other.added;
@@ -209,6 +227,35 @@ impl metrics_by_hook_t {
         self.ignored += other.ignored;
         self.ringbuffer_full += other.ringbuffer_full;
         self
+    }
+
+    fn encode(&self) -> impl Iterator<Item = (KernelMetricLabel, u64)> {
+        use KernelMetricLabel::*;
+        [
+            (Total, self.total),
+            (Added, self.added),
+            (Error, self.error),
+            (Ignored, self.ignored),
+            (RingbufferFull, self.ringbuffer_full),
+        ]
+        .into_iter()
+    }
+}
+
+impl KernelMetric for metrics_d_instantiate_t {
+    fn accumulate(mut self, other: &metrics_d_instantiate_t) -> metrics_d_instantiate_t {
+        self.base = self.base.accumulate(&other.base);
+        self.added_mkdir += other.added_mkdir;
+        self.added_symlink += other.added_symlink;
+        self
+    }
+
+    fn encode(&self) -> impl Iterator<Item = (KernelMetricLabel, u64)> {
+        use KernelMetricLabel::*;
+        self.base.encode().chain([
+            (AddedSymlink, self.added_symlink),
+            (AddedMkDir, self.added_mkdir),
+        ])
     }
 }
 

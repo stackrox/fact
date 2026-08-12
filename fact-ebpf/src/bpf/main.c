@@ -336,7 +336,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {.metrics = &m->d_instantiate};
+  struct submit_event_args_t args = {.metrics = &m->d_instantiate.base};
 
   args.metrics->total++;
 
@@ -364,6 +364,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
         args.metrics->error++;
       }
 
+      m->d_instantiate.added_mkdir++;
       submit_mkdir_event(&args);
       break;
     case FILE_ACTIVITY_SYMLINK:
@@ -375,7 +376,10 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
       }
 
       if (args.monitored != NOT_MONITORED) {
+        m->d_instantiate.added_symlink++;
         submit_symlink_event(&args, d_inst_ctx->symlink_target);
+      } else {
+        args.metrics->ignored++;
       }
       break;
     default:

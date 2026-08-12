@@ -179,6 +179,12 @@ struct metrics_by_hook_t {
   unsigned long long ringbuffer_full;
 };
 
+struct metrics_d_instantiate_t {
+  struct metrics_by_hook_t base;
+  unsigned long long added_mkdir;
+  unsigned long long added_symlink;
+};
+
 struct metrics_t {
   struct metrics_by_hook_t file_open;
   struct metrics_by_hook_t path_unlink;
@@ -186,7 +192,7 @@ struct metrics_t {
   struct metrics_by_hook_t path_chown;
   struct metrics_by_hook_t path_rename;
   struct metrics_by_hook_t path_mkdir;
-  struct metrics_by_hook_t d_instantiate;
+  struct metrics_d_instantiate_t d_instantiate;
   struct metrics_by_hook_t path_rmdir;
   struct metrics_by_hook_t inode_setxattr;
   struct metrics_by_hook_t inode_removexattr;

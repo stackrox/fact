@@ -1,11 +1,11 @@
 use aya::maps::{MapData, PerCpuArray};
 use prometheus_client::registry::Registry;
 
-use fact_ebpf::{metrics_by_hook_t, metrics_t};
+use fact_ebpf::{KernelMetric, metrics_t};
 
 use crate::metrics::MetricEvents;
 
-use super::{EventCounter, LabelValues};
+use super::EventCounter;
 
 macro_rules! define_kernel_metrics {
     ($($hook:ident),+ $(,)?) => {
@@ -46,17 +46,11 @@ macro_rules! define_kernel_metrics {
                 Ok(())
             }
 
-            fn refresh_labels(ec: &EventCounter, m: &metrics_by_hook_t) {
+            fn refresh_labels(ec: &EventCounter, m: &impl KernelMetric) {
                 ec.counter.clear();
-                for (label, value) in [
-                    (LabelValues::Total, m.total),
-                    (LabelValues::Added, m.added),
-                    (LabelValues::Error, m.error),
-                    (LabelValues::Ignored, m.ignored),
-                    (LabelValues::RingbufferFull, m.ringbuffer_full),
-                ] {
+                for (label, value) in m.encode() {
                     ec.counter
-                        .get_or_create(&MetricEvents { label })
+                        .get_or_create(&MetricEvents{ label: label.into() })
                         .inc_by(value);
                 }
             }

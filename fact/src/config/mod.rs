@@ -869,6 +869,10 @@ pub struct FactCli {
     /// This is an advanced configuration parameter, it can be used to
     /// increase the amount of in-flight events that use the
     /// d_instantiate LSM hook for resolving inode numbers.
+    ///
+    /// Whether this value needs to be tweaked can be determined with
+    /// the metrics exposed for the d_instantiate hook and the ones for
+    /// the originating hooks.
     #[arg(
         long = "d-inst-size",
         env = "FACT_D_INSTANTIATE_CTX_SIZE",
