@@ -569,6 +569,7 @@ impl TryFrom<&yaml::Hash> for OTelConfig {
 pub struct BpfConfig {
     ringbuf_size: Option<u32>,
     inodes_max: Option<u32>,
+    d_instantiate_ctx_size: Option<u32>,
     pub programs: HashMap<String, BpfProgConfig>,
 }
 
@@ -582,6 +583,10 @@ impl BpfConfig {
             self.inodes_max = Some(inodes_max);
         }
 
+        if let Some(d_inst_size) = from.d_instantiate_ctx_size {
+            self.d_instantiate_ctx_size = Some(d_inst_size);
+        }
+
         for (k, v) in &from.programs {
             self.programs.entry(k.clone()).or_default().update(v);
         }
@@ -593,6 +598,10 @@ impl BpfConfig {
 
     pub fn inodes_max(&self) -> u32 {
         self.inodes_max.unwrap_or(65536)
+    }
+
+    pub fn d_instantiate_ctx_size(&self) -> u32 {
+        self.d_instantiate_ctx_size.unwrap_or(512)
     }
 
     pub fn program_is_enabled(&self, name: &str) -> bool {
@@ -630,6 +639,15 @@ impl TryFrom<&yaml::Hash> for BpfConfig {
                     };
                     bpf.inodes_max = Some(inode_max as u32);
                 }
+                "d_instantiate_ctx_size" => match v.as_i64() {
+                    Some(size) if size > 0 && size < u32::MAX as i64 => {
+                        bpf.d_instantiate_ctx_size = Some(size as u32);
+                    }
+                    Some(size) => {
+                        bail!("bpf.d_instantiate_ctx_size field has invalid value: {size}")
+                    }
+                    None => bail!("bpf.d_instantiate_ctx_size field has incorrect type: {v:?}"),
+                },
                 "programs" => {
                     let Some(programs) = v.as_hash() else {
                         bail!("bpf.programs field has incorrect type: {v:?}");
@@ -845,6 +863,19 @@ pub struct FactCli {
     #[arg(long, short, env = "FACT_INODES_MAX")]
     inodes_max: Option<u32>,
 
+    /// Sets the maximum number of entries that can be added to the
+    /// d_instantiate_ctx map.
+    ///
+    /// This is an advanced configuration parameter, it can be used to
+    /// increase the amount of in-flight events that use the
+    /// d_instantiate LSM hook for resolving inode numbers.
+    #[arg(
+        long = "d-inst-size",
+        env = "FACT_D_INSTANTIATE_CTX_SIZE",
+        value_parser = clap::value_parser!(u32).range(1..u32::MAX as i64)
+    )]
+    d_instantiate_ctx_size: Option<u32>,
+
     /// Whether configuration should be hotreloaded
     #[arg(long, overrides_with = "no_hotreload", env = "FACT_HOTRELOAD")]
     hotreload: bool,
@@ -904,6 +935,7 @@ impl FactCli {
             bpf: BpfConfig {
                 ringbuf_size: self.ringbuf_size,
                 inodes_max: self.inodes_max,
+                d_instantiate_ctx_size: self.d_instantiate_ctx_size,
                 programs: HashMap::new(),
             },
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),

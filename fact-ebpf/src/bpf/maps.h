@@ -96,7 +96,7 @@ struct {
   __uint(type, BPF_MAP_TYPE_LRU_HASH);
   __type(key, __u64);
   __type(value, struct d_instantiate_ctx_t);
-  __uint(max_entries, 16384);
+  __uint(max_entries, 512);
 } d_instantiate_ctx SEC(".maps");
 
 __always_inline static struct d_instantiate_ctx_t* get_d_instantiate_ctx() {

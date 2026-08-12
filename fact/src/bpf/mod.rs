@@ -108,6 +108,7 @@ impl Bpf {
             )
             .map_max_entries(RINGBUFFER_NAME, bpf_config.ringbuf_size() * 1024)
             .map_max_entries("inode_map", bpf_config.inodes_max())
+            .map_max_entries("d_instantiate_ctx", bpf_config.d_instantiate_ctx_size())
             .load(fact_ebpf::EBPF_OBJ)
             .context("failed to load eBPF object")
     }

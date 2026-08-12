@@ -354,6 +354,19 @@ fn parsing() {
         (
             r#"
             bpf:
+                d_instantiate_ctx_size: 64
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(64),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
                 programs:
                     file_open:
                         enabled: false
@@ -482,6 +495,7 @@ fn parsing() {
             bpf:
                 ringbuf_size: 8192
                 inodes_max: 64
+                d_instantiate_ctx_size: 64
                 programs:
                     file_open:
                         enabled: false
@@ -521,6 +535,7 @@ fn parsing() {
                 bpf: BpfConfig {
                     ringbuf_size: Some(8192),
                     inodes_max: Some(64),
+                    d_instantiate_ctx_size: Some(64),
                     programs: HashMap::from([
                         (
                             "file_open".into(),
@@ -859,6 +874,27 @@ paths:
               inodes_max: true
             "#,
             "inodes_max field has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"
+            bpf:
+              d_instantiate_ctx_size: 0
+            "#,
+            "bpf.d_instantiate_ctx_size field has invalid value: 0",
+        ),
+        (
+            r#"
+            bpf:
+              d_instantiate_ctx_size: 5000000000
+            "#,
+            "bpf.d_instantiate_ctx_size field has invalid value: 5000000000",
+        ),
+        (
+            r#"
+            bpf:
+              d_instantiate_ctx_size: true
+            "#,
+            "bpf.d_instantiate_ctx_size field has incorrect type: Boolean(true)",
         ),
         (
             r#"
@@ -1646,6 +1682,60 @@ fn update() {
         (
             r#"
             bpf:
+              d_instantiate_ctx_size: 16384
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+              d_instantiate_ctx_size: 16384
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(8192),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
+              d_instantiate_ctx_size: 16384
+            "#,
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(16384),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            bpf:
               programs:
                 file_open:
                   enabled: true
@@ -1837,6 +1927,7 @@ fn update() {
             bpf:
               ringbuf_size: 16384
               inodes_max: 8192
+              d_instantiate_ctx_size: 8192
               programs:
                 file_open:
                   enabled: false
@@ -1871,6 +1962,7 @@ fn update() {
                 bpf: BpfConfig {
                     ringbuf_size: Some(64),
                     inodes_max: Some(4096),
+                    d_instantiate_ctx_size: Some(4096),
                     programs: HashMap::from([(
                         "path_unlink".into(),
                         BpfProgConfig {
@@ -1910,6 +2002,7 @@ fn update() {
                 bpf: BpfConfig {
                     ringbuf_size: Some(16384),
                     inodes_max: Some(8192),
+                    d_instantiate_ctx_size: Some(8192),
                     programs: HashMap::from([
                         (
                             "path_unlink".into(),
@@ -1960,6 +2053,7 @@ fn defaults() {
     assert!(!config.json());
     assert_eq!(config.bpf.ringbuf_size(), 8192);
     assert_eq!(config.bpf.inodes_max(), 65536);
+    assert_eq!(config.bpf.d_instantiate_ctx_size(), 512);
     assert!(config.hotreload());
     assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
     assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));
@@ -2105,6 +2199,19 @@ fn env_vars() {
             FactConfig {
                 bpf: BpfConfig {
                     ringbuf_size: Some(128),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
+                name: "FACT_D_INSTANTIATE_CTX_SIZE",
+                value: "1024",
+            },
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(1024),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -2390,6 +2497,20 @@ fn env_vars_override_yaml() {
         ),
         (
             EnvVar {
+                name: "FACT_D_INSTANTIATE_CTX_SIZE",
+                value: "2048",
+            },
+            "bpf:\n  d_instantiate_ctx_size: 1024",
+            FactConfig {
+                bpf: BpfConfig {
+                    d_instantiate_ctx_size: Some(2048),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            EnvVar {
                 name: "FACT_URL",
                 value: "https://override:9090",
             },
@@ -2610,6 +2731,13 @@ fn env_vars_invalid_values() {
                 value: "not_a_number",
             },
             "error: invalid value 'not_a_number' for '--ringbuf-size <RINGBUF_SIZE>': invalid digit found in string",
+        ),
+        (
+            EnvVar {
+                name: "FACT_D_INSTANTIATE_CTX_SIZE",
+                value: "not_a_number",
+            },
+            "error: invalid value 'not_a_number' for '--d-inst-size <D_INSTANTIATE_CTX_SIZE>': invalid digit found in string",
         ),
         (
             EnvVar {
