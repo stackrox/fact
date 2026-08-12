@@ -534,6 +534,19 @@ You can increase this limit with:
         });
     }
 
+    /// Check whether an event should be ignored.
+    ///
+    /// On top of the check from `Event::is_ignored`, this also checks
+    /// the host paths for matches in events that are monitored by
+    /// parent.
+    fn event_is_ignored(&self, event: &Event) -> bool {
+        event.is_ignored(&self.paths_globset)
+            && !self.paths_globset.is_match(event.get_host_path())
+            && event
+                .get_old_host_path()
+                .is_none_or(|path| !self.paths_globset.is_match(path))
+    }
+
     pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
         let scan_interval_value = *self.scan_interval.borrow();
         let scan_trigger = Arc::new(Notify::new());
@@ -596,14 +609,16 @@ You can increase this limit with:
 
                         if event.is_rename() { self.handle_rename_event(&mut event); }
 
-                        if event.is_monitored_by_parent() &&
-                            !self.paths_globset.is_match(event.get_host_path()) {
-                            // The event was monitored by parent, but the host
-                            // path is not to be monitored, so we ignore the
-                            // event and attempt to remove the inode from the
-                            // maps to prevent it from sending more events.
+                        // Before sending the event forward, we need to check
+                        // whether the event is ignored now that we have the
+                        // full inode context.
+                        if self.event_is_ignored(&event) {
                             self.inode_map.borrow_mut().remove(event.get_inode());
                             let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
+                            if let Some(old_inode) = event.get_old_inode() {
+                                self.inode_map.borrow_mut().remove(old_inode);
+                                let _ = self.kernel_inode_map.borrow_mut().remove(old_inode);
+                            }
                             self.metrics.events.ignored();
                             continue;
                         }
