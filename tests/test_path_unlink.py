@@ -302,3 +302,245 @@ def test_unmonitored_mounted_dir(
     )
 
     server.wait_events([event])
+
+
+def test_unlink_with_hardlink(monitored_dir, server):
+    """
+    Tests unlinking one hardlink when multiple exist. The inode should
+    remain tracked as long as at least one hardlink exists.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create original file
+    original = os.path.join(monitored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create hardlinks
+    link1 = os.path.join(monitored_dir, 'link1.txt')
+    link2 = os.path.join(monitored_dir, 'link2.txt')
+    os.link(original, link1)
+    os.link(original, link2)
+
+    # Unlink one hardlink
+    os.unlink(link1)
+
+    # Access through remaining hardlink should still work
+    with open(link2, 'r') as f:
+        f.read()
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=link1,
+            host_path=link1,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=link2,
+            host_path=link2,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=link1,
+            host_path=link1,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=link2,
+            host_path=link2,
+        ),
+    ]
+
+    server.wait_events(events)
+
+
+def test_unlink_all_hardlinks(monitored_dir, server):
+    """
+    Tests unlinking all hardlinks. The inode should be removed from
+    tracking only when the last hardlink is removed.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create original file
+    original = os.path.join(monitored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create hardlink
+    hardlink = os.path.join(monitored_dir, 'hardlink.txt')
+    os.link(original, hardlink)
+
+    # Unlink both
+    os.unlink(original)
+    os.unlink(hardlink)
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=hardlink,
+            host_path=hardlink,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=hardlink,
+            host_path=hardlink,
+        ),
+    ]
+
+    server.wait_events(events)
+
+
+def test_unlink_last_monitored_hardlink(monitored_dir, ignored_dir, server):
+    """
+    Tests unlinking the last monitored hardlink when ignored hardlinks
+    still exist. The inode should be removed from tracking even though
+    the file itself is not deleted from the filesystem.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        ignored_dir: Temporary directory path that is not monitored by fact.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create file in monitored directory
+    monitored = os.path.join(monitored_dir, 'file.txt')
+    with open(monitored, 'w') as f:
+        f.write('test content')
+
+    # Create hardlink in ignored directory
+    ignored_link = os.path.join(ignored_dir, 'link.txt')
+    os.link(monitored, ignored_link)
+
+    # Verify file has 2 links
+    stat = os.stat(monitored)
+    assert stat.st_nlink == 2
+
+    # Unlink the monitored path
+    os.unlink(monitored)
+
+    # File still exists via ignored hardlink, but should not be tracked
+    assert os.path.exists(ignored_link)
+    stat = os.stat(ignored_link)
+    assert stat.st_nlink == 1
+
+    # Access via ignored link should not generate event
+    with open(ignored_link, 'r') as f:
+        f.read()
+
+    # Only creation and unlink events expected
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=monitored,
+            host_path=monitored,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=monitored,
+            host_path=monitored,
+        ),
+    ]
+
+    server.wait_events(events)
+
+
+def test_unlink_one_of_multiple_monitored_hardlinks(
+    monitored_dir, ignored_dir, server
+):
+    """
+    Tests unlinking one monitored hardlink when multiple monitored
+    hardlinks exist (plus ignored ones). The inode should remain tracked.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        ignored_dir: Temporary directory path that is not monitored by fact.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create file in monitored directory
+    monitored1 = os.path.join(monitored_dir, 'file1.txt')
+    with open(monitored1, 'w') as f:
+        f.write('test content')
+
+    # Create another monitored hardlink and an ignored hardlink
+    monitored2 = os.path.join(monitored_dir, 'file2.txt')
+    ignored_link = os.path.join(ignored_dir, 'link.txt')
+    os.link(monitored1, monitored2)
+    os.link(monitored1, ignored_link)
+
+    # Verify we have 3 links
+    stat = os.stat(monitored1)
+    assert stat.st_nlink == 3
+
+    # Unlink one monitored path
+    os.unlink(monitored1)
+
+    # Inode should still be tracked - access via other monitored path
+    with open(monitored2, 'r') as f:
+        f.read()
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=monitored1,
+            host_path=monitored1,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=monitored2,
+            host_path=monitored2,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=monitored1,
+            host_path=monitored1,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=monitored2,
+            host_path=monitored2,
+        ),
+    ]
+
+    server.wait_events(events)
