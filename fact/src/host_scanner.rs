@@ -516,10 +516,10 @@ You can increase this limit with:
                 }
 
                 // Try to get a path for the old inode
-                if let Some(old_inode) = event.get_old_inode() {
-                    if let Some(path) = self.get_host_path(Some(old_inode)) {
-                        event.set_host_path(path);
-                    }
+                if let Some(old_inode) = event.get_old_inode()
+                    && let Some(path) = self.get_host_path(Some(old_inode))
+                {
+                    event.set_host_path(path);
                 }
             }
             monitored_t::MONITORED_BY_PATH => {
@@ -611,11 +611,9 @@ You can increase this limit with:
                             event.set_host_path(host_path);
                         }
 
-                        if let Some(old_filename) = event.get_old_filename() {
-                            if let Some(host_path) = self.get_matching_host_path(event.get_old_inode(), old_filename) {
-                                self.metrics.scan_inc(ScanLabels::InodeHit);
-                                event.set_old_host_path(host_path);
-                            }
+                        if let Some(old_filename) = event.get_old_filename() && let Some(host_path) = self.get_matching_host_path(event.get_old_inode(), old_filename) {
+                            self.metrics.scan_inc(ScanLabels::InodeHit);
+                            event.set_old_host_path(host_path);
                         }
 
                         // Remove inode from the map
