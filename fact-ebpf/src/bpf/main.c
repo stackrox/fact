@@ -86,6 +86,50 @@ ignored:
   return 0;
 }
 
+SEC("lsm/path_link")
+int BPF_PROG(trace_path_link, struct dentry* old_dentry, const struct path* new_dir, struct dentry* new_dentry) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->file_open};
+
+  args.metrics->total++;
+
+  struct bound_path_t* new_path = path_read_append_d_entry((struct path*)new_dir, new_dentry);
+  if (new_path == NULL) {
+    bpf_printk("Failed to read new path");
+    m->file_open.error++;
+    return 0;
+  }
+  args.filename = new_path->path;
+
+  // The inode is from the old file (being linked to)
+  args.inode = inode_to_key(old_dentry->d_inode);
+
+  struct dentry* parent_dentry = BPF_CORE_READ(new_dir, dentry);
+  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  args.parent_inode = inode_to_key(parent_inode_ptr);
+
+  args.monitored = is_monitored(&args.inode, new_path, &args.parent_inode);
+  if (args.monitored == NOT_MONITORED) {
+    goto ignored;
+  }
+
+  // Add the inode to tracking if monitored by parent
+  if (args.monitored == MONITORED_BY_PARENT) {
+    inode_add(&args.inode);
+  }
+
+  submit_open_event(&args, FILE_ACTIVITY_CREATION);
+
+  return 0;
+
+ignored:
+  m->file_open.ignored++;
+  return 0;
+}
+
 SEC("lsm/path_unlink")
 int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   struct metrics_t* m = get_metrics();
