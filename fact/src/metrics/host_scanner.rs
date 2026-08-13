@@ -1,6 +1,6 @@
 use prometheus_client::{
     encoding::{EncodeLabelSet, EncodeLabelValue},
-    metrics::{counter::Counter, family::Family},
+    metrics::{counter::Counter, family::Family, histogram::Histogram},
     registry::Registry,
 };
 
@@ -17,6 +17,8 @@ pub enum ScanLabels {
     FileRemoved,
     FileUpdated,
     FsItemIgnored,
+    FsMetadataFailed,
+    GlobFailed,
 }
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelSet)]
@@ -29,6 +31,7 @@ pub struct ScanEvents {
 pub struct HostScannerMetrics {
     pub events: EventCounter,
     pub scan: Family<ScanEvents, Counter<u64>>,
+    pub scan_duration: Histogram,
 }
 
 impl HostScannerMetrics {
@@ -56,11 +59,20 @@ impl HostScannerMetrics {
             ScanLabels::FileRemoved,
             ScanLabels::FileUpdated,
             ScanLabels::FsItemIgnored,
+            ScanLabels::FsMetadataFailed,
+            ScanLabels::GlobFailed,
         ] {
             let _ = scan.get_or_create(&ScanEvents { label });
         }
+        let scan_duration = Histogram::new([
+            0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 120.0,
+        ]);
 
-        HostScannerMetrics { events, scan }
+        HostScannerMetrics {
+            events,
+            scan,
+            scan_duration,
+        }
     }
 
     pub(super) fn register(&self, reg: &mut Registry) {
@@ -69,6 +81,12 @@ impl HostScannerMetrics {
             "host_scanner_scan",
             "Counter of events by scans from the host scanner component",
             self.scan.clone(),
+        );
+
+        reg.register(
+            "host_scanner_scan_duration",
+            "Histogram of scan durations from the host scanner component",
+            self.scan_duration.clone(),
         );
     }
 
