@@ -102,6 +102,7 @@ impl Event {
             inode: Default::default(),
             parent_inode: Default::default(),
             monitored: Default::default(),
+            nlink: Default::default(),
         };
         let file = match data {
             EventTestData::Creation => FileData::Creation(inner),
@@ -373,12 +374,22 @@ impl TryFrom<&event_t> for Event {
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
         let process = Process::try_from(value.process)?;
         let timestamp = host_info::get_boot_time() + value.timestamp;
+        // nlink is only available in the union for rename/move_mount events (from.nlink)
+        // For other events, we use the default value
+        let nlink = match value.type_ {
+            file_activity_type_t::FILE_ACTIVITY_RENAME
+            | file_activity_type_t::FILE_ACTIVITY_MOVE_MOUNT => unsafe {
+                value.__bindgen_anon_1.from.nlink
+            },
+            _ => Default::default(),
+        };
         let file = FileData::new(
             value.type_,
             value.filename,
             value.inode,
             value.parent_inode,
             value.monitored,
+            nlink,
             value.__bindgen_anon_1,
         )?;
 
@@ -456,17 +467,19 @@ impl FileData {
         inode: inode_key_t,
         parent_inode: inode_key_t,
         monitored: monitored_t,
+        nlink: u32,
         extra_data: fact_ebpf::event_t__bindgen_ty_1,
     ) -> anyhow::Result<Self> {
         fn read_from_data(extra_data: fact_ebpf::event_t__bindgen_ty_1) -> BaseFileData {
             let filename = unsafe { extra_data.from.filename };
             let inode = unsafe { extra_data.from.inode };
             let monitored = unsafe { extra_data.from.monitored };
+            let nlink = unsafe { extra_data.from.nlink };
 
-            BaseFileData::new(filename, inode, Default::default(), monitored)
+            BaseFileData::new(filename, inode, Default::default(), monitored, nlink)
         }
 
-        let inner = BaseFileData::new(filename, inode, parent_inode, monitored);
+        let inner = BaseFileData::new(filename, inode, parent_inode, monitored, nlink);
         let file = match event_type {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
@@ -693,6 +706,7 @@ pub struct BaseFileData {
     inode: inode_key_t,
     parent_inode: inode_key_t,
     monitored: monitored_t,
+    pub nlink: u32,
 }
 
 impl BaseFileData {
@@ -701,6 +715,7 @@ impl BaseFileData {
         inode: inode_key_t,
         parent_inode: inode_key_t,
         monitored: monitored_t,
+        nlink: u32,
     ) -> Self {
         BaseFileData {
             filename: sanitize_d_path(&filename),
@@ -708,6 +723,7 @@ impl BaseFileData {
             inode,
             parent_inode,
             monitored,
+            nlink,
         }
     }
 }
