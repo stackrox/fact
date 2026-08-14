@@ -105,6 +105,7 @@ pub struct HostScanner {
     metrics: HostScannerMetrics,
 
     paths_globset: GlobSet,
+    paths_patterns: Vec<PathBuf>,
 }
 
 impl HostScanner {
@@ -119,9 +120,8 @@ impl HostScanner {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(InodeMap::new());
         let (tx, output) = mpsc::channel(100);
-        let paths_globset = HostScanner::build_globset(paths.borrow().as_slice())?;
 
-        let host_scanner = HostScanner {
+        let mut host_scanner = HostScanner {
             kernel_inode_map,
             inode_map,
             paths,
@@ -130,8 +130,11 @@ impl HostScanner {
             tx,
             introspection,
             metrics,
-            paths_globset,
+            paths_globset: GlobSet::empty(),
+            paths_patterns: Vec::new(),
         };
+
+        host_scanner.reload_paths_config()?;
 
         // Run an initial scan to fill in the inode map
         host_scanner.scan()?;
@@ -139,9 +142,14 @@ impl HostScanner {
         Ok((host_scanner, output))
     }
 
-    fn build_globset(paths: &[PathBuf]) -> anyhow::Result<GlobSet> {
+    fn reload_paths_config(&mut self) -> anyhow::Result<()> {
+        let paths = self.paths.borrow();
         let mut builder = GlobSetBuilder::new();
+        let mut patterns = Vec::with_capacity(paths.len());
+
         for p in paths.iter() {
+            patterns.push(host_info::prepend_host_mount(p));
+
             let Some(glob_str) = p.to_str() else {
                 bail!("failed to convert path {} to string", p.display());
             };
@@ -152,23 +160,24 @@ impl HostScanner {
                     .unwrap(),
             );
         }
-        Ok(builder.build()?)
+
+        self.paths_globset = builder.build()?;
+        self.paths_patterns = patterns;
+
+        Ok(())
     }
 
     fn scan(&self) -> anyhow::Result<()> {
         info!("Host scan started");
         let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
-        let config = self.paths.borrow();
 
         // Cleanup any items that are either:
         // * Not configured to be monitored anymore.
         // * Are configured to be monitored but no longer are found in
         //   the file system.
         self.inode_map.borrow_mut().retain(|inode, path| {
-            if config.iter().any(|prefix| path.starts_with(prefix))
-                && host_info::prepend_host_mount(path).exists()
-            {
+            if self.paths_globset.is_match(&path) && host_info::prepend_host_mount(path).exists() {
                 true
             } else {
                 let _ = self.kernel_inode_map.borrow_mut().remove(inode);
@@ -177,9 +186,8 @@ impl HostScanner {
             }
         });
 
-        for pattern in self.paths.borrow().iter() {
-            let path = host_info::prepend_host_mount(pattern);
-            self.scan_inner(&path)?;
+        for path in &self.paths_patterns {
+            self.scan_inner(path)?;
         }
         let duration = start.elapsed();
         self.metrics.scan_duration.observe(duration.as_secs_f64());
@@ -262,6 +270,18 @@ impl HostScanner {
                 );
             }
         }
+    }
+
+    fn scan_partial(&self, path: &Path) -> anyhow::Result<()> {
+        for pattern in self
+            .paths_globset
+            .matches(path)
+            .iter()
+            .map(|index| &self.paths_patterns[*index])
+        {
+            self.scan_inner(pattern)?;
+        }
+        Ok(())
     }
 
     fn update_entry(&self, path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
@@ -491,23 +511,17 @@ You can increase this limit with:
     }
 
     /// Handle a mount being modified in a monitored directory.
-    ///
-    /// This should really do a partial scan of the directory where the
-    /// mount is being changed, but we don't have an easy way to do that
-    /// at the moment, so we trigger a full scan instead.
-    fn handle_mount_event(&self) {
-        if let Err(e) = self.scan() {
+    fn handle_mount_event(&self, event: &Event) {
+        if let Err(e) = self.scan_partial(event.get_host_path()) {
             warn!("Host scan failed: {e:?}");
         }
     }
 
     /// Handle symlink events by scanning the filesystem
-    fn handle_symlink_event(&self) -> anyhow::Result<()> {
+    fn handle_symlink_event(&self, event: &Event) -> anyhow::Result<()> {
         // Since `glob` follows symlinks unconditionally, we need to do
         // so as well.
-        //
-        // TODO: do a partial scan of the symlink, rather than a full scan
-        self.scan()
+        self.scan_partial(event.get_host_path())
     }
 
     /// Periodically notify the host scanner main task that a scan needs
@@ -576,13 +590,6 @@ You can increase this limit with:
                                 warn!("Failed to handle creation event: {e}");
                             }
 
-                        // Handle mount events and move on.
-                        if event.is_mount_related() {
-                            self.metrics.events_inc(HostScannerLabels::Mount);
-                            self.handle_mount_event();
-                            continue;
-                        }
-
                         if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_host_path(host_path);
@@ -591,6 +598,13 @@ You can increase this limit with:
                         if let Some(host_path) = self.get_host_path(event.get_old_inode()) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_old_host_path(host_path);
+                        }
+
+                        // Handle mount events and move on.
+                        if event.is_mount_related() {
+                            self.metrics.events_inc(HostScannerLabels::Mount);
+                            self.handle_mount_event(&event);
+                            continue;
                         }
 
                         // Remove inode from the map
@@ -608,7 +622,7 @@ You can increase this limit with:
                         }
 
                         if event.is_symlink() &&
-                            let Err(e) = self.handle_symlink_event() {
+                            let Err(e) = self.handle_symlink_event(&event) {
                                 warn!("Failed to handle symlink event: {e:?}");
                             }
 
@@ -647,7 +661,7 @@ You can increase this limit with:
                     }
                     _ = scan_trigger.notified() => self.scan()?,
                     _ = self.paths.changed() => {
-                            self.paths_globset = HostScanner::build_globset(self.paths.borrow().as_slice())?;
+                            self.reload_paths_config()?;
                             self.scan()?;
                         }
                 }
