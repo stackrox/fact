@@ -318,7 +318,7 @@ impl Bpf {
                                     // decision there.
                                     if !event.is_monitored_by_parent() &&
                                             event.is_ignored(&self.paths_globset) {
-                                        self.metrics.dropped();
+                                        self.metrics.ignored();
                                         continue;
                                     }
                                     event
