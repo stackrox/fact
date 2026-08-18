@@ -403,13 +403,13 @@ arches:
     name: crypto-policies-scripts
     evr: 20260224-1.gitea0f072.el9_8
     sourcerpm: crypto-policies-20260224-1.gitea0f072.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/curl-7.76.1-40.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/curl-7.76.1-40.el9_8.5.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 303260
-    checksum: sha256:5abd0d4ade384b6432882e095ee3f354700d66aeb3f655bd78c25427444a3875
+    size: 303758
+    checksum: sha256:0fb8426b8f874ced7fe96c194139c44d14721703d27b337b5bd822e668f165ce
     name: curl
-    evr: 7.76.1-40.el9
-    sourcerpm: curl-7.76.1-40.el9.src.rpm
+    evr: 7.76.1-40.el9_8.5
+    sourcerpm: curl-7.76.1-40.el9_8.5.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/cyrus-sasl-lib-2.1.27-22.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 771760
@@ -683,13 +683,13 @@ arches:
     name: libcom_err
     evr: 1.46.5-8.el9
     sourcerpm: e2fsprogs-1.46.5-8.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libcurl-7.76.1-40.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libcurl-7.76.1-40.el9_8.5.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 291404
-    checksum: sha256:4d77a96282b20b10d8e221e1208f0be8ec21274c090ee44866f36646e7b7206a
+    size: 292322
+    checksum: sha256:ea6c3ade86939df7a985ae71e4c5100731962add54295fd40660a2f2c2f85f1d
     name: libcurl
-    evr: 7.76.1-40.el9
-    sourcerpm: curl-7.76.1-40.el9.src.rpm
+    evr: 7.76.1-40.el9_8.5
+    sourcerpm: curl-7.76.1-40.el9_8.5.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libdb-5.3.28-57.el9_6.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 727417
@@ -1730,13 +1730,13 @@ arches:
     name: crypto-policies-scripts
     evr: 20260224-1.gitea0f072.el9_8
     sourcerpm: crypto-policies-20260224-1.gitea0f072.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/curl-7.76.1-40.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/curl-7.76.1-40.el9_8.5.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 306411
-    checksum: sha256:dffe60e96ea6473d6fd99f2ca688914d8342bc20819018ebe23d5d43ddb958ad
+    size: 307326
+    checksum: sha256:273736810bf95bd5efd1ee4942d349c51aeba23941dc28026d2cb2cf6719a2e3
     name: curl
-    evr: 7.76.1-40.el9
-    sourcerpm: curl-7.76.1-40.el9.src.rpm
+    evr: 7.76.1-40.el9_8.5
+    sourcerpm: curl-7.76.1-40.el9_8.5.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/cyrus-sasl-lib-2.1.27-22.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 786202
@@ -2010,13 +2010,13 @@ arches:
     name: libcom_err
     evr: 1.46.5-8.el9
     sourcerpm: e2fsprogs-1.46.5-8.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libcurl-7.76.1-40.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libcurl-7.76.1-40.el9_8.5.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 296527
-    checksum: sha256:d89db646d90f8342e097cf03c7979d0da1c2df45bcb4e2b9fe7437b7895a7df5
+    size: 297551
+    checksum: sha256:428b87ca3eb808d769f6f0f68019a97d3c487c86268ccff2ab7ad7223beab01e
     name: libcurl
-    evr: 7.76.1-40.el9
-    sourcerpm: curl-7.76.1-40.el9.src.rpm
+    evr: 7.76.1-40.el9_8.5
+    sourcerpm: curl-7.76.1-40.el9_8.5.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libdb-5.3.28-57.el9_6.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 755192
