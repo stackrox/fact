@@ -58,6 +58,7 @@ SKIP_EVENT_TYPES: dict[str, tuple[EventType, ...]] = {
 }
 
 DEFAULT_SKIP = ('xattr', 'acl')
+EXE_PATH_SKIP = ('/usr/bin/conmon',)
 
 ACL_TAG_MAP: dict[str, int] = {
     'user_obj': ACL_TAG_USER_OBJ,
@@ -125,6 +126,9 @@ class EventServer(ABC):
             print(f'Got event: {msg}')
 
             if msg.event_type in skip_oneof_names:
+                continue
+
+            if msg.process.exe_path in EXE_PATH_SKIP:
                 continue
 
             diff = events[0].diff(msg)

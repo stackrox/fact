@@ -14,6 +14,7 @@ import requests
 import yaml
 
 from server import EventServer, GrpcServer, OtlpServer
+from utils import get_metric_value
 
 # Declare files holding fixtures
 pytest_plugins = ['test_editors.commons']
@@ -281,6 +282,25 @@ def fact(
         dump_logs(container, container_log)
         container.remove()
         pytest.fail('fact failed to start')
+
+    # Check the first scan is done before starting the test
+    for _ in range(10):
+        try:
+            scans = get_metric_value(
+                fact_config, 'host_scanner_scan_duration_count'
+            )
+            scans = 0 if scans is None else int(scans)
+            if scans != 0:
+                break
+        except (requests.RequestException, requests.ConnectionError) as e:
+            print(e)
+
+        sleep(1)
+    else:
+        container.stop(timeout=1)
+        dump_logs(container, container_log)
+        container.remove()
+        pytest.fail('fact did not finish its initial scan')
 
     yield container
 

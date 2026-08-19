@@ -19,7 +19,7 @@ pub struct Reloader {
     grpc: watch::Sender<GrpcConfig>,
     otel: watch::Sender<OTelConfig>,
     paths: watch::Sender<Vec<PathBuf>>,
-    files: HashMap<&'static str, i64>,
+    files: HashMap<&'static str, (i64, i64)>,
     scan_interval: watch::Sender<Duration>,
     rate_limit: watch::Sender<u64>,
     trigger: Arc<Notify>,
@@ -116,7 +116,7 @@ impl Reloader {
             let path = PathBuf::from(file);
             if path.exists() {
                 let mtime = match path.metadata() {
-                    Ok(m) => m.mtime(),
+                    Ok(m) => (m.mtime(), m.mtime_nsec()),
                     Err(e) => {
                         warn!("Failed to stat {file}: {e}");
                         warn!("Configuration reloading may not work");
@@ -250,7 +250,7 @@ impl From<FactConfig> for Reloader {
                 let p = PathBuf::from(path);
                 if p.exists() {
                     let mtime = match p.metadata() {
-                        Ok(m) => m.mtime(),
+                        Ok(m) => (m.mtime(), m.mtime_nsec()),
                         Err(e) => {
                             warn!("Failed to stat {path}: {e}");
                             warn!("Configuration reloading may not work");
