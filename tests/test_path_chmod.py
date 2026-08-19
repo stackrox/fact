@@ -338,7 +338,7 @@ def test_unmonitored_mounted_dir(
     server.wait_events([event])
 
 
-def test_chmod_hardlink(monitored_dir, server):
+def test_chmod_hardlink(monitored_dir: str, server: EventServer):
     """
     Tests chmod on a file with hardlinks. The chmod affects the inode,
     but the event should report the specific path being used.

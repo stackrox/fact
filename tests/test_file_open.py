@@ -276,7 +276,7 @@ def test_unmonitored_mounted_dir(
     server.wait_events([event])
 
 
-def test_open_via_hardlink(monitored_dir, server):
+def test_open_via_hardlink(monitored_dir: str, server: EventServer):
     """
     Tests opening a file through a hardlink path when the original exists.
     The event should report the hardlink path as host_path.
@@ -297,7 +297,7 @@ def test_open_via_hardlink(monitored_dir, server):
     os.link(original, hardlink)
 
     # Open through hardlink
-    with open(hardlink, 'r') as f:
+    with open(hardlink) as f:
         f.read()
 
     events = [
@@ -324,7 +324,9 @@ def test_open_via_hardlink(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_open_via_original_with_hardlink(monitored_dir, server):
+def test_open_via_original_with_hardlink(
+    monitored_dir: str, server: EventServer
+):
     """
     Tests opening a file through its original path when a hardlink exists.
     Both paths should be tracked for the same inode.
@@ -345,7 +347,7 @@ def test_open_via_original_with_hardlink(monitored_dir, server):
     os.link(original, hardlink)
 
     # Open through original path
-    with open(original, 'r') as f:
+    with open(original) as f:
         f.read()
 
     events = [

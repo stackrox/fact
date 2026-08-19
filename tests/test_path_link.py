@@ -1,11 +1,10 @@
 import os
 
-import pytest
-
 from event import Event, EventType, Process
+from server import EventServer
 
 
-def test_link(monitored_dir, server):
+def test_link(monitored_dir: str, server: EventServer):
     """
     Tests the creation of a hardlink and verifies that the corresponding
     event is captured by the server.
@@ -43,7 +42,7 @@ def test_link(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_multiple_hardlinks(monitored_dir, server):
+def test_multiple_hardlinks(monitored_dir: str, server: EventServer):
     """
     Tests creating multiple hardlinks to the same file.
     All paths should be tracked independently.
@@ -98,7 +97,7 @@ def test_multiple_hardlinks(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_link_in_subdirectory(monitored_dir, server):
+def test_link_in_subdirectory(monitored_dir: str, server: EventServer):
     """
     Tests hardlinks in different subdirectories of the monitored path.
 
@@ -141,7 +140,7 @@ def test_link_in_subdirectory(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_ignored(monitored_dir, ignored_dir, server):
+def test_ignored(monitored_dir: str, ignored_dir: str, server: EventServer):
     """
     Tests that link events creating hardlinks in ignored directories
     are not captured by the server.
@@ -185,7 +184,9 @@ def test_ignored(monitored_dir, ignored_dir, server):
     server.wait_events(events)
 
 
-def test_link_from_ignored_to_monitored(monitored_dir, ignored_dir, server):
+def test_link_from_ignored_to_monitored(
+    monitored_dir: str, ignored_dir: str, server: EventServer
+):
     """
     Tests creating a hardlink in a monitored path when the original file
     is in an ignored path. The inode should start being tracked.
@@ -219,7 +220,9 @@ def test_link_from_ignored_to_monitored(monitored_dir, ignored_dir, server):
     server.wait_events(events)
 
 
-def test_access_via_unmonitored_hardlink(monitored_dir, ignored_dir, server):
+def test_access_via_unmonitored_hardlink(
+    monitored_dir: str, ignored_dir: str, server: EventServer
+):
     """
     Tests accessing a file via an unmonitored hardlink when a monitored
     hardlink exists. The inode is tracked, so access should generate an
@@ -242,7 +245,7 @@ def test_access_via_unmonitored_hardlink(monitored_dir, ignored_dir, server):
     os.link(monitored, ignored_link)
 
     # Access via the IGNORED hardlink
-    with open(ignored_link, 'r') as f:
+    with open(ignored_link) as f:
         f.read()
 
     # Should we get an event? If so, what should host_path be?
@@ -257,7 +260,8 @@ def test_access_via_unmonitored_hardlink(monitored_dir, ignored_dir, server):
             file=monitored,
             host_path=monitored,
         ),
-        # What event do we expect here? This exposes the implementation question.
+        # What event do we expect here?
+        # This exposes the implementation question.
         Event(
             process=process,
             event_type=EventType.OPEN,
@@ -270,7 +274,7 @@ def test_access_via_unmonitored_hardlink(monitored_dir, ignored_dir, server):
 
 
 def test_unlink_monitored_hardlink_with_ignored_remaining(
-    monitored_dir, ignored_dir, server
+    monitored_dir: str, ignored_dir: str, server: EventServer
 ):
     """
     Tests unlinking the monitored hardlink when an unmonitored hardlink
@@ -297,9 +301,10 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
 
     # The inode should be removed from tracking even though
     # the ignored hardlink still exists (file not deleted from filesystem)
-    # Verify this by trying to access via ignored link - should not generate event
-    with open(ignored_link, 'r') as f:
-        f.read()
+    # Verify this by trying to access via ignored link - should not generate
+    # event
+    with open(ignored_link, 'w') as f:
+        f.write('This is a test')
 
     # Only creation and unlink events expected, no open event
     events = [
@@ -321,7 +326,7 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
 
 
 def test_multiple_monitored_and_ignored_hardlinks(
-    monitored_dir, ignored_dir, server
+    monitored_dir: str, ignored_dir: str, server: EventServer
 ):
     """
     Tests complex scenario with multiple hardlinks in both monitored
@@ -352,7 +357,7 @@ def test_multiple_monitored_and_ignored_hardlinks(
     os.unlink(monitored1)
 
     # Access via remaining monitored path should still work
-    with open(monitored2, 'r') as f:
+    with open(monitored2) as f:
         f.read()
 
     events = [

@@ -304,7 +304,7 @@ def test_unmonitored_mounted_dir(
     server.wait_events([event])
 
 
-def test_unlink_with_hardlink(monitored_dir, server):
+def test_unlink_with_hardlink(monitored_dir: str, server: EventServer):
     """
     Tests unlinking one hardlink when multiple exist. The inode should
     remain tracked as long as at least one hardlink exists.
@@ -330,7 +330,7 @@ def test_unlink_with_hardlink(monitored_dir, server):
     os.unlink(link1)
 
     # Access through remaining hardlink should still work
-    with open(link2, 'r') as f:
+    with open(link2) as f:
         f.read()
 
     events = [
@@ -369,7 +369,7 @@ def test_unlink_with_hardlink(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_unlink_all_hardlinks(monitored_dir, server):
+def test_unlink_all_hardlinks(monitored_dir: str, server: EventServer):
     """
     Tests unlinking all hardlinks. The inode should be removed from
     tracking only when the last hardlink is removed.
@@ -423,7 +423,9 @@ def test_unlink_all_hardlinks(monitored_dir, server):
     server.wait_events(events)
 
 
-def test_unlink_last_monitored_hardlink(monitored_dir, ignored_dir, server):
+def test_unlink_last_monitored_hardlink(
+    monitored_dir: str, ignored_dir: str, server: EventServer
+):
     """
     Tests unlinking the last monitored hardlink when ignored hardlinks
     still exist. The inode should be removed from tracking even though
@@ -458,7 +460,7 @@ def test_unlink_last_monitored_hardlink(monitored_dir, ignored_dir, server):
     assert stat.st_nlink == 1
 
     # Access via ignored link should not generate event
-    with open(ignored_link, 'r') as f:
+    with open(ignored_link) as f:
         f.read()
 
     # Only creation and unlink events expected
@@ -481,7 +483,7 @@ def test_unlink_last_monitored_hardlink(monitored_dir, ignored_dir, server):
 
 
 def test_unlink_one_of_multiple_monitored_hardlinks(
-    monitored_dir, ignored_dir, server
+    monitored_dir: str, ignored_dir: str, server: EventServer
 ):
     """
     Tests unlinking one monitored hardlink when multiple monitored
@@ -513,7 +515,7 @@ def test_unlink_one_of_multiple_monitored_hardlinks(
     os.unlink(monitored1)
 
     # Inode should still be tracked - access via other monitored path
-    with open(monitored2, 'r') as f:
+    with open(monitored2) as f:
         f.read()
 
     events = [

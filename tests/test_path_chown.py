@@ -265,7 +265,9 @@ def test_no_change(
     server.wait_events(events)
 
 
-def test_chown_hardlink(test_container, server):
+def test_chown_hardlink(
+    test_container: docker.models.containers.Container, server: EventServer
+):
     """
     Tests chown on a file with hardlinks. The chown affects the inode,
     but the event should report the specific path being used.
@@ -289,23 +291,25 @@ def test_chown_hardlink(test_container, server):
     # chown through hardlink path
     test_container.exec_run(chown_cmd)
 
+    assert test_container.id is not None
+    container_id = test_container.id[:12]
     touch = Process.in_container(
         exe_path='/usr/bin/touch',
         args=touch_cmd,
         name='touch',
-        container_id=test_container.id[:12],
+        container_id=container_id,
     )
     ln = Process.in_container(
         exe_path='/usr/bin/ln',
         args=link_cmd,
         name='ln',
-        container_id=test_container.id[:12],
+        container_id=container_id,
     )
     chown = Process.in_container(
         exe_path='/usr/bin/chown',
         args=chown_cmd,
         name='chown',
-        container_id=test_container.id[:12],
+        container_id=container_id,
     )
 
     events = [

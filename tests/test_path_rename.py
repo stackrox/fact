@@ -537,7 +537,7 @@ def test_cross_mountpoints(
     server.wait_events(events)
 
 
-def test_rename_hardlink(monitored_dir, server):
+def test_rename_hardlink(monitored_dir: str, server: EventServer):
     """
     Tests renaming a hardlink. Both the original and renamed paths
     should continue to be tracked.
@@ -562,9 +562,9 @@ def test_rename_hardlink(monitored_dir, server):
     os.rename(hardlink, renamed)
 
     # Access through both remaining paths
-    with open(original, 'r') as f:
+    with open(original) as f:
         f.read()
-    with open(renamed, 'r') as f:
+    with open(renamed) as f:
         f.read()
 
     events = [
@@ -606,7 +606,7 @@ def test_rename_hardlink(monitored_dir, server):
 
 
 def test_rename_monitored_to_ignored_with_hardlink(
-    monitored_dir, ignored_dir, server
+    monitored_dir: str, ignored_dir: str, server: EventServer
 ):
     """
     Tests renaming a monitored file to an ignored path when another
@@ -633,7 +633,7 @@ def test_rename_monitored_to_ignored_with_hardlink(
     os.rename(monitored1, ignored)
 
     # Access via remaining monitored hardlink should still work
-    with open(monitored2, 'r') as f:
+    with open(monitored2) as f:
         f.read()
 
     events = [
@@ -669,7 +669,7 @@ def test_rename_monitored_to_ignored_with_hardlink(
 
 
 def test_rename_ignored_to_monitored_with_hardlink(
-    monitored_dir, ignored_dir, server
+    monitored_dir: str, ignored_dir: str, server: EventServer
 ):
     """
     Tests renaming from ignored to monitored path when an ignored
@@ -696,7 +696,7 @@ def test_rename_ignored_to_monitored_with_hardlink(
     os.rename(ignored1, monitored)
 
     # Now the inode is tracked, access via either path
-    with open(monitored, 'r') as f:
+    with open(monitored) as f:
         f.read()
 
     events = [
@@ -720,7 +720,7 @@ def test_rename_ignored_to_monitored_with_hardlink(
 
 
 def test_rename_last_monitored_hardlink_to_ignored(
-    monitored_dir, ignored_dir, server
+    monitored_dir: str, ignored_dir: str, server: EventServer
 ):
     """
     Tests renaming the last monitored hardlink to an ignored path.
@@ -748,7 +748,7 @@ def test_rename_last_monitored_hardlink_to_ignored(
     os.rename(monitored, ignored2)
 
     # Access via ignored hardlink should not generate event
-    with open(ignored_link, 'r') as f:
+    with open(ignored_link) as f:
         f.read()
 
     # Only creation and rename events expected
