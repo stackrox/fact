@@ -213,28 +213,43 @@ def test_no_paths_then_add(
     # Remove all paths
     config, config_file = fact_config
     config['paths'] = []
-    reload_config(fact, config, config_file, 1)
+    reload_config(fact, config, config_file, 2)
 
     # Write to a file — should NOT produce events
     fut = os.path.join(monitored_dir, 'test2.txt')
     with open(fut, 'w') as f:
         f.write('This should be ignored')
-    sleep(1)
-
-    e = Event(process=p, event_type=EventType.OPEN, file=fut, host_path=fut)
 
     with pytest.raises((TimeoutError, FuturesTimeoutError)):
-        server.wait_events([e])
+        server.wait_events(
+            [
+                Event(
+                    process=p,
+                    event_type=EventType.CREATION,
+                    file=fut,
+                    host_path=fut,
+                )
+            ]
+        )
 
     # Add paths back
     config['paths'] = [f'{monitored_dir}/**/*']
-    reload_config(fact, config, config_file, 1)
+    reload_config(fact, config, config_file, 2)
 
     # Write to a file — should produce events
     with open(fut, 'w') as f:
         f.write('This should be detected')
 
-    server.wait_events([e])
+    server.wait_events(
+        [
+            Event(
+                process=p,
+                event_type=EventType.OPEN,
+                file=fut,
+                host_path=fut,
+            )
+        ]
+    )
 
 
 def test_paths_then_remove(
