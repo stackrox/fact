@@ -143,7 +143,6 @@ struct event_t {
       char filename[PATH_MAX];
       inode_key_t inode;
       monitored_t monitored;
-      unsigned int nlink;
     } from;  // Used by events that have two paths (like rename or move_mount).
     struct {
       char name[XATTR_NAME_MAX_LEN];

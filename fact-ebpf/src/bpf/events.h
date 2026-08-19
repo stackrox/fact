@@ -19,7 +19,6 @@ struct submit_event_args_t {
   inode_key_t inode;
   inode_key_t parent_inode;
   monitored_t monitored;
-  unsigned int nlink;
 };
 
 __always_inline static bool reserve_event(struct submit_event_args_t* args) {
@@ -118,8 +117,7 @@ __always_inline static void submit_ownership_event(struct submit_event_args_t* a
 __always_inline static void submit_rename_event(struct submit_event_args_t* args,
                                                 const char old_filename[PATH_MAX],
                                                 inode_key_t* old_inode,
-                                                monitored_t old_monitored,
-                                                unsigned int old_nlink) {
+                                                monitored_t old_monitored) {
   if (!reserve_event(args)) {
     return;
   }
@@ -128,7 +126,6 @@ __always_inline static void submit_rename_event(struct submit_event_args_t* args
   bpf_probe_read_str(args->event->from.filename, PATH_MAX, old_filename);
   inode_copy(&args->event->from.inode, old_inode);
   args->event->from.monitored = old_monitored;
-  args->event->from.nlink = old_nlink;
 
   __submit_event(args, path_hooks_support_bpf_d_path);
 }
