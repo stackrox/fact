@@ -48,6 +48,7 @@ EVENT_TYPE_MAP: dict[str, EventType] = {
     'xattr_set': EventType.XATTR_SET,
     'xattr_remove': EventType.XATTR_REMOVE,
     'acl': EventType.ACL,
+    'symlink': EventType.SYMLINK,
 }
 
 
@@ -391,6 +392,9 @@ class OtlpServer(EventServer):
                 OtlpServer._acl_entry_translate(entry)
                 for entry in file_data.get('entries', [])
             ]
+        elif event_type == EventType.SYMLINK:
+            # For the time being, symlink events are treated as open events
+            event_type = EventType.OPEN
 
         return Event(
             process=process,

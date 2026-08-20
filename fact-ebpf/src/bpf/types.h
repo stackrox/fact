@@ -118,6 +118,7 @@ typedef enum file_activity_type_t {
   FILE_ACTIVITY_MOUNT,
   FILE_ACTIVITY_UMOUNT,
   FILE_ACTIVITY_MOVE_MOUNT,
+  FILE_ACTIVITY_SYMLINK,
 } file_activity_type_t;
 
 struct event_t {
@@ -169,13 +170,6 @@ struct path_prefix_t {
   const char path[LPM_SIZE_MAX];
 };
 
-// Context for correlating mkdir operations
-struct mkdir_context_t {
-  char path[PATH_MAX];
-  inode_key_t parent_inode;
-  monitored_t monitored;
-};
-
 // Metrics types
 struct metrics_by_hook_t {
   unsigned long long total;
@@ -200,4 +194,5 @@ struct metrics_t {
   struct metrics_by_hook_t sb_mount;
   struct metrics_by_hook_t sb_umount;
   struct metrics_by_hook_t move_mount;
+  struct metrics_by_hook_t path_symlink;
 };

@@ -245,3 +245,16 @@ __always_inline static void submit_move_mount_event(struct submit_event_args_t* 
 
   __submit_event(args, false);
 }
+
+__always_inline static void submit_symlink_event(struct submit_event_args_t* args,
+                                                 const char from_filename[PATH_MAX]) {
+  if (!reserve_event(args)) {
+    return;
+  }
+  args->event->type = FILE_ACTIVITY_SYMLINK;
+  if (bpf_probe_read_str(args->event->from.filename, PATH_MAX, from_filename) <= 0) {
+    args->event->from.filename[0] = '\0';
+  }
+
+  __submit_event(args, false);
+}

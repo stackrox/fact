@@ -300,50 +300,33 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
 
   m->path_mkdir.total++;
 
-  struct bound_path_t* path = path_read_append_d_entry(dir, dentry);
-  if (path == NULL) {
+  struct d_instantiate_ctx_t* mkdir_ctx = get_or_insert_d_instantiate_ctx();
+  if (mkdir_ctx == NULL) {
+    bpf_printk("Failed to get d_instantiate context entry");
+    goto error;
+  }
+
+  if (path_read_into_append_d_entry(dir, dentry, &mkdir_ctx->path, path_hooks_support_bpf_d_path) == NULL) {
     bpf_printk("Failed to read path");
-    m->path_mkdir.error++;
-    return 0;
+    goto error;
   }
 
   struct inode* parent_inode_ptr = BPF_CORE_READ(dir, dentry, d_inode);
-  inode_key_t parent_inode = inode_to_key(parent_inode_ptr);
+  mkdir_ctx->parent_inode = inode_to_key(parent_inode_ptr);
 
-  monitored_t monitored = should_track_mkdir(parent_inode, path);
-  if (monitored != MONITORED_BY_PARENT) {
+  mkdir_ctx->monitored = is_monitored(NULL, &mkdir_ctx->path, &mkdir_ctx->parent_inode);
+  if (mkdir_ctx->monitored != MONITORED_BY_PARENT) {
+    delete_d_instantiate_ctx();
     m->path_mkdir.ignored++;
     return 0;
   }
+  mkdir_ctx->event_type = DIR_ACTIVITY_CREATION;
 
-  // Stash mkdir context for security_d_instantiate
-  __u64 pid_tgid = bpf_get_current_pid_tgid();
-  struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
-  if (mkdir_ctx == NULL) {
-    static const struct mkdir_context_t empty_ctx = {0};
-    if (bpf_map_update_elem(&mkdir_context, &pid_tgid, &empty_ctx, BPF_NOEXIST) != 0) {
-      bpf_printk("Failed to create mkdir context entry");
-      m->path_mkdir.error++;
-      return 0;
-    }
-    mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
-    if (mkdir_ctx == NULL) {
-      bpf_printk("Failed to lookup mkdir context after creation");
-      m->path_mkdir.error++;
-      return 0;
-    }
-  }
+  return 0;
 
-  long path_copy_len = bpf_probe_read_str(mkdir_ctx->path, PATH_MAX, path->path);
-  if (path_copy_len < 0) {
-    bpf_printk("Failed to copy path string");
-    m->path_mkdir.error++;
-    bpf_map_delete_elem(&mkdir_context, &pid_tgid);
-    return 0;
-  }
-  mkdir_ctx->parent_inode = parent_inode;
-  mkdir_ctx->monitored = monitored;
-
+error:
+  delete_d_instantiate_ctx();
+  m->path_mkdir.error++;
   return 0;
 }
 
@@ -364,28 +347,45 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
     goto cleanup;
   }
 
-  struct mkdir_context_t* mkdir_ctx = bpf_map_lookup_elem(&mkdir_context, &pid_tgid);
-
-  if (mkdir_ctx == NULL) {
+  struct d_instantiate_ctx_t* d_inst_ctx = get_d_instantiate_ctx();
+  if (d_inst_ctx == NULL || d_inst_ctx->event_type == FILE_ACTIVITY_INIT) {
     args.metrics->ignored++;
     return 0;
   }
-  args.filename = mkdir_ctx->path;
-  args.parent_inode = mkdir_ctx->parent_inode;
-  args.monitored = mkdir_ctx->monitored;
+  args.filename = d_inst_ctx->path.path;
+  args.parent_inode = d_inst_ctx->parent_inode;
+  args.monitored = d_inst_ctx->monitored;
 
   args.inode = inode_to_key(inode);
 
-  if (inode_add(&args.inode) == 0) {
-    args.metrics->added++;
-  } else {
-    args.metrics->error++;
+  switch (d_inst_ctx->event_type) {
+    case DIR_ACTIVITY_CREATION:
+      if (inode_add(&args.inode) != 0) {
+        args.metrics->error++;
+      }
+
+      submit_mkdir_event(&args);
+      break;
+    case FILE_ACTIVITY_SYMLINK:
+      args.monitored = is_monitored(&args.inode, &d_inst_ctx->path, &args.parent_inode);
+      if (args.monitored == MONITORED_BY_PARENT) {
+        if (inode_add(&args.inode) != 0) {
+          args.metrics->error++;
+        }
+      }
+
+      if (args.monitored != NOT_MONITORED) {
+        submit_symlink_event(&args, d_inst_ctx->symlink_target);
+      }
+      break;
+    default:
+      bpf_printk("Unexpected event type: %d", d_inst_ctx->event_type);
+      args.metrics->error++;
+      break;
   }
 
-  submit_mkdir_event(&args);
-
 cleanup:
-  bpf_map_delete_elem(&mkdir_context, &pid_tgid);
+  bpf_map_delete_elem(&d_instantiate_ctx, &pid_tgid);
   return 0;
 }
 
@@ -599,5 +599,40 @@ int BPF_PROG(trace_move_mount, struct path* from, struct path* to) {
 
 error:
   args.metrics->error++;
+  return 0;
+}
+
+SEC("lsm/path_symlink")
+int BPF_PROG(trace_path_symlink, struct path* dir, struct dentry* dentry, const char* old_name) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  m->path_symlink.total++;
+
+  struct d_instantiate_ctx_t* symlink_ctx = get_or_insert_d_instantiate_ctx();
+  if (symlink_ctx == NULL) {
+    bpf_printk("Failed to get d_instantiate context entry");
+    goto error;
+  }
+
+  if (path_read_into_append_d_entry(dir, dentry, &symlink_ctx->path, path_hooks_support_bpf_d_path) == NULL) {
+    bpf_printk("Failed to read path");
+    goto error;
+  }
+
+  symlink_ctx->parent_inode = inode_to_key(dir->dentry->d_inode);
+  symlink_ctx->event_type = FILE_ACTIVITY_SYMLINK;
+
+  if (bpf_probe_read_str(symlink_ctx->symlink_target, PATH_MAX, old_name) < 0) {
+    bpf_printk("Failed to read old_name");
+    goto error;
+  }
+
+  return 0;
+
+error:
+  delete_d_instantiate_ctx();
+  m->path_symlink.error++;
   return 0;
 }

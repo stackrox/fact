@@ -42,19 +42,3 @@ __always_inline static monitored_t is_monitored(const inode_key_t* inode, struct
 
   return NOT_MONITORED;
 }
-
-// Check if a new directory should be tracked based on its parent and path.
-// This is used during mkdir operations where the child inode doesn't exist yet.
-__always_inline static monitored_t should_track_mkdir(inode_key_t parent_inode, struct bound_path_t* child_path) {
-  const inode_value_t* volatile parent_value = inode_get(&parent_inode);
-
-  if (parent_value != NULL) {
-    return MONITORED_BY_PARENT;
-  }
-
-  if (path_is_monitored(child_path)) {
-    return MONITORED_BY_PATH;
-  }
-
-  return NOT_MONITORED;
-}

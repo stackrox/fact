@@ -238,6 +238,7 @@ impl_metrics_t!(
     sb_mount,
     sb_umount,
     move_mount,
+    path_symlink,
 );
 
 unsafe impl Pod for metrics_t {}

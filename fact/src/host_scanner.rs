@@ -207,28 +207,61 @@ impl HostScanner {
                     continue;
                 }
             };
-            let metadata = match path.metadata() {
-                Ok(p) => p,
+            let metadata = match path.symlink_metadata() {
+                Ok(m) => m,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
                 Err(e) => {
-                    debug!("Failed to get metadata for {}: {e:?}", path.display());
-                    self.metrics.scan_inc(ScanLabels::FsMetadataFailed);
+                    warn!("Failed to get metadata for {}: {e}", path.display());
                     continue;
                 }
             };
 
             if metadata.is_file() {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
-                self.update_entry(path.as_path(), &metadata)
-                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
+            } else if metadata.is_symlink() {
+                self.metrics.scan_inc(ScanLabels::SymlinkScanned);
+                self.scan_symlink(&path);
             } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
-                self.update_entry(path.as_path(), &metadata)
-                    .with_context(|| format!("Failed to update entry for {}", path.display()))?;
             } else {
                 self.metrics.scan_inc(ScanLabels::FsItemIgnored);
+                continue;
             }
+
+            self.update_entry(&path, &metadata)
+                .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
+    }
+
+    fn scan_symlink(&self, path: &Path) {
+        let target = match path.read_link() {
+            Ok(p) => {
+                if p.has_root() {
+                    &host_info::prepend_host_mount(&p)
+                } else {
+                    path
+                }
+            }
+            Err(e) => {
+                warn!("Failed to read symlink path: {e}");
+                return;
+            }
+        };
+
+        match target.metadata() {
+            Ok(metadata) => {
+                if let Err(e) = self.update_entry(path, &metadata) {
+                    warn!("Failed to update symlink entry for {}: {e}", path.display());
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to read metadata for symlink target {}: {e}",
+                    target.display()
+                );
+            }
+        }
     }
 
     fn update_entry(&self, path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
@@ -285,6 +318,19 @@ You can increase this limit with:
         self.inode_map.borrow().get(inode?).cloned()
     }
 
+    fn build_host_path(&self, event: &Event) -> Option<PathBuf> {
+        let parent_inode = event.get_parent_inode();
+
+        if !parent_inode.empty()
+            && let Some(filename) = event.get_filename().file_name()
+            && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
+        {
+            Some(parent_host_path.join(filename))
+        } else {
+            None
+        }
+    }
+
     /// Handle file creation events by adding new inodes to the map.
     ///
     /// We use the parent inode provided by the eBPF code
@@ -292,25 +338,22 @@ You can increase this limit with:
     /// path by appending the new file's name.
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
         let inode = event.get_inode();
-        let parent_inode = event.get_parent_inode();
-        if self.get_host_path(Some(inode)).is_some() || parent_inode.empty() {
+        if self.get_host_path(Some(inode)).is_some() {
             return Ok(());
         }
 
-        if let Some(filename) = event.get_filename().file_name()
-            && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
-        {
-            let host_path = parent_host_path.join(filename);
-            self.update_entry_with_inode(*inode, host_path)
+        match self.build_host_path(event) {
+            Some(host_path) => self
+                .update_entry_with_inode(*inode, host_path)
                 .with_context(|| {
                     format!(
                         "Failed to add creation event entry for {}",
-                        filename.display()
+                        event.get_filename().display(),
                     )
-                })?;
-        }
+                }),
 
-        Ok(())
+            None => Ok(()),
+        }
     }
 
     /// Handle unlink events by removing the inode from the inode->path map.
@@ -458,6 +501,15 @@ You can increase this limit with:
         }
     }
 
+    /// Handle symlink events by scanning the filesystem
+    fn handle_symlink_event(&self) -> anyhow::Result<()> {
+        // Since `glob` follows symlinks unconditionally, we need to do
+        // so as well.
+        //
+        // TODO: do a partial scan of the symlink, rather than a full scan
+        self.scan()
+    }
+
     /// Periodically notify the host scanner main task that a scan needs
     /// to happen.
     ///
@@ -480,6 +532,19 @@ You can increase this limit with:
                 }
             }
         });
+    }
+
+    /// Check whether an event should be ignored.
+    ///
+    /// On top of the check from `Event::is_ignored`, this also checks
+    /// the host paths for matches in events that are monitored by
+    /// parent.
+    fn event_is_ignored(&self, event: &Event) -> bool {
+        event.is_ignored(&self.paths_globset)
+            && !self.paths_globset.is_match(event.get_host_path())
+            && event
+                .get_old_host_path()
+                .is_none_or(|path| !self.paths_globset.is_match(path))
     }
 
     pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
@@ -537,16 +602,23 @@ You can increase this limit with:
                             continue;
                         }
 
+                        if event.is_symlink() &&
+                            let Err(e) = self.handle_symlink_event() {
+                                warn!("Failed to handle symlink event: {e:?}");
+                            }
+
                         if event.is_rename() { self.handle_rename_event(&mut event); }
 
-                        if event.is_monitored_by_parent() &&
-                            !self.paths_globset.is_match(event.get_host_path()) {
-                            // The event was monitored by parent, but the host
-                            // path is not to be monitored, so we ignore the
-                            // event and attempt to remove the inode from the
-                            // maps to prevent it from sending more events.
+                        // Before sending the event forward, we need to check
+                        // whether the event is ignored now that we have the
+                        // full inode context.
+                        if self.event_is_ignored(&event) {
                             self.inode_map.borrow_mut().remove(event.get_inode());
                             let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
+                            if let Some(old_inode) = event.get_old_inode() {
+                                self.inode_map.borrow_mut().remove(old_inode);
+                                let _ = self.kernel_inode_map.borrow_mut().remove(old_inode);
+                            }
                             self.metrics.events.ignored();
                             continue;
                         }
