@@ -49,7 +49,7 @@ use crate::{
     bpf::Bpf,
     event::Event,
     host_info,
-    metrics::host_scanner::{HostScannerMetrics, ScanLabels},
+    metrics::host_scanner::{HostScannerLabels, HostScannerMetrics, ScanLabels},
 };
 
 struct InodeMap(HashMap<inode_key_t, PathBuf>);
@@ -503,7 +503,7 @@ You can increase this limit with:
                             info!("No more events to process");
                             break;
                         };
-                        self.metrics.events.added();
+                        self.metrics.events_inc(HostScannerLabels::Total);
 
                         // Handle file and directory creation events by adding new inodes to the map
                         if event.is_creation() &&
@@ -513,6 +513,7 @@ You can increase this limit with:
 
                         // Handle mount events and move on.
                         if event.is_mount_related() {
+                            self.metrics.events_inc(HostScannerLabels::Mount);
                             self.handle_mount_event();
                             continue;
                         }
@@ -533,7 +534,11 @@ You can increase this limit with:
                         }
 
                         // Skip directory creation and deletion events - we track them internally but don't send to sensor
-                        if event.is_mkdir() || event.is_rmdir() {
+                        if event.is_mkdir() {
+                            self.metrics.events_inc(HostScannerLabels::MkDir);
+                            continue;
+                        } else if event.is_rmdir() {
+                            self.metrics.events_inc(HostScannerLabels::RmDir);
                             continue;
                         }
 
@@ -547,13 +552,15 @@ You can increase this limit with:
                             // maps to prevent it from sending more events.
                             self.inode_map.borrow_mut().remove(event.get_inode());
                             let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
-                            self.metrics.events.ignored();
+                            self.metrics.events_inc(HostScannerLabels::Ignored);
                             continue;
                         }
 
                         if let Err(e) = self.tx.send(event).await {
-                            self.metrics.events.dropped();
+                            self.metrics.events_inc(HostScannerLabels::Dropped);
                             warn!("Failed to send event: {e}");
+                        } else {
+                            self.metrics.events_inc(HostScannerLabels::Added);
                         }
                     },
                     req = self.introspection.recv() => {
