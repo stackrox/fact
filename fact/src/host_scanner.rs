@@ -21,6 +21,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    collections::HashSet,
     fs::Metadata,
     io,
     ops::{Deref, DerefMut},
@@ -52,7 +53,7 @@ use crate::{
     metrics::host_scanner::{HostScannerMetrics, ScanLabels},
 };
 
-struct InodeMap(HashMap<inode_key_t, PathBuf>);
+struct InodeMap(HashMap<inode_key_t, HashSet<PathBuf>>);
 
 impl InodeMap {
     fn new() -> Self {
@@ -61,7 +62,7 @@ impl InodeMap {
 }
 
 impl Deref for InodeMap {
-    type Target = HashMap<inode_key_t, PathBuf>;
+    type Target = HashMap<inode_key_t, HashSet<PathBuf>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -165,15 +166,20 @@ impl HostScanner {
         // * Not configured to be monitored anymore.
         // * Are configured to be monitored but no longer are found in
         //   the file system.
-        self.inode_map.borrow_mut().retain(|inode, path| {
-            if config.iter().any(|prefix| path.starts_with(prefix))
-                && host_info::prepend_host_mount(path).exists()
-            {
-                true
-            } else {
+        self.inode_map.borrow_mut().retain(|inode, paths| {
+            // Remove paths that no longer exist or are not monitored
+            paths.retain(|path| {
+                config.iter().any(|prefix| path.starts_with(prefix))
+                    && host_info::prepend_host_mount(path).exists()
+            });
+
+            // If no monitored paths remain, remove the inode entirely
+            if paths.is_empty() {
                 let _ = self.kernel_inode_map.borrow_mut().remove(inode);
                 self.metrics.scan_inc(ScanLabels::InodeRemoved);
                 false
+            } else {
+                true
             }
         });
 
@@ -248,17 +254,17 @@ impl HostScanner {
     fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
         let mut inode_map = self.inode_map.borrow_mut();
         match inode_map.get_mut(&inode) {
-            Some(p) => {
+            Some(paths) => {
                 // inode is already tracked.
-                if path != *p {
-                    *p = path;
+                if !paths.contains(&path) {
                     self.metrics.scan_inc(ScanLabels::FileUpdated);
+                    paths.insert(path);
                 }
                 return Ok(());
             }
             None => {
                 self.metrics.scan_inc(ScanLabels::FileUpdated);
-                inode_map.insert(inode, path.clone());
+                inode_map.insert(inode, HashSet::from([path.clone()]));
             }
         };
 
@@ -282,7 +288,31 @@ You can increase this limit with:
     fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
         // The path here needs to be cloned because we won't keep the
         // inode_map borrow long enough.
-        self.inode_map.borrow().get(inode?).cloned()
+        // For hardlinks, return any one of the monitored paths
+        // TODO: Consider returning the path that matches the event filename
+        self.inode_map
+            .borrow()
+            .get(inode?)
+            .and_then(|paths| paths.iter().next().cloned())
+    }
+
+    /// Get the specific host path that matches the given filename, if it exists
+    /// Otherwise return any monitored path for this inode
+    fn get_matching_host_path(
+        &self,
+        inode: Option<&inode_key_t>,
+        filename: &Path,
+    ) -> Option<PathBuf> {
+        let inode_map = self.inode_map.borrow();
+        let paths = inode_map.get(inode?)?;
+
+        // First try to find an exact match
+        if paths.contains(filename) {
+            return Some(filename.to_path_buf());
+        }
+
+        // Otherwise return any monitored path
+        paths.iter().next().cloned()
     }
 
     /// Handle file creation events by adding new inodes to the map.
@@ -290,22 +320,38 @@ You can increase this limit with:
     /// We use the parent inode provided by the eBPF code
     /// to look up the parent directory's host path, then construct the full
     /// path by appending the new file's name.
+    ///
+    /// For hardlinks, the inode already exists but we need to add the new path.
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
         let inode = event.get_inode();
         let parent_inode = event.get_parent_inode();
-        if self.get_host_path(Some(inode)).is_some() || parent_inode.empty() {
+
+        // For hardlinks, inode is already tracked but we need to add this new path
+        // Check if this specific path already exists in our tracking
+        let filename = event.get_filename();
+        let already_has_this_path = self
+            .inode_map
+            .borrow()
+            .get(inode)
+            .is_some_and(|paths| paths.contains(filename));
+
+        if already_has_this_path {
             return Ok(());
         }
 
-        if let Some(filename) = event.get_filename().file_name()
+        if parent_inode.empty() {
+            return Ok(());
+        }
+
+        if let Some(filename_component) = filename.file_name()
             && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
         {
-            let host_path = parent_host_path.join(filename);
+            let host_path = parent_host_path.join(filename_component);
             self.update_entry_with_inode(*inode, host_path)
                 .with_context(|| {
                     format!(
                         "Failed to add creation event entry for {}",
-                        filename.display()
+                        filename_component.display()
                     )
                 })?;
         }
@@ -313,53 +359,77 @@ You can increase this limit with:
         Ok(())
     }
 
-    /// Handle unlink events by removing the inode from the inode->path map.
+    /// Handle unlink events by removing the specific path from the inode->paths map.
     ///
-    /// The probe already cleared the kernel inode map.
+    /// With hardlinks, we only remove the specific path being unlinked.
+    /// The kernel already removed from kernel inode map if nlink reached 0.
     fn handle_unlink_event(&self, event: &Event) {
         let inode = event.get_inode();
+        let filename = event.get_filename();
+        let mut inode_map = self.inode_map.borrow_mut();
 
-        if self.inode_map.borrow_mut().remove(inode).is_some() {
-            self.metrics.scan_inc(ScanLabels::InodeRemoved);
+        if let Some(paths) = inode_map.get_mut(inode) {
+            // Remove the specific path being unlinked
+            paths.remove(filename);
+
+            // If no monitored paths remain for this inode, remove the inode entry
+            // The kernel already removed it from kernel map if nlink==0
+            if paths.is_empty() {
+                inode_map.remove(inode);
+                self.metrics.scan_inc(ScanLabels::InodeRemoved);
+            }
         }
 
         self.metrics.scan_inc(ScanLabels::FileRemoved);
     }
 
     fn handle_rename_event(&self, event: &mut Event) {
+        let old_filename = event.get_old_filename().cloned();
+        let new_filename = event.get_filename().clone();
+
         match event.get_monitored() {
             monitored_t::MONITORED_BY_INODE => {
-                // This condition means a file is being renamed and taking the
-                // place of an existing, tracked file. We need to remove the
-                // inode we are landing on and put the associated host path in
-                // the old inode.
+                // Renaming onto an existing tracked file.
+                // The target inode (being overwritten) was already removed from kernel map if needed.
+                // For the moving inode, update its path in our tracking.
                 let mut inode_map = self.inode_map.borrow_mut();
-                let Some(path) = inode_map.remove(event.get_inode()) else {
-                    warn!("Old path was not found for inode tracked event");
-                    return;
-                };
+
                 let Some(old_inode) = event.get_old_inode() else {
                     unreachable!("old inode not found for rename event");
                 };
-                inode_map.insert(*old_inode, path);
+
+                // Remove the old path and add the new path for the moving inode
+                if let Some(paths) = inode_map.get_mut(old_inode) {
+                    if let Some(ref old_fname) = old_filename {
+                        paths.remove(old_fname);
+                    }
+                    paths.insert(new_filename);
+                }
             }
             monitored_t::NOT_MONITORED
                 if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
             {
-                // We are landing on a path that is not tracked at all, remove
-                // the entries for the old path from the map
-                let Some(old_host_path) = event.get_old_host_path() else {
-                    warn!("Rename event did not have old host path for inode tracked item");
+                // Renaming from a monitored path to an unmonitored path
+                let Some(old_inode) = event.get_old_inode() else {
                     return;
                 };
-                self.inode_map.borrow_mut().retain(|inode, path| {
-                    if !path.starts_with(old_host_path) {
-                        return true;
-                    }
+                let Some(ref old_fname) = old_filename else {
+                    return;
+                };
 
-                    let _ = self.kernel_inode_map.borrow_mut().remove(inode);
-                    false
-                });
+                let mut inode_map = self.inode_map.borrow_mut();
+
+                if let Some(paths) = inode_map.get_mut(old_inode) {
+                    // Remove this specific path from tracking
+                    paths.remove(old_fname);
+
+                    // If no monitored paths remain, remove the inode
+                    // Note: kernel may have already removed it if nlink==0
+                    if paths.is_empty() {
+                        inode_map.remove(old_inode);
+                        // Don't call kernel remove here - kernel handles it based on nlink
+                    }
+                }
             }
             monitored_t::NOT_MONITORED => {
                 // The new path is not monitored and the old path is most likely
@@ -367,81 +437,93 @@ You can increase this limit with:
             }
             monitored_t::MONITORED_BY_PARENT if !event.get_inode().empty() => {
                 // The parent for the target is monitored, but the file itself
-                // is not. Remove the entry for the old file from the map.
-                self.inode_map.borrow_mut().remove(
-                    event
-                        .get_old_inode()
-                        .expect("rename event did not have old inode"),
-                );
+                // is not. This is renaming onto an existing file that will be overwritten.
+                // The overwritten inode was already handled by kernel.
+
+                // For the moving file, update its path
+                let Some(old_inode) = event.get_old_inode() else {
+                    return;
+                };
+
+                let mut inode_map = self.inode_map.borrow_mut();
+                if let Some(paths) = inode_map.get_mut(old_inode) {
+                    if let Some(ref old_fname) = old_filename {
+                        paths.remove(old_fname);
+                    }
+
+                    // Check if new path should be tracked
+                    if self.paths_globset.is_match(&new_filename) {
+                        paths.insert(new_filename.clone());
+                        event.set_host_path(new_filename);
+                    } else if paths.is_empty() {
+                        // No monitored paths left
+                        inode_map.remove(old_inode);
+                    }
+                }
             }
             monitored_t::MONITORED_BY_PARENT
                 if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
             {
-                // The target is monitored by parent and we are landing on a
-                // path that didn't hold anything, we need to figure out the
-                // host path and check if we should track it.
+                // Renaming into a monitored directory
                 let mut inode_map = self.inode_map.borrow_mut();
-                let Some(new_host_parent) = inode_map.get(event.get_parent_inode()) else {
+
+                // Get the parent path to construct the new full path
+                let Some(parent_paths) = inode_map.get(event.get_parent_inode()) else {
                     warn!("Failed to get parent host path");
                     return;
                 };
-                let Some(filename) = event.get_filename().file_name() else {
-                    warn!("Failed to get last component from event: {event:#?}");
+                let Some(parent_path) = parent_paths.iter().next() else {
                     return;
                 };
-                let new_host_path = new_host_parent.join(filename);
-                let Some(old_host_path) = event.get_old_host_path() else {
-                    unreachable!("Rename event did not have an old host path");
+
+                let Some(filename_component) = new_filename.file_name() else {
+                    warn!("Failed to get last component from event");
+                    return;
                 };
+                let new_host_path = parent_path.join(filename_component);
 
                 if self.paths_globset.is_match(&new_host_path) {
                     // New path needs to be tracked.
-                    // Move all entries for the old host path to the new one
-                    for path in inode_map.values_mut() {
-                        if let Ok(suffix) = path.strip_prefix(old_host_path) {
-                            if suffix == Path::new("") {
-                                *path = new_host_path.clone();
-                            } else {
-                                *path = new_host_path.join(suffix);
-                            }
+                    // Update the moving inode's paths to point to the new location
+                    let moving_inode = event.get_inode();
+                    if let Some(paths) = inode_map.get_mut(moving_inode) {
+                        if let Some(ref old_fname) = old_filename {
+                            paths.remove(old_fname);
                         }
+                        paths.insert(new_host_path.clone());
                     }
 
                     // Add the new host path to the event
                     event.set_host_path(new_host_path);
                 } else {
-                    // New path is not tracked, remove old entries
-                    inode_map.retain(|inode, path| {
-                        if !path.starts_with(old_host_path) {
-                            return true;
+                    // New path not tracked, remove old path
+                    let moving_inode = event.get_inode();
+                    if let Some(paths) = inode_map.get_mut(moving_inode) {
+                        if let Some(ref old_fname) = old_filename {
+                            paths.remove(old_fname);
                         }
-                        if let Err(e) = self.kernel_inode_map.borrow_mut().remove(inode) {
-                            warn!("Failed to remove inode kernel entry: {e:?}");
+                        if paths.is_empty() {
+                            inode_map.remove(moving_inode);
                         }
-                        false
-                    });
+                    }
                 }
             }
             monitored_t::MONITORED_BY_PARENT => {
-                // In this case, the target location might be monitored, but we
-                // don't have any information of the host path for the old path,
-                // best we can do is attempt to scan the file system and fix the
-                // inode maps that way.
+                // Target location might be monitored, but we don't have path info
+                // Scan to fix the inode maps
                 if let Err(e) = self.scan() {
                     warn!("Scan failed: {e:?}");
                 }
 
-                // Attempt to update the host path with the old inode
+                // Try to get a path for the old inode
                 if let Some(old_inode) = event.get_old_inode()
-                    && let Some(path) = self.inode_map.borrow().get(old_inode)
+                    && let Some(path) = self.get_host_path(Some(old_inode))
                 {
-                    event.set_host_path(path.clone());
+                    event.set_host_path(path);
                 }
             }
             monitored_t::MONITORED_BY_PATH => {
-                // Nothing to do here, having one side of the rename monitored
-                // by path means at best the other side is also monitored by
-                // path, no inode tracking is involved.
+                // Nothing to do here, no inode tracking involved
             }
             _ => unreachable!("Invalid monitored value"),
         }
@@ -517,12 +599,19 @@ You can increase this limit with:
                             continue;
                         }
 
-                        if let Some(host_path) = self.get_host_path(Some(event.get_inode())) {
+                        // Handle mount events and move on.
+                        if event.is_mount_related() {
+                            self.handle_mount_event();
+                            continue;
+                        }
+
+                        // For hardlinks, try to match the exact path from the event
+                        if let Some(host_path) = self.get_matching_host_path(Some(event.get_inode()), event.get_filename()) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_host_path(host_path);
                         }
 
-                        if let Some(host_path) = self.get_host_path(event.get_old_inode()) {
+                        if let Some(old_filename) = event.get_old_filename() && let Some(host_path) = self.get_matching_host_path(event.get_old_inode(), old_filename) {
                             self.metrics.scan_inc(ScanLabels::InodeHit);
                             event.set_old_host_path(host_path);
                         }
@@ -545,8 +634,14 @@ You can increase this limit with:
                             // path is not to be monitored, so we ignore the
                             // event and attempt to remove the inode from the
                             // maps to prevent it from sending more events.
-                            self.inode_map.borrow_mut().remove(event.get_inode());
-                            let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
+                             let mut inode_map = self.inode_map.borrow_mut();
+                             if let Some(paths) = inode_map.get_mut(event.get_inode()) {
+                                 paths.remove(event.get_filename());
+                                 if paths.is_empty() {
+                                     inode_map.remove(event.get_inode());
+                                     // Kernel handles removal based on nlink
+                                 }
+                             }
                             self.metrics.events.ignored();
                             continue;
                         }

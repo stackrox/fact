@@ -77,7 +77,53 @@ int BPF_PROG(trace_file_open, struct file* file) {
     inode_add(&args.inode);
   }
 
+  args.nlink = BPF_CORE_READ(file, f_inode, i_nlink);
   submit_open_event(&args, event_type);
+
+  return 0;
+
+ignored:
+  m->file_open.ignored++;
+  return 0;
+}
+
+SEC("lsm/path_link")
+int BPF_PROG(trace_path_link, struct dentry* old_dentry, const struct path* new_dir, struct dentry* new_dentry) {
+  struct metrics_t* m = get_metrics();
+  if (m == NULL) {
+    return 0;
+  }
+  struct submit_event_args_t args = {.metrics = &m->file_open};
+
+  args.metrics->total++;
+
+  struct bound_path_t* new_path = path_read_append_d_entry((struct path*)new_dir, new_dentry);
+  if (new_path == NULL) {
+    bpf_printk("Failed to read new path");
+    m->file_open.error++;
+    return 0;
+  }
+  args.filename = new_path->path;
+
+  // The inode is from the old file (being linked to)
+  args.inode = inode_to_key(old_dentry->d_inode);
+
+  struct dentry* parent_dentry = BPF_CORE_READ(new_dir, dentry);
+  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
+  args.parent_inode = inode_to_key(parent_inode_ptr);
+
+  args.monitored = is_monitored(&args.inode, new_path, &args.parent_inode);
+  if (args.monitored == NOT_MONITORED) {
+    goto ignored;
+  }
+
+  // Add the inode to tracking if monitored by parent
+  if (args.monitored == MONITORED_BY_PARENT) {
+    inode_add(&args.inode);
+  }
+
+  args.nlink = BPF_CORE_READ(old_dentry, d_inode, i_nlink);
+  submit_open_event(&args, FILE_ACTIVITY_CREATION);
 
   return 0;
 
@@ -112,8 +158,15 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
     return 0;
   }
 
-  // We only support files with one link for now
-  inode_remove(&args.inode);
+  // Read nlink BEFORE the unlink completes (this is a pre-hook)
+  // After unlink, nlink will be decremented by 1
+  unsigned int nlink_before = BPF_CORE_READ(dentry, d_inode, i_nlink);
+  args.nlink = nlink_before > 0 ? nlink_before - 1 : 0;
+
+  // Only remove from kernel map if this is the last link
+  if (args.nlink == 0) {
+    inode_remove(&args.inode);
+  }
 
   submit_unlink_event(&args);
   return 0;
@@ -146,6 +199,7 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   }
 
   umode_t old_mode = BPF_CORE_READ(path, dentry, d_inode, i_mode);
+  args.nlink = BPF_CORE_READ(path, dentry, d_inode, i_nlink);
   submit_mode_event(&args, mode, old_mode);
 
   return 0;
@@ -183,6 +237,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   struct dentry* d = BPF_CORE_READ(path, dentry);
   unsigned long long old_uid = BPF_CORE_READ(d, d_inode, i_uid.val);
   unsigned long long old_gid = BPF_CORE_READ(d, d_inode, i_gid.val);
+  args.nlink = BPF_CORE_READ(d, d_inode, i_nlink);
 
   submit_ownership_event(&args, uid, gid, old_uid, old_gid);
 
@@ -221,6 +276,16 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
   inode_key_t old_inode = inode_to_key(old_dentry->d_inode);
   monitored_t old_monitored = is_monitored(&old_inode, old_path, NULL);
 
+  // Get nlink for both old and new dentries
+  // For rename, the old path's inode nlink doesn't change (same inode, just different path)
+  unsigned int old_nlink = BPF_CORE_READ(old_dentry, d_inode, i_nlink);
+  // new_dentry->d_inode is the inode being overwritten (if any), read before it's removed
+  unsigned int new_nlink = 0;
+  if (new_dentry->d_inode != NULL) {
+    new_nlink = BPF_CORE_READ(new_dentry, d_inode, i_nlink);
+  }
+  args.nlink = old_nlink;
+
   // From this point on we need to handle inode tracking.
   //
   // The result will be a combination of whether we are already tracking
@@ -238,7 +303,8 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
         // Old inode is monitored, new path is not.
         // If the old path is a directory userspace will remove any
         // subdirectories and files too.
-        inode_remove(&old_inode);
+        // Note: We don't remove from kernel map here - userspace will decide
+        // based on whether other monitored hardlinks exist
       }
       break;
 
@@ -250,7 +316,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
         // which should never happen. When the inode crosses into a new
         // mount, a new inode is created altogether. Still, we can cover
         // our bases.
-        inode_remove(&old_inode);
+        // Note: We don't remove from kernel map here - userspace will decide
       }
       break;
 
@@ -264,17 +330,19 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
         }
       } else if (!inode_is_empty(&args.inode)) {
         // Old inode is monitored and will land on a path that has a
-        // monitored parent but the path itself is not monitored, we
-        // stop tracking the inode
-        inode_remove(&old_inode);
+        // monitored parent but the path itself is not monitored
+        // Note: We don't remove from kernel map here - userspace will decide
+        // based on whether other monitored hardlinks exist
       }
       break;
 
     case MONITORED_BY_INODE:
       // If we landed here, the new path already has an inode that is
-      // being tracked and is about to be overwritten, we need to remove
-      // it from the map
-      inode_remove(&args.inode);
+      // being tracked and is about to be overwritten
+      // Only remove if this is the last link to the overwritten inode
+      if (new_nlink <= 1) {
+        inode_remove(&args.inode);
+      }
       if (old_monitored != MONITORED_BY_INODE) {
         // Old inode is not monitored, but is landing in a monitored
         // path that uses inode tracking.
@@ -283,7 +351,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
       break;
   }
 
-  submit_rename_event(&args, old_path->path, &old_inode, old_monitored);
+  submit_rename_event(&args, old_path->path, &old_inode, old_monitored, old_nlink);
   return 0;
 
 error:
@@ -375,6 +443,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   args.monitored = mkdir_ctx->monitored;
 
   args.inode = inode_to_key(inode);
+  args.nlink = BPF_CORE_READ(inode, i_nlink);
 
   if (inode_add(&args.inode) == 0) {
     args.metrics->added++;
@@ -480,6 +549,10 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
     m->path_rmdir.ignored++;
     return 0;
   }
+
+  // Directories should have nlink = 2 when empty (. and ..)
+  // After rmdir, it will be removed, so we always remove from map
+  args.nlink = BPF_CORE_READ(dentry, d_inode, i_nlink);
 
   submit_rmdir_event(&args);
   return 0;

@@ -263,3 +263,72 @@ def test_no_change(
     ]
 
     server.wait_events(events)
+
+
+def test_chown_hardlink(test_container, server):
+    """
+    Tests chown on a file with hardlinks. The chown affects the inode,
+    but the event should report the specific path being used.
+
+    Args:
+        test_container: A container for running commands in.
+        server: The server instance to communicate with.
+    """
+    # File Under Test
+    original = '/container-dir/original.txt'
+    hardlink = '/container-dir/hardlink.txt'
+
+    touch_cmd = f'touch {original}'
+    link_cmd = f'ln {original} {hardlink}'
+    chown_cmd = f'chown {TEST_UID}:{TEST_GID} {hardlink}'
+
+    # Create file and hardlink
+    test_container.exec_run(touch_cmd)
+    test_container.exec_run(link_cmd)
+
+    # chown through hardlink path
+    test_container.exec_run(chown_cmd)
+
+    touch = Process.in_container(
+        exe_path='/usr/bin/touch',
+        args=touch_cmd,
+        name='touch',
+        container_id=test_container.id[:12],
+    )
+    ln = Process.in_container(
+        exe_path='/usr/bin/ln',
+        args=link_cmd,
+        name='ln',
+        container_id=test_container.id[:12],
+    )
+    chown = Process.in_container(
+        exe_path='/usr/bin/chown',
+        args=chown_cmd,
+        name='chown',
+        container_id=test_container.id[:12],
+    )
+
+    events = [
+        Event(
+            process=touch,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path='',
+        ),
+        Event(
+            process=ln,
+            event_type=EventType.CREATION,
+            file=hardlink,
+            host_path='',
+        ),
+        Event(
+            process=chown,
+            event_type=EventType.OWNERSHIP,
+            file=hardlink,
+            host_path='',
+            owner_uid=TEST_UID,
+            owner_gid=TEST_GID,
+        ),
+    ]
+
+    server.wait_events(events)

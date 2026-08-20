@@ -274,3 +274,99 @@ def test_unmonitored_mounted_dir(
     )
 
     server.wait_events([event])
+
+
+def test_open_via_hardlink(monitored_dir, server):
+    """
+    Tests opening a file through a hardlink path when the original exists.
+    The event should report the hardlink path as host_path.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create original file
+    original = os.path.join(monitored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create hardlink
+    hardlink = os.path.join(monitored_dir, 'hardlink.txt')
+    os.link(original, hardlink)
+
+    # Open through hardlink
+    with open(hardlink, 'r') as f:
+        f.read()
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=hardlink,
+            host_path=hardlink,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=hardlink,
+            host_path=hardlink,
+        ),
+    ]
+
+    server.wait_events(events)
+
+
+def test_open_via_original_with_hardlink(monitored_dir, server):
+    """
+    Tests opening a file through its original path when a hardlink exists.
+    Both paths should be tracked for the same inode.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create original file
+    original = os.path.join(monitored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create hardlink
+    hardlink = os.path.join(monitored_dir, 'hardlink.txt')
+    os.link(original, hardlink)
+
+    # Open through original path
+    with open(original, 'r') as f:
+        f.read()
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=hardlink,
+            host_path=hardlink,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=original,
+            host_path=original,
+        ),
+    ]
+
+    server.wait_events(events)
