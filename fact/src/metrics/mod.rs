@@ -6,6 +6,7 @@ use prometheus_client::{
 
 use host_scanner::HostScannerMetrics;
 
+use fact_ebpf::KernelMetricLabel;
 pub mod exporter;
 pub mod host_scanner;
 pub mod kernel_metrics;
@@ -18,6 +19,25 @@ enum LabelValues {
     Ignored,
     Error,
     RingbufferFull,
+
+    // d_instantiate specific metrics
+    AddedMkDir,
+    AddedSymlink,
+}
+
+impl From<KernelMetricLabel> for LabelValues {
+    fn from(value: KernelMetricLabel) -> Self {
+        match value {
+            KernelMetricLabel::Total => LabelValues::Total,
+            KernelMetricLabel::Added => LabelValues::Added,
+            KernelMetricLabel::Dropped => LabelValues::Dropped,
+            KernelMetricLabel::Ignored => LabelValues::Ignored,
+            KernelMetricLabel::Error => LabelValues::Error,
+            KernelMetricLabel::RingbufferFull => LabelValues::RingbufferFull,
+            KernelMetricLabel::AddedMkDir => LabelValues::AddedMkDir,
+            KernelMetricLabel::AddedSymlink => LabelValues::AddedSymlink,
+        }
+    }
 }
 
 #[derive(Clone, Hash, Eq, Debug, PartialEq, EncodeLabelSet)]
