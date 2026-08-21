@@ -10,6 +10,7 @@ use std::{
 
 use anyhow::{Context, bail};
 use clap::Parser;
+use globset::{Glob, GlobSet};
 use log::info;
 use yaml_rust2::{Yaml, YamlLoader, yaml};
 
@@ -33,7 +34,7 @@ fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct FactConfig {
-    paths: Option<Vec<PathBuf>>,
+    paths: PathsConfig,
     pub grpc: GrpcConfig,
     pub otel: OTelConfig,
     pub endpoint: EndpointConfig,
@@ -82,10 +83,7 @@ impl FactConfig {
     }
 
     pub fn update(&mut self, from: &FactConfig) {
-        if let Some(paths) = from.paths.as_deref() {
-            self.paths = Some(paths.to_owned());
-        }
-
+        self.paths.update(&from.paths);
         self.grpc.update(&from.grpc);
         self.otel.update(&from.otel);
         self.endpoint.update(&from.endpoint);
@@ -116,10 +114,6 @@ impl FactConfig {
         }
     }
 
-    pub fn paths(&self) -> &[PathBuf] {
-        self.paths.as_ref().map(|v| v.as_ref()).unwrap_or(&[])
-    }
-
     pub fn skip_pre_flight(&self) -> bool {
         self.skip_pre_flight.unwrap_or(false)
     }
@@ -146,7 +140,7 @@ impl FactConfig {
 
     #[cfg(test)]
     pub fn set_paths(&mut self, paths: Vec<PathBuf>) {
-        self.paths = Some(paths);
+        self.paths = paths.try_into().expect("Invalid paths");
     }
 }
 
@@ -188,21 +182,10 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
 
             match k {
                 "paths" if v.is_array() => {
-                    let paths = v
-                        .as_vec()
-                        .unwrap()
-                        .iter()
-                        .map(|p| {
-                            let Some(p) = p.as_str() else {
-                                bail!("Path has invalid type: {p:?}");
-                            };
-                            Ok(PathBuf::from(p))
-                        })
-                        .collect::<anyhow::Result<_>>()?;
-                    config.paths = Some(paths);
+                    config.paths = v.as_vec().unwrap().try_into()?;
                 }
                 "paths" if v.is_null() => {
-                    config.paths = Some(Vec::new());
+                    config.paths = PathsConfig::empty();
                 }
                 "grpc" if v.is_hash() => {
                     let grpc = v.as_hash().unwrap();
@@ -268,6 +251,83 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
         }
 
         Ok(config)
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct PathsConfig {
+    patterns: Option<Vec<PathBuf>>,
+    pub globset: GlobSet,
+}
+
+impl PathsConfig {
+    const fn empty() -> Self {
+        PathsConfig {
+            patterns: Some(Vec::new()),
+            globset: GlobSet::empty(),
+        }
+    }
+
+    fn globset_build<'a>(patterns: impl Iterator<Item = &'a PathBuf>) -> anyhow::Result<GlobSet> {
+        let mut builder = GlobSet::builder();
+        for p in patterns {
+            let Some(p) = p.to_str() else {
+                bail!("paths item has invalid UTF-8: {}", p.display());
+            };
+            let p = Glob::new(p).with_context(|| format!("invalid glob {}", p))?;
+            builder.add(p);
+        }
+
+        builder.build().map_err(anyhow::Error::from)
+    }
+
+    fn update(&mut self, other: &Self) {
+        if other.patterns.is_some() {
+            self.patterns = other.patterns.clone();
+            self.globset = other.globset.clone();
+        }
+    }
+
+    pub fn patterns(&self) -> &[PathBuf] {
+        self.patterns.as_deref().unwrap_or(&[])
+    }
+}
+
+impl PartialEq for PathsConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.patterns() == other.patterns()
+    }
+}
+
+impl TryFrom<&yaml::Array> for PathsConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Array) -> Result<Self, Self::Error> {
+        let paths = value
+            .iter()
+            .map(|p| match p.as_str() {
+                Some(p) => Ok(p.into()),
+                None => bail!("paths field has invalid type: {p:?}"),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let globset = PathsConfig::globset_build(paths.iter())?;
+
+        Ok(PathsConfig {
+            patterns: Some(paths),
+            globset,
+        })
+    }
+}
+
+impl TryFrom<Vec<PathBuf>> for PathsConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(paths: Vec<PathBuf>) -> Result<Self, Self::Error> {
+        let globset = PathsConfig::globset_build(paths.iter())?;
+        Ok(PathsConfig {
+            patterns: Some(paths),
+            globset,
+        })
     }
 }
 
@@ -915,7 +975,10 @@ pub struct FactCli {
 impl FactCli {
     fn into_config(self) -> FactConfig {
         FactConfig {
-            paths: self.paths,
+            paths: self
+                .paths
+                .map(|patterns| patterns.try_into().expect("Invalid paths configuration"))
+                .unwrap_or_default(),
             grpc: GrpcConfig {
                 url: self.url,
                 certs: self.certs,

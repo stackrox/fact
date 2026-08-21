@@ -12,14 +12,16 @@ fn parsing() {
         (
             "paths:",
             FactConfig {
-                paths: Some(Vec::new()),
+                paths: PathsConfig::default(),
                 ..Default::default()
             },
         ),
         (
             "paths: [/etc,  /bin]",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
@@ -509,7 +511,7 @@ fn parsing() {
             replay: /some/path.jsonl
             "#,
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
@@ -594,7 +596,7 @@ paths:
         ("- something", "Wrong configuration type"),
         ("true: something", "key is not string: Boolean(true)"),
         ("4: something", "key is not string: Integer(4)"),
-        ("paths: [4]", "Path has invalid type: Integer(4)"),
+        ("paths: [4]", "paths field has invalid type: Integer(4)"),
         (
             "grpc: true",
             "Invalid field 'grpc' with value: Boolean(true)",
@@ -985,7 +987,7 @@ fn update() {
             "paths:",
             FactConfig::default(),
             FactConfig {
-                paths: Some(Vec::new()),
+                paths: PathsConfig::default(),
                 ..Default::default()
             },
         ),
@@ -993,40 +995,61 @@ fn update() {
             "paths: [/etc, /bin]",
             FactConfig::default(),
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
         (
             "paths: [/bin]",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/bin")]),
+                paths: vec![PathBuf::from("/bin")].try_into().unwrap(),
                 ..Default::default()
             },
         ),
         (
             "paths:",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: Some(Vec::new()),
+                paths: PathsConfig::default(),
                 ..Default::default()
             },
         ),
         (
             "paths: [/etc, /bin]",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .try_into()
+                    .unwrap(),
+                ..Default::default()
+            },
+        ),
+        (
+            "",
+            FactConfig {
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .try_into()
+                    .unwrap(),
+                ..Default::default()
+            },
+            FactConfig {
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
@@ -1936,7 +1959,9 @@ fn update() {
             rate_limit: 1000
             "#,
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .try_into()
+                    .unwrap(),
                 grpc: GrpcConfig {
                     url: Some(String::from("http://localhost")),
                     certs: Some(PathBuf::from("/etc/certs")),
@@ -1976,7 +2001,7 @@ fn update() {
                 replay: None,
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
@@ -2038,8 +2063,8 @@ fn update() {
 #[test]
 fn defaults() {
     let config = FactConfig::default();
-    let default_paths: &[PathBuf] = &[];
-    assert_eq!(config.paths(), default_paths);
+    assert!(config.paths.patterns().is_empty());
+    assert!(config.paths.globset.is_empty());
     assert_eq!(config.grpc.url(), None);
     assert_eq!(config.grpc.certs(), None);
     assert_eq!(
@@ -2223,7 +2248,9 @@ fn env_vars() {
                 value: "/etc:/var/log",
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/var/log")]),
+                paths: vec![PathBuf::from("/etc"), PathBuf::from("/var/log")]
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
@@ -2580,7 +2607,7 @@ fn env_vars_override_yaml() {
             },
             "paths:\n- /etc",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/var/log")]),
+                paths: vec![PathBuf::from("/var/log")].try_into().unwrap(),
                 ..Default::default()
             },
         ),
