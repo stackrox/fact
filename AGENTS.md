@@ -81,8 +81,8 @@ cargo run --release --config 'target."cfg(all())".runner="sudo -E"' -- -p /etc -
 3. `HostScanner` (`fact/src/host_scanner.rs`) does periodic inode scanning
 4. Rate limiting (`fact/src/rate_limiter.rs`) → output (gRPC/OTLP/JSON)
 
-### Dual-language event definitions
-Event structs are defined in both C (`fact-ebpf/src/bpf/events.h`, `types.h`) and Rust (`fact-ebpf/src/lib.rs` via bindgen). Changes to event structure require updates to both sides.
+### Event type definitions
+`fact-ebpf/src/bpf/types.h` is the single source of truth for event structs and enums. `build.rs` runs bindgen on it to generate `$OUT_DIR/bindings.rs`, which `lib.rs` pulls in via `include!`. Edit only `types.h` — Rust bindings are generated automatically.
 
 ### BPF build integration
 `fact-ebpf/build.rs` compiles `main.c` and `checks.c` with clang targeting BPF, then runs bindgen on `types.h`. BPF objects are embedded in the binary. No manual clang invocation needed.
