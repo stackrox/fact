@@ -49,7 +49,7 @@ tonic-prost-build = "0.14.0"
 uuid = { version = "1.17.0", features = ["v4"] }
 bindgen = "0.72.0"
 tempfile = { version = "3.20.0", default-features = false }
-yaml-rust2 = "0.11.0"
+yaml-rust2 = "0.12.0"
 regex = "1.11.1"
 
 [profile.release]
