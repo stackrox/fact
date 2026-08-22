@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf};
+use std::io;
 
 use anyhow::{Context, bail};
 use aya::{
@@ -7,7 +7,6 @@ use aya::{
     programs::{Program, lsm::LsmLink},
 };
 use checks::Checks;
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use libc::c_char;
 use log::{error, info, warn};
 use tokio::{
@@ -16,7 +15,12 @@ use tokio::{
     task::JoinSet,
 };
 
-use crate::{config::BpfConfig, event::Event, host_info, metrics::EventCounter};
+use crate::{
+    config::{BpfConfig, PathsConfig},
+    event::Event,
+    host_info,
+    metrics::EventCounter,
+};
 
 use fact_ebpf::{LPM_SIZE_MAX, event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t};
 
@@ -30,10 +34,8 @@ pub struct Bpf {
 
     tx: mpsc::Sender<Event>,
 
-    paths_config: watch::Receiver<Vec<PathBuf>>,
+    paths_config: watch::Receiver<PathsConfig>,
     paths_lpm_map: LpmTrie<MapData, [c_char; LPM_SIZE_MAX as usize], c_char>,
-
-    paths_globset: GlobSet,
 
     links: Vec<LsmLink>,
 
@@ -43,7 +45,7 @@ pub struct Bpf {
 
 impl Bpf {
     pub fn new(
-        paths_config: watch::Receiver<Vec<PathBuf>>,
+        paths_config: watch::Receiver<PathsConfig>,
         bpf_config: &BpfConfig,
         running: watch::Receiver<bool>,
         metrics: EventCounter,
@@ -66,7 +68,6 @@ impl Bpf {
             checks,
             tx,
             paths_config,
-            paths_globset: GlobSet::empty(),
             paths_lpm_map,
             links: Vec::new(),
             running,
@@ -176,10 +177,9 @@ impl Bpf {
     }
 
     fn load_paths(&mut self) -> anyhow::Result<()> {
-        if self.paths_config.borrow().is_empty() {
+        if self.paths_config.borrow().patterns().is_empty() {
             self.detach_progs();
             self.cleanup_lpm_map(&[])?;
-            self.paths_globset = GlobSet::empty();
             return Ok(());
         }
 
@@ -190,22 +190,13 @@ impl Bpf {
         // Add the new prefixes
         let new_paths = {
             let paths_config = self.paths_config.borrow();
-            let mut new_paths = Vec::with_capacity(paths_config.len());
-            let mut builder = GlobSetBuilder::new();
-            for p in paths_config.iter() {
-                let Some(glob_str) = p.to_str() else {
-                    bail!("failed to convert path {} to string", p.display());
-                };
-
-                builder.add(
-                    Glob::new(glob_str).with_context(|| format!("invalid glob {}", glob_str))?,
-                );
-
+            let patterns = paths_config.patterns();
+            let mut new_paths = Vec::with_capacity(patterns.len());
+            for p in patterns {
                 let prefix = path_prefix_t::try_from(p)?;
                 self.paths_lpm_map.insert(&prefix.into(), 0, 0)?;
                 new_paths.push(prefix);
             }
-            self.paths_globset = builder.build()?;
             new_paths
         };
 
@@ -318,7 +309,7 @@ impl Bpf {
                                     // so we let the event go into HostScanner and make the
                                     // decision there.
                                     if !event.is_monitored_by_parent() &&
-                                            event.is_ignored(&self.paths_globset) {
+                                            event.is_ignored(&self.paths_config.borrow().globset) {
                                         self.metrics.dropped();
                                         continue;
                                     }
@@ -395,7 +386,7 @@ mod bpf_tests {
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let bpf_config = config.bpf.clone();
-        let reloader = Reloader::from(config);
+        let reloader = Reloader::try_from(config).unwrap();
         let metrics = Metrics::new();
         let (run_tx, run_rx) = watch::channel(true);
         let (bpf, mut rx) = Bpf::new(

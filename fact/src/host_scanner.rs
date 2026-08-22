@@ -36,7 +36,6 @@ use aya::{
     sys::SyscallError,
 };
 use fact_ebpf::{inode_key_t, inode_value_t, monitored_t};
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
 use serde::{Serialize, ser::SerializeMap};
 use tokio::{
@@ -47,6 +46,7 @@ use tokio::{
 
 use crate::{
     bpf::Bpf,
+    config::PathsConfig,
     event::Event,
     host_info,
     metrics::host_scanner::{HostScannerMetrics, ScanLabels},
@@ -95,7 +95,7 @@ pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<InodeMap>,
 
-    paths: watch::Receiver<Vec<PathBuf>>,
+    paths: watch::Receiver<PathsConfig>,
     scan_interval: watch::Receiver<Duration>,
 
     rx: mpsc::Receiver<Event>,
@@ -103,15 +103,13 @@ pub struct HostScanner {
     introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
 
     metrics: HostScannerMetrics,
-
-    paths_globset: GlobSet,
 }
 
 impl HostScanner {
     pub fn new(
         bpf: &mut Bpf,
         rx: mpsc::Receiver<Event>,
-        paths: watch::Receiver<Vec<PathBuf>>,
+        paths: watch::Receiver<PathsConfig>,
         scan_interval: watch::Receiver<Duration>,
         metrics: HostScannerMetrics,
         introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
@@ -119,7 +117,6 @@ impl HostScanner {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(InodeMap::new());
         let (tx, output) = mpsc::channel(100);
-        let paths_globset = HostScanner::build_globset(paths.borrow().as_slice())?;
 
         let host_scanner = HostScanner {
             kernel_inode_map,
@@ -130,7 +127,6 @@ impl HostScanner {
             tx,
             introspection,
             metrics,
-            paths_globset,
         };
 
         // Run an initial scan to fill in the inode map
@@ -139,36 +135,18 @@ impl HostScanner {
         Ok((host_scanner, output))
     }
 
-    fn build_globset(paths: &[PathBuf]) -> anyhow::Result<GlobSet> {
-        let mut builder = GlobSetBuilder::new();
-        for p in paths.iter() {
-            let Some(glob_str) = p.to_str() else {
-                bail!("failed to convert path {} to string", p.display());
-            };
-
-            builder.add(
-                Glob::new(glob_str)
-                    .with_context(|| format!("invalid glob {}", glob_str))
-                    .unwrap(),
-            );
-        }
-        Ok(builder.build()?)
-    }
-
     fn scan(&self) -> anyhow::Result<()> {
         info!("Host scan started");
         let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
-        let config = self.paths.borrow();
+        let paths = self.paths.borrow();
 
         // Cleanup any items that are either:
         // * Not configured to be monitored anymore.
         // * Are configured to be monitored but no longer are found in
         //   the file system.
         self.inode_map.borrow_mut().retain(|inode, path| {
-            if config.iter().any(|prefix| path.starts_with(prefix))
-                && host_info::prepend_host_mount(path).exists()
-            {
+            if paths.globset.is_match(&path) && host_info::prepend_host_mount(path).exists() {
                 true
             } else {
                 let _ = self.kernel_inode_map.borrow_mut().remove(inode);
@@ -177,7 +155,7 @@ impl HostScanner {
             }
         });
 
-        for pattern in self.paths.borrow().iter() {
+        for pattern in paths.patterns() {
             let path = host_info::prepend_host_mount(pattern);
             self.scan_inner(&path)?;
         }
@@ -437,7 +415,7 @@ You can increase this limit with:
                     unreachable!("Rename event did not have an old host path");
                 };
 
-                if self.paths_globset.is_match(&new_host_path) {
+                if self.paths.borrow().globset.is_match(&new_host_path) {
                     // New path needs to be tracked.
                     // Move all entries for the old host path to the new one
                     for path in inode_map.values_mut() {
@@ -540,11 +518,12 @@ You can increase this limit with:
     /// the host paths for matches in events that are monitored by
     /// parent.
     fn event_is_ignored(&self, event: &Event) -> bool {
-        event.is_ignored(&self.paths_globset)
-            && !self.paths_globset.is_match(event.get_host_path())
+        let paths = self.paths.borrow();
+        event.is_ignored(&paths.globset)
+            && !paths.globset.is_match(event.get_host_path())
             && event
                 .get_old_host_path()
-                .is_none_or(|path| !self.paths_globset.is_match(path))
+                .is_none_or(|path| !paths.globset.is_match(path))
     }
 
     pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
@@ -640,7 +619,6 @@ You can increase this limit with:
                     }
                     _ = scan_trigger.notified() => self.scan()?,
                     _ = self.paths.changed() => {
-                            self.paths_globset = HostScanner::build_globset(self.paths.borrow().as_slice())?;
                             self.scan()?;
                         }
                 }

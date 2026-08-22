@@ -32,7 +32,7 @@ macro_rules! generate_test {
     ($testname:ident, $channel:ident, $old:expr, $new:expr, $expected:expr) => {
         #[test]
         fn $testname() {
-            let reloader = Reloader::from($old);
+            let reloader = Reloader::try_from($old).unwrap();
             let channel = reloader.$channel();
             reloader.send_updates($new);
 
@@ -57,7 +57,7 @@ generate_paths_test! {
     test_reloader_paths_from_default_to_empty,
     FactConfig::default(),
     FactConfig {
-        paths: Some(vec![]),
+        paths: PathsConfig::default(),
         ..Default::default()
     },
     None
@@ -65,23 +65,23 @@ generate_paths_test! {
 generate_paths_test! {
     test_reloader_paths_config_change,
     FactConfig {
-        paths: Some(vec!["/home".into()]),
+        paths: vec!["/home".into()].try_into().unwrap(),
         ..Default::default()
     },
     FactConfig {
-        paths: Some(vec!["/etc".into()]),
+        paths: vec!["/etc".into()].try_into().unwrap(),
         ..Default::default()
     },
-    Some(vec![PathBuf::from("/etc")])
+    Some(vec![PathBuf::from("/etc")].try_into().unwrap())
 }
 generate_paths_test! {
     test_reloader_paths_no_config_change,
     FactConfig {
-        paths: Some(vec!["/home".into()]),
+        paths: vec!["/home".into()].try_into().unwrap(),
         ..Default::default()
     },
     FactConfig {
-        paths: Some(vec!["/home".into()]),
+        paths: vec!["/home".into()].try_into().unwrap(),
         scan_interval: Some(Duration::from_secs(10)),
         ..Default::default()
     },
@@ -156,7 +156,7 @@ generate_scan_interval_test! {
     },
     FactConfig {
         scan_interval: Some(Duration::from_secs(60)),
-        paths: Some(vec!["/etc".into()]),
+        paths: vec!["/etc".into()].try_into().unwrap(),
         ..Default::default()
     },
     None
@@ -230,7 +230,7 @@ generate_rate_limit_test! {
     },
     FactConfig {
         rate_limit: Some(1000),
-        paths: Some(vec!["/etc".into()]),
+        paths: vec!["/etc".into()].try_into().unwrap(),
         ..Default::default()
     },
     None
@@ -266,7 +266,7 @@ generate_endpoint_test! {
             health_check: Some(true),
             introspection: Some(true),
         },
-        paths: Some(vec!["/etc".into()]),
+        paths: vec!["/etc".into()].try_into().unwrap(),
         ..Default::default()
     },
     None
@@ -546,7 +546,7 @@ generate_grpc_test! {
                 retries_max: Some(GRPC_BACKOFF_RETRIES_NEW),
             }
         },
-        paths: Some(vec!["/etc".into()]),
+        paths: vec!["/etc".into()].try_into().unwrap(),
         ..Default::default()
     },
     None
@@ -1412,7 +1412,7 @@ generate_otel_test! {
         otel: OTelConfig {
             endpoint: Some(OTEL_ENDPOINT_NEW.into()),
         },
-        paths: Some(vec!["/etc".into()]),
+        paths: vec!["/etc".into()].try_into().unwrap(),
         ..Default::default()
     },
     None
