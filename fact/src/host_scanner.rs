@@ -20,7 +20,7 @@
 
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::Metadata,
     io,
     ops::{Deref, DerefMut},
@@ -48,7 +48,7 @@ use tokio::{
 use crate::{
     bpf::Bpf,
     event::Event,
-    host_info,
+    host_info::{self, remove_host_mount},
     metrics::host_scanner::{HostScannerLabels, HostScannerMetrics, ScanLabels},
 };
 
@@ -154,11 +154,7 @@ impl HostScanner {
                 bail!("failed to convert path {} to string", p.display());
             };
 
-            builder.add(
-                Glob::new(glob_str)
-                    .with_context(|| format!("invalid glob {}", glob_str))
-                    .unwrap(),
-            );
+            builder.add(Glob::new(glob_str).with_context(|| format!("invalid glob {}", glob_str))?);
         }
 
         self.paths_globset = builder.build()?;
@@ -272,13 +268,32 @@ impl HostScanner {
         }
     }
 
+    /// Do a partial scan of any pattern that matches the provided path
+    ///
+    /// This includes glob expansion matching and any patterns with a
+    /// base path (the path up to the first glob special character) that
+    /// matches the supplied path.
     fn scan_partial(&self, path: &Path) -> anyhow::Result<()> {
-        for pattern in self
-            .paths_globset
-            .matches(path)
-            .iter()
-            .map(|index| &self.paths_patterns[*index])
-        {
+        let scan_prefix_patterns =
+            self.paths_patterns
+                .iter()
+                .enumerate()
+                .filter_map(|(i, pattern)| {
+                    remove_host_mount(pattern)
+                        .to_str()?
+                        .split(['*', '?', '[', '{'])
+                        .next()?
+                        .starts_with(path.to_str()?)
+                        .then_some(i)
+                });
+        let scan_glob_index = self.paths_globset.matches(path);
+
+        // De-duplicate the indexes
+        let scan_set = scan_prefix_patterns
+            .chain(scan_glob_index.iter().copied())
+            .collect::<HashSet<_>>();
+
+        for pattern in scan_set.iter().map(|index| &self.paths_patterns[*index]) {
             self.scan_inner(pattern)?;
         }
         Ok(())
@@ -291,7 +306,7 @@ impl HostScanner {
         };
 
         let host_path = host_info::remove_host_mount(path);
-        self.update_entry_with_inode(inode, host_path)?;
+        self.update_entry_with_inode(inode, host_path.to_path_buf())?;
 
         debug!("Added entry for {}: {inode:?}", path.display());
         Ok(())
