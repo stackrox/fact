@@ -238,3 +238,53 @@ def test_partial_dir_pattern(
             )
         ]
     )
+
+
+def test_partial_scan_follows_symlink(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+    ignored_dir: str,
+    server: EventServer,
+):
+    """
+    When paths are wildcard-only (e.g. monitored_dir/**/*.txt),
+    creating a symlink under monitored_dir should trigger a partial
+    scan via prefix matching and start tracking the symlink target.
+    """
+    link = os.path.join(monitored_dir, 'link')
+    config, config_file = fact_config
+    config['paths'].extend([link, f'{link}/**/*.txt'])
+    reload_config(fact, config, config_file)
+
+    target = os.path.join(ignored_dir, 'target.txt')
+    with open(target, 'w') as f:
+        f.write('symlink target')
+    os.symlink(os.path.join('..', os.path.basename(ignored_dir)), link)
+
+    process = Process.from_proc()
+
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.OPEN,
+                file=link,
+                host_path=link,
+            )
+        ]
+    )
+
+    with open(target, 'w') as f:
+        f.write('modified target')
+
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.OPEN,
+                file=target,
+                host_path=os.path.join(link, 'target.txt'),
+            )
+        ]
+    )
