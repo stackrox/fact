@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     fs::read_to_string,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -254,7 +255,7 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct PathsConfig {
     patterns: Option<Vec<PathBuf>>,
     pub globset: GlobSet,
@@ -296,6 +297,15 @@ impl PathsConfig {
 impl PartialEq for PathsConfig {
     fn eq(&self, other: &Self) -> bool {
         self.patterns() == other.patterns()
+    }
+}
+
+impl Debug for PathsConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PathsConfig")
+            .field("patterns", &self.patterns)
+            // Skip globset field for cleaner logs
+            .finish()
     }
 }
 
