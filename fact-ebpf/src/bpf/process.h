@@ -100,9 +100,10 @@ __always_inline static void process_fill_lineage(process_t* p, struct helper_t* 
   }
   p->lineage_len = 0;
 
-  bpf_rcu_read_lock();
   for (int i = 0; i < LINEAGE_MAX; i++) {
+    bpf_rcu_read_lock();
     struct task_struct* parent = bpf_task_acquire(task->real_parent);
+    bpf_rcu_read_unlock();
 
     if (parent == NULL) {
       break;
@@ -118,7 +119,6 @@ __always_inline static void process_fill_lineage(process_t* p, struct helper_t* 
     read_exe_file(task, p->lineage[i].exe_path, use_bpf_d_path);
     p->lineage_len++;
   }
-  bpf_rcu_read_unlock();
   bpf_task_release(task);
 }
 
