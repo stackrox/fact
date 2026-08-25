@@ -202,7 +202,7 @@ impl Bpf {
                 );
 
                 let prefix = path_prefix_t::try_from(p)?;
-                self.paths_lpm_map.insert(&prefix.into(), 0, 0)?;
+                self.paths_lpm_map.insert(&prefix.into(), &0, 0)?;
                 new_paths.push(prefix);
             }
             self.paths_globset = builder.build()?;

@@ -295,7 +295,7 @@ impl HostScanner {
             }
         };
 
-        match self.kernel_inode_map.borrow_mut().insert(inode, 0, 0) {
+        match self.kernel_inode_map.borrow_mut().insert(&inode, &0, 0) {
             Ok(_) => Ok(()),
             Err(MapError::SyscallError(SyscallError { io_error, .. }))
                 if io_error.kind() == io::ErrorKind::ArgumentListTooLong =>
