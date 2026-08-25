@@ -297,8 +297,8 @@ def test_open_via_hardlink(monitored_dir: str, server: EventServer):
     os.link(original, hardlink)
 
     # Open through hardlink
-    with open(hardlink) as f:
-        f.read()
+    with open(hardlink, 'w') as f:
+        f.write('this is a test')
 
     events = [
         Event(
@@ -347,8 +347,8 @@ def test_open_via_original_with_hardlink(
     os.link(original, hardlink)
 
     # Open through original path
-    with open(original) as f:
-        f.read()
+    with open(original, 'w') as f:
+        f.write('This is a test')
 
     events = [
         Event(

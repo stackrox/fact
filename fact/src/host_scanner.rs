@@ -160,7 +160,6 @@ impl HostScanner {
         info!("Host scan started");
         let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
-        let config = self.paths.borrow();
 
         // Cleanup any items that are either:
         // * Not configured to be monitored anymore.
@@ -169,8 +168,7 @@ impl HostScanner {
         self.inode_map.borrow_mut().retain(|inode, paths| {
             // Remove paths that no longer exist or are not monitored
             paths.retain(|path| {
-                config.iter().any(|prefix| path.starts_with(prefix))
-                    && host_info::prepend_host_mount(path).exists()
+                self.paths_globset.is_match(path) && host_info::prepend_host_mount(path).exists()
             });
 
             // If no monitored paths remain, remove the inode entirely
@@ -285,6 +283,30 @@ You can increase this limit with:
         }
     }
 
+    fn map_parent_host_paths<F: FnMut(&PathBuf) -> Option<PathBuf>>(
+        &self,
+        _inode: &inode_key_t,
+        parent_inode: &inode_key_t,
+        _f: F,
+    ) {
+        if parent_inode.empty() {
+            return;
+        }
+        /*
+        let paths = self
+            .inode_map
+            .borrow()
+            .get(parent_inode)
+            .map(|paths| paths.iter().filter_map(f))
+            .filter_map(f)
+            .collect::<HashSet<_>>();
+
+        let _ = self.kernel_inode_map.borrow_mut().insert(inode, 0, 0);
+        self.inode_map.borrow_mut().insert(*inode, paths);
+        */
+        todo!();
+    }
+
     fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
         // The path here needs to be cloned because we won't keep the
         // inode_map borrow long enough.
@@ -308,11 +330,11 @@ You can increase this limit with:
 
         // First try to find an exact match
         if paths.contains(filename) {
-            return Some(filename.to_path_buf());
+            Some(filename.to_path_buf())
+        } else {
+            // Otherwise return any monitored path
+            paths.iter().next().cloned()
         }
-
-        // Otherwise return any monitored path
-        paths.iter().next().cloned()
     }
 
     /// Handle file creation events by adding new inodes to the map.
@@ -324,10 +346,41 @@ You can increase this limit with:
     /// For hardlinks, the inode already exists but we need to add the new path.
     fn handle_creation_event(&self, event: &Event) -> anyhow::Result<()> {
         let inode = event.get_inode();
-        let parent_inode = event.get_parent_inode();
+        let Some(filename) = event.get_filename().file_name() else {
+            return Ok(());
+        };
+
+        let _paths = self
+            .inode_map
+            .borrow()
+            .get(event.get_parent_inode())
+            .map_or_else(HashSet::new, |parent_paths| {
+                parent_paths
+                    .iter()
+                    .filter_map(|parent_path| {
+                        let path = parent_path.join(filename);
+                        if self
+                            .inode_map
+                            .borrow()
+                            .get(inode)
+                            .is_some_and(|paths| paths.contains(&path))
+                        {
+                            None
+                        } else {
+                            Some(path)
+                        }
+                    })
+                    .collect()
+            });
+
+        self.map_parent_host_paths(inode, event.get_parent_inode(), |parent_path| {
+            let path = parent_path.join(filename);
+            Some(path)
+        });
 
         // For hardlinks, inode is already tracked but we need to add this new path
         // Check if this specific path already exists in our tracking
+        let inode = event.get_inode();
         let filename = event.get_filename();
         let already_has_this_path = self
             .inode_map
@@ -339,12 +392,8 @@ You can increase this limit with:
             return Ok(());
         }
 
-        if parent_inode.empty() {
-            return Ok(());
-        }
-
         if let Some(filename_component) = filename.file_name()
-            && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
+            && let Some(parent_host_path) = self.get_host_path(Some(event.get_parent_inode()))
         {
             let host_path = parent_host_path.join(filename_component);
             self.update_entry_with_inode(*inode, host_path)

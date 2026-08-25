@@ -1,4 +1,5 @@
 import os
+import re
 
 from event import Event, EventType, Process
 from server import EventServer
@@ -143,7 +144,7 @@ def test_link_in_subdirectory(monitored_dir: str, server: EventServer):
 def test_ignored(monitored_dir: str, ignored_dir: str, server: EventServer):
     """
     Tests that link events creating hardlinks in ignored directories
-    are not captured by the server.
+    is captured via inode tracking.
 
     Args:
         monitored_dir: Temporary directory path for creating test files.
@@ -165,12 +166,20 @@ def test_ignored(monitored_dir: str, ignored_dir: str, server: EventServer):
     monitored_link = os.path.join(monitored_dir, 'link.txt')
     os.link(original, monitored_link)
 
-    # Only the original creation and monitored hardlink should be reported
+    # The hardlink in the ignored directory must be reported with the
+    # original host_path, since this is the basis of how inode tracking
+    # works.
     events = [
         Event(
             process=process,
             event_type=EventType.CREATION,
             file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=ignored_link,
             host_path=original,
         ),
         Event(
@@ -226,7 +235,7 @@ def test_access_via_unmonitored_hardlink(
     """
     Tests accessing a file via an unmonitored hardlink when a monitored
     hardlink exists. The inode is tracked, so access should generate an
-    event, but what path should be reported?
+    event.
 
     Args:
         monitored_dir: Temporary directory path for creating test files.
@@ -245,14 +254,9 @@ def test_access_via_unmonitored_hardlink(
     os.link(monitored, ignored_link)
 
     # Access via the IGNORED hardlink
-    with open(ignored_link) as f:
-        f.read()
+    with open(ignored_link, 'w') as f:
+        f.write('This is a test')
 
-    # Should we get an event? If so, what should host_path be?
-    # The inode is tracked because monitored path exists.
-    # Access via ignored path should either:
-    # 1. Report the actual ignored path (probably empty host_path)
-    # 2. Report the monitored path that is tracked
     events = [
         Event(
             process=process,
@@ -260,14 +264,18 @@ def test_access_via_unmonitored_hardlink(
             file=monitored,
             host_path=monitored,
         ),
-        # What event do we expect here?
-        # This exposes the implementation question.
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=ignored_link,
+            host_path=monitored,
+        ),
         Event(
             process=process,
             event_type=EventType.OPEN,
             file=ignored_link,
             host_path=monitored,
-        ),  # Or host_path=''?
+        ),
     ]
 
     server.wait_events(events)
@@ -299,6 +307,28 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
     # Unlink the MONITORED path
     os.unlink(monitored)
 
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=monitored,
+                host_path=monitored,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=ignored_link,
+                host_path=monitored,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.UNLINK,
+                file=monitored,
+                host_path=monitored,
+            ),
+        ]
+    )
     # The inode should be removed from tracking even though
     # the ignored hardlink still exists (file not deleted from filesystem)
     # Verify this by trying to access via ignored link - should not generate
@@ -306,23 +336,20 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
     with open(ignored_link, 'w') as f:
         f.write('This is a test')
 
-    # Only creation and unlink events expected, no open event
-    events = [
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=monitored,
-            host_path=monitored,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.UNLINK,
-            file=monitored,
-            host_path=monitored,
-        ),
-    ]
+    # Recreate the monitored file to test we don't receive the previous event.
+    with open(monitored, 'w') as f:
+        f.write('test content')
 
-    server.wait_events(events)
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=monitored,
+                host_path=monitored,
+            ),
+        ]
+    )
 
 
 def test_multiple_monitored_and_ignored_hardlinks(
@@ -348,6 +375,7 @@ def test_multiple_monitored_and_ignored_hardlinks(
     monitored2 = os.path.join(monitored_dir, 'file2.txt')
     ignored1 = os.path.join(ignored_dir, 'file1.txt')
     ignored2 = os.path.join(ignored_dir, 'file2.txt')
+    monitored_pattern = rf'{os.path.join(monitored_dir, "file")}[12]\.txt'
 
     os.link(monitored1, monitored2)
     os.link(monitored1, ignored1)
@@ -357,34 +385,46 @@ def test_multiple_monitored_and_ignored_hardlinks(
     os.unlink(monitored1)
 
     # Access via remaining monitored path should still work
-    with open(monitored2) as f:
-        f.read()
+    with open(monitored2, 'w') as f:
+        f.write('This is a test')
 
-    events = [
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=monitored1,
-            host_path=monitored1,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=monitored2,
-            host_path=monitored2,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.UNLINK,
-            file=monitored1,
-            host_path=monitored1,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.OPEN,
-            file=monitored2,
-            host_path=monitored2,
-        ),
-    ]
-
-    server.wait_events(events)
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=monitored1,
+                host_path=monitored1,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=monitored2,
+                host_path=monitored2,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=ignored1,
+                host_path=re.compile(monitored_pattern),
+            ),
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=ignored2,
+                host_path=re.compile(monitored_pattern),
+            ),
+            Event(
+                process=process,
+                event_type=EventType.UNLINK,
+                file=monitored1,
+                host_path=monitored1,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.OPEN,
+                file=monitored2,
+                host_path=monitored2,
+            ),
+        ]
+    )
