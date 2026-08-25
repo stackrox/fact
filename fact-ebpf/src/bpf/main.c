@@ -38,9 +38,14 @@ char _license[] SEC("license") = "Dual MIT/GPL";
   static __always_inline int _handle_##hook(__MAP(n, __CAT, args)); \
   SEC("lsm/" STRINGIFY(hook))                                       \
   int BPF_PROG(trace_##hook, __MAP(n, __CAT, args)) {               \
-    bpf_preempt_disable();                                          \
+    if (bpf_ksym_exists(bpf_preempt_disable)) {                     \
+      bpf_preempt_disable();                                        \
+    }                                                               \
     int res = _handle_##hook(__MAP(n, __ARG, args));                \
-    bpf_preempt_enable();                                           \
+                                                                    \
+    if (bpf_ksym_exists(bpf_preempt_enable)) {                      \
+      bpf_preempt_enable();                                         \
+    }                                                               \
     return res;                                                     \
   }                                                                 \
   static __always_inline int _handle_##hook(__MAP(n, __CAT, args))
