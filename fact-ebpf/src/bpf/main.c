@@ -21,9 +21,10 @@ char _license[] SEC("license") = "Dual MIT/GPL";
 
 SEC("lsm/file_open")
 int BPF_PROG(trace_file_open, struct file* file) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->file_open};
 
@@ -58,7 +59,7 @@ int BPF_PROG(trace_file_open, struct file* file) {
   if (path == NULL) {
     bpf_printk("Failed to read path");
     m->file_open.error++;
-    return 0;
+    goto end;
   }
   args.filename = path->path;
 
@@ -79,10 +80,13 @@ int BPF_PROG(trace_file_open, struct file* file) {
 
   submit_open_event(&args, event_type);
 
+end:
+  bpf_preempt_enable();
   return 0;
 
 ignored:
   m->file_open.ignored++;
+  bpf_preempt_enable();
   return 0;
 }
 
@@ -125,9 +129,10 @@ int BPF_PROG(trace_path_link, struct dentry* old_dentry, const struct path* new_
 
 SEC("lsm/path_unlink")
 int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->path_unlink};
 
@@ -137,7 +142,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   if (path == NULL) {
     bpf_printk("Failed to read path");
     m->path_unlink.error++;
-    return 0;
+    goto end;
   }
   args.filename = path->path;
 
@@ -146,7 +151,7 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
 
   if (args.monitored == NOT_MONITORED) {
     m->path_unlink.ignored++;
-    return 0;
+    goto end;
   }
 
   // Only remove from kernel map if this is the last link
@@ -155,14 +160,18 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
   }
 
   submit_unlink_event(&args);
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/path_chmod")
 int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->path_chmod};
 
@@ -172,7 +181,7 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
   if (bound_path == NULL) {
     bpf_printk("Failed to read path");
     args.metrics->error++;
-    return 0;
+    goto end;
   }
   args.filename = bound_path->path;
 
@@ -181,12 +190,14 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
 
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
-    return 0;
+    goto end;
   }
 
   umode_t old_mode = BPF_CORE_READ(path, dentry, d_inode, i_mode);
   submit_mode_event(&args, mode, old_mode);
 
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
@@ -195,9 +206,10 @@ int BPF_PROG(trace_path_chmod, struct path* path, umode_t mode) {
    size of the BPF registers (64 bits) to simplify further arithmetic operations. */
 SEC("lsm/path_chown")
 int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsigned long long gid) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->path_chown};
 
@@ -207,7 +219,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
   if (bound_path == NULL) {
     bpf_printk("Failed to read path");
     args.metrics->error++;
-    return 0;
+    goto end;
   }
   args.filename = bound_path->path;
 
@@ -216,7 +228,7 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
 
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
-    return 0;
+    goto end;
   }
 
   struct dentry* d = BPF_CORE_READ(path, dentry);
@@ -225,6 +237,8 @@ int BPF_PROG(trace_path_chown, struct path* path, unsigned long long uid, unsign
 
   submit_ownership_event(&args, uid, gid, old_uid, old_gid);
 
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
@@ -232,9 +246,10 @@ SEC("lsm/path_rename")
 int BPF_PROG(trace_path_rename, struct path* old_dir,
              struct dentry* old_dentry, struct path* new_dir,
              struct dentry* new_dentry, unsigned int flags) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->path_rename};
 
@@ -270,7 +285,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
     case NOT_MONITORED:
       if (old_monitored == NOT_MONITORED) {
         m->path_rename.ignored++;
-        return 0;
+        goto end;
       }
 
       if (old_monitored == MONITORED_BY_INODE) {
@@ -331,18 +346,23 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
   }
 
   submit_rename_event(&args, old_path->path, &old_inode, old_monitored);
-  return 0;
+
+  goto end;
 
 error:
   args.metrics->error++;
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/path_mkdir")
 int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t mode) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
 
   m->path_mkdir.total++;
@@ -365,23 +385,27 @@ int BPF_PROG(trace_path_mkdir, struct path* dir, struct dentry* dentry, umode_t 
   if (mkdir_ctx->monitored != MONITORED_BY_PARENT) {
     delete_d_instantiate_ctx();
     m->path_mkdir.ignored++;
-    return 0;
+    goto end;
   }
   mkdir_ctx->event_type = DIR_ACTIVITY_CREATION;
 
-  return 0;
+  goto end;
 
 error:
   delete_d_instantiate_ctx();
   m->path_mkdir.error++;
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/d_instantiate")
 int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->d_instantiate.base};
 
@@ -397,7 +421,7 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
   struct d_instantiate_ctx_t* d_inst_ctx = get_d_instantiate_ctx();
   if (d_inst_ctx == NULL || d_inst_ctx->event_type == FILE_ACTIVITY_INIT) {
     args.metrics->ignored++;
-    return 0;
+    goto end;
   }
   args.filename = d_inst_ctx->path.path;
   args.parent_inode = d_inst_ctx->parent_inode;
@@ -437,6 +461,9 @@ int BPF_PROG(trace_d_instantiate, struct dentry* dentry, struct inode* inode) {
 
 cleanup:
   bpf_map_delete_elem(&d_instantiate_ctx, &pid_tgid);
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
@@ -465,29 +492,38 @@ __always_inline static int handle_xattr(struct metrics_by_hook_t* hook_metrics,
 SEC("lsm/inode_setxattr")
 int BPF_PROG(trace_inode_setxattr, struct mnt_idmap* idmap, struct dentry* dentry,
              const char* name, const void* value, size_t size, int flags) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
     return 0;
   }
-  return handle_xattr(&m->inode_setxattr, dentry, name, FILE_ACTIVITY_SETXATTR);
+  int res = handle_xattr(&m->inode_setxattr, dentry, name, FILE_ACTIVITY_SETXATTR);
+
+  bpf_preempt_enable();
+  return res;
 }
 
 SEC("lsm/inode_removexattr")
 int BPF_PROG(trace_inode_removexattr, struct mnt_idmap* idmap, struct dentry* dentry,
              const char* name) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
     return 0;
   }
-  return handle_xattr(&m->inode_removexattr, dentry, name, FILE_ACTIVITY_REMOVEXATTR);
+  int res = handle_xattr(&m->inode_removexattr, dentry, name, FILE_ACTIVITY_REMOVEXATTR);
+
+  bpf_preempt_enable();
+  return res;
 }
 
 SEC("lsm/inode_set_acl")
 int BPF_PROG(trace_inode_set_acl, struct mnt_idmap* idmap, struct dentry* dentry,
              const char* acl_name, struct posix_acl* kacl) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->inode_set_acl};
 
@@ -500,18 +536,22 @@ int BPF_PROG(trace_inode_set_acl, struct mnt_idmap* idmap, struct dentry* dentry
 
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
-    return 0;
+    goto end;
   }
 
   submit_acl_event(&args, acl_name, kacl);
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/path_rmdir")
 int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->path_rmdir};
 
@@ -521,7 +561,7 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
   if (path == NULL) {
     bpf_printk("Failed to read directory path");
     m->path_rmdir.error++;
-    return 0;
+    goto end;
   }
   args.filename = path->path;
 
@@ -529,18 +569,22 @@ int BPF_PROG(trace_path_rmdir, struct path* dir, struct dentry* dentry) {
 
   if (inode_remove(&args.inode) < 0) {
     m->path_rmdir.ignored++;
-    return 0;
+    goto end;
   }
 
   submit_rmdir_event(&args);
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/sb_mount")
 int BPF_PROG(trace_sb_mount, const char* dev_name, struct path* path, const char* type, unsigned long flags, void* data) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->sb_mount};
   args.metrics->total++;
@@ -549,7 +593,7 @@ int BPF_PROG(trace_sb_mount, const char* dev_name, struct path* path, const char
   if (bound_path == NULL) {
     bpf_printk("Failed to read mount directory");
     args.metrics->error++;
-    return 0;
+    goto end;
   }
   args.filename = bound_path->path;
 
@@ -562,19 +606,22 @@ int BPF_PROG(trace_sb_mount, const char* dev_name, struct path* path, const char
   args.monitored = is_monitored(&args.inode, bound_path, &args.parent_inode);
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
-    return 0;
+    goto end;
   }
 
   submit_mount_event(&args);
 
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/sb_umount")
 int BPF_PROG(trace_sb_umount, struct vfsmount* mnt, int flags) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->sb_umount};
   args.metrics->total++;
@@ -584,7 +631,7 @@ int BPF_PROG(trace_sb_umount, struct vfsmount* mnt, int flags) {
   if (bound_path == NULL) {
     bpf_printk("Failed to read umount directory");
     args.metrics->error++;
-    return 0;
+    goto end;
   }
   args.filename = bound_path->path;
 
@@ -597,19 +644,22 @@ int BPF_PROG(trace_sb_umount, struct vfsmount* mnt, int flags) {
   args.monitored = is_monitored(&args.inode, bound_path, &args.parent_inode);
   if (args.monitored == NOT_MONITORED) {
     args.metrics->ignored++;
-    return 0;
+    goto end;
   }
 
   submit_umount_event(&args);
 
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/move_mount")
 int BPF_PROG(trace_move_mount, struct path* from, struct path* to) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   struct submit_event_args_t args = {.metrics = &m->move_mount};
 
@@ -637,7 +687,7 @@ int BPF_PROG(trace_move_mount, struct path* from, struct path* to) {
 
   if (args.monitored != MONITORED_BY_INODE) {
     args.metrics->ignored++;
-    return 0;
+    goto end;
   }
 
   // Ensure the new mount is tracked.
@@ -646,18 +696,23 @@ int BPF_PROG(trace_move_mount, struct path* from, struct path* to) {
   }
 
   submit_move_mount_event(&args, from_path->path, &from_inode, from_monitored);
-  return 0;
+
+  goto end;
 
 error:
   args.metrics->error++;
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
 
 SEC("lsm/path_symlink")
 int BPF_PROG(trace_path_symlink, struct path* dir, struct dentry* dentry, const char* old_name) {
+  bpf_preempt_disable();
   struct metrics_t* m = get_metrics();
   if (m == NULL) {
-    return 0;
+    goto end;
   }
   m->path_symlink.total++;
 
@@ -680,10 +735,13 @@ int BPF_PROG(trace_path_symlink, struct path* dir, struct dentry* dentry, const 
     goto error;
   }
 
-  return 0;
+  goto end;
 
 error:
   delete_d_instantiate_ctx();
   m->path_symlink.error++;
+
+end:
+  bpf_preempt_enable();
   return 0;
 }
