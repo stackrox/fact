@@ -179,20 +179,20 @@ arches:
     name: protobuf-compiler
     evr: 3.5.0-17.el8_10
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-3.12.13-3.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-3.12.14-1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 32120
-    checksum: sha256:b8d37a108cb16ab1b008452d19695dc900fc49ec6f76045a62315e8908b0a109
+    size: 32220
+    checksum: sha256:b291fc9685f7929157203bcd417457f26b69df806790e40a86d57a271add509a
     name: python3.12
-    evr: 3.12.13-3.el8_10
-    sourcerpm: python3.12-3.12.13-3.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-libs-3.12.13-3.el8_10.aarch64.rpm
+    evr: 3.12.14-1.el8_10
+    sourcerpm: python3.12-3.12.14-1.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-libs-3.12.14-1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 10275012
-    checksum: sha256:7cf5a482cfad0583f59818fc7b523824ada4ed29fe72b88a1721c57776452058
+    size: 10280376
+    checksum: sha256:107a3ec8e4d7ac569bc1346a06fddb0a3722d46e35546b3d8af01a9f94879a22
     name: python3.12-libs
-    evr: 3.12.13-3.el8_10
-    sourcerpm: python3.12-3.12.13-3.el8_10.src.rpm
+    evr: 3.12.14-1.el8_10
+    sourcerpm: python3.12-3.12.14-1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/p/python3.12-pip-wheel-23.2.1-4.el8.noarch.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 1539820
@@ -1530,13 +1530,13 @@ arches:
     name: shared-mime-info
     evr: 1.9-4.el8
     sourcerpm: shared-mime-info-1.9-4.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/s/sqlite-libs-3.26.0-20.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/s/sqlite-libs-3.26.0-21.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 562812
-    checksum: sha256:cffbaa64bea78e6aab8f5fe7e77d06ba7f9632e1f0a668efaac9f877bcff038c
+    size: 562892
+    checksum: sha256:859f6156af5ffcaad83365787eab7c6009b83260e95017d8f8bd4426f90208dc
     name: sqlite-libs
-    evr: 3.26.0-20.el8_10
-    sourcerpm: sqlite-3.26.0-20.el8_10.src.rpm
+    evr: 3.26.0-21.el8_10
+    sourcerpm: sqlite-3.26.0-21.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/s/systemd-239-82.el8_10.17.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 3516332
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/aa6d96779d72dc6d4ce9bbb865078f69d59263c73e757a1612ced6e9c481a5e2-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/18bdbdd5009df011746720e82c4f82f1bb6db8440946c0a1654041975a5ef029-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 828070
-    checksum: sha256:aa6d96779d72dc6d4ce9bbb865078f69d59263c73e757a1612ced6e9c481a5e2
+    size: 828179
+    checksum: sha256:18bdbdd5009df011746720e82c4f82f1bb6db8440946c0a1654041975a5ef029
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -1825,20 +1825,20 @@ arches:
     name: protobuf-compiler
     evr: 3.5.0-17.el8_10
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-3.12.13-3.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-3.12.14-1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 31904
-    checksum: sha256:b0c121ddf496769e8d84a2e6be0dc510ded985bb415deb5854d479eeb8710e37
+    size: 32004
+    checksum: sha256:7cee3a6d235083471f2150b9094f9f339ca0cd3741102ca2aa4cc1088dcf6e65
     name: python3.12
-    evr: 3.12.13-3.el8_10
-    sourcerpm: python3.12-3.12.13-3.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-libs-3.12.13-3.el8_10.x86_64.rpm
+    evr: 3.12.14-1.el8_10
+    sourcerpm: python3.12-3.12.14-1.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-libs-3.12.14-1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 10511220
-    checksum: sha256:674474c06074efa079942322cf2fd9432d131e9001ca9719e1433b707555e846
+    size: 10515860
+    checksum: sha256:dff044e26dedad6bed83248c5e323f83894866c81197337aea1b136cddbdd011
     name: python3.12-libs
-    evr: 3.12.13-3.el8_10
-    sourcerpm: python3.12-3.12.13-3.el8_10.src.rpm
+    evr: 3.12.14-1.el8_10
+    sourcerpm: python3.12-3.12.14-1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/p/python3.12-pip-wheel-23.2.1-4.el8.noarch.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 1539820
@@ -3162,13 +3162,13 @@ arches:
     name: shared-mime-info
     evr: 1.9-4.el8
     sourcerpm: shared-mime-info-1.9-4.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/s/sqlite-libs-3.26.0-20.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/s/sqlite-libs-3.26.0-21.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 594128
-    checksum: sha256:a77e624b3a8e10d9db21e42a2a8e599ed1ad9a1689eb4f57af77f438185e110c
+    size: 594220
+    checksum: sha256:0a7e16e821aa2c2cdeb9ea5356bc7450d201672e8af88bc34cafa067ee290bc9
     name: sqlite-libs
-    evr: 3.26.0-20.el8_10
-    sourcerpm: sqlite-3.26.0-20.el8_10.src.rpm
+    evr: 3.26.0-21.el8_10
+    sourcerpm: sqlite-3.26.0-21.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/s/systemd-239-82.el8_10.17.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 3832592
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/7616b7bff70739a00c0be93b0b67461fd364134e3013dad58425b6f62497bad9-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/13477c634e59941bda8b791c239599a94750b73dcd15110d7f62508c3c5638af-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 849801
-    checksum: sha256:7616b7bff70739a00c0be93b0b67461fd364134e3013dad58425b6f62497bad9
+    size: 850052
+    checksum: sha256:13477c634e59941bda8b791c239599a94750b73dcd15110d7f62508c3c5638af
