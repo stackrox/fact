@@ -142,6 +142,15 @@ impl HostScanner {
         Ok((host_scanner, output))
     }
 
+    fn remove_inode(&self, inode: &inode_key_t) -> Option<PathBuf> {
+        let _ = self.kernel_inode_map.borrow_mut().remove(inode);
+        let res = self.inode_map.borrow_mut().remove(inode);
+        if res.is_some() {
+            self.metrics.inode_map_size.dec();
+        }
+        res
+    }
+
     fn reload_paths_config(&mut self) -> anyhow::Result<()> {
         let paths = self.paths.borrow();
         let mut builder = GlobSetBuilder::new();
@@ -404,9 +413,8 @@ You can increase this limit with:
     fn handle_unlink_event(&self, event: &Event) {
         let inode = event.get_inode();
 
-        if self.inode_map.borrow_mut().remove(inode).is_some() {
+        if self.remove_inode(inode).is_some() {
             self.metrics.scan_inc(ScanLabels::InodeRemoved);
-            self.metrics.inode_map_size.dec();
         }
 
         self.metrics.scan_inc(ScanLabels::FileRemoved);
@@ -672,15 +680,9 @@ You can increase this limit with:
                         // whether the event is ignored now that we have the
                         // full inode context.
                         if self.event_is_ignored(&event) {
-                            if self.inode_map.borrow_mut().remove(event.get_inode()).is_some() {
-                                self.metrics.inode_map_size.dec();
-                            }
-                            let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
+                            self.remove_inode(event.get_inode());
                             if let Some(old_inode) = event.get_old_inode() {
-                                if self.inode_map.borrow_mut().remove(old_inode).is_some() {
-                                    self.metrics.inode_map_size.dec();
-                                }
-                                let _ = self.kernel_inode_map.borrow_mut().remove(old_inode);
+                                self.remove_inode(old_inode);
                             }
                             self.metrics.events_inc(HostScannerLabels::Ignored);
                             continue;
