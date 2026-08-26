@@ -97,6 +97,7 @@ impl HostScannerMetrics {
             "Events processed by the host scanner component",
             self.events.clone(),
         );
+
         reg.register(
             "host_scanner_scan",
             "Counter of events by scans from the host scanner component",
