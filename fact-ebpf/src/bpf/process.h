@@ -6,6 +6,7 @@
 #include "d_path.h"
 #include "maps.h"
 #include "types.h"
+#include "vmlinux/x86_64.h"
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -115,7 +116,9 @@ __always_inline static void process_fill_lineage(process_t* p, struct helper_t* 
     bpf_task_release(task);
     task = parent;
 
+    bpf_rcu_read_lock();
     p->lineage[i].uid = task->cred->uid.val;
+    bpf_rcu_read_unlock();
     read_exe_file(task, p->lineage[i].exe_path, use_bpf_d_path);
     p->lineage_len++;
   }
