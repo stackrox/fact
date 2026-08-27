@@ -156,8 +156,10 @@ int BPF_PROG(trace_path_unlink, struct path* dir, struct dentry* dentry) {
     return 0;
   }
 
-  // We only support files with one link for now
-  inode_remove(&args.inode);
+  // Only remove from kernel map if this is the last link
+  if (BPF_CORE_READ(dentry, d_inode, i_nlink) == 1) {
+    inode_remove(&args.inode);
+  }
 
   submit_unlink_event(&args);
   return 0;
@@ -282,7 +284,9 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
         // Old inode is monitored, new path is not.
         // If the old path is a directory userspace will remove any
         // subdirectories and files too.
-        inode_remove(&old_inode);
+        if (BPF_CORE_READ(old_dentry, d_inode, i_nlink) == 1) {
+          inode_remove(&old_inode);
+        }
       }
       break;
 
@@ -294,7 +298,9 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
         // which should never happen. When the inode crosses into a new
         // mount, a new inode is created altogether. Still, we can cover
         // our bases.
-        inode_remove(&old_inode);
+        if (BPF_CORE_READ(old_dentry, d_inode, i_nlink) == 1) {
+          inode_remove(&old_inode);
+        }
       }
       break;
 
@@ -310,7 +316,9 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
         // Old inode is monitored and will land on a path that has a
         // monitored parent but the path itself is not monitored, we
         // stop tracking the inode
-        inode_remove(&old_inode);
+        if (BPF_CORE_READ(old_dentry, d_inode, i_nlink) == 1) {
+          inode_remove(&old_inode);
+        }
       }
       break;
 
@@ -318,7 +326,9 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
       // If we landed here, the new path already has an inode that is
       // being tracked and is about to be overwritten, we need to remove
       // it from the map
-      inode_remove(&args.inode);
+      if (BPF_CORE_READ(new_dentry, d_inode, i_nlink) == 1) {
+        inode_remove(&args.inode);
+      }
       if (old_monitored != MONITORED_BY_INODE) {
         // Old inode is not monitored, but is landing in a monitored
         // path that uses inode tracking.
