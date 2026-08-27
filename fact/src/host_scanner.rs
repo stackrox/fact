@@ -91,6 +91,23 @@ impl Serialize for InodeMap {
     }
 }
 
+#[derive(Debug)]
+pub enum IntrospectionRequestType {
+    InodeMap,
+    InodeMapSize,
+}
+
+#[derive(Debug)]
+pub enum IntrospectionResponseType {
+    InodeMap(serde_json::Result<String>),
+    InodeMapSize,
+}
+
+pub type IntrospectionRequest = (
+    IntrospectionRequestType,
+    oneshot::Sender<IntrospectionResponseType>,
+);
+
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<InodeMap>,
@@ -100,7 +117,7 @@ pub struct HostScanner {
 
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
-    introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
+    introspection: mpsc::Receiver<IntrospectionRequest>,
 
     metrics: HostScannerMetrics,
 
@@ -115,7 +132,7 @@ impl HostScanner {
         paths: watch::Receiver<Vec<PathBuf>>,
         scan_interval: watch::Receiver<Duration>,
         metrics: HostScannerMetrics,
-        introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
+        introspection: mpsc::Receiver<IntrospectionRequest>,
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(InodeMap::new());
@@ -140,15 +157,6 @@ impl HostScanner {
         host_scanner.scan()?;
 
         Ok((host_scanner, output))
-    }
-
-    fn remove_inode(&self, inode: &inode_key_t) -> Option<PathBuf> {
-        let _ = self.kernel_inode_map.borrow_mut().remove(inode);
-        let res = self.inode_map.borrow_mut().remove(inode);
-        if res.is_some() {
-            self.metrics.inode_map_size.dec();
-        }
-        res
     }
 
     fn reload_paths_config(&mut self) -> anyhow::Result<()> {
@@ -187,7 +195,6 @@ impl HostScanner {
             } else {
                 let _ = self.kernel_inode_map.borrow_mut().remove(inode);
                 self.metrics.scan_inc(ScanLabels::InodeRemoved);
-                self.metrics.inode_map_size.dec();
                 false
             }
         });
@@ -341,7 +348,6 @@ impl HostScanner {
             }
             None => {
                 self.metrics.scan_inc(ScanLabels::FileUpdated);
-                self.metrics.inode_map_size.inc();
                 inode_map.insert(inode, path.clone());
             }
         };
@@ -413,7 +419,7 @@ You can increase this limit with:
     fn handle_unlink_event(&self, event: &Event) {
         let inode = event.get_inode();
 
-        if self.remove_inode(inode).is_some() {
+        if self.inode_map.borrow_mut().remove(inode).is_some() {
             self.metrics.scan_inc(ScanLabels::InodeRemoved);
         }
 
@@ -428,22 +434,14 @@ You can increase this limit with:
                 // inode we are landing on and put the associated host path in
                 // the old inode.
                 let mut inode_map = self.inode_map.borrow_mut();
-                let path = match inode_map.remove(event.get_inode()) {
-                    Some(p) => {
-                        self.metrics.inode_map_size.dec();
-                        p
-                    }
-                    None => {
-                        warn!("Old path was not found for inode tracked event");
-                        return;
-                    }
+                let Some(path) = inode_map.remove(event.get_inode()) else {
+                    warn!("Old path was not found for inode tracked event");
+                    return;
                 };
                 let Some(old_inode) = event.get_old_inode() else {
                     unreachable!("old inode not found for rename event");
                 };
-                if inode_map.insert(*old_inode, path).is_none() {
-                    self.metrics.inode_map_size.inc();
-                }
+                inode_map.insert(*old_inode, path);
             }
             monitored_t::NOT_MONITORED
                 if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
@@ -460,7 +458,6 @@ You can increase this limit with:
                     }
 
                     let _ = self.kernel_inode_map.borrow_mut().remove(inode);
-                    self.metrics.inode_map_size.dec();
                     false
                 });
             }
@@ -471,18 +468,11 @@ You can increase this limit with:
             monitored_t::MONITORED_BY_PARENT if !event.get_inode().empty() => {
                 // The parent for the target is monitored, but the file itself
                 // is not. Remove the entry for the old file from the map.
-                if self
-                    .inode_map
-                    .borrow_mut()
-                    .remove(
-                        event
-                            .get_old_inode()
-                            .expect("rename event did not have old inode"),
-                    )
-                    .is_some()
-                {
-                    self.metrics.inode_map_size.dec();
-                }
+                self.inode_map.borrow_mut().remove(
+                    event
+                        .get_old_inode()
+                        .expect("rename event did not have old inode"),
+                );
             }
             monitored_t::MONITORED_BY_PARENT
                 if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
@@ -528,7 +518,6 @@ You can increase this limit with:
                         if let Err(e) = self.kernel_inode_map.borrow_mut().remove(inode) {
                             warn!("Failed to remove inode kernel entry: {e:?}");
                         }
-                        self.metrics.inode_map_size.dec();
                         false
                     });
                 }
@@ -680,9 +669,11 @@ You can increase this limit with:
                         // whether the event is ignored now that we have the
                         // full inode context.
                         if self.event_is_ignored(&event) {
-                            self.remove_inode(event.get_inode());
+                            self.inode_map.borrow_mut().remove(event.get_inode());
+                            let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
                             if let Some(old_inode) = event.get_old_inode() {
-                                self.remove_inode(old_inode);
+                                self.inode_map.borrow_mut().remove(old_inode);
+                                let _ = self.kernel_inode_map.borrow_mut().remove(old_inode);
                             }
                             self.metrics.events_inc(HostScannerLabels::Ignored);
                             continue;
@@ -696,12 +687,23 @@ You can increase this limit with:
                         }
                     },
                     req = self.introspection.recv() => {
-                        let Some(req) = req else {
+                        let Some((req_type, ch)) = req else {
                             continue;
                         };
 
-                        let resp = serde_json::to_string(&*self.inode_map.borrow());
-                        if let Err(e) = req.send(resp) {
+                        use IntrospectionRequestType::*;
+                        let resp = match req_type {
+                            InodeMap => {
+                                let resp = serde_json::to_string(&*self.inode_map.borrow());
+                                IntrospectionResponseType::InodeMap(resp)
+                            }
+                            InodeMapSize => {
+                                let len = self.inode_map.borrow().len();
+                                self.metrics.inode_map_size.set(len as i64);
+                                IntrospectionResponseType::InodeMapSize
+                            }
+                        };
+                        if let Err(e) = ch.send(resp) {
                             warn!("Failed to reply introspection query: {e:?}");
                         }
                     }

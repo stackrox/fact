@@ -15,7 +15,11 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{config::EndpointConfig, metrics::exporter::Exporter};
+use crate::{
+    config::EndpointConfig,
+    host_scanner::{self, IntrospectionRequestType as HostScannerReq},
+    metrics::exporter::Exporter,
+};
 
 #[derive(Clone)]
 pub struct Server {
@@ -23,7 +27,7 @@ pub struct Server {
     config: watch::Receiver<EndpointConfig>,
     running: watch::Receiver<bool>,
 
-    host_scanner_intro: mpsc::Sender<oneshot::Sender<serde_json::Result<String>>>,
+    host_scanner_intro: mpsc::Sender<host_scanner::IntrospectionRequest>,
 }
 
 impl Server {
@@ -31,7 +35,7 @@ impl Server {
         metrics: Exporter,
         config: watch::Receiver<EndpointConfig>,
         running: watch::Receiver<bool>,
-        host_scanner_intro: mpsc::Sender<oneshot::Sender<serde_json::Result<String>>>,
+        host_scanner_intro: mpsc::Sender<host_scanner::IntrospectionRequest>,
     ) -> Self {
         Server {
             metrics,
@@ -124,11 +128,29 @@ impl Server {
             .unwrap())
     }
 
-    fn handle_metrics(&self) -> Result<Response<Full<Bytes>>, anyhow::Error> {
+    async fn handle_metrics(&self) -> Result<Response<Full<Bytes>>, anyhow::Error> {
         if !self.metrics_is_active() {
             return Server::make_response(StatusCode::SERVICE_UNAVAILABLE, "");
         }
 
+        // Trigger an update of the inode_map_size metric
+        let (tx, rx) = oneshot::channel();
+        if let Err(e) = self
+            .host_scanner_intro
+            .send((HostScannerReq::InodeMapSize, tx))
+            .await
+        {
+            return Server::make_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to request update inode_map_size metric: {e:?}"),
+            );
+        }
+        if let Err(e) = rx.await {
+            return Server::make_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to update inode_map_size metric: {e:?}"),
+            );
+        }
         self.metrics.encode().map(|buf| {
             let body = Full::new(Bytes::from(buf));
             Response::builder()
@@ -156,19 +178,33 @@ impl Server {
         }
 
         let (tx, rx) = oneshot::channel();
-        if let Err(e) = self.host_scanner_intro.send(tx).await {
+        if let Err(e) = self
+            .host_scanner_intro
+            .send((HostScannerReq::InodeMap, tx))
+            .await
+        {
             return Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
         }
-        match rx.await {
-            Ok(Ok(b)) => Response::builder()
+        let res = match rx.await {
+            Ok(res) => res,
+            Err(e) => {
+                return Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string());
+            }
+        };
+
+        use host_scanner::IntrospectionResponseType::*;
+        match res {
+            InodeMap(Ok(b)) => Response::builder()
                 .header(
                     hyper::header::CONTENT_TYPE,
                     "application/json; charset=utf-8",
                 )
                 .body(Full::new(Bytes::from(b)))
                 .map_err(anyhow::Error::new),
-            Ok(Err(e)) => Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-            Err(e) => Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            InodeMap(Err(e)) => {
+                Server::make_response(StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            }
+            InodeMapSize => unreachable!("received InodeMapSize response to InodeMap request"),
         }
     }
 }
@@ -182,7 +218,7 @@ impl Service<Request<Incoming>> for Server {
         let s = self.clone();
         Box::pin(async move {
             match (req.method(), req.uri().path()) {
-                (&Method::GET, "/metrics") => s.handle_metrics(),
+                (&Method::GET, "/metrics") => s.handle_metrics().await,
                 (&Method::GET, "/health_check") => s.handle_health_check(),
                 (&Method::GET, "/inodes") => s.handle_inodes().await,
                 _ => Server::make_response(StatusCode::NOT_FOUND, ""),

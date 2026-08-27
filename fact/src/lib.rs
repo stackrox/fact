@@ -9,7 +9,7 @@ use metrics::exporter::Exporter;
 use rate_limiter::RateLimiter;
 use tokio::{
     signal::unix::{SignalKind, signal},
-    sync::{mpsc, oneshot, watch},
+    sync::{mpsc, watch},
     task::JoinSet,
     time::timeout,
 };
@@ -102,7 +102,7 @@ struct SetupArgs<'a> {
 
     // BPF mode
     bpf_config: BpfConfig,
-    host_scanner_intro: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
+    host_scanner_intro: mpsc::Receiver<host_scanner::IntrospectionRequest>,
 }
 
 pub async fn run(config: FactConfig) -> anyhow::Result<()> {
