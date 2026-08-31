@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: signoz
+  namespace: observability
+spec:
+  host: signoz-observability.apps.rc-dev-cluster.ocp.infra.rox.systems
+  port:
+    targetPort: 8080
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+  to:
+    kind: Service
+    name: signoz
+    weight: 100

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fact-operator-test
+---
+apiVersion: fact.stackrox.io/v1alpha1
+kind: Fact
+metadata:
+  name: fact
+  namespace: fact-operator-test
+spec:
+  image: quay.io/rcochran/scratch@sha256:846110c1455070e0d28594b0567b60488427a0c82e8495e549373b0c12657be9
+  logLevel: info
+  config:
+    json: true
+    paths:
+      - /etc
+      - /etc/**/*
+      - /tmp/fact-operator-validation
+      - /tmp/fact-operator-validation/**/*
+    otel:
+      endpoint: http://signoz-otel-collector.observability.svc.cluster.local:4318/v1/logs
