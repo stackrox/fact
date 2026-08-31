@@ -91,6 +91,23 @@ impl Serialize for InodeMap {
     }
 }
 
+#[derive(Debug)]
+pub enum IntrospectionRequestType {
+    InodeMap,
+    InodeMapSize,
+}
+
+#[derive(Debug)]
+pub enum IntrospectionResponseType {
+    InodeMap(serde_json::Result<String>),
+    InodeMapSize,
+}
+
+pub type IntrospectionRequest = (
+    IntrospectionRequestType,
+    oneshot::Sender<IntrospectionResponseType>,
+);
+
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<InodeMap>,
@@ -100,7 +117,7 @@ pub struct HostScanner {
 
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
-    introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
+    introspection: mpsc::Receiver<IntrospectionRequest>,
 
     metrics: HostScannerMetrics,
 
@@ -115,7 +132,7 @@ impl HostScanner {
         paths: watch::Receiver<Vec<PathBuf>>,
         scan_interval: watch::Receiver<Duration>,
         metrics: HostScannerMetrics,
-        introspection: mpsc::Receiver<oneshot::Sender<serde_json::Result<String>>>,
+        introspection: mpsc::Receiver<IntrospectionRequest>,
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(InodeMap::new());
@@ -274,6 +291,7 @@ impl HostScanner {
     /// base path (the path up to the first glob special character) that
     /// matches the supplied path.
     fn scan_partial(&self, path: &Path) -> anyhow::Result<()> {
+        let start = Instant::now();
         let scan_prefix_patterns =
             self.paths_patterns
                 .iter()
@@ -296,6 +314,10 @@ impl HostScanner {
         for pattern in scan_set.iter().map(|index| &self.paths_patterns[*index]) {
             self.scan_inner(pattern)?;
         }
+
+        self.metrics
+            .scan_partial_duration
+            .observe(start.elapsed().as_secs_f64());
         Ok(())
     }
 
@@ -665,12 +687,23 @@ You can increase this limit with:
                         }
                     },
                     req = self.introspection.recv() => {
-                        let Some(req) = req else {
+                        let Some((req_type, ch)) = req else {
                             continue;
                         };
 
-                        let resp = serde_json::to_string(&*self.inode_map.borrow());
-                        if let Err(e) = req.send(resp) {
+                        use IntrospectionRequestType::*;
+                        let resp = match req_type {
+                            InodeMap => {
+                                let resp = serde_json::to_string(&*self.inode_map.borrow());
+                                IntrospectionResponseType::InodeMap(resp)
+                            }
+                            InodeMapSize => {
+                                let len = self.inode_map.borrow().len();
+                                self.metrics.inode_map_size.set(len as i64);
+                                IntrospectionResponseType::InodeMapSize
+                            }
+                        };
+                        if let Err(e) = ch.send(resp) {
                             warn!("Failed to reply introspection query: {e:?}");
                         }
                     }
