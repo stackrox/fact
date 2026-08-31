@@ -135,7 +135,7 @@ impl HostScanner {
         let inode_map = RefCell::new(InodeMap::new());
         let (tx, output) = mpsc::channel(100);
 
-        let mut host_scanner = HostScanner {
+        let host_scanner = HostScanner {
             kernel_inode_map,
             inode_map,
             paths,
@@ -145,8 +145,6 @@ impl HostScanner {
             introspection,
             metrics,
         };
-
-        host_scanner.reload_paths_config()?;
 
         // Run an initial scan to fill in the inode map
         host_scanner.scan()?;
