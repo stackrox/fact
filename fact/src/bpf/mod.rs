@@ -293,6 +293,7 @@ impl Bpf {
         task_set.spawn(async move {
             let rb = self.take_ringbuffer()?;
             let mut fd = AsyncFd::new(rb)?;
+            let mut config_is_closed = false;
 
             loop {
                 tokio::select! {
@@ -330,8 +331,11 @@ impl Bpf {
                         }
                         guard.clear_ready();
                     },
-                    _ = self.paths_config.changed() => {
-                        self.load_paths().context("Failed to load paths")?;
+                    res = self.paths_config.changed(), if !config_is_closed => {
+                        match res {
+                            Ok(()) => self.load_paths().context("Failed to load paths")?,
+                            Err(_) => config_is_closed = true,
+                        }
                     },
                     _ = self.running.changed() => {
                         if !*self.running.borrow() {

@@ -65,6 +65,7 @@ impl RateLimiter {
     pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
         task_set.spawn(async move {
             debug!("Starting rate limiter...");
+            let mut config_is_closed = false;
             loop {
                 tokio::select! {
                     event = self.rx.recv() => {
@@ -81,8 +82,11 @@ impl RateLimiter {
                             self.metrics.errored();
                         }
                     },
-                    _ = self.rate_config.changed() => {
-                        self.reload_limiter()?;
+                    res = self.rate_config.changed(), if !config_is_closed => {
+                        match res {
+                            Ok(()) => self.reload_limiter()?,
+                            Err(_) => config_is_closed = true,
+                        }
                     },
                 }
             }

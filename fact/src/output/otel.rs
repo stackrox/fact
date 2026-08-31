@@ -77,6 +77,7 @@ impl Client {
         let (tx, rx) = oneshot::channel();
         self.subscriber.send(tx).await?;
         let mut rx = rx.await?;
+        let mut config_is_closed = false;
 
         let res = loop {
             tokio::select! {
@@ -109,7 +110,12 @@ impl Client {
                         }
                     }
                 }
-                _ = self.config.changed() => break Ok(true),
+                res = self.config.changed(), if !config_is_closed => {
+                    match res {
+                        Ok(()) => break Ok(true),
+                        Err(_) => config_is_closed = true,
+                    }
+                }
                 _ = self.running.changed() => break Ok(*self.running.borrow()),
             }
         };
@@ -124,7 +130,7 @@ impl Client {
 
     async fn idle(&mut self) -> anyhow::Result<bool> {
         tokio::select! {
-            _ = self.config.changed() => Ok(true),
+            _ = self.config.changed(), if self.config.has_changed().is_ok() => Ok(true),
             _ = self.running.changed() => Ok(*self.running.borrow()),
         }
     }
