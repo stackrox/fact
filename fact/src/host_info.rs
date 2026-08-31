@@ -3,10 +3,11 @@ use log::{debug, warn};
 use std::{
     collections::HashMap,
     env,
-    ffi::{CStr, CString, c_char},
+    ffi::{CStr, CString, OsStr, c_char},
     fs::{File, read_to_string},
     io::{BufRead, BufReader},
     mem,
+    os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
     sync::LazyLock,
 };
@@ -31,13 +32,14 @@ pub fn prepend_host_mount(path: &Path) -> PathBuf {
     get_host_mount().join(path)
 }
 
-pub fn remove_host_mount(path: &Path) -> PathBuf {
+pub fn remove_host_mount(path: &Path) -> &Path {
     let host_mount = get_host_mount();
-    if path.starts_with(host_mount) {
-        let path = path.strip_prefix(host_mount).unwrap();
-        Path::new("/").join(path)
+    if host_mount != "/" && path.starts_with(host_mount) {
+        let len = host_mount.as_os_str().as_bytes().len();
+        let path = &path.as_os_str().as_bytes()[len..];
+        Path::new(OsStr::from_bytes(path))
     } else {
-        path.to_path_buf()
+        path
     }
 }
 

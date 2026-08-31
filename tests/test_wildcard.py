@@ -11,6 +11,15 @@ from event import Event, EventType, Process
 from server import EventServer
 
 
+def reload_config(
+    fact: docker.models.containers.Container, config: dict, config_file: str
+):
+    with open(config_file, 'w') as f:
+        yaml.dump(config, f)
+    fact.kill('SIGHUP')
+    sleep(0.1)
+
+
 @pytest.fixture
 def wildcard_config(
     fact: docker.models.containers.Container,
@@ -23,12 +32,22 @@ def wildcard_config(
         f'{monitored_dir}/*.conf',
         f'{monitored_dir}/**/test-*.log',
     ]
-    with open(config_file, 'w') as f:
-        yaml.dump(config, f)
 
-    # reload the config
-    fact.kill('SIGHUP')
-    sleep(0.1)
+    reload_config(fact, config, config_file)
+    return config, config_file
+
+
+@pytest.fixture
+def partial_path_match_wildcard(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    ignored_dir: str,
+):
+    config, config_file = fact_config
+    partial_dir = ignored_dir.rsplit('-', 1)[0]
+    config['paths'] = [f'{partial_dir}*/**/*', f'{partial_dir}*']
+
+    reload_config(fact, config, config_file)
     return config, config_file
 
 
@@ -197,3 +216,75 @@ def test_multiple_patterns(
     ]
 
     server.wait_events(events)
+
+
+def test_partial_dir_pattern(
+    partial_path_match_wildcard: tuple[dict, str],
+    ignored_dir: str,
+    server: EventServer,
+):
+    process = Process.from_proc()
+    file = os.path.join(ignored_dir, 'file.txt')
+    with open(file, 'w') as f:
+        f.write('This is a test')
+
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=file,
+                host_path=file,
+            )
+        ]
+    )
+
+
+def test_partial_scan_follows_symlink(
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    monitored_dir: str,
+    ignored_dir: str,
+    server: EventServer,
+):
+    """
+    When paths are wildcard-only (e.g. monitored_dir/**/*.txt),
+    creating a symlink under monitored_dir should trigger a partial
+    scan via prefix matching and start tracking the symlink target.
+    """
+    link = os.path.join(monitored_dir, 'link')
+    config, config_file = fact_config
+    config['paths'].extend([link, f'{link}/**/*.txt'])
+    reload_config(fact, config, config_file)
+
+    target = os.path.join(ignored_dir, 'target.txt')
+    with open(target, 'w') as f:
+        f.write('symlink target')
+    os.symlink(os.path.join('..', os.path.basename(ignored_dir)), link)
+
+    process = Process.from_proc()
+
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.OPEN,
+                file=link,
+                host_path=link,
+            )
+        ]
+    )
+
+    with open(target, 'w') as f:
+        f.write('modified target')
+
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.OPEN,
+                file=target,
+                host_path=os.path.join(link, 'target.txt'),
+            )
+        ]
+    )
