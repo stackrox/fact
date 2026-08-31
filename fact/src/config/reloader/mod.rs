@@ -242,10 +242,8 @@ impl Reloader {
     }
 }
 
-impl TryFrom<FactConfig> for Reloader {
-    type Error = anyhow::Error;
-
-    fn try_from(config: FactConfig) -> Result<Self, Self::Error> {
+impl From<FactConfig> for Reloader {
+    fn from(config: FactConfig) -> Self {
         let files = CONFIG_FILES
             .iter()
             .filter_map(|path| {
@@ -284,7 +282,7 @@ impl TryFrom<FactConfig> for Reloader {
         let (paths, _) = watch::channel(paths);
         let trigger = Arc::new(Notify::new());
 
-        Ok(Reloader {
+        Reloader {
             enabled,
             endpoint,
             grpc,
@@ -294,6 +292,6 @@ impl TryFrom<FactConfig> for Reloader {
             rate_limit,
             files,
             trigger,
-        })
+        }
     }
 }

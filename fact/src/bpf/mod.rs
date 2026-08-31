@@ -386,7 +386,7 @@ mod bpf_tests {
         let mut config = FactConfig::default();
         config.set_paths(paths);
         let bpf_config = config.bpf.clone();
-        let reloader = Reloader::try_from(config).unwrap();
+        let reloader = Reloader::from(config);
         let metrics = Metrics::new();
         let (run_tx, run_rx) = watch::channel(true);
         let (bpf, mut rx) = Bpf::new(

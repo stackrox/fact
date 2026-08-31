@@ -120,7 +120,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
 
     let metrics_userspace = Metrics::new();
     let mut task_set = JoinSet::new();
-    let reloader = config::reloader::Reloader::try_from(config)?;
+    let reloader = config::reloader::Reloader::from(config);
     let config_trigger = reloader.get_trigger();
 
     let setup_args = SetupArgs {

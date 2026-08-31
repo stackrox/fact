@@ -32,7 +32,7 @@ macro_rules! generate_test {
     ($testname:ident, $channel:ident, $old:expr, $new:expr, $expected:expr) => {
         #[test]
         fn $testname() {
-            let reloader = Reloader::try_from($old).unwrap();
+            let reloader = Reloader::from($old);
             let channel = reloader.$channel();
             reloader.send_updates($new);
 
