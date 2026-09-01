@@ -6,7 +6,6 @@
 #include "d_path.h"
 #include "maps.h"
 #include "types.h"
-#include "vmlinux/x86_64.h"
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
