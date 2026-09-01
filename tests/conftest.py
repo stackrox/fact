@@ -16,7 +16,6 @@ import yaml
 
 from metrics import MetricsSnapshot
 from server import EventServer, GrpcServer, OtlpServer
-from utils import get_metric_value
 
 pytest_plugins = ['test_editors.commons']
 
@@ -228,6 +227,7 @@ def fact(
         environment={
             'FACT_LOGLEVEL': 'debug',
             'FACT_HOST_MOUNT': '/host',
+            'FACT_ENDPOINT_INTROSPECTION': 'true',
             'OTEL_BLRP_SCHEDULE_DELAY': '100',
             'OTEL_BLRP_MAX_EXPORT_BATCH_SIZE': '1',
             'RUST_BACKTRACE': '1',
@@ -238,7 +238,7 @@ def fact(
         volumes={
             '/': {
                 'bind': '/host',
-                'mode': 'ro',
+                'mode': 'ro,rslave',
             },
             fact_config_file: {
                 'bind': '/etc/stackrox/fact.yml',
