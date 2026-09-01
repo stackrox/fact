@@ -154,6 +154,10 @@ impl Event {
         matches!(self.file, FileData::Unlink(_) | FileData::RmDir(_))
     }
 
+    pub fn is_link(&self) -> bool {
+        matches!(self.file, FileData::Link { .. })
+    }
+
     pub fn is_rename(&self) -> bool {
         matches!(self.file, FileData::Rename { .. })
     }
@@ -183,6 +187,7 @@ impl Event {
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
+            | FileData::Link { new: inner, .. }
             | FileData::Rename { new: inner, .. }
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
@@ -204,6 +209,7 @@ impl Event {
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
+            | FileData::Link { new: inner, .. }
             | FileData::Rename { new: inner, .. }
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
@@ -236,6 +242,7 @@ impl Event {
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
+            | FileData::Link { new: inner, .. }
             | FileData::Rename { new: inner, .. }
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
@@ -265,6 +272,7 @@ impl Event {
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
+            | FileData::Link { new: inner, .. }
             | FileData::Rename { new: inner, .. }
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
@@ -298,6 +306,7 @@ impl Event {
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
+            | FileData::Link { new: inner, .. }
             | FileData::Rename { new: inner, .. }
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
@@ -313,9 +322,9 @@ impl Event {
     /// operations that have one, like rename.
     pub fn set_old_host_path(&mut self, host_path: PathBuf) {
         match &mut self.file {
-            FileData::Rename { old: from, .. } | FileData::MoveMount { from, .. } => {
-                from.host_file = host_path
-            }
+            FileData::Rename { old: from, .. }
+            | FileData::MoveMount { from, .. }
+            | FileData::Link { old: from, .. } => from.host_file = host_path,
             _ => unreachable!("Called set_old_host_path on invalid type"),
         }
     }
@@ -329,6 +338,7 @@ impl Event {
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
+            | FileData::Link { new: inner, .. }
             | FileData::Rename { new: inner, .. }
             | FileData::MoveMount { to: inner, .. }
             | FileData::Mount(inner)
@@ -444,6 +454,10 @@ pub enum FileData {
     Creation(BaseFileData),
     MkDir(BaseFileData),
     RmDir(BaseFileData),
+    Link {
+        new: BaseFileData,
+        old: BaseFileData,
+    },
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
     Chown(ChownFileData),
@@ -488,6 +502,10 @@ impl FileData {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
             file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::MkDir(inner),
+            file_activity_type_t::FILE_ACTIVITY_LINK => {
+                let old = read_from_data(extra_data);
+                FileData::Link { new: inner, old }
+            }
             file_activity_type_t::DIR_ACTIVITY_UNLINK => FileData::RmDir(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
             file_activity_type_t::FILE_ACTIVITY_CHMOD => {
@@ -617,6 +635,11 @@ impl From<FileData> for fact_api::file_activity::File {
             FileData::Chown(event) => {
                 let f_act = fact_api::FileOwnershipChange::from(event);
                 fact_api::file_activity::File::Ownership(f_act)
+            }
+            FileData::Link { new, old: _ } => {
+                let activity = Some(fact_api::FileActivityBase::from(new));
+                let f_act = fact_api::FileCreation { activity };
+                fact_api::file_activity::File::Creation(f_act)
             }
             FileData::Rename { new, old } => {
                 let f_act = fact_api::FileRename {

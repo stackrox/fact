@@ -327,7 +327,12 @@ impl HostScanner {
         Ok(())
     }
 
-    fn update_entry(&self, path: &Path, metadata: &Metadata, update_usage_count: bool) -> anyhow::Result<()> {
+    fn update_entry(
+        &self,
+        path: &Path,
+        metadata: &Metadata,
+        update_usage_count: bool,
+    ) -> anyhow::Result<()> {
         let inode = inode_key_t {
             inode: metadata.st_ino(),
             dev: metadata.st_dev(),
@@ -341,9 +346,18 @@ impl HostScanner {
     }
 
     /// Similar to update_entry except we are are directly using the inode instead of the path.
-    fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf, update_usage_count: bool) -> anyhow::Result<()> {
+    fn update_entry_with_inode(
+        &self,
+        inode: inode_key_t,
+        path: PathBuf,
+        update_usage_count: bool,
+    ) -> anyhow::Result<()> {
         if update_usage_count {
-            self.usage_count.borrow_mut().entry(inode).and_modify(|c| *c += 1).or_insert(1);
+            self.usage_count
+                .borrow_mut()
+                .entry(inode)
+                .and_modify(|c| *c += 1)
+                .or_insert(1);
         }
 
         let mut inode_map = self.inode_map.borrow_mut();
@@ -453,6 +467,48 @@ You can increase this limit with:
         }
 
         self.inode_map.borrow_mut().remove(inode).is_some()
+    }
+
+    /// Handle link events by adding the new link to the inode map.
+    ///
+    /// This is similar to `handle_rename_event`, except that the old
+    /// entry is not dereferenced in the process (the original file
+    /// still exists after a link).
+    fn handle_link_event(&self, event: &mut Event) {
+        match event.get_monitored() {
+            monitored_t::MONITORED_BY_INODE => {
+                // The inode is already tracked, the new link just adds
+                // another reference to it.
+                let inode = event.get_inode();
+                self.usage_count
+                    .borrow_mut()
+                    .entry(*inode)
+                    .and_modify(|c| *c += 1)
+                    .or_insert(1);
+            }
+            monitored_t::NOT_MONITORED => {
+                // The new path is not monitored, nothing to do.
+            }
+            monitored_t::MONITORED_BY_PARENT => {
+                // The parent for the target is monitored. We need to
+                // figure out the host path and check if we should track
+                // the new link.
+                if let Some(host_path) = self.build_host_path(event) {
+                    if self.paths_globset.is_match(&host_path) {
+                        let inode = *event.get_inode();
+                        if let Err(e) = self.update_entry_with_inode(inode, host_path.clone(), true)
+                        {
+                            warn!("Failed to add link event entry: {e}");
+                        }
+                        event.set_host_path(host_path);
+                    }
+                }
+            }
+            monitored_t::MONITORED_BY_PATH => {
+                // Nothing to do here, no inode tracking is involved.
+            }
+            _ => unreachable!("Invalid monitored value"),
+        }
     }
 
     fn handle_rename_event(&self, event: &mut Event) {
@@ -694,6 +750,8 @@ You can increase this limit with:
                             let Err(e) = self.handle_symlink_event(&event) {
                                 warn!("Failed to handle symlink event: {e:?}");
                             }
+
+                        if event.is_link() { self.handle_link_event(&mut event); }
 
                         if event.is_rename() { self.handle_rename_event(&mut event); }
 
