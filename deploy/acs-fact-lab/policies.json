@@ -1,0 +1,168 @@
+[
+  {
+    "name": "FACT Lab - Container marker activity",
+    "description": "Validation policy for controlled FACT and ACS file-activity experiments.",
+    "rationale": "Correlate a unique container path across FACT OTLP, Sensor, and ACS violations.",
+    "remediation": "This is an intentionally generated lab event.",
+    "disabled": false,
+    "categories": ["System Modification"],
+    "lifecycleStages": ["RUNTIME"],
+    "eventSource": "DEPLOYMENT_EVENT",
+    "exclusions": [],
+    "scope": [],
+    "severity": "LOW_SEVERITY",
+    "enforcementActions": [],
+    "notifiers": [],
+    "policySections": [{
+      "sectionName": "marker path",
+      "policyGroups": [{
+        "fieldName": "File Path",
+        "booleanOperator": "OR",
+        "negate": false,
+        "values": [{"value": "/tmp/acs-fact-lab-marker"}]
+      }]
+    }]
+  },
+  {
+    "name": "FACT Lab - Marker changed by chmod",
+    "description": "Validation policy combining a file path with Process Name.",
+    "rationale": "Compare all raw events with the process-scoped ACS result.",
+    "remediation": "This is an intentionally generated lab event.",
+    "disabled": false,
+    "categories": ["System Modification"],
+    "lifecycleStages": ["RUNTIME"],
+    "eventSource": "DEPLOYMENT_EVENT",
+    "exclusions": [],
+    "scope": [],
+    "severity": "LOW_SEVERITY",
+    "enforcementActions": [],
+    "notifiers": [],
+    "policySections": [{
+      "sectionName": "marker path and chmod",
+      "policyGroups": [
+        {
+          "fieldName": "File Path",
+          "booleanOperator": "OR",
+          "negate": false,
+          "values": [{"value": "/tmp/acs-fact-lab-marker"}]
+        },
+        {
+          "fieldName": "Process Name",
+          "booleanOperator": "OR",
+          "negate": false,
+          "values": [{"value": "chmod"}]
+        }
+      ]
+    }]
+  },
+  {
+    "name": "FACT Lab - Marker writable open only",
+    "description": "Validation policy combining a file path with File Operation open.",
+    "rationale": "Compare all raw events with the operation-scoped ACS result.",
+    "remediation": "This is an intentionally generated lab event.",
+    "disabled": false,
+    "categories": ["System Modification"],
+    "lifecycleStages": ["RUNTIME"],
+    "eventSource": "DEPLOYMENT_EVENT",
+    "exclusions": [],
+    "scope": [],
+    "severity": "LOW_SEVERITY",
+    "enforcementActions": [],
+    "notifiers": [],
+    "policySections": [{
+      "sectionName": "marker path and open",
+      "policyGroups": [
+        {
+          "fieldName": "File Path",
+          "booleanOperator": "OR",
+          "negate": false,
+          "values": [{"value": "/tmp/acs-fact-lab-marker"}]
+        },
+        {
+          "fieldName": "File Operation",
+          "booleanOperator": "OR",
+          "negate": false,
+          "values": [{"value": "open"}]
+        }
+      ]
+    }]
+  },
+  {
+    "name": "FACT Lab - Exclude EmptyDir writer deployment",
+    "description": "Validation policy proving deployment and namespace exclusion at ACS evaluation time.",
+    "rationale": "Compare excluded ACS results with the unchanged raw FACT stream.",
+    "remediation": "This is an intentionally generated lab event.",
+    "disabled": false,
+    "categories": ["System Modification"],
+    "lifecycleStages": ["RUNTIME"],
+    "eventSource": "DEPLOYMENT_EVENT",
+    "exclusions": [{
+      "name": "controlled EmptyDir workload",
+      "deployment": {
+        "name": "emptydir-writer",
+        "scope": {"namespace": "acs-file-activity-lab"}
+      }
+    }],
+    "scope": [],
+    "severity": "LOW_SEVERITY",
+    "enforcementActions": [],
+    "notifiers": [],
+    "policySections": [{
+      "sectionName": "marker path",
+      "policyGroups": [{
+        "fieldName": "File Path",
+        "booleanOperator": "OR",
+        "negate": false,
+        "values": [{"value": "/tmp/acs-fact-lab-marker"}]
+      }]
+    }]
+  },
+  {
+    "name": "FACT Lab - Node host marker activity",
+    "description": "Validation policy for an isolated host path modified by a non-containerized process.",
+    "rationale": "Correlate a true node file event across FACT OTLP, Sensor, and ACS.",
+    "remediation": "This is an intentionally generated lab event.",
+    "disabled": false,
+    "categories": ["System Modification"],
+    "lifecycleStages": ["RUNTIME"],
+    "eventSource": "NODE_EVENT",
+    "exclusions": [],
+    "scope": [],
+    "severity": "LOW_SEVERITY",
+    "enforcementActions": [],
+    "notifiers": [],
+    "policySections": [{
+      "sectionName": "isolated host marker",
+      "policyGroups": [{
+        "fieldName": "File Path",
+        "booleanOperator": "OR",
+        "negate": false,
+        "values": [{"value": "/var/tmp/acs-fact-host-marker"}]
+      }]
+    }]
+  },
+  {
+    "name": "FACT Lab - Containerized host marker activity",
+    "description": "Validation policy for containerized host writes, including oc debug node.",
+    "rationale": "Determine ACS classification when a containerized process modifies a host inode.",
+    "remediation": "This is an intentionally generated lab event.",
+    "disabled": false,
+    "categories": ["System Modification"],
+    "lifecycleStages": ["RUNTIME"],
+    "eventSource": "DEPLOYMENT_EVENT",
+    "exclusions": [],
+    "scope": [],
+    "severity": "LOW_SEVERITY",
+    "enforcementActions": [],
+    "notifiers": [],
+    "policySections": [{
+      "sectionName": "isolated host marker",
+      "policyGroups": [{
+        "fieldName": "File Path",
+        "booleanOperator": "OR",
+        "negate": false,
+        "values": [{"value": "/var/tmp/acs-fact-host-marker"}]
+      }]
+    }]
+  }
+]

@@ -1,0 +1,43 @@
+roxie:
+  version: 4.12.x-nightly-20260715
+  featureFlags:
+    ROX_SENSITIVE_FILE_ACTIVITY: true
+
+operator:
+  envVars:
+    RELATED_IMAGE_MAIN: quay.io/rcochran/main:4.12.x-529-gc619d5385e
+    RELATED_IMAGE_FACT: quay.io/rcochran/scratch@sha256:4e6968b475595baf96425bbe04f45e005a398ff7babb762cdbc6a9c0d0f95655
+
+central:
+  namespace: stackrox
+  resourceProfile: auto
+  earlyReadiness: false
+  deployTimeout: 30m
+  spec:
+    imagePullSecrets:
+      - name: quay-rcochran
+
+securedCluster:
+  namespace: stackrox
+  resourceProfile: auto
+  earlyReadiness: false
+  deployTimeout: 30m
+  spec:
+    imagePullSecrets:
+      - name: quay-rcochran
+    perNode:
+      fileActivityMonitoring:
+        mode: Enabled
+    overlays:
+      - apiVersion: apps/v1
+        kind: DaemonSet
+        name: collector
+        patches:
+          - path: spec.template.spec.containers[name:fact].env[-1]
+            value: |
+              name: FACT_OCI_RUNTIME_SPEC_DEBUG
+              value: "true"
+          - path: spec.template.spec.containers[name:fact].env[-1]
+            value: |
+              name: FACT_OTEL_ENDPOINT
+              value: http://signoz-otel-collector.observability.svc.cluster.local:4318/v1/logs
