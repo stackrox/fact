@@ -92,41 +92,75 @@ int BPF_PROG(trace_path_link, struct dentry* old_dentry, const struct path* new_
   if (m == NULL) {
     return 0;
   }
-  struct submit_event_args_t args = {.metrics = &m->file_open};
+  struct submit_event_args_t args = {.metrics = &m->path_link};
 
   args.metrics->total++;
 
   struct bound_path_t* new_path = path_read_append_d_entry((struct path*)new_dir, new_dentry);
   if (new_path == NULL) {
     bpf_printk("Failed to read new path");
-    m->file_open.error++;
-    return 0;
+    goto error;
   }
   args.filename = new_path->path;
 
-  // The inode is from the old file (being linked to)
+  // Construct a path for the old dentry's parent directory.
+  // Hard links cannot cross filesystem boundaries, so we reuse the mount
+  // from new_dir.
+  struct path old_dir = {
+      .mnt = BPF_CORE_READ(new_dir, mnt),
+      .dentry = BPF_CORE_READ(old_dentry, d_parent),
+  };
+  struct bound_path_t* old_path = path_read_alt_append_d_entry(&old_dir, old_dentry);
+  if (old_path == NULL) {
+    bpf_printk("Failed to read old path");
+    goto error;
+  }
+
+  // The inode is from the old file (being linked to), which is the same
+  // inode the new link will point to.
   args.inode = inode_to_key(old_dentry->d_inode);
-
-  struct dentry* parent_dentry = BPF_CORE_READ(new_dir, dentry);
-  struct inode* parent_inode_ptr = parent_dentry ? BPF_CORE_READ(parent_dentry, d_inode) : NULL;
-  args.parent_inode = inode_to_key(parent_inode_ptr);
-
+  args.parent_inode = inode_to_key(new_dir->dentry->d_inode);
   args.monitored = is_monitored(&args.inode, new_path, &args.parent_inode);
-  if (args.monitored == NOT_MONITORED) {
-    goto ignored;
+
+  inode_key_t old_inode = inode_to_key(old_dentry->d_inode);
+  monitored_t old_monitored = is_monitored(&old_inode, old_path, NULL);
+
+  // Handle inode tracking based on monitoring status of both old and new
+  // paths. Unlike rename, the old file still exists after a link, so we
+  // never remove the old inode from tracking.
+  switch (args.monitored) {
+    case NOT_MONITORED:
+      if (old_monitored == NOT_MONITORED) {
+        m->path_link.ignored++;
+        return 0;
+      }
+      break;
+
+    case MONITORED_BY_PATH:
+      break;
+
+    case MONITORED_BY_PARENT:
+      if (old_monitored != MONITORED_BY_INODE) {
+        // Old inode is not tracked, new parent is monitored.
+        // Track the inode so userspace can verify.
+        inode_add(&old_inode);
+      }
+      break;
+
+    case MONITORED_BY_INODE:
+      if (old_monitored != MONITORED_BY_INODE) {
+        // Old inode is not tracked but the new path lands on a tracked
+        // inode location, start tracking.
+        inode_add(&old_inode);
+      }
+      break;
   }
 
-  // Add the inode to tracking if monitored by parent
-  if (args.monitored == MONITORED_BY_PARENT) {
-    inode_add(&args.inode);
-  }
-
-  submit_open_event(&args, FILE_ACTIVITY_CREATION);
-
+  submit_move_event(&args, FILE_ACTIVITY_LINK, old_path->path, &old_inode, old_monitored);
   return 0;
 
-ignored:
-  m->file_open.ignored++;
+error:
+  args.metrics->error++;
   return 0;
 }
 
@@ -337,7 +371,7 @@ int BPF_PROG(trace_path_rename, struct path* old_dir,
       break;
   }
 
-  submit_rename_event(&args, old_path->path, &old_inode, old_monitored);
+  submit_move_event(&args, FILE_ACTIVITY_RENAME, old_path->path, &old_inode, old_monitored);
   return 0;
 
 error:
