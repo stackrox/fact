@@ -111,6 +111,7 @@ pub type IntrospectionRequest = (
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<InodeMap>,
+    usage_count: RefCell<HashMap<inode_key_t, u64>>,
 
     paths: watch::Receiver<Vec<PathBuf>>,
     scan_interval: watch::Receiver<Duration>,
@@ -141,6 +142,7 @@ impl HostScanner {
         let mut host_scanner = HostScanner {
             kernel_inode_map,
             inode_map,
+            usage_count: RefCell::new(HashMap::new()),
             paths,
             scan_interval,
             rx,
@@ -185,6 +187,10 @@ impl HostScanner {
         let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
 
+        // Clear usage counts before scanning; will be
+        // repopulated as we encounter monitored inodes.
+        self.usage_count.borrow_mut().clear();
+
         // Cleanup any items that are either:
         // * Not configured to be monitored anymore.
         // * Are configured to be monitored but no longer are found in
@@ -200,7 +206,7 @@ impl HostScanner {
         });
 
         for path in &self.paths_patterns {
-            self.scan_inner(path)?;
+            self.scan_inner(path, true)?;
         }
         let duration = start.elapsed();
         self.metrics.scan_duration.observe(duration.as_secs_f64());
@@ -212,7 +218,7 @@ impl HostScanner {
         Ok(())
     }
 
-    fn scan_inner(&self, path: &Path) -> anyhow::Result<()> {
+    fn scan_inner(&self, path: &Path, update_usage_count: bool) -> anyhow::Result<()> {
         self.metrics.scan_inc(ScanLabels::ElementsScanned);
 
         let Some(glob_str) = path.to_str() else {
@@ -241,7 +247,7 @@ impl HostScanner {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
             } else if metadata.is_symlink() {
                 self.metrics.scan_inc(ScanLabels::SymlinkScanned);
-                self.scan_symlink(&path);
+                self.scan_symlink(&path, update_usage_count);
             } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
             } else {
@@ -249,13 +255,13 @@ impl HostScanner {
                 continue;
             }
 
-            self.update_entry(&path, &metadata)
+            self.update_entry(&path, &metadata, update_usage_count)
                 .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
     }
 
-    fn scan_symlink(&self, path: &Path) {
+    fn scan_symlink(&self, path: &Path, update_usage_count: bool) {
         let target = match path.read_link() {
             Ok(p) => {
                 if p.has_root() {
@@ -272,7 +278,7 @@ impl HostScanner {
 
         match target.metadata() {
             Ok(metadata) => {
-                if let Err(e) = self.update_entry(path, &metadata) {
+                if let Err(e) = self.update_entry(path, &metadata, update_usage_count) {
                     warn!("Failed to update symlink entry for {}: {e}", path.display());
                 }
             }
@@ -312,7 +318,7 @@ impl HostScanner {
             .collect::<HashSet<_>>();
 
         for pattern in scan_set.iter().map(|index| &self.paths_patterns[*index]) {
-            self.scan_inner(pattern)?;
+            self.scan_inner(pattern, false)?;
         }
 
         self.metrics
@@ -321,21 +327,25 @@ impl HostScanner {
         Ok(())
     }
 
-    fn update_entry(&self, path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
+    fn update_entry(&self, path: &Path, metadata: &Metadata, update_usage_count: bool) -> anyhow::Result<()> {
         let inode = inode_key_t {
             inode: metadata.st_ino(),
             dev: metadata.st_dev(),
         };
 
         let host_path = host_info::remove_host_mount(path);
-        self.update_entry_with_inode(inode, host_path.to_path_buf())?;
+        self.update_entry_with_inode(inode, host_path.to_path_buf(), update_usage_count)?;
 
         debug!("Added entry for {}: {inode:?}", path.display());
         Ok(())
     }
 
     /// Similar to update_entry except we are are directly using the inode instead of the path.
-    fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
+    fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf, update_usage_count: bool) -> anyhow::Result<()> {
+        if update_usage_count {
+            self.usage_count.borrow_mut().entry(inode).and_modify(|c| *c += 1).or_insert(1);
+        }
+
         let mut inode_map = self.inode_map.borrow_mut();
         match inode_map.get_mut(&inode) {
             Some(p) => {
@@ -401,7 +411,7 @@ You can increase this limit with:
 
         match self.build_host_path(event) {
             Some(host_path) => self
-                .update_entry_with_inode(*inode, host_path)
+                .update_entry_with_inode(*inode, host_path, true)
                 .with_context(|| {
                     format!(
                         "Failed to add creation event entry for {}",
@@ -413,17 +423,29 @@ You can increase this limit with:
         }
     }
 
-    /// Handle unlink events by removing the inode from the inode->path map.
-    ///
-    /// The probe already cleared the kernel inode map.
+    /// Handle unlink events by removing the inode from the inode->path map,
+    /// when its usage count falls to 0.
     fn handle_unlink_event(&self, event: &Event) {
+        self.metrics.scan_inc(ScanLabels::FileRemoved);
+
         let inode = event.get_inode();
+
+        let mut usage_count = self.usage_count.borrow_mut();
+        if let Some(count) = usage_count.get_mut(inode) {
+            *count -= 1;
+            if *count > 0 {
+                return;
+            }
+            usage_count.remove(inode);
+        }
 
         if self.inode_map.borrow_mut().remove(inode).is_some() {
             self.metrics.scan_inc(ScanLabels::InodeRemoved);
         }
 
-        self.metrics.scan_inc(ScanLabels::FileRemoved);
+        if let Err(e) = self.kernel_inode_map.borrow_mut().remove(inode) {
+            warn!("Failed to remove inode kernel entry: {e:?}");
+        }
     }
 
     fn handle_rename_event(&self, event: &mut Event) {

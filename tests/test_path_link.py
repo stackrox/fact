@@ -100,7 +100,7 @@ def test_multiple_hardlinks(monitored_dir: str, server: EventServer):
 def test_ignored(monitored_dir: str, ignored_dir: str, server: EventServer):
     """
     Tests that link events creating hardlinks in ignored directories
-    are not captured by the server.
+    is captured via inode tracking.
 
     Args:
         monitored_dir: Temporary directory path for creating test files.
@@ -122,12 +122,20 @@ def test_ignored(monitored_dir: str, ignored_dir: str, server: EventServer):
     monitored_link = os.path.join(monitored_dir, 'link.txt')
     os.link(original, monitored_link)
 
-    # Only the original creation and monitored hardlink should be reported
+    # The hardlink in the ignored directory must be reported with the
+    # original host_path, since this is the basis of how inode tracking
+    # works.
     events = [
         Event(
             process=process,
             event_type=EventType.CREATION,
             file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=ignored_link,
             host_path=original,
         ),
         Event(
@@ -183,7 +191,7 @@ def test_access_via_unmonitored_hardlink(
     """
     Tests accessing a file via an unmonitored hardlink when a monitored
     hardlink exists. The inode is tracked, so access should generate an
-    event
+    event.
 
     Args:
         monitored_dir: Temporary directory path for creating test files.
@@ -202,8 +210,8 @@ def test_access_via_unmonitored_hardlink(
     os.link(monitored, ignored_link)
 
     # Access via the IGNORED hardlink
-    with open(ignored_link) as f:
-        f.read()
+    with open(ignored_link, 'w') as f:
+        f.write('This is a test')
 
     events = [
         Event(
@@ -223,7 +231,7 @@ def test_access_via_unmonitored_hardlink(
             event_type=EventType.OPEN,
             file=ignored_link,
             host_path=monitored,
-        ),  # Or host_path=''?
+        ),
     ]
 
     server.wait_events(events)
