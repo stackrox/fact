@@ -19,7 +19,8 @@ fn parsing() {
         (
             "paths: [/etc,  /bin]",
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 ..Default::default()
@@ -511,7 +512,7 @@ fn parsing() {
             replay: /some/path.jsonl
             "#,
             FactConfig {
-                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
@@ -995,7 +996,8 @@ fn update() {
             "paths: [/etc, /bin]",
             FactConfig::default(),
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 ..Default::default()
@@ -1004,18 +1006,18 @@ fn update() {
         (
             "paths: [/bin]",
             FactConfig {
-                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: vec![PathBuf::from("/bin")].try_into().unwrap(),
+                paths: [PathBuf::from("/bin")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
         ),
         (
             "paths:",
             FactConfig {
-                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
             FactConfig {
@@ -1026,13 +1028,15 @@ fn update() {
         (
             "paths: [/etc, /bin]",
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 ..Default::default()
@@ -1041,13 +1045,15 @@ fn update() {
         (
             "",
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 ..Default::default()
@@ -1959,7 +1965,8 @@ fn update() {
             rate_limit: 1000
             "#,
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/bin")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 grpc: GrpcConfig {
@@ -2001,7 +2008,7 @@ fn update() {
                 replay: None,
             },
             FactConfig {
-                paths: vec![PathBuf::from("/etc")].try_into().unwrap(),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
@@ -2248,7 +2255,8 @@ fn env_vars() {
                 value: "/etc:/var/log",
             },
             FactConfig {
-                paths: vec![PathBuf::from("/etc"), PathBuf::from("/var/log")]
+                paths: [PathBuf::from("/etc"), PathBuf::from("/var/log")]
+                    .as_slice()
                     .try_into()
                     .unwrap(),
                 ..Default::default()
@@ -2607,7 +2615,7 @@ fn env_vars_override_yaml() {
             },
             "paths:\n- /etc",
             FactConfig {
-                paths: vec![PathBuf::from("/var/log")].try_into().unwrap(),
+                paths: [PathBuf::from("/var/log")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
         ),

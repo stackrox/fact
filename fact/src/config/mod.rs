@@ -15,6 +15,8 @@ use globset::{Glob, GlobSet};
 use log::info;
 use yaml_rust2::{Yaml, YamlLoader, yaml};
 
+use crate::host_info;
+
 pub mod reloader;
 #[cfg(test)]
 mod tests;
@@ -140,7 +142,7 @@ impl FactConfig {
     }
 
     #[cfg(test)]
-    pub fn set_paths(&mut self, paths: Vec<PathBuf>) {
+    pub fn set_paths(&mut self, paths: &[PathBuf]) {
         self.paths = paths.try_into().expect("Invalid paths");
     }
 }
@@ -269,7 +271,7 @@ impl PathsConfig {
         }
     }
 
-    fn globset_build<'a>(patterns: impl Iterator<Item = &'a PathBuf>) -> anyhow::Result<GlobSet> {
+    fn globset_build<'a>(patterns: impl Iterator<Item = &'a Path>) -> anyhow::Result<GlobSet> {
         let mut builder = GlobSet::builder();
         for p in patterns {
             let Some(p) = p.to_str() else {
@@ -316,11 +318,12 @@ impl TryFrom<&yaml::Array> for PathsConfig {
         let paths = value
             .iter()
             .map(|p| match p.as_str() {
-                Some(p) => Ok(p.into()),
+                Some(p) => Ok(host_info::prepend_host_mount(Path::new(p))),
                 None => bail!("paths field has invalid type: {p:?}"),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let globset = PathsConfig::globset_build(paths.iter())?;
+        let globset =
+            PathsConfig::globset_build(paths.iter().map(|p| host_info::remove_host_mount(p)))?;
 
         Ok(PathsConfig {
             patterns: Some(paths),
@@ -329,13 +332,17 @@ impl TryFrom<&yaml::Array> for PathsConfig {
     }
 }
 
-impl TryFrom<Vec<PathBuf>> for PathsConfig {
+impl TryFrom<&[PathBuf]> for PathsConfig {
     type Error = anyhow::Error;
 
-    fn try_from(paths: Vec<PathBuf>) -> Result<Self, Self::Error> {
-        let globset = PathsConfig::globset_build(paths.iter())?;
+    fn try_from(paths: &[PathBuf]) -> Result<Self, Self::Error> {
+        let globset = PathsConfig::globset_build(paths.iter().map(|p| p.as_path()))?;
+        let patterns = paths
+            .iter()
+            .map(|p| host_info::prepend_host_mount(p))
+            .collect();
         Ok(PathsConfig {
-            patterns: Some(paths),
+            patterns: Some(patterns),
             globset,
         })
     }
@@ -987,7 +994,12 @@ impl FactCli {
         FactConfig {
             paths: self
                 .paths
-                .map(|patterns| patterns.try_into().expect("Invalid paths configuration"))
+                .map(|patterns| {
+                    patterns
+                        .as_slice()
+                        .try_into()
+                        .expect("Invalid paths configuration")
+                })
                 .unwrap_or_default(),
             grpc: GrpcConfig {
                 url: self.url,

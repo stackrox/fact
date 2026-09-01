@@ -192,7 +192,7 @@ impl Bpf {
             let paths_config = self.paths_config.borrow();
             let patterns = paths_config.patterns();
             let mut new_paths = Vec::with_capacity(patterns.len());
-            for p in patterns {
+            for p in patterns.iter().map(|p| host_info::remove_host_mount(p)) {
                 let prefix = path_prefix_t::try_from(p)?;
                 self.paths_lpm_map.insert(&prefix.into(), 0, 0)?;
                 new_paths.push(prefix);
@@ -382,9 +382,9 @@ mod bpf_tests {
 
         let monitored_path = env!("CARGO_MANIFEST_DIR");
         let monitored_path = PathBuf::from(monitored_path);
-        let paths = vec![PathBuf::from(format!("{}/**/*", monitored_path.display()))];
+        let paths = [PathBuf::from(format!("{}/**/*", monitored_path.display()))];
         let mut config = FactConfig::default();
-        config.set_paths(paths);
+        config.set_paths(&paths);
         let bpf_config = config.bpf.clone();
         let reloader = Reloader::from(config);
         let metrics = Metrics::new();

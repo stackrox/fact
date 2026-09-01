@@ -173,8 +173,7 @@ impl HostScanner {
         });
 
         for pattern in paths.patterns() {
-            let path = host_info::prepend_host_mount(pattern);
-            self.scan_inner(&path)?;
+            self.scan_inner(pattern)?;
         }
         let duration = start.elapsed();
         self.metrics.scan_duration.observe(duration.as_secs_f64());
@@ -288,8 +287,7 @@ impl HostScanner {
             .collect::<HashSet<_>>();
 
         for pattern in scan_set.iter().map(|index| &paths.patterns()[*index]) {
-            let pattern = host_info::prepend_host_mount(pattern);
-            self.scan_inner(&pattern)?;
+            self.scan_inner(pattern)?;
         }
 
         self.metrics
