@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use log::{debug, info, warn};
+use opentelemetry::KeyValue;
 use opentelemetry::logs::{AnyValue, LogRecord, Logger, LoggerProvider, Severity};
 use opentelemetry_otlp::{LogExporter, WithExportConfig};
 use opentelemetry_sdk::Resource;
@@ -18,6 +19,7 @@ pub(super) struct Client {
     running: watch::Receiver<bool>,
     config: watch::Receiver<OTelConfig>,
     metrics: EventCounter,
+    oci_debug: bool,
 }
 
 impl Client {
@@ -26,12 +28,14 @@ impl Client {
         running: watch::Receiver<bool>,
         metrics: EventCounter,
         config: watch::Receiver<OTelConfig>,
+        oci_debug: bool,
     ) -> Self {
         Client {
             subscriber,
             running,
             config,
             metrics,
+            oci_debug,
         }
     }
 
@@ -68,9 +72,21 @@ impl Client {
             .with_endpoint(endpoint)
             .build()?;
 
+        let mut resource = Resource::builder()
+            .with_service_name("fact")
+            .with_attribute(KeyValue::new(
+                "service.version",
+                crate::version::FACT_VERSION,
+            ));
+        if crate::version::FACT_BUILD_SHA != "unknown" {
+            resource = resource.with_attribute(KeyValue::new(
+                "fact.build.sha",
+                crate::version::FACT_BUILD_SHA,
+            ));
+        }
         let logger_provider = SdkLoggerProvider::builder()
             .with_batch_exporter(exporter_otlp)
-            .with_resource(Resource::builder().with_service_name("fact").build())
+            .with_resource(resource.build())
             .build();
         let logger = logger_provider.logger("fact");
 
@@ -92,7 +108,7 @@ impl Client {
                                     event.event_type(),
                                     event.get_filename().display(),
                                     event.get_host_path().display()).into());
-                            if let AnyValue::Map(map) = event.into() {
+                            if let AnyValue::Map(map) = event.into_otel(self.oci_debug) {
                                 for (k, v) in *map {
                                     record.add_attribute(k, v);
                                 }

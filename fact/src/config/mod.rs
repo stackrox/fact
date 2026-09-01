@@ -38,6 +38,7 @@ pub struct FactConfig {
     pub otel: OTelConfig,
     pub endpoint: EndpointConfig,
     pub bpf: BpfConfig,
+    oci_runtime_spec_debug: Option<bool>,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
     hotreload: Option<bool>,
@@ -90,6 +91,9 @@ impl FactConfig {
         self.otel.update(&from.otel);
         self.endpoint.update(&from.endpoint);
         self.bpf.update(&from.bpf);
+        if let Some(oci_runtime_spec_debug) = from.oci_runtime_spec_debug {
+            self.oci_runtime_spec_debug = Some(oci_runtime_spec_debug);
+        }
 
         if let Some(skip_pre_flight) = from.skip_pre_flight {
             self.skip_pre_flight = Some(skip_pre_flight);
@@ -122,6 +126,11 @@ impl FactConfig {
 
     pub fn skip_pre_flight(&self) -> bool {
         self.skip_pre_flight.unwrap_or(false)
+    }
+
+    /// Whether development-only OCI configuration is logged and exported.
+    pub fn oci_runtime_spec_debug(&self) -> bool {
+        self.oci_runtime_spec_debug.unwrap_or(false)
     }
 
     pub fn json(&self) -> bool {
@@ -233,6 +242,12 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                         bail!("bpf section has incorrect type: {v:#?}");
                     };
                     config.bpf = BpfConfig::try_from(bpf)?;
+                }
+                "oci_runtime_spec_debug" => {
+                    let Some(oci_runtime_spec_debug) = v.as_bool() else {
+                        bail!("oci_runtime_spec_debug field has incorrect type: {v:?}");
+                    };
+                    config.oci_runtime_spec_debug = Some(oci_runtime_spec_debug);
                 }
                 "hotreload" => {
                     let Some(hotreload) = v.as_bool() else {
@@ -795,6 +810,10 @@ pub struct FactCli {
     #[arg(long, env = "FACT_OTEL_ENDPOINT")]
     otel_endpoint: Option<String>,
 
+    /// Add curated OCI runtime configuration to debug logs and OpenTelemetry
+    #[arg(long, env = "FACT_OCI_RUNTIME_SPEC_DEBUG")]
+    oci_runtime_spec_debug: Option<bool>,
+
     /// The port to bind for all exposed endpoints
     #[arg(long, short, env = "FACT_ENDPOINT_ADDRESS")]
     address: Option<SocketAddr>,
@@ -942,6 +961,7 @@ impl FactCli {
                 d_instantiate_ctx_size: self.d_instantiate_ctx_size,
                 programs: HashMap::new(),
             },
+            oci_runtime_spec_debug: self.oci_runtime_spec_debug,
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),
             hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),

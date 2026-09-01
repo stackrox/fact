@@ -40,6 +40,7 @@ COPY . .
 FROM builder AS build
 
 ARG FACT_VERSION
+ARG FACT_BUILD_SHA=unknown
 ARG CARGO_ARGS=""
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target \

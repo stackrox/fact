@@ -4,6 +4,8 @@ use std::{ffi::CStr, path::PathBuf};
 
 use fact_ebpf::{lineage_t, process_t};
 #[cfg(feature = "otel")]
+use opentelemetry::Key;
+#[cfg(feature = "otel")]
 use opentelemetry::logs::AnyValue;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -129,6 +131,103 @@ impl Process {
         } else {
             None
         }
+    }
+
+    pub(crate) fn container_id(&self) -> Option<&str> {
+        self.container_id.as_deref()
+    }
+}
+
+#[cfg(feature = "otel")]
+impl Process {
+    pub(super) fn add_debug_otel_attributes(&self, map: &mut HashMap<Key, AnyValue>) {
+        map.insert("process.command".into(), self.comm.clone().into());
+        map.insert(
+            "process.command_line".into(),
+            shlex::try_join(self.args.iter().map(String::as_str))
+                .unwrap_or_else(|_| self.args.join(" "))
+                .into(),
+        );
+        map.insert(
+            "process.executable.path".into(),
+            self.exe_path.to_string_lossy().to_string().into(),
+        );
+        map.insert("process.pid".into(), (self.pid as i64).into());
+        map.insert("process.user.id".into(), (self.uid as i64).into());
+        map.insert("process.user.name".into(), self.username.into());
+        map.insert("process.group.id".into(), (self.gid as i64).into());
+        map.insert("process.login_uid".into(), (self.login_uid as i64).into());
+        map.insert(
+            "process.in_root_mount_ns".into(),
+            self.in_root_mount_ns.into(),
+        );
+
+        let Some(container_id) = &self.container_id else {
+            return;
+        };
+        map.insert("container.id".into(), container_id.clone().into());
+        let Some(container) = crate::oci::resolve(container_id) else {
+            return;
+        };
+
+        insert_string(map, "k8s.namespace.name", &container.namespace);
+        insert_string(map, "k8s.pod.uid", &container.pod_uid);
+        insert_string(map, "k8s.pod.name", &container.pod_name);
+        insert_string(map, "k8s.container.name", &container.container_name);
+        insert_string(map, "container.image.name", &container.image_name);
+        insert_string(map, "container.image.id", &container.image_ref);
+        insert_string(map, "container.runtime.type", &container.container_type);
+        insert_string(map, "container.created_at", &container.created);
+        insert_string(map, "openshift.scc", &container.openshift_scc);
+        map.insert("openshift.debug".into(), container.oc_debug.into());
+        map.insert(
+            "container.security_context.privileged".into(),
+            container.privileged.into(),
+        );
+        map.insert("container.host_pid".into(), container.host_pid.into());
+        map.insert(
+            "container.host_network".into(),
+            container.host_network.into(),
+        );
+        map.insert(
+            "container.host_root_mount".into(),
+            container.host_root_mount.into(),
+        );
+        insert_json_map(map, "k8s.container.labels", &container.labels);
+        insert_json_map(map, "k8s.container.annotations", &container.annotations);
+
+        if let Some(sandbox) = &container.sandbox {
+            insert_string(map, "container.sandbox.id", &sandbox.id);
+            insert_string(map, "container.sandbox.oci.version", &sandbox.oci_version);
+            insert_string(map, "container.sandbox.image.name", &sandbox.image_name);
+            insert_string(map, "container.sandbox.image.id", &sandbox.image_ref);
+            insert_json_map(map, "k8s.pod.labels", &sandbox.labels);
+            insert_json_map(map, "k8s.pod.annotations", &sandbox.annotations);
+        } else {
+            insert_json_map(map, "k8s.pod.labels", &container.labels);
+            insert_json_map(map, "k8s.pod.annotations", &container.annotations);
+        }
+    }
+}
+
+#[cfg(feature = "otel")]
+fn insert_string(map: &mut HashMap<Key, AnyValue>, key: &'static str, value: &str) {
+    if !value.is_empty() {
+        map.insert(key.into(), value.to_owned().into());
+    }
+}
+
+#[cfg(feature = "otel")]
+fn insert_json_map(
+    map: &mut HashMap<Key, AnyValue>,
+    key: &'static str,
+    value: &HashMap<String, String>,
+) {
+    if !value.is_empty() {
+        map.insert(
+            key.into(),
+            serde_json::to_string(value).unwrap_or_default().into(),
+        );
     }
 }
 

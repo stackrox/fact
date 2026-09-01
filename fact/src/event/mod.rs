@@ -374,7 +374,74 @@ impl Event {
         self.get_monitored() == monitored_t::MONITORED_BY_PARENT
     }
 
-    #[cfg(feature = "otel")]
+    pub(crate) fn log_oci_debug(&self) {
+        let Some(short_id) = self.process.container_id() else {
+            return;
+        };
+        let Some(metadata) = crate::oci::resolve(short_id) else {
+            log::debug!(
+                "OCI config event: fact_version={} fact_build_sha={} status=unavailable reason=config_unavailable container_id={short_id} event_path={}",
+                crate::version::FACT_VERSION,
+                crate::version::FACT_BUILD_SHA,
+                self.get_filename().display(),
+            );
+            return;
+        };
+        let oci = metadata.oci_debug();
+        let info = metadata.match_mount(self.get_filename());
+        log::debug!(
+            "OCI config event: fact_version={} fact_build_sha={} status=parsed container_id={} oci_version={} root_path={} root_read_only={} configured_executable={} configured_args={:?} configured_cwd={} effective_capabilities={:?} bounding_capabilities={:?} namespaces={:?} event_path={} mount_status={} mount_destination={} mount_source={} mount_type={} mount_options={:?} resolved_source_path={}",
+            crate::version::FACT_VERSION,
+            crate::version::FACT_BUILD_SHA,
+            oci.container_id,
+            oci.version,
+            oci.root_path,
+            oci.root_read_only,
+            oci.process_args
+                .first()
+                .map(String::as_str)
+                .unwrap_or_default(),
+            oci.process_args,
+            oci.process_cwd,
+            oci.effective_capabilities,
+            oci.bounding_capabilities,
+            oci.namespaces,
+            self.get_filename().display(),
+            info.status,
+            info.destination
+                .as_deref()
+                .unwrap_or(Path::new(""))
+                .display(),
+            info.source.as_deref().unwrap_or(Path::new("")).display(),
+            info.mount_type.as_deref().unwrap_or_default(),
+            info.options,
+            info.resolved_source_path
+                .as_deref()
+                .unwrap_or(Path::new(""))
+                .display(),
+        );
+        if let Some(path) = self.get_old_filename() {
+            let info = metadata.match_mount(path);
+            log::debug!(
+                "OCI config old path: container_id={} event_path={} mount_status={} mount_destination={} mount_source={} mount_type={} mount_options={:?} resolved_source_path={}",
+                oci.container_id,
+                path.display(),
+                info.status,
+                info.destination
+                    .as_deref()
+                    .unwrap_or(Path::new(""))
+                    .display(),
+                info.source.as_deref().unwrap_or(Path::new("")).display(),
+                info.mount_type.as_deref().unwrap_or_default(),
+                info.options,
+                info.resolved_source_path
+                    .as_deref()
+                    .unwrap_or(Path::new(""))
+                    .display(),
+            );
+        }
+    }
+
     pub(crate) fn event_type(&self) -> &'static str {
         self.file.event_type()
     }
@@ -420,14 +487,161 @@ impl From<Event> for fact_api::FileActivity {
 }
 
 #[cfg(feature = "otel")]
+impl Event {
+    pub(crate) fn into_otel(self, oci_debug: bool) -> AnyValue {
+        let mut map = HashMap::from([
+            ("file".into(), self.file.clone().into()),
+            ("timestamp".into(), AnyValue::Int(self.timestamp as i64)),
+            ("process".into(), self.process.clone().into()),
+            ("hostname".into(), self.hostname.to_string().into()),
+        ]);
+        if oci_debug {
+            map.insert("event.name".into(), self.event_type().into());
+            map.insert(
+                "file.path".into(),
+                self.get_filename().to_string_lossy().to_string().into(),
+            );
+            map.insert(
+                "file.host_path".into(),
+                self.get_host_path().to_string_lossy().to_string().into(),
+            );
+            map.insert("host.name".into(), self.hostname.to_string().into());
+            if let Some(path) = self.get_old_filename() {
+                map.insert(
+                    "file.old.path".into(),
+                    path.to_string_lossy().to_string().into(),
+                );
+            }
+            if let Some(path) = self.get_old_host_path() {
+                map.insert(
+                    "file.old.host_path".into(),
+                    path.to_string_lossy().to_string().into(),
+                );
+            }
+            add_oci_debug_attributes(&mut map, &self);
+            self.process.add_debug_otel_attributes(&mut map);
+        }
+        AnyValue::Map(Box::new(map))
+    }
+}
+
+#[cfg(feature = "otel")]
+fn add_oci_debug_attributes(map: &mut HashMap<opentelemetry::Key, AnyValue>, event: &Event) {
+    let Some(container_id) = event.process.container_id() else {
+        return;
+    };
+    let Some(metadata) = crate::oci::resolve(container_id) else {
+        map.insert("container.oci.config.status".into(), "unavailable".into());
+        map.insert(
+            "container.oci.config.reason".into(),
+            "config_unavailable".into(),
+        );
+        map.insert(
+            "container.oci.container_id".into(),
+            container_id.to_owned().into(),
+        );
+        return;
+    };
+    let oci = metadata.oci_debug();
+    map.insert("container.oci.config.status".into(), "parsed".into());
+    map.insert(
+        "container.oci.container_id".into(),
+        oci.container_id.clone().into(),
+    );
+    map.insert("container.oci.version".into(), oci.version.clone().into());
+    map.insert(
+        "container.oci.root.path".into(),
+        oci.root_path.clone().into(),
+    );
+    map.insert(
+        "container.oci.root.read_only".into(),
+        oci.root_read_only.into(),
+    );
+    if let Some(executable) = oci.process_args.first() {
+        map.insert(
+            "container.oci.process.executable".into(),
+            executable.clone().into(),
+        );
+    }
+    map.insert(
+        "container.oci.process.args".into(),
+        serde_json::to_string(&oci.process_args)
+            .unwrap_or_default()
+            .into(),
+    );
+    map.insert(
+        "container.oci.process.cwd".into(),
+        oci.process_cwd.clone().into(),
+    );
+    map.insert(
+        "container.oci.capabilities.effective".into(),
+        serde_json::to_string(&oci.effective_capabilities)
+            .unwrap_or_default()
+            .into(),
+    );
+    map.insert(
+        "container.oci.capabilities.bounding".into(),
+        serde_json::to_string(&oci.bounding_capabilities)
+            .unwrap_or_default()
+            .into(),
+    );
+    map.insert(
+        "container.oci.linux.namespaces".into(),
+        serde_json::to_string(&oci.namespaces)
+            .unwrap_or_default()
+            .into(),
+    );
+
+    add_oci_path_attributes(
+        map,
+        "container.oci.mount",
+        metadata.match_mount(event.get_filename()),
+    );
+    if let Some(path) = event.get_old_filename() {
+        add_oci_path_attributes(map, "container.oci.mount.old", metadata.match_mount(path));
+    }
+}
+
+#[cfg(feature = "otel")]
+fn add_oci_path_attributes(
+    map: &mut HashMap<opentelemetry::Key, AnyValue>,
+    prefix: &str,
+    info: crate::oci::OciPathDebugInfo,
+) {
+    map.insert(format!("{prefix}.status").into(), info.status.into());
+    if let Some(destination) = info.destination {
+        map.insert(
+            format!("{prefix}.destination").into(),
+            destination.to_string_lossy().to_string().into(),
+        );
+    }
+    if let Some(source) = info.source {
+        map.insert(
+            format!("{prefix}.source").into(),
+            source.to_string_lossy().to_string().into(),
+        );
+    }
+    if let Some(mount_type) = info.mount_type {
+        map.insert(format!("{prefix}.type").into(), mount_type.into());
+    }
+    map.insert(
+        format!("{prefix}.options").into(),
+        serde_json::to_string(&info.options)
+            .unwrap_or_default()
+            .into(),
+    );
+    if let Some(resolved_path) = info.resolved_source_path {
+        map.insert(
+            format!("{prefix}.resolved_source_path").into(),
+            resolved_path.to_string_lossy().to_string().into(),
+        );
+    }
+}
+
+#[cfg(feature = "otel")]
 impl From<Event> for opentelemetry::logs::AnyValue {
     fn from(value: Event) -> Self {
-        AnyValue::Map(Box::new(HashMap::from([
-            ("file".into(), value.file.into()),
-            ("timestamp".into(), AnyValue::Int(value.timestamp as i64)),
-            ("process".into(), value.process.into()),
-            ("hostname".into(), value.hostname.into()),
-        ])))
+        value.into_otel(false)
     }
 }
 
@@ -556,7 +770,6 @@ impl FileData {
         Ok(file)
     }
 
-    #[cfg(feature = "otel")]
     fn event_type(&self) -> &'static str {
         match self {
             FileData::Open(_) => "open",
@@ -1102,6 +1315,52 @@ mod test_utils {
 mod tests {
     use super::test_utils::*;
     use super::*;
+
+    #[cfg(feature = "otel")]
+    #[test]
+    fn oci_diagnostics_only_add_debug_attributes_when_enabled() {
+        let event = Event {
+            timestamp: 1,
+            hostname: "test-host".into(),
+            process: Process::default(),
+            file: FileData::Open(BaseFileData {
+                filename: PathBuf::from("/etc/example"),
+                ..Default::default()
+            }),
+        };
+
+        let AnyValue::Map(default) = event.clone().into_otel(false) else {
+            panic!("event did not serialize to a map");
+        };
+        assert_eq!(default.len(), 4);
+        assert!(
+            default
+                .keys()
+                .all(|key| matches!(key.as_str(), "file" | "timestamp" | "process" | "hostname"))
+        );
+
+        let AnyValue::Map(debug) = event.into_otel(true) else {
+            panic!("event did not serialize to a map");
+        };
+        for key in [
+            "event.name",
+            "file.path",
+            "file.host_path",
+            "host.name",
+            "process.command",
+            "process.executable.path",
+        ] {
+            assert!(
+                debug.keys().any(|candidate| candidate.as_str() == key),
+                "missing debug attribute {key}"
+            );
+        }
+        assert!(
+            !debug
+                .keys()
+                .any(|key| key.as_str().starts_with("container.oci."))
+        );
+    }
 
     #[test]
     fn slice_to_string_valid_utf8() {
