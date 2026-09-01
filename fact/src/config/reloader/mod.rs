@@ -236,7 +236,10 @@ impl Reloader {
                 return;
             }
         };
-        info!("Updated configuration: {new:#?}");
+        match serde_json::to_string_pretty(&new) {
+            Ok(c) => info!("Updated configuration: {c}"),
+            Err(e) => warn!("Failed to serialize configuration: {e:?}"),
+        }
 
         self.send_updates(new);
     }

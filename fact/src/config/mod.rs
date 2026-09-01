@@ -12,7 +12,8 @@ use std::{
 use anyhow::{Context, bail};
 use clap::Parser;
 use globset::{Glob, GlobSet};
-use log::info;
+use log::{info, warn};
+use serde::{Serialize, Serializer, ser::SerializeSeq};
 use yaml_rust2::{Yaml, YamlLoader, yaml};
 
 use crate::host_info;
@@ -35,7 +36,7 @@ fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
         .map(Duration::from_secs_f64)
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct FactConfig {
     paths: PathsConfig,
     pub grpc: GrpcConfig,
@@ -53,7 +54,10 @@ pub struct FactConfig {
 impl FactConfig {
     pub fn new() -> anyhow::Result<Self> {
         let config = FactConfig::build()?;
-        info!("{config:#?}");
+        match serde_json::to_string_pretty(&config) {
+            Ok(c) => info!("Configuration: {c}"),
+            Err(e) => warn!("Failed to serialize configuration: {e:?}"),
+        }
         Ok(config)
     }
 
@@ -257,9 +261,31 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
     }
 }
 
-#[derive(Default, Clone)]
+fn serialize_without_host_mount<S>(
+    patterns: &Option<Vec<PathBuf>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let state = match patterns {
+        Some(patterns) => {
+            let mut state = serializer.serialize_seq(Some(patterns.len()))?;
+            for pattern in patterns.iter() {
+                state.serialize_element(host_info::remove_host_mount(pattern))?;
+            }
+            state
+        }
+        None => serializer.serialize_seq(None)?,
+    };
+    state.end()
+}
+
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct PathsConfig {
+    #[serde(serialize_with = "serialize_without_host_mount")]
     patterns: Option<Vec<PathBuf>>,
+    #[serde(skip)]
     pub globset: GlobSet,
 }
 
@@ -302,15 +328,6 @@ impl PartialEq for PathsConfig {
     }
 }
 
-impl Debug for PathsConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PathsConfig")
-            .field("patterns", &self.patterns)
-            // Skip globset field for cleaner logs
-            .finish()
-    }
-}
-
 impl TryFrom<&yaml::Array> for PathsConfig {
     type Error = anyhow::Error;
 
@@ -348,7 +365,7 @@ impl TryFrom<&[PathBuf]> for PathsConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize)]
 pub struct EndpointConfig {
     address: Option<SocketAddr>,
     expose_metrics: Option<bool>,
@@ -434,7 +451,7 @@ impl TryFrom<&yaml::Hash> for EndpointConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct BackoffConfig {
     initial: Option<Duration>,
     max: Option<Duration>,
@@ -534,7 +551,7 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct GrpcConfig {
     url: Option<String>,
     certs: Option<PathBuf>,
@@ -600,7 +617,7 @@ impl TryFrom<&yaml::Hash> for GrpcConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize)]
 pub struct OTelConfig {
     endpoint: Option<String>,
 }
@@ -642,7 +659,7 @@ impl TryFrom<&yaml::Hash> for OTelConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize)]
 pub struct BpfConfig {
     ringbuf_size: Option<u32>,
     inodes_max: Option<u32>,
@@ -756,7 +773,7 @@ impl TryFrom<&yaml::Hash> for BpfConfig {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize)]
 pub struct BpfProgConfig {
     pub enabled: Option<bool>,
 }
