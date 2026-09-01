@@ -114,15 +114,16 @@ __always_inline static void submit_ownership_event(struct submit_event_args_t* a
   __submit_event(args, path_hooks_support_bpf_d_path);
 }
 
-__always_inline static void submit_rename_event(struct submit_event_args_t* args,
-                                                const char old_filename[PATH_MAX],
-                                                inode_key_t* old_inode,
-                                                monitored_t old_monitored) {
+__always_inline static void submit_move_event(struct submit_event_args_t* args,
+                                              file_activity_type_t event_type,
+                                              const char old_filename[PATH_MAX],
+                                              inode_key_t* old_inode,
+                                              monitored_t old_monitored) {
   if (!reserve_event(args)) {
     return;
   }
 
-  args->event->type = FILE_ACTIVITY_RENAME;
+  args->event->type = event_type;
   bpf_probe_read_str(args->event->from.filename, PATH_MAX, old_filename);
   inode_copy(&args->event->from.inode, old_inode);
   args->event->from.monitored = old_monitored;
