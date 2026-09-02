@@ -489,15 +489,14 @@ You can increase this limit with:
                 // The parent for the target is monitored. We need to
                 // figure out the host path and check if we should track
                 // the new link.
-                if let Some(host_path) = self.build_host_path(event) {
-                    if self.paths_globset.is_match(&host_path) {
-                        let inode = *event.get_inode();
-                        if let Err(e) = self.update_entry_with_inode(inode, host_path.clone(), true)
-                        {
-                            warn!("Failed to add link event entry: {e}");
-                        }
-                        event.set_host_path(host_path);
+                if let Some(host_path) = self.build_host_path(event)
+                    && self.paths_globset.is_match(&host_path)
+                {
+                    let inode = *event.get_inode();
+                    if let Err(e) = self.update_entry_with_inode(inode, host_path.clone(), true) {
+                        warn!("Failed to add link event entry: {e}");
                     }
+                    event.set_host_path(host_path);
                 }
             }
             monitored_t::MONITORED_BY_PATH => {
