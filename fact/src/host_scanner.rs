@@ -469,11 +469,7 @@ You can increase this limit with:
         self.inode_map.borrow_mut().remove(inode).is_some()
     }
 
-    /// Handle link events by adding the new link to the inode map.
-    ///
-    /// This is similar to `handle_rename_event`, except that the old
-    /// entry is not dereferenced in the process (the original file
-    /// still exists after a link).
+    /// Handle link events by potentially adding the new link to the inode map.
     fn handle_link_event(&self, event: &mut Event) {
         match event.get_monitored() {
             monitored_t::MONITORED_BY_INODE => {
