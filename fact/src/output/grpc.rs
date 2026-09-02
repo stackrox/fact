@@ -19,11 +19,9 @@ use tokio_stream::{
 };
 use tonic::transport::Channel;
 
-use crate::{
-    config::{BackoffConfig, GrpcConfig},
-    metrics::EventCounter,
-    output::EventReceiver,
-};
+use crate::{metrics::EventCounter, output::EventReceiver};
+
+use fact_core::config::{BackoffConfig, GrpcConfig};
 
 struct Backoff {
     initial: Duration,

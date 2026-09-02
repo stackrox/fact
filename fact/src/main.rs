@@ -1,4 +1,4 @@
-use fact::config::FactConfig;
+use fact_core::config::FactConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

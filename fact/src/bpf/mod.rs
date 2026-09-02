@@ -16,8 +16,9 @@ use tokio::{
     task::JoinSet,
 };
 
-use crate::{config::BpfConfig, event::Event, host_info, metrics::EventCounter};
+use crate::{event::Event, host_info, metrics::EventCounter};
 
+use fact_core::config::BpfConfig;
 use fact_ebpf::{LPM_SIZE_MAX, event_t, inode_key_t, inode_value_t, metrics_t, path_prefix_t};
 
 mod checks;
@@ -372,11 +373,12 @@ mod bpf_tests {
     use tokio::{sync::watch, time::timeout};
 
     use crate::{
-        config::{BpfProgConfig, FactConfig, reloader::Reloader},
         event::{EventTestData, process::Process},
         host_info,
         metrics::Metrics,
     };
+
+    use fact_core::config::{BpfProgConfig, FactConfig, reloader::Reloader};
 
     use super::*;
 

@@ -6,12 +6,9 @@ use tokio::{
     task::JoinSet,
 };
 
-use crate::{
-    config::{GrpcConfig, OTelConfig},
-    event::Event,
-    flatten_task_result, join_all_tasks,
-    metrics::OutputMetrics,
-};
+use crate::{event::Event, flatten_task_result, join_all_tasks, metrics::OutputMetrics};
+
+use fact_core::config::{GrpcConfig, OTelConfig};
 
 mod grpc;
 #[cfg(feature = "otel")]
