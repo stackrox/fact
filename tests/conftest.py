@@ -100,7 +100,7 @@ def _get_output_modes(config: pytest.Config) -> list[str]:
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc):
-    if 'server' in metafunc.definition._fixtureinfo.argnames:
+    if 'server' in metafunc.fixturenames:
         modes = _get_output_modes(metafunc.config)
         metafunc.parametrize('server', modes, indirect=True)
 
