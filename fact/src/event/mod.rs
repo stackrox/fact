@@ -322,8 +322,9 @@ impl Event {
     /// operations that have one, like rename.
     pub fn set_old_host_path(&mut self, host_path: PathBuf) {
         match &mut self.file {
-            FileData::Rename { old: from, .. }
-            | FileData::MoveMount { from, .. } => from.host_file = host_path,
+            FileData::Rename { old: from, .. } | FileData::MoveMount { from, .. } => {
+                from.host_file = host_path
+            }
             _ => unreachable!("Called set_old_host_path on invalid type"),
         }
     }
@@ -574,6 +575,7 @@ impl FileData {
             FileData::Creation(_) => "creation",
             FileData::MkDir(_) => "mkdir",
             FileData::RmDir(_) => "rmdir",
+            FileData::Link(_) => "link",
             FileData::Unlink(_) => "unlink",
             FileData::Chmod(_) => "permission",
             FileData::Chown(_) => "ownership",
@@ -669,6 +671,7 @@ impl From<FileData> for opentelemetry::logs::AnyValue {
             | FileData::RmDir(data)
             | FileData::Mount(data)
             | FileData::Umount(data)
+            | FileData::Link(data)
             | FileData::Unlink(data) => AnyValue::from(data),
             FileData::Chmod(data) => AnyValue::from(data),
             FileData::Chown(data) => AnyValue::from(data),
