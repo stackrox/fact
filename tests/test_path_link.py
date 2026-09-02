@@ -289,4 +289,3 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
     ]
 
     server.wait_events(events)
-
