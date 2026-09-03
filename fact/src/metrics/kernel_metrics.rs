@@ -60,6 +60,7 @@ macro_rules! define_kernel_metrics {
 
 define_kernel_metrics!(
     file_open,
+    path_link,
     path_unlink,
     path_chmod,
     path_chown,
