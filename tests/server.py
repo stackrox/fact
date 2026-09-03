@@ -107,6 +107,10 @@ class EventServer(ABC):
         """Check if the internal queue of events is empty."""
         return len(self.queue) == 0
 
+    def drain(self):
+        """Remove all pending events from the queue."""
+        self.queue.clear()
+
     def is_running(self) -> bool:
         """Check if the server is currently running."""
         return self.running.is_set()
