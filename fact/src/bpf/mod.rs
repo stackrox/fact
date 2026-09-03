@@ -331,6 +331,14 @@ impl Bpf {
                         }
                         guard.clear_ready();
                     },
+                    // The precondition here could directly use `has_changed().is_err()`,
+                    // however, since this is a tight loop processing events from the
+                    // kernel, using a local variable should be more performant since
+                    // `has_changed` reads an atomic variable.
+                    //
+                    // This approach also handles the case in which a value is sent
+                    // on the channel and then closed, which should not happen in our
+                    // code at the point this comment was written.
                     res = self.paths_config.changed(), if !config_is_closed => {
                         match res {
                             Ok(()) => self.load_paths().context("Failed to load paths")?,
