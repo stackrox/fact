@@ -111,6 +111,10 @@ pub type IntrospectionRequest = (
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<InodeMap>,
+    // usage_count keeps a reference count of the inodes we track.
+    // Only monitored files count, so this differs from the kernel refcount.
+    // link/unlink/rename events update usage_count and the inode is removed
+    // when the count falls to 0 (the inode may still exist).
     usage_count: RefCell<HashMap<inode_key_t, u64>>,
 
     paths: watch::Receiver<Vec<PathBuf>>,
