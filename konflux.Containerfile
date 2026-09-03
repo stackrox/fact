@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi8/ubi@sha256:eda675df7665e3c37e398b97172b5d4c4336d514da97370052f051d599a09996 AS builder
+FROM registry.access.redhat.com/ubi8/ubi@sha256:2dcfc23b79d88fdaeefc6ed0cfb144e41dca600bfa73c38ab5d8dca5b05d1b7f AS builder
 
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
@@ -33,7 +33,7 @@ COPY . .
 
 RUN cargo build --release
 
-FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:aacf6efc45ab0d25e0cf0329ab633d19983b6f6cf7c824fe72dd7c4ac71b1a9c
+FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:d9beb74f4b32ef937d3a206430b6d9200a0b0d32ecc548325a738d0e4f7f0f1b
 
 ARG FACT_TAG
 
