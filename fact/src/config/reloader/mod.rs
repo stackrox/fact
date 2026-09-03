@@ -8,7 +8,7 @@ use tokio::{
     time::interval,
 };
 
-use crate::config::OTelConfig;
+use crate::config::{OTelConfig, PathsConfig};
 
 use super::{CONFIG_FILES, EndpointConfig, FactConfig, GrpcConfig};
 
@@ -18,7 +18,7 @@ pub struct Reloader {
     endpoint: watch::Sender<EndpointConfig>,
     grpc: watch::Sender<GrpcConfig>,
     otel: watch::Sender<OTelConfig>,
-    paths: watch::Sender<Vec<PathBuf>>,
+    paths: watch::Sender<PathsConfig>,
     files: HashMap<&'static str, (i64, i64)>,
     scan_interval: watch::Sender<Duration>,
     rate_limit: watch::Sender<u64>,
@@ -80,7 +80,7 @@ impl Reloader {
 
     /// Subscribe to get notifications when paths configuration is
     /// changed.
-    pub fn paths(&self) -> watch::Receiver<Vec<PathBuf>> {
+    pub fn paths(&self) -> watch::Receiver<PathsConfig> {
         self.paths.subscribe()
     }
 
@@ -147,17 +147,6 @@ impl Reloader {
 
     /// Propagate configuration changes to all subscribers that need it
     fn send_updates(&self, new: FactConfig) {
-        self.paths.send_if_modified(|old| {
-            let new = new.paths();
-            if *old != new {
-                debug!("Sending new paths configuration...");
-                *old = new.to_vec();
-                true
-            } else {
-                false
-            }
-        });
-
         self.scan_interval.send_if_modified(|old| {
             let new = new.scan_interval();
             if *old != new {
@@ -188,8 +177,19 @@ impl Reloader {
             endpoint,
             grpc,
             otel,
+            paths,
             ..
         } = new;
+
+        self.paths.send_if_modified(|old| {
+            if *old != paths {
+                debug!("Sending new paths configuration...");
+                *old = paths;
+                true
+            } else {
+                false
+            }
+        });
 
         self.endpoint.send_if_modified(|old| {
             if *old != endpoint {
@@ -236,7 +236,10 @@ impl Reloader {
                 return;
             }
         };
-        info!("Updated configuration: {new:#?}");
+        match serde_json::to_string_pretty(&new) {
+            Ok(c) => info!("Updated configuration: {c}"),
+            Err(e) => warn!("Failed to serialize configuration: {e:?}"),
+        }
 
         self.send_updates(new);
     }
@@ -265,7 +268,6 @@ impl From<FactConfig> for Reloader {
             .collect();
 
         let enabled = config.hotreload();
-        let (paths, _) = watch::channel(config.paths().to_vec());
         let (scan_interval, _) = watch::channel(config.scan_interval());
         let (rate_limit, _) = watch::channel(config.rate_limit());
 
@@ -273,12 +275,14 @@ impl From<FactConfig> for Reloader {
             endpoint,
             grpc,
             otel,
+            paths,
             ..
         } = config;
 
         let (endpoint, _) = watch::channel(endpoint);
         let (grpc, _) = watch::channel(grpc);
         let (otel, _) = watch::channel(otel);
+        let (paths, _) = watch::channel(paths);
         let trigger = Arc::new(Notify::new());
 
         Reloader {

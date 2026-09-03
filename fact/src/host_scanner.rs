@@ -36,7 +36,6 @@ use aya::{
     sys::SyscallError,
 };
 use fact_ebpf::{inode_key_t, inode_value_t, monitored_t};
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
 use serde::{Serialize, ser::SerializeMap};
 use tokio::{
@@ -47,6 +46,7 @@ use tokio::{
 
 use crate::{
     bpf::Bpf,
+    config::PathsConfig,
     event::Event,
     host_info::{self, remove_host_mount},
     metrics::host_scanner::{HostScannerLabels, HostScannerMetrics, ScanLabels},
@@ -112,7 +112,7 @@ pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<InodeMap>,
 
-    paths: watch::Receiver<Vec<PathBuf>>,
+    paths: watch::Receiver<PathsConfig>,
     scan_interval: watch::Receiver<Duration>,
 
     rx: mpsc::Receiver<Event>,
@@ -120,16 +120,13 @@ pub struct HostScanner {
     introspection: mpsc::Receiver<IntrospectionRequest>,
 
     metrics: HostScannerMetrics,
-
-    paths_globset: GlobSet,
-    paths_patterns: Vec<PathBuf>,
 }
 
 impl HostScanner {
     pub fn new(
         bpf: &mut Bpf,
         rx: mpsc::Receiver<Event>,
-        paths: watch::Receiver<Vec<PathBuf>>,
+        paths: watch::Receiver<PathsConfig>,
         scan_interval: watch::Receiver<Duration>,
         metrics: HostScannerMetrics,
         introspection: mpsc::Receiver<IntrospectionRequest>,
@@ -138,7 +135,7 @@ impl HostScanner {
         let inode_map = RefCell::new(InodeMap::new());
         let (tx, output) = mpsc::channel(100);
 
-        let mut host_scanner = HostScanner {
+        let host_scanner = HostScanner {
             kernel_inode_map,
             inode_map,
             paths,
@@ -147,11 +144,7 @@ impl HostScanner {
             tx,
             introspection,
             metrics,
-            paths_globset: GlobSet::empty(),
-            paths_patterns: Vec::new(),
         };
-
-        host_scanner.reload_paths_config()?;
 
         // Run an initial scan to fill in the inode map
         host_scanner.scan()?;
@@ -159,38 +152,18 @@ impl HostScanner {
         Ok((host_scanner, output))
     }
 
-    fn reload_paths_config(&mut self) -> anyhow::Result<()> {
-        let paths = self.paths.borrow();
-        let mut builder = GlobSetBuilder::new();
-        let mut patterns = Vec::with_capacity(paths.len());
-
-        for p in paths.iter() {
-            patterns.push(host_info::prepend_host_mount(p));
-
-            let Some(glob_str) = p.to_str() else {
-                bail!("failed to convert path {} to string", p.display());
-            };
-
-            builder.add(Glob::new(glob_str).with_context(|| format!("invalid glob {}", glob_str))?);
-        }
-
-        self.paths_globset = builder.build()?;
-        self.paths_patterns = patterns;
-
-        Ok(())
-    }
-
     fn scan(&self) -> anyhow::Result<()> {
         info!("Host scan started");
         let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
+        let paths = self.paths.borrow();
 
         // Cleanup any items that are either:
         // * Not configured to be monitored anymore.
         // * Are configured to be monitored but no longer are found in
         //   the file system.
         self.inode_map.borrow_mut().retain(|inode, path| {
-            if self.paths_globset.is_match(&path) && host_info::prepend_host_mount(path).exists() {
+            if paths.globset.is_match(&path) && host_info::prepend_host_mount(path).exists() {
                 true
             } else {
                 let _ = self.kernel_inode_map.borrow_mut().remove(inode);
@@ -199,8 +172,8 @@ impl HostScanner {
             }
         });
 
-        for path in &self.paths_patterns {
-            self.scan_inner(path)?;
+        for pattern in paths.patterns() {
+            self.scan_inner(pattern)?;
         }
         let duration = start.elapsed();
         self.metrics.scan_duration.observe(duration.as_secs_f64());
@@ -292,8 +265,10 @@ impl HostScanner {
     /// matches the supplied path.
     fn scan_partial(&self, path: &Path) -> anyhow::Result<()> {
         let start = Instant::now();
+        let paths = self.paths.borrow();
         let scan_prefix_patterns =
-            self.paths_patterns
+            paths
+                .patterns()
                 .iter()
                 .enumerate()
                 .filter_map(|(i, pattern)| {
@@ -304,14 +279,14 @@ impl HostScanner {
                         .starts_with(path.to_str()?)
                         .then_some(i)
                 });
-        let scan_glob_index = self.paths_globset.matches(path);
+        let scan_glob_index = paths.globset.matches(path);
 
         // De-duplicate the indexes
         let scan_set = scan_prefix_patterns
             .chain(scan_glob_index.iter().copied())
             .collect::<HashSet<_>>();
 
-        for pattern in scan_set.iter().map(|index| &self.paths_patterns[*index]) {
+        for pattern in scan_set.iter().map(|index| &paths.patterns()[*index]) {
             self.scan_inner(pattern)?;
         }
 
@@ -494,7 +469,7 @@ You can increase this limit with:
                     unreachable!("Rename event did not have an old host path");
                 };
 
-                if self.paths_globset.is_match(&new_host_path) {
+                if self.paths.borrow().globset.is_match(&new_host_path) {
                     // New path needs to be tracked.
                     // Move all entries for the old host path to the new one
                     for path in inode_map.values_mut() {
@@ -591,11 +566,12 @@ You can increase this limit with:
     /// the host paths for matches in events that are monitored by
     /// parent.
     fn event_is_ignored(&self, event: &Event) -> bool {
-        event.is_ignored(&self.paths_globset)
-            && !self.paths_globset.is_match(event.get_host_path())
+        let paths = self.paths.borrow();
+        event.is_ignored(&paths.globset)
+            && !paths.globset.is_match(event.get_host_path())
             && event
                 .get_old_host_path()
-                .is_none_or(|path| !self.paths_globset.is_match(path))
+                .is_none_or(|path| !paths.globset.is_match(path))
     }
 
     pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
@@ -709,7 +685,6 @@ You can increase this limit with:
                     }
                     _ = scan_trigger.notified() => self.scan()?,
                     _ = self.paths.changed() => {
-                            self.reload_paths_config()?;
                             self.scan()?;
                         }
                 }

@@ -1,6 +1,6 @@
 #![allow(dead_code, non_camel_case_types)]
 
-use std::{error::Error, ffi::c_char, fmt::Display, hash::Hash, path::PathBuf};
+use std::{error::Error, ffi::c_char, fmt::Display, hash::Hash, path::Path};
 
 use aya::{maps::lpm_trie, Pod};
 use libc::memcpy;
@@ -25,10 +25,10 @@ impl Display for PathPrefixError {
     }
 }
 
-impl TryFrom<&PathBuf> for path_prefix_t {
+impl TryFrom<&Path> for path_prefix_t {
     type Error = PathPrefixError;
 
-    fn try_from(value: &PathBuf) -> Result<Self, PathPrefixError> {
+    fn try_from(value: &Path) -> Result<Self, PathPrefixError> {
         let Some(filename) = value.to_str() else {
             return Err(PathPrefixError {
                 prefix: value.display().to_string(),
