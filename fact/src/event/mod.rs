@@ -155,7 +155,7 @@ impl Event {
     }
 
     pub fn is_link(&self) -> bool {
-        matches!(self.file, FileData::Link { .. })
+        matches!(self.file, FileData::Link(_))
     }
 
     pub fn is_rename(&self) -> bool {
