@@ -553,7 +553,7 @@ You can increase this limit with:
                     tokio::select! {
                         _ = interval.tick() => scan_trigger.notify_one(),
                         _ = running.changed() => break,
-                        _ = scan_interval.changed() => break,
+                        _ = scan_interval.changed(), if scan_interval.has_changed().is_ok() => break,
                     }
                 }
             }
@@ -587,6 +587,7 @@ You can increase this limit with:
 
         task_set.spawn(async move {
             info!("Starting host scanner...");
+            let mut config_is_closed = false;
 
             loop {
                 tokio::select! {
@@ -684,9 +685,12 @@ You can increase this limit with:
                         }
                     }
                     _ = scan_trigger.notified() => self.scan()?,
-                    _ = self.paths.changed() => {
-                            self.scan()?;
+                    res = self.paths.changed(), if !config_is_closed => {
+                        match res {
+                            Ok(()) => self.scan()?,
+                            Err(_) => config_is_closed = true,
                         }
+                    }
                 }
             }
 
