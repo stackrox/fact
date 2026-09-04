@@ -214,7 +214,9 @@ impl HostScanner {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
             } else if metadata.is_symlink() {
                 self.metrics.scan_inc(ScanLabels::SymlinkScanned);
-                self.scan_symlink(&path);
+                if let Err(e) = self.scan_symlink(&path) {
+                    warn!("Failed to scan symlink {}: {e:#}", path.display());
+                }
             } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
             } else {
@@ -228,34 +230,64 @@ impl HostScanner {
         Ok(())
     }
 
-    fn scan_symlink(&self, path: &Path) {
-        let target = match path.read_link() {
-            Ok(p) => {
-                if p.has_root() {
-                    &host_info::prepend_host_mount(&p)
-                } else {
-                    path
-                }
-            }
-            Err(e) => {
-                warn!("Failed to read symlink path: {e}");
-                return;
-            }
+    fn scan_symlink(&self, path: &Path) -> anyhow::Result<()> {
+        let link_target = path
+            .read_link()
+            .with_context(|| format!("failed to read symlink {}", path.display()))?;
+        let target = if link_target.has_root() {
+            // FACT scans the host below FACT_HOST_MOUNT. Absolute links are
+            // absolute in the host filesystem, not in FACT's container.
+            host_info::prepend_host_mount(&link_target)
+        } else {
+            path.parent().unwrap_or(Path::new("/")).join(link_target)
         };
+        let metadata = target
+            .metadata()
+            .with_context(|| format!("failed to read symlink target {}", target.display()))?;
+        self.update_entry(path, &metadata)
+            .with_context(|| format!("failed to update symlink entry for {}", path.display()))?;
 
-        match target.metadata() {
-            Ok(metadata) => {
-                if let Err(e) = self.update_entry(path, &metadata) {
-                    warn!("Failed to update symlink entry for {}: {e}", path.display());
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to read metadata for symlink target {}: {e}",
-                    target.display()
-                );
-            }
+        if !metadata.is_dir() {
+            return Ok(());
         }
+
+        // glob expands an absolute symlink relative to FACT's container root.
+        // Expand the translated target instead, but retain the configured
+        // symlink path as the inode-map alias used for event enrichment.
+        let recursive_target = target.join("**/*");
+        let glob_str = recursive_target
+            .to_str()
+            .context("invalid recursive symlink target path")?;
+        for entry in glob::glob(glob_str)? {
+            let target_path = match entry {
+                Ok(path) => path,
+                Err(e) => {
+                    debug!("Glob expansion failed: {e:?}");
+                    self.metrics.scan_inc(ScanLabels::GlobFailed);
+                    continue;
+                }
+            };
+            let suffix = target_path.strip_prefix(&target).with_context(|| {
+                format!(
+                    "symlink target {} escaped recursive root {}",
+                    target_path.display(),
+                    target.display()
+                )
+            })?;
+            let metadata = match target_path.symlink_metadata() {
+                Ok(metadata) => metadata,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => continue,
+                Err(e) => {
+                    warn!("Failed to get metadata for {}: {e}", target_path.display());
+                    continue;
+                }
+            };
+            self.update_entry(&path.join(suffix), &metadata).with_context(|| {
+                format!("failed to update symlink descendant {}", target_path.display())
+            })?;
+        }
+
+        Ok(())
     }
 
     /// Do a partial scan of any pattern that matches the provided path

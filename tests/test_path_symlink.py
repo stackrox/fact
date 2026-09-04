@@ -201,10 +201,6 @@ def test_follow_symlink_to_file_relative(
     )
 
 
-@pytest.mark.skip(
-    reason='symlinks with absolute paths are broken when '
-    + 'running inside container'
-)
 def test_follow_symlink_to_dir(
     monitored_dir: str, ignored_dir: str, server: EventServer
 ):
@@ -215,6 +211,8 @@ def test_follow_symlink_to_dir(
     file = os.path.join(ignored_dir, 'file.txt')
     other_file = os.path.join(ignored_dir, 'other.txt')
     link = os.path.join(monitored_dir, 'symlink')
+    link_file = os.path.join(link, 'file.txt')
+    link_other_file = os.path.join(link, 'other.txt')
     proc = Process.from_proc()
 
     with open(file, 'w') as f:
@@ -232,26 +230,31 @@ def test_follow_symlink_to_dir(
         ]
     )
 
-    # At this point, modifying files in the ignored path should
-    # trigger events
+    # The existing child must be seeded through the absolute directory
+    # symlink. Test it before creating a new child: the latter can be
+    # observed merely because the symlink directory itself is tracked.
     with open(file, 'w') as f:
         f.write('This is a test')
-    with open(other_file, 'w') as f:
-        f.write('This is a test')
-
     server.wait_events(
         [
             Event(
                 process=proc,
                 event_type=EventType.OPEN,
                 file=file,
-                host_path=link,
+                host_path=link_file,
             ),
+        ]
+    )
+
+    with open(other_file, 'w') as f:
+        f.write('This is a test')
+    server.wait_events(
+        [
             Event(
                 process=proc,
                 event_type=EventType.CREATION,
                 file=other_file,
-                host_path=link,
+                host_path=link_other_file,
             ),
         ]
     )
