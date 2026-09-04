@@ -735,11 +735,9 @@ You can increase this limit with:
                         // whether the event is ignored now that we have the
                         // full inode context.
                         if self.event_is_ignored(&event) {
-                            self.inode_map.borrow_mut().remove(event.get_inode());
-                            let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
+                            self.unref_inode(&mut self.inode_map.borrow_mut(), event.get_inode());
                             if let Some(old_inode) = event.get_old_inode() {
-                                self.inode_map.borrow_mut().remove(old_inode);
-                                let _ = self.kernel_inode_map.borrow_mut().remove(old_inode);
+                                self.unref_inode(&mut self.inode_map.borrow_mut(), old_inode);
                             }
                             self.metrics.events_inc(HostScannerLabels::Ignored);
                             continue;
