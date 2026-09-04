@@ -266,7 +266,11 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
     with open(ignored_link) as f:
         f.read()
 
-    # Only creation and unlink events expected, no open event
+    # used to drain the event queue and check for a "non-event"
+    sentinel = os.path.join(monitored_dir, 'sentinel.txt')
+    with open(sentinel, 'w') as f:
+        f.write('sentinel')
+
     events = [
         Event(
             process=process,
@@ -285,6 +289,12 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
             event_type=EventType.UNLINK,
             file=monitored,
             host_path=monitored,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=sentinel,
+            host_path=sentinel,
         ),
     ]
 
