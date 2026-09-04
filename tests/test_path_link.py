@@ -97,6 +97,79 @@ def test_multiple_hardlinks(monitored_dir: str, server: EventServer):
     server.wait_events(events)
 
 
+def test_access_after_remove(monitored_dir: str, server: EventServer):
+    """
+    Tests creating multiple hardlinks to the same file.
+    Remove some, and access via one of them.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create original file
+    original = os.path.join(monitored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create multiple hardlinks
+    link1 = os.path.join(monitored_dir, 'link1.txt')
+    link2 = os.path.join(monitored_dir, 'link2.txt')
+    link3 = os.path.join(monitored_dir, 'link3.txt')
+
+    os.link(original, link1)
+    os.link(original, link2)
+    os.link(original, link3)
+
+    # The OPEN event should still be emitted since the inode is still tracked.
+    os.unlink(link1)
+
+    with open(link2, 'w') as f:
+        f.write('test content')
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=link1,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=link2,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=link3,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=link1,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=link2,
+            host_path=original,
+        ),
+    ]
+
+    server.wait_events(events)
+
+
 def test_ignored(monitored_dir: str, ignored_dir: str, server: EventServer):
     """
     Tests that link events creating hardlinks in ignored directories
