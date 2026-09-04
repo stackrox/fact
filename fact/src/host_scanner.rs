@@ -497,7 +497,13 @@ You can increase this limit with:
                     warn!("Old path was not found for inode tracked event");
                     return;
                 };
-                self.unref_inode(inode);
+                if !self.unref_inode(inode) {
+                    // The destination inode still has remaining hardlinks but
+                    // the path we had for it is now taken by old_inode. Remove
+                    // the stale mapping so future events on the destination
+                    // inode don't report the overwritten path.
+                    self.inode_map.borrow_mut().remove(inode);
+                }
 
                 let Some(old_inode) = event.get_old_inode() else {
                     unreachable!("old inode not found for rename event");
