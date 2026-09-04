@@ -101,6 +101,9 @@ __always_inline static void process_fill_lineage(process_t* p, struct helper_t* 
   p->lineage_len = 0;
 
   for (int i = 0; i < LINEAGE_MAX; i++) {
+    // All our LSM hooks run with preemption disabled, which effectively
+    // turns the entire programs into RCU critical sections, so we can
+    // call `bpf_task_acquire` without calling `bpf_rcu_read_lock`.
     struct task_struct* parent = bpf_task_acquire(task->real_parent);
 
     if (parent == NULL) {
