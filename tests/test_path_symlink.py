@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import re
 import subprocess
-from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from time import sleep
 
@@ -315,12 +314,6 @@ def test_follow_symlink_to_dir_relative(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=FuturesTimeoutError,
-    reason='ROX-36737: a recursive path rooted at a relative symlink does not '
-    + 'track direct children of the symlink target',
-)
 def test_configured_relative_symlink_root_tracks_direct_child(
     tmp_path: Path,
     fact: docker.models.containers.Container,
