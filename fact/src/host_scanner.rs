@@ -192,6 +192,10 @@ impl HostScanner {
             bail!("invalid path {}", path.display());
         };
 
+        // glob does not return the non-glob root of a recursive pattern,
+        // so seed it explicitly to cover symlink roots (ROX-36737).
+        self.scan_pattern_root(glob_str);
+
         for entry in glob::glob(glob_str)? {
             let path = match entry {
                 Ok(p) => p,
@@ -226,6 +230,31 @@ impl HostScanner {
                 .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
+    }
+
+    /// Seed the non-glob root of a pattern when it is a symlink.
+    ///
+    /// glob expansion skips the symlink root of a recursive pattern
+    /// (e.g. `/host/root/**` where `/host/root -> var/roothome`),
+    /// leaving the target directory inode untracked. This maps that
+    /// inode to the configured logical path so direct children are seen.
+    fn scan_pattern_root(&self, glob_str: &str) {
+        let prefix = glob_str
+            .split(['*', '?', '[', '{'])
+            .next()
+            .unwrap_or(glob_str);
+        let Some(idx) = prefix.rfind('/') else {
+            return;
+        };
+        let root = Path::new(if idx == 0 { "/" } else { &prefix[..idx] });
+
+        match root.symlink_metadata() {
+            Ok(metadata) if metadata.is_symlink() => {
+                self.metrics.scan_inc(ScanLabels::SymlinkScanned);
+                self.scan_symlink(root);
+            }
+            _ => {}
+        }
     }
 
     fn scan_symlink(&self, path: &Path) {
