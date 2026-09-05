@@ -194,7 +194,7 @@ impl Bpf {
             let mut new_paths = Vec::with_capacity(patterns.len());
             for p in patterns.iter().map(|p| host_info::remove_host_mount(p)) {
                 let prefix = path_prefix_t::try_from(p)?;
-                self.paths_lpm_map.insert(&prefix.into(), 0, 0)?;
+                self.paths_lpm_map.insert(&prefix.into(), &0, 0)?;
                 new_paths.push(prefix);
             }
             new_paths
