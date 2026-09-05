@@ -1,4 +1,5 @@
 // clang-format off
+#include "d_path.h"
 #include "vmlinux.h"
 
 #include "file.h"
@@ -552,9 +553,16 @@ FACT_BPF_PROG2(sb_umount, struct vfsmount*, mnt, int, flags) {
   struct submit_event_args_t args = {.metrics = &m->sb_umount};
   args.metrics->total++;
 
-  struct path p = {.dentry = BPF_CORE_READ(mnt, mnt_root), .mnt = mnt};
-  struct bound_path_t* bound_path = _path_read(&p, BOUND_PATH_MAIN, false);
+  // TODO: Figure out a better way to read the path with bpf_path_d_path.
+  struct bound_path_t* bound_path = get_bound_path(BOUND_PATH_MAIN);
   if (bound_path == NULL) {
+    bpf_printk("Failed to get bound_path buffer");
+    args.metrics->error++;
+    return 0;
+  }
+
+  struct path p = {.dentry = BPF_CORE_READ(mnt, mnt_root), .mnt = mnt};
+  if (__d_path(&p, bound_path->path, PATH_MAX) <= 0) {
     bpf_printk("Failed to read umount directory");
     args.metrics->error++;
     return 0;

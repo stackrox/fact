@@ -141,7 +141,9 @@ __always_inline static long __d_path(const struct path* path, char* buf, int buf
 }
 
 __always_inline static long d_path(struct path* path, char* buf, int buflen, bool use_bpf_helper) {
-  if (use_bpf_helper) {
+  if (bpf_ksym_exists(bpf_path_d_path)) {
+    return bpf_path_d_path(path, buf, buflen);
+  } else if (use_bpf_helper) {
     return bpf_d_path(path, buf, buflen);
   }
   return __d_path(path, buf, buflen);
