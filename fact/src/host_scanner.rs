@@ -138,12 +138,13 @@ impl HostScanner {
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(InodeMap::new());
+        let usage_count = RefCell::new(HashMap::new());
         let (tx, output) = mpsc::channel(100);
 
         let host_scanner = HostScanner {
             kernel_inode_map,
             inode_map,
-            usage_count: RefCell::new(HashMap::new()),
+            usage_count,
             paths,
             scan_interval,
             rx,
