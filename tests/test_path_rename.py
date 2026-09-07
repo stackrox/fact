@@ -776,3 +776,141 @@ def test_rename_last_monitored_hardlink_to_ignored(
     ]
 
     server.wait_events(events)
+
+
+def test_rename_overwrites_hardlinked_file(
+    monitored_dir: str, server: EventServer
+):
+    """
+    Tests that renaming a file over a hardlinked target decrements the
+    target inode's reference count without removing it entirely.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create file A (separate inode)
+    file_a = os.path.join(monitored_dir, 'a.txt')
+    with open(file_a, 'w') as f:
+        f.write('content a')
+
+    # Create file B and a hardlink B2 (same inode, refcount=2)
+    file_b = os.path.join(monitored_dir, 'b.txt')
+    with open(file_b, 'w') as f:
+        f.write('content b')
+    file_b2 = os.path.join(monitored_dir, 'b2.txt')
+    os.link(file_b, file_b2)
+
+    # Rename A over B: B's inode refcount goes 2->1, A's inode takes B's path
+    os.rename(file_a, file_b)
+
+    # B2 still points to B's original inode, which should still be tracked
+    with open(file_b2, 'w') as f:
+        f.write('still tracked')
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=file_a,
+            host_path=file_a,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=file_b,
+            host_path=file_b,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=file_b2,
+            host_path=file_b,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.RENAME,
+            file=file_b,
+            host_path=file_b,
+            old_file=file_a,
+            old_host_path=file_a,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=file_b2,
+            host_path='',
+        ),
+    ]
+
+    server.wait_events(events)
+
+
+def test_rename_original_with_hardlink(monitored_dir: str, server: EventServer):
+    """
+    Tests renaming the original file (the path in inode_map) when a
+    hardlink exists. Both paths should remain tracked.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create original file
+    original = os.path.join(monitored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create hardlink
+    hardlink = os.path.join(monitored_dir, 'hardlink.txt')
+    os.link(original, hardlink)
+
+    # Rename the original (the path stored in inode_map)
+    renamed = os.path.join(monitored_dir, 'renamed.txt')
+    os.rename(original, renamed)
+
+    # Access through both remaining paths
+    with open(hardlink, 'w') as f:
+        f.write('via hardlink')
+    with open(renamed, 'w') as f:
+        f.write('via renamed')
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=hardlink,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.RENAME,
+            file=renamed,
+            host_path=renamed,
+            old_file=original,
+            old_host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=hardlink,
+            host_path=renamed,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=renamed,
+            host_path=renamed,
+        ),
+    ]
+
+    server.wait_events(events)
