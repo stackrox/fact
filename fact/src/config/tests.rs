@@ -426,6 +426,30 @@ fn parsing() {
             },
         ),
         (
+            r#"
+        container:
+          enabled: true
+        "#,
+            FactConfig {
+                container: ContainerConfig {
+                    enabled: Some(true),
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+        container:
+          enabled: false
+        "#,
+            FactConfig {
+                container: ContainerConfig {
+                    enabled: Some(false),
+                },
+                ..Default::default()
+            },
+        ),
+        (
             "hotreload: true",
             FactConfig {
                 hotreload: Some(true),
@@ -506,6 +530,8 @@ fn parsing() {
                         enabled: true
                     giberish:
                         enabled: false
+            container:
+                enabled: false
             hotreload: false
             scan_interval: 60
             rate_limit: 50000
@@ -559,6 +585,9 @@ fn parsing() {
                             },
                         ),
                     ]),
+                },
+                container: ContainerConfig {
+                    enabled: Some(false),
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
@@ -940,6 +969,28 @@ paths:
                   enabled: 5
             "#,
             "bpf.programs.file_open parsing failed: enabled field has wrong type: Integer(5)",
+        ),
+        (
+            "container: true",
+            "container section has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"
+            container:
+                enabled: 4"#,
+            "container.enabled field has incorrect type: Integer(4)",
+        ),
+        (
+            r#"
+            container:
+                something: 4"#,
+            "Invalid field 'container.something' with value: Integer(4)",
+        ),
+        (
+            r#"
+            container:
+                4: 4"#,
+            "key is not string: Integer(4)",
         ),
         (
             "hotreload: 4",
@@ -1816,6 +1867,55 @@ fn update() {
             },
         ),
         (
+            r#"
+            container:
+                enabled: false
+            "#,
+            FactConfig::default(),
+            FactConfig {
+                container: ContainerConfig {
+                    enabled: Some(false),
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            container:
+                enabled: false
+            "#,
+            FactConfig {
+                container: ContainerConfig {
+                    enabled: Some(true),
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                container: ContainerConfig {
+                    enabled: Some(false),
+                },
+                ..Default::default()
+            },
+        ),
+        (
+            r#"
+            container:
+                enabled: true
+            "#,
+            FactConfig {
+                container: ContainerConfig {
+                    enabled: Some(true),
+                },
+                ..Default::default()
+            },
+            FactConfig {
+                container: ContainerConfig {
+                    enabled: Some(true),
+                },
+                ..Default::default()
+            },
+        ),
+        (
             "hotreload: false",
             FactConfig::default(),
             FactConfig {
@@ -1960,6 +2060,8 @@ fn update() {
               programs:
                 file_open:
                   enabled: false
+            container:
+              enabled: false
             hotreload: false
             scan_interval: 60
             rate_limit: 1000
@@ -2001,6 +2103,9 @@ fn update() {
                             enabled: Some(false),
                         },
                     )]),
+                },
+                container: ContainerConfig {
+                    enabled: Some(true),
                 },
                 hotreload: Some(true),
                 scan_interval: Some(Duration::from_secs(30)),
@@ -2050,6 +2155,9 @@ fn update() {
                         ),
                     ]),
                 },
+                container: ContainerConfig {
+                    enabled: Some(false),
+                },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
                 rate_limit: Some(1000),
@@ -2086,6 +2194,7 @@ fn defaults() {
     assert_eq!(config.bpf.ringbuf_size(), 8192);
     assert_eq!(config.bpf.inodes_max(), 65536);
     assert_eq!(config.bpf.d_instantiate_ctx_size(), 512);
+    assert!(config.container.enabled());
     assert!(config.hotreload());
     assert_eq!(config.grpc.backoff.initial(), Duration::from_secs(1));
     assert_eq!(config.grpc.backoff.max(), Duration::from_secs(60));

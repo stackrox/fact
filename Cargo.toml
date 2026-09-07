@@ -16,7 +16,7 @@ aya = { git = "https://github.com/aya-rs/aya.git", rev = "c29cd71cb4fe1440bc0d56
 libc = { version = "0.2.159", default-features = false }
 prost = "0.14.0"
 prost-types = "0.14.0"
-serde = { version = "1.0.219", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive", "rc"] }
 tokio = { version = "1.40.0", default-features = false, features = [
     "fs",
     "macros",
@@ -24,6 +24,7 @@ tokio = { version = "1.40.0", default-features = false, features = [
     "rt-multi-thread",
     "net",
     "signal",
+    "io-std",
 ] }
 tonic = { version = "0.14.0" }
 
