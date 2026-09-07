@@ -461,8 +461,8 @@ You can increase this limit with:
                 // another reference to it.
                 self.usage_count_inc(*event.get_inode());
             }
-            monitored_t::NOT_MONITORED => {
-                // The new path is not monitored, nothing to do.
+            monitored_t::NOT_MONITORED | monitored_t::MONITORED_BY_PATH => {
+                // The new path is not monitored or no inode tracking is involved, nothing to do.
             }
             monitored_t::MONITORED_BY_PARENT => {
                 // The parent for the target is monitored. We need to
@@ -477,9 +477,6 @@ You can increase this limit with:
                     }
                     event.set_host_path(host_path);
                 }
-            }
-            monitored_t::MONITORED_BY_PATH => {
-                // Nothing to do here, no inode tracking is involved.
             }
             _ => unreachable!("Invalid monitored value"),
         }
