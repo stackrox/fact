@@ -599,7 +599,7 @@ impl From<FileData> for fact_api::file_activity::File {
                 let f_act = fact_api::FileOpen { activity };
                 fact_api::file_activity::File::Open(f_act)
             }
-            FileData::Creation(event) => {
+            FileData::Creation(event) | FileData::Link(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileCreation { activity };
                 fact_api::file_activity::File::Creation(f_act)
@@ -617,11 +617,6 @@ impl From<FileData> for fact_api::file_activity::File {
             FileData::RemoveXattr(event) => {
                 let f_act = fact_api::FileXattrChange::from(event);
                 fact_api::file_activity::File::XattrRemove(f_act)
-            }
-            FileData::Link(event) => {
-                let activity = Some(fact_api::FileActivityBase::from(event));
-                let f_act = fact_api::FileCreation { activity };
-                fact_api::file_activity::File::Creation(f_act)
             }
             FileData::Unlink(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
