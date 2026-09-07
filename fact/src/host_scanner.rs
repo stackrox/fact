@@ -333,11 +333,7 @@ impl HostScanner {
         update_usage_count: bool,
     ) -> anyhow::Result<()> {
         if update_usage_count {
-            self.usage_count
-                .borrow_mut()
-                .entry(inode)
-                .and_modify(|c| *c += 1)
-                .or_insert(1);
+            self.usage_count_inc(inode);
         }
 
         let mut inode_map = self.inode_map.borrow_mut();
@@ -371,6 +367,14 @@ You can increase this limit with:
             }
             e => e.with_context(|| format!("Failed to insert kernel entry for {}", path.display())),
         }
+    }
+
+    fn usage_count_inc(&self, inode: inode_key_t) {
+        self.usage_count
+            .borrow_mut()
+            .entry(inode)
+            .and_modify(|c| *c += 1)
+            .or_insert(1);
     }
 
     fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
@@ -455,12 +459,7 @@ You can increase this limit with:
             monitored_t::MONITORED_BY_INODE => {
                 // The inode is already tracked, the new link just adds
                 // another reference to it.
-                let inode = event.get_inode();
-                self.usage_count
-                    .borrow_mut()
-                    .entry(*inode)
-                    .and_modify(|c| *c += 1)
-                    .or_insert(1);
+                self.usage_count_inc(*event.get_inode());
             }
             monitored_t::NOT_MONITORED => {
                 // The new path is not monitored, nothing to do.
