@@ -6,6 +6,7 @@ possible include a PR number for easier tracking.
 
 ## Next
 
+* ROX-33222: handle multiple hardlinks with inode reference counting (#1468)
 * ROX-34920: track symlink events (#1440)
 * ROX-33036: add mount-related operations (#1059)
 * feat(endpoints): add inodes introspection endpoint (#1273)

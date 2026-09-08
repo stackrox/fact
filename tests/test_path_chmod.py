@@ -336,3 +336,51 @@ def test_unmonitored_mounted_dir(
     )
 
     server.wait_events([event])
+
+
+def test_chmod_hardlink(monitored_dir: str, server: EventServer):
+    """
+    Tests chmod on a file accessed through a hardlink path.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+    mode = 0o600
+
+    # Create original file
+    original = os.path.join(monitored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create hardlink
+    hardlink = os.path.join(monitored_dir, 'hardlink.txt')
+    os.link(original, hardlink)
+
+    # chmod through hardlink path
+    os.chmod(hardlink, mode)
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=original,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=hardlink,
+            host_path=original,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.PERMISSION,
+            file=hardlink,
+            host_path=original,
+            mode=mode,
+        ),
+    ]
+
+    server.wait_events(events)
