@@ -289,12 +289,21 @@ def test_link_from_ignored_to_monitored(
     monitored_link = os.path.join(monitored_dir, 'link.txt')
     os.link(original, monitored_link)
 
-    # Only the monitored hardlink creation should be reported
+    # Access the ignored file to verify it is now tracked
+    with open(original, 'w') as f:
+        f.write('test content')
+
     events = [
         Event(
             process=process,
             event_type=EventType.CREATION,
             file=monitored_link,
+            host_path=monitored_link,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.OPEN,
+            file=original,
             host_path=monitored_link,
         ),
     ]
@@ -416,4 +425,3 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
     ]
 
     server.wait_events(events)
-
