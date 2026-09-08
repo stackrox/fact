@@ -399,7 +399,7 @@ def test_unlink_one_of_multiple_monitored_hardlinks(
     os.unlink(monitored1)
 
     # Inode should still be tracked - access via other monitored path
-    with open(monitored2, 'w') as f:
+    with open(ignored_link, 'w') as f:
         f.write('modified content')
 
     events = [
@@ -430,7 +430,7 @@ def test_unlink_one_of_multiple_monitored_hardlinks(
         Event(
             process=process,
             event_type=EventType.OPEN,
-            file=monitored2,
+            file=ignored_link,
             host_path=monitored1,
         ),
     ]
