@@ -498,15 +498,16 @@ You can increase this limit with:
                 let path = match self.unref_inode(&mut inode_map, inode) {
                     Some(path) => path,
                     None => {
-                        // The destination inode still has remaining hardlinks but
-                        // the path we had for it is now taken by old_inode. Remove
-                        // the stale mapping so future events on the destination
-                        // inode don't report the overwritten path.
-                        let Some(path) = inode_map.remove(inode) else {
+                        // The destination inode still has remaining hardlinks.
+                        // TODO ROX-36834: we currently have only one host_path value for
+                        // each monitored inode, so we don't have enough information
+                        // to make inode point to another valid path. For now we
+                        // use the host_path that we have.
+                        let Some(path) = inode_map.get(inode) else {
                             warn!("Old path was not found for inode tracked event");
                             return;
                         };
-                        path
+                        path.clone()
                     }
                 };
 

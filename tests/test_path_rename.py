@@ -841,7 +841,7 @@ def test_rename_overwrites_hardlinked_file(
             process=process,
             event_type=EventType.OPEN,
             file=file_b2,
-            host_path='',
+            host_path=file_b,
         ),
     ]
 
