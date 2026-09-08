@@ -696,7 +696,7 @@ def test_rename_ignored_to_monitored_with_hardlink(
     os.rename(ignored1, monitored)
 
     # Now the inode is tracked, access via either path
-    with open(monitored, 'w') as f:
+    with open(ignored2, 'w') as f:
         f.write('modified content')
 
     events = [
@@ -711,7 +711,7 @@ def test_rename_ignored_to_monitored_with_hardlink(
         Event(
             process=process,
             event_type=EventType.OPEN,
-            file=monitored,
+            file=ignored2,
             host_path=monitored,
         ),
     ]
@@ -750,6 +750,10 @@ def test_rename_last_monitored_hardlink_to_ignored(
     with open(ignored_link) as f:
         f.read()
 
+    sentinel = os.path.join(monitored_dir, 'sentinel.txt')
+    with open(sentinel, 'w') as f:
+        f.write('sentinel')
+
     # Creation for original, creation for ignored link (inode tracked),
     # then rename
     events = [
@@ -772,6 +776,12 @@ def test_rename_last_monitored_hardlink_to_ignored(
             host_path='',
             old_file=monitored,
             old_host_path=monitored,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=sentinel,
+            host_path=sentinel,
         ),
     ]
 

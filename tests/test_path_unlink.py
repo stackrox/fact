@@ -334,6 +334,10 @@ def test_unlink_last_monitored_hardlink(
     with open(ignored_link) as f:
         f.read()
 
+    sentinel = os.path.join(monitored_dir, 'sentinel.txt')
+    with open(sentinel, 'w') as f:
+        f.write('sentinel')
+
     # Creation for original, creation for ignored link (inode tracked),
     # then unlink
     events = [
@@ -354,6 +358,12 @@ def test_unlink_last_monitored_hardlink(
             event_type=EventType.UNLINK,
             file=monitored,
             host_path=monitored,
+        ),
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=sentinel,
+            host_path=sentinel,
         ),
     ]
 
