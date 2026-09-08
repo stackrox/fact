@@ -170,7 +170,51 @@ def test_access_after_remove(monitored_dir: str, server: EventServer):
     server.wait_events(events)
 
 
-def test_ignored(monitored_dir: str, ignored_dir: str, server: EventServer):
+def test_link_ignored(
+    monitored_dir: str, ignored_dir: str, server: EventServer
+):
+    """
+    Tests that creating a hardlink on an ignored path to a file that is
+    also in an ignored path does not trigger any event.
+
+    Args:
+        monitored_dir: Temporary directory path for creating test files.
+        ignored_dir: Temporary directory path that is not monitored by fact.
+        server: The server instance to communicate with.
+    """
+    process = Process.from_proc()
+
+    # Create original file in IGNORED directory
+    original = os.path.join(ignored_dir, 'original.txt')
+    with open(original, 'w') as f:
+        f.write('test content')
+
+    # Create hardlink in IGNORED directory (same ignored dir)
+    ignored_link = os.path.join(ignored_dir, 'link.txt')
+    os.link(original, ignored_link)
+
+    # Neither the original file creation nor the hardlink should have
+    # generated events. Use a sentinel file in the monitored directory
+    # to drain the event queue and confirm no events were produced.
+    sentinel = os.path.join(monitored_dir, 'sentinel.txt')
+    with open(sentinel, 'w') as f:
+        f.write('sentinel')
+
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=sentinel,
+            host_path=sentinel,
+        ),
+    ]
+
+    server.wait_events(events)
+
+
+def test_link_monitored_from_ignored(
+    monitored_dir: str, ignored_dir: str, server: EventServer
+):
     """
     Tests that link events creating hardlinks in ignored directories
     is captured via inode tracking.
@@ -372,3 +416,4 @@ def test_unlink_monitored_hardlink_with_ignored_remaining(
     ]
 
     server.wait_events(events)
+
