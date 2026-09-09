@@ -129,7 +129,11 @@ pub struct HostScanner {
 /// such boundary, so its leaf is dropped to yield the parent directory
 /// (`/etc/passwd` -> `/etc`). Pure path computation, no filesystem access.
 fn pattern_root(path: &Path) -> Option<PathBuf> {
-    let is_glob = |c: &Component| c.as_os_str().to_string_lossy().contains(['*', '?', '[', '{']);
+    let is_glob = |c: &Component| {
+        c.as_os_str()
+            .to_string_lossy()
+            .contains(['*', '?', '[', '{'])
+    };
 
     if path.components().any(|c| is_glob(&c)) {
         Some(path.components().take_while(|c| !is_glob(c)).collect())
@@ -227,7 +231,11 @@ impl HostScanner {
         // so seed it explicitly to cover symlink roots (ROX-36737).
         let symlink_root = symlink_pattern_root(path);
 
-        for entry in symlink_root.map(Ok).into_iter().chain(glob::glob(glob_str)?) {
+        for entry in symlink_root
+            .map(Ok)
+            .into_iter()
+            .chain(glob::glob(glob_str)?)
+        {
             let path = match entry {
                 Ok(p) => p,
                 Err(e) => {

@@ -9,6 +9,7 @@ from time import sleep
 import docker.models.containers
 import pytest
 import yaml
+
 from event import Event, EventType, Process
 from server import EventServer
 from utils import join_path_with_filename, path_to_string
