@@ -25,7 +25,7 @@ use std::{
     io,
     ops::{Deref, DerefMut},
     os::linux::fs::MetadataExt,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
@@ -122,6 +122,37 @@ pub struct HostScanner {
     metrics: HostScannerMetrics,
 }
 
+/// Return the literal directory root of a glob pattern.
+///
+/// This is the run of components before the first glob metacharacter
+/// (`/host/root/**` -> `/host/root`). A fully literal pattern has no
+/// such boundary, so its leaf is dropped to yield the parent directory
+/// (`/etc/passwd` -> `/etc`). Pure path computation, no filesystem access.
+fn pattern_root(path: &Path) -> Option<PathBuf> {
+    let is_glob = |c: &Component| c.as_os_str().to_string_lossy().contains(['*', '?', '[', '{']);
+
+    if path.components().any(|c| is_glob(&c)) {
+        Some(path.components().take_while(|c| !is_glob(c)).collect())
+    } else {
+        path.parent().map(Path::to_path_buf)
+    }
+}
+
+/// Return the non-glob root of a pattern when it resolves to a symlink.
+///
+/// glob expansion skips the symlink root of a recursive pattern
+/// (e.g. `/host/root/**` where `/host/root -> var/roothome`), leaving the
+/// target directory inode untracked. Returning it here lets the scan loop
+/// process it like any other symlink entry so direct children are seen
+/// (ROX-36737).
+fn symlink_pattern_root(path: &Path) -> Option<PathBuf> {
+    let root = pattern_root(path)?;
+    root.symlink_metadata()
+        .ok()
+        .filter(Metadata::is_symlink)
+        .map(|_| root)
+}
+
 impl HostScanner {
     pub fn new(
         bpf: &mut Bpf,
@@ -194,7 +225,7 @@ impl HostScanner {
 
         // glob does not return the non-glob root of a recursive pattern,
         // so seed it explicitly to cover symlink roots (ROX-36737).
-        let symlink_root = self.symlink_pattern_root(glob_str);
+        let symlink_root = symlink_pattern_root(path);
 
         for entry in symlink_root.map(Ok).into_iter().chain(glob::glob(glob_str)?) {
             let path = match entry {
@@ -230,27 +261,6 @@ impl HostScanner {
                 .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
-    }
-
-    /// Return the non-glob root of a pattern when it is a symlink.
-    ///
-    /// glob expansion skips the symlink root of a recursive pattern
-    /// (e.g. `/host/root/**` where `/host/root -> var/roothome`),
-    /// leaving the target directory inode untracked. Returning it here
-    /// lets the scan loop process it like any other symlink entry so
-    /// direct children are seen (ROX-36737).
-    fn symlink_pattern_root(&self, glob_str: &str) -> Option<PathBuf> {
-        let prefix = glob_str
-            .split(['*', '?', '[', '{'])
-            .next()
-            .unwrap_or(glob_str);
-        let idx = prefix.rfind('/')?;
-        let root = Path::new(if idx == 0 { "/" } else { &prefix[..idx] });
-
-        match root.symlink_metadata() {
-            Ok(metadata) if metadata.is_symlink() => Some(root.to_path_buf()),
-            _ => None,
-        }
     }
 
     fn scan_symlink(&self, path: &Path) {
@@ -724,5 +734,35 @@ You can increase this limit with:
             info!("Stopping host scanner");
             Ok(())
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pattern_root_extracts_literal_prefix() {
+        let cases = [
+            ("/host/root/**", Some("/host/root"), "recursive wildcard"),
+            ("/etc/*.conf", Some("/etc"), "single-star glob"),
+            ("/host/ro*t/x", Some("/host"), "mid-component wildcard"),
+            ("/data/[abc]/x", Some("/data"), "character class"),
+            ("/data/{a,b}/x", Some("/data"), "brace alternation"),
+            ("/data/f?le", Some("/data"), "question mark"),
+            ("/a/b/file", Some("/a/b"), "fully literal drops leaf"),
+            ("/foo", Some("/"), "literal under root"),
+            ("foo", Some(""), "relative literal single component"),
+            ("*.conf", Some(""), "wildcard in first component"),
+            ("/", None, "root has no parent"),
+        ];
+
+        for (pattern, expected, description) in cases {
+            assert_eq!(
+                pattern_root(Path::new(pattern)).as_deref(),
+                expected.map(Path::new),
+                "Failed for {description}: {pattern}"
+            );
+        }
     }
 }
