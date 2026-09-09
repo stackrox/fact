@@ -473,13 +473,13 @@ arches:
     name: environment-modules
     evr: 4.5.2-4.el8
     sourcerpm: environment-modules-4.5.2-4.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/e/expat-2.5.0-2.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/e/expat-2.5.0-2.el8_10.2.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 124320
-    checksum: sha256:6253cd4ea1c562c09ba5c20a1790d28fab7ddc5585f2f7958b2c0c66de842ad1
+    size: 125236
+    checksum: sha256:1451ffe79779baa87f2b85d9bbdd46a99ed0cbe6495d7819e15eea30faa7225a
     name: expat
-    evr: 2.5.0-2.el8_10
-    sourcerpm: expat-2.5.0-2.el8_10.src.rpm
+    evr: 2.5.0-2.el8_10.2
+    sourcerpm: expat-2.5.0-2.el8_10.2.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/f/file-5.33-27.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 79708
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/a928c7234d67b0a0552a428e628cfa81e95d48abf6118c6918120491e3b5251d-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/313fc479e3b4432ca5d00cd2df0a3081ab7eb60d4d1adacd68484ac705561486-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 831955
-    checksum: sha256:a928c7234d67b0a0552a428e628cfa81e95d48abf6118c6918120491e3b5251d
+    size: 833491
+    checksum: sha256:313fc479e3b4432ca5d00cd2df0a3081ab7eb60d4d1adacd68484ac705561486
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -2119,13 +2119,13 @@ arches:
     name: environment-modules
     evr: 4.5.2-4.el8
     sourcerpm: environment-modules-4.5.2-4.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/e/expat-2.5.0-2.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/e/expat-2.5.0-2.el8_10.2.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 134596
-    checksum: sha256:69dcc849b7215290fbd793d2c74010f47dba667e86e21a361fdc224d59bedb41
+    size: 135912
+    checksum: sha256:35e7fc8af74994191413441d3b8d392f2366746c316a13e1f8f31e86a0c314be
     name: expat
-    evr: 2.5.0-2.el8_10
-    sourcerpm: expat-2.5.0-2.el8_10.src.rpm
+    evr: 2.5.0-2.el8_10.2
+    sourcerpm: expat-2.5.0-2.el8_10.2.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/f/file-5.33-27.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 79492
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/a7da899fa7bbeb6bc0d8313e6efcdb6431e6150f3ed32eafb44301c9c71b089d-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/9aa5acaf856ebe0e6f51a22b9d25c0d799aeaa9d8796eab16f9f7c727fc39c19-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 852826
-    checksum: sha256:a7da899fa7bbeb6bc0d8313e6efcdb6431e6150f3ed32eafb44301c9c71b089d
+    size: 853959
+    checksum: sha256:9aa5acaf856ebe0e6f51a22b9d25c0d799aeaa9d8796eab16f9f7c727fc39c19
