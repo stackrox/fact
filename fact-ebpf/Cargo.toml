@@ -14,4 +14,4 @@ serde = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }
-bindgen = { workspace = true }
+bindgen = "0.73.2"
