@@ -9,11 +9,11 @@ license.workspace = true
 
 [dependencies]
 tonic = { workspace = true }
-tonic-prost = { workspace = true }
+tonic-prost = "0.14.0"
 tokio = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 
 [build-dependencies]
 anyhow = { workspace = true }
-tonic-prost-build = { workspace = true }
+tonic-prost-build = "0.14.0"
