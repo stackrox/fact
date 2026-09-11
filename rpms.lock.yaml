@@ -361,20 +361,20 @@ arches:
     name: ca-certificates
     evr: 2025.2.80_v9.0.305-91.el9
     sourcerpm: ca-certificates-2025.2.80_v9.0.305-91.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-8.32-41.el9_8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-8.32-41.el9_8.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 1177900
-    checksum: sha256:ee2de9f5fbc5e83bad920a353c45d3446997aa0e4023436528b2d6f817bd6f50
+    size: 1175876
+    checksum: sha256:22827aedd764c1ab706086965859e7f8fef0d719ac0b3d8735f6b8e53b0a13e9
     name: coreutils
-    evr: 8.32-41.el9_8
-    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-common-8.32-41.el9_8.aarch64.rpm
+    evr: 8.32-41.el9_8.1
+    sourcerpm: coreutils-8.32-41.el9_8.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/coreutils-common-8.32-41.el9_8.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 2114764
-    checksum: sha256:cd79ca65bba152b9ccadcb9780ec78e3d06ce538b693078fd14459d038ab5c0c
+    size: 2115646
+    checksum: sha256:b449955249a6d2da7369522a5ac2759919d36633e129ba88924057814906d5f5
     name: coreutils-common
-    evr: 8.32-41.el9_8
-    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
+    evr: 8.32-41.el9_8.1
+    sourcerpm: coreutils-8.32-41.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/c/cracklib-2.9.6-28.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 102026
@@ -1285,13 +1285,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-25.el9
     sourcerpm: util-linux-2.37.4-25.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.13.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.21.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 22931
-    checksum: sha256:7758bbb54a85bb53aecdbb9c740c4981b2b42cac6df9580414838c6bdbab8dbd
+    size: 24156
+    checksum: sha256:4362190912229b1a670e20a7e46d1f20fb2d1d30e80ec22342bba1318784f742
     name: vim-filesystem
-    evr: 2:8.2.2637-26.el9_8.13
-    sourcerpm: vim-8.2.2637-26.el9_8.13.src.rpm
+    evr: 2:8.2.2637-26.el9_8.21
+    sourcerpm: vim-8.2.2637-26.el9_8.21.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 94569
@@ -1688,20 +1688,20 @@ arches:
     name: ca-certificates
     evr: 2025.2.80_v9.0.305-91.el9
     sourcerpm: ca-certificates-2025.2.80_v9.0.305-91.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-8.32-41.el9_8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-8.32-41.el9_8.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 1220715
-    checksum: sha256:e53f0f831246c73ab03ae395054d261ae392faa1229e6c691c08d2321a824b75
+    size: 1222083
+    checksum: sha256:374257c4cd69107333a7f524dd99579f3ea3ab842b66168eade0a3475fb6eea1
     name: coreutils
-    evr: 8.32-41.el9_8
-    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-common-8.32-41.el9_8.x86_64.rpm
+    evr: 8.32-41.el9_8.1
+    sourcerpm: coreutils-8.32-41.el9_8.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/coreutils-common-8.32-41.el9_8.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 2116611
-    checksum: sha256:1d4010cdc4f0fb7a4be68bf1bf0f0cda84a11d7337bd15d8368ab0ff90ca0db4
+    size: 2113503
+    checksum: sha256:41f69eb8b2087feaa98d0228fb933b6fe8af20a4bf371cfef51e11cbd1f84b4e
     name: coreutils-common
-    evr: 8.32-41.el9_8
-    sourcerpm: coreutils-8.32-41.el9_8.src.rpm
+    evr: 8.32-41.el9_8.1
+    sourcerpm: coreutils-8.32-41.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/c/cracklib-2.9.6-28.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 102444
@@ -2612,13 +2612,13 @@ arches:
     name: util-linux-core
     evr: 2.37.4-25.el9
     sourcerpm: util-linux-2.37.4-25.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.13.noarch.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/v/vim-filesystem-8.2.2637-26.el9_8.21.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 22931
-    checksum: sha256:7758bbb54a85bb53aecdbb9c740c4981b2b42cac6df9580414838c6bdbab8dbd
+    size: 24156
+    checksum: sha256:4362190912229b1a670e20a7e46d1f20fb2d1d30e80ec22342bba1318784f742
     name: vim-filesystem
-    evr: 2:8.2.2637-26.el9_8.13
-    sourcerpm: vim-8.2.2637-26.el9_8.13.src.rpm
+    evr: 2:8.2.2637-26.el9_8.21
+    sourcerpm: vim-8.2.2637-26.el9_8.21.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/x/xz-libs-5.2.5-8.el9_0.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 96649
