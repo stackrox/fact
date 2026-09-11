@@ -77,23 +77,50 @@ __always_inline static const char* get_memory_cgroup(struct helper_t* helper) {
   return helper->buf;
 }
 
+__always_inline static long read_exe_file(struct task_struct* task, char buf[PATH_MAX], bool use_bpf_d_path) {
+  if (bpf_ksym_exists(bpf_get_task_exe_file)) {
+    long res = -1;
+    struct file* exe_file = bpf_get_task_exe_file(task);
+    if (exe_file != NULL) {
+      res = d_path(&exe_file->f_path, buf, PATH_MAX, use_bpf_d_path);
+      bpf_put_file(exe_file);
+    }
+    return res;
+  } else if (use_bpf_d_path) {
+    return bpf_d_path(&task->mm->exe_file->f_path, buf, PATH_MAX);
+  } else {
+    return __d_path(&task->mm->exe_file->f_path, buf, PATH_MAX);
+  }
+}
+
 __always_inline static void process_fill_lineage(process_t* p, struct helper_t* helper, bool use_bpf_d_path) {
-  struct task_struct* task = (struct task_struct*)bpf_get_current_task_btf();
+  struct task_struct* task = bpf_task_acquire(bpf_get_current_task_btf());
+  if (task == NULL) {
+    return;
+  }
   p->lineage_len = 0;
 
   for (int i = 0; i < LINEAGE_MAX; i++) {
-    struct task_struct* parent = task->real_parent;
+    // All our LSM hooks run with preemption disabled, which effectively
+    // turns the entire programs into RCU critical sections, so we can
+    // call `bpf_task_acquire` without calling `bpf_rcu_read_lock`.
+    struct task_struct* parent = bpf_task_acquire(task->real_parent);
 
-    if (task == parent || parent->pid == 0) {
-      return;
+    if (parent == NULL) {
+      break;
+    } else if (task == parent || parent->pid == 0) {
+      bpf_task_release(parent);
+      break;
     }
+
+    bpf_task_release(task);
     task = parent;
 
     p->lineage[i].uid = task->cred->uid.val;
-
-    d_path(&task->mm->exe_file->f_path, p->lineage[i].exe_path, PATH_MAX, use_bpf_d_path);
+    read_exe_file(task, p->lineage[i].exe_path, use_bpf_d_path);
     p->lineage_len++;
   }
+  bpf_task_release(task);
 }
 
 __always_inline static unsigned long get_mount_ns() {
@@ -131,7 +158,7 @@ __always_inline static int64_t process_fill(process_t* p, bool use_bpf_d_path) {
     return -1;
   }
 
-  d_path(&task->mm->exe_file->f_path, p->exe_path, PATH_MAX, use_bpf_d_path);
+  read_exe_file(task, p->exe_path, use_bpf_d_path);
 
   const char* cg = get_memory_cgroup(helper);
   if (cg != NULL) {
