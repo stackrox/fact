@@ -4,8 +4,8 @@
 
 There are two GHA workflows available to prepare a new release stream
 and properly releasing a new version, they are aptly named:
-- Prepare Release Branch
-- Release New Version
+- [Prepare Release Branch](../.github/workflows/prepare-release.yml)
+- [Release New Version](../.github/workflows/release.yml)
 
 When a release cycle is coming to an end and a new X.Y stream is needed,
 running the `Prepare Release Branch` will do all the heavy lifting,
@@ -25,6 +25,8 @@ stream.
 automated method fails for some reason. Stick to the automated method
 whenever possible
 ---
+
+If you are doing a patch release, skip forward to [Tagging a release](#tagging-a-release)
 
 ### Create the release branch
 
@@ -131,35 +133,32 @@ which the release is forked.
 
 1. Create a PR pointing to the release branch and get it merged.
 
-1. Since the release of artifacts via Konflux require some additional
-configuration, you will need to wait for the release engineer to make
-these and request a tag for fact. Once this happens, you can create a
-new tag with the following commands:
-    ```sh
-    git checkout "release-${FACT_RELEASE}"
-    git pull --ff-only
-    git tag "${FACT_RELEASE}.0"
-    git push origin "${FACT_RELEASE}.0"
-    ```
+### Tagging a release
 
-1. Ensure the Konflux and GitHub Actions builds succeed and the
-corresponding container images are pushed.
-
-### Handling patch releases
-
-1. Merge any backport PRs you need into the desired release branch.
-1. Figure out the patch version to be released.
-1. Change to the release branch, pull the latest version, tag it and
-push
+1. Figure out the version to be tagged.
 
     ```sh
     export FACT_RELEASE=0.2
-    export FACT_PATCH=1
+    export FACT_PATCH=0
+    ```
+
+1. Navigate to your local `stackrox/fact` git repository and ensure your
+release branch is up to date.
+
+    ```sh
     git checkout "release-${FACT_RELEASE}"
     git pull --ff-only
-    git tag "${FACT_RELEASE}.${FACT_PATCH}"
+    ```
+
+1. Create and push the new tag
+
+    ```sh
+    git tag -a -m \
+        "fact v${FACT_RELEASE}.${FACT_PATCH} release" \
+        "${FACT_RELEASE}.${FACT_PATCH}"
     git push origin "${FACT_RELEASE}.${FACT_PATCH}"
     ```
 
 1. Ensure the Konflux and GitHub Actions builds succeed and the
 corresponding container images are pushed.
+
