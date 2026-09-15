@@ -128,6 +128,10 @@ jobs:
         pip install ruff
         make format-check
 
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yml
+    secrets: inherit
+
   container-build:
     uses: ./.github/workflows/container-build.yml
     secrets: inherit
@@ -139,25 +143,29 @@ jobs:
       tag-suffix: '-otel'
       make-target: 'image-otel'
 
-  unit-tests:
-    uses: ./.github/workflows/unit-tests.yml
+  test-containers-build:
+    uses: ./.github/workflows/test-containers-build.yml
     secrets: inherit
 
   integration-tests:
     needs:
     - container-build
+    - test-containers-build
     uses: ./.github/workflows/integration-tests.yml
     with:
       tag: ${{ needs.container-build.outputs.tag }}
+      qa-tag: ${{ needs.test-containers-build.outputs.qa-tag }}
       vms: '["fedora-coreos", "fcarm", "rhel", "rhel-arm64", "rhcos", "rhcos-arm64"]'
     secrets: inherit
 
   integration-tests-otel:
     needs:
     - container-build-otel
+    - test-containers-build
     uses: ./.github/workflows/integration-tests.yml
     with:
       tag: ${{ needs.container-build-otel.outputs.tag }}
+      qa-tag: ${{ needs.test-containers-build.outputs.qa-tag }}
       job-tag: otel
       vms: '["fedora-coreos"]'
       output-type: otlp

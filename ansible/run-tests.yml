@@ -43,6 +43,7 @@
         environment:
           DOCKER_HOST: "{{ runtime_host }}"
           FACT_IMAGE_NAME: "{{ fact.image | default(None) }}"
+          FACT_QA_TAG: "{{ qa_tag | default(None) }}"
           OUTPUT_TYPE: "{{ output_type | default('grpc') }}"
         ansible.builtin.shell:
           cmd: |
@@ -65,7 +66,10 @@
                 ../third_party/stackrox/proto/internalapi/sensor/sfa_iservice.proto
 
             # Run the tests
-            pytest --image="${FACT_IMAGE_NAME}" --junit-xml=results.xml --output="${OUTPUT_TYPE}"
+            pytest --image="${FACT_IMAGE_NAME}" \
+                --no-local-builds \
+                --junit-xml=results.xml \
+                --output="${OUTPUT_TYPE}"
 
       always:
       - name: Make logs directories
