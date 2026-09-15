@@ -14,8 +14,8 @@ metadata:
         event == "push" && target_branch.matches("^(main|release-.*|refs/tags/.*)$")
       )
   labels:
-    appstudio.openshift.io/application: acs
-    appstudio.openshift.io/component: fact
+    appstudio.openshift.io/application: acs-5-0
+    appstudio.openshift.io/component: fact-5-0
     pipelines.appstudio.openshift.io/type: build
   name: fact-on-push
   namespace: rh-acs-tenant
@@ -51,7 +51,7 @@ spec:
   - name: extra-labels
     value:
     # X.Y in the cpe label must be adjusted for every version stream.
-    - "cpe=cpe:/a:redhat:advanced_cluster_security:X.Y::el9"
+    - "cpe=cpe:/a:redhat:advanced_cluster_security:5.0::el9"
 
   workspaces:
   - name: git-auth
@@ -69,5 +69,5 @@ spec:
     pipeline: 40m
 
   pipelineRef:
-    name: fact-component-pipeline
+    name: fact-component-pipeline-5-0
 
