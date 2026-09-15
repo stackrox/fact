@@ -59,7 +59,7 @@ spec:
       secretName: '{{ git_auth_secret }}'
 
   taskRunTemplate:
-    serviceAccountName: build-pipeline-fact
+    serviceAccountName: build-pipeline-fact-5-0
 
   timeouts:
     # The pipeline regularly takes a couple minutes to finish.
@@ -69,5 +69,5 @@ spec:
     pipeline: 40m
 
   pipelineRef:
-    name: fact-component-pipeline-5-0
+    name: fact-component-pipeline
 
