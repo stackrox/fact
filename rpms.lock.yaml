@@ -704,13 +704,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.162.1.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.163.1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 12516820
-    checksum: sha256:7792131b08c495bcaa6e11eac738c914870276f9ec6d65f980fdb6c99b7c8c55
+    size: 12518444
+    checksum: sha256:025bfd22b70ab262b3ebd11133084d47e9c411bdf7a8a02b44ad23bfd08d0b90
     name: kernel-headers
-    evr: 4.18.0-553.162.1.el8_10
-    sourcerpm: kernel-4.18.0-553.162.1.el8_10.src.rpm
+    evr: 4.18.0-553.163.1.el8_10
+    sourcerpm: kernel-4.18.0-553.163.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 34656
@@ -921,20 +921,20 @@ arches:
     name: libkadm5
     evr: 1.18.2-34.el8_10
     sourcerpm: krb5-1.18.2-34.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libkcapi-1.4.0-2.el8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libkcapi-1.4.0-3.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 53272
-    checksum: sha256:a823ff47aa7e08c984e93194b065dbe4371d53b0eb935504d53734fd7ea853f2
+    size: 52516
+    checksum: sha256:0898baa2e678df4b1fe373ebad46c35132ae7997e07f67f3d2e4d8dbf572787a
     name: libkcapi
-    evr: 1.4.0-2.el8
-    sourcerpm: libkcapi-1.4.0-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libkcapi-hmaccalc-1.4.0-2.el8.aarch64.rpm
+    evr: 1.4.0-3.el8_10
+    sourcerpm: libkcapi-1.4.0-3.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libkcapi-hmaccalc-1.4.0-3.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 33072
-    checksum: sha256:c6e38db1c9923d4a53db8a5ca2061ac87cdd7244c26f87dea96900febf635185
+    size: 32420
+    checksum: sha256:c5755ed82d1f2474bcc871cc3798fbc2fb6b0f46b86e2bee88d5061e618ce77a
     name: libkcapi-hmaccalc
-    evr: 1.4.0-2.el8
-    sourcerpm: libkcapi-1.4.0-2.el8.src.rpm
+    evr: 1.4.0-3.el8_10
+    sourcerpm: libkcapi-1.4.0-3.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libmount-2.32.1-48.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 234604
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/d5de3c397b8c2a7ed5869d73889671670ce3e6afc9ac19da1002bfe9475c0af9-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/9cdc2767a3163f7b550d2a639dab9b475704b1db1ada1d937cbde0f37da74982-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 833491
-    checksum: sha256:d5de3c397b8c2a7ed5869d73889671670ce3e6afc9ac19da1002bfe9475c0af9
+    size: 840298
+    checksum: sha256:9cdc2767a3163f7b550d2a639dab9b475704b1db1ada1d937cbde0f37da74982
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -2350,13 +2350,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8
     sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.162.1.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.163.1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 12548504
-    checksum: sha256:ddce55dad1cfb9301a024bdc7a07491317e2c6a14a61c1801594aa2c4012a5fa
+    size: 12550080
+    checksum: sha256:2d1084c55253c50c92c33dc38c88014ac9ac5c9a6ea7d8c5fe5f3a12fbef349a
     name: kernel-headers
-    evr: 4.18.0-553.162.1.el8_10
-    sourcerpm: kernel-4.18.0-553.162.1.el8_10.src.rpm
+    evr: 4.18.0-553.163.1.el8_10
+    sourcerpm: kernel-4.18.0-553.163.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 34816
@@ -2560,20 +2560,20 @@ arches:
     name: libkadm5
     evr: 1.18.2-34.el8_10
     sourcerpm: krb5-1.18.2-34.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libkcapi-1.4.0-2.el8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libkcapi-1.4.0-3.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 54248
-    checksum: sha256:a357c4882a2e582a101302f1624dc1e63dedc102e13da0cb0d4cf523f744dc94
+    size: 53536
+    checksum: sha256:0fe97a54d31a0e47ce9b96a809201cd81798f22b0603f2416ecc3a13acd5aa00
     name: libkcapi
-    evr: 1.4.0-2.el8
-    sourcerpm: libkcapi-1.4.0-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libkcapi-hmaccalc-1.4.0-2.el8.x86_64.rpm
+    evr: 1.4.0-3.el8_10
+    sourcerpm: libkcapi-1.4.0-3.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libkcapi-hmaccalc-1.4.0-3.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 33252
-    checksum: sha256:4d714811e58208086c75608a1ebf0db27f8e46dbfa189634c76a3ab0af8935ad
+    size: 32564
+    checksum: sha256:226594029cf88f5fe5f033e10f69e780cd215eb64ee02e3d41f885c72f830e6f
     name: libkcapi-hmaccalc
-    evr: 1.4.0-2.el8
-    sourcerpm: libkcapi-1.4.0-2.el8.src.rpm
+    evr: 1.4.0-3.el8_10
+    sourcerpm: libkcapi-1.4.0-3.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libmount-2.32.1-48.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 241976
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/e153a77afddf9910bfcfd56f91f067118f2b5c934fee5dacadc0fbe4255f0b66-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/6997f45c7c14b461651e97af5d9498d426fba000bca357966cb260506c190d8e-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 853959
-    checksum: sha256:e153a77afddf9910bfcfd56f91f067118f2b5c934fee5dacadc0fbe4255f0b66
+    size: 861879
+    checksum: sha256:6997f45c7c14b461651e97af5d9498d426fba000bca357966cb260506c190d8e
