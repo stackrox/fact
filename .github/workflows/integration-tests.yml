@@ -13,6 +13,9 @@ on:
       tag:
         description: The container image tag to test
         type: string
+      qa-tag:
+        description: The test containers tag to use
+        type: string
       job-tag:
         description: Additional tag to prevent collision on GCP VM naming
         type: string
@@ -75,6 +78,7 @@ jobs:
       env:
         FACT_VERSION: ${{ inputs.version }}
         FACT_REGISTRY: ${{ inputs.registry }}
+        FACT_QA_TAG: ${{ inputs.qa-tag }}
         FACT_TAG: ${{ inputs.tag }}
         OUTPUT_TYPE: ${{ inputs.output-type }}
       run: |
@@ -85,6 +89,7 @@ jobs:
         fact:
           image: ${FACT_IMAGE_NAME}
           version: ${FACT_VERSION}
+        qa_tag: ${FACT_QA_TAG}
         output_type: ${OUTPUT_TYPE}
         quay:
           username: ${{ secrets.QUAY_RHACS_ENG_RO_USERNAME }}
