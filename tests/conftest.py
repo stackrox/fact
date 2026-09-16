@@ -228,3 +228,8 @@ def fact(request, docker_client, fact_config, server, logs_dir, test_file):
 def pytest_addoption(parser):
     parser.addoption('--image', action='store', default='quay.io/stackrox-io/fact:latest',
                      help='The image to be used for testing')
+    parser.addoption(
+        '--no-local-builds',
+        action='store_true',
+        help='Do not build test containers locally',
+    )

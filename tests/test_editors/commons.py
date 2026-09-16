@@ -1,6 +1,10 @@
 import os
 
+import docker
+import docker.models.images
 import pytest
+
+from containers import pull_or_build
 
 
 def get_vi_test_file(dir):
@@ -8,13 +12,16 @@ def get_vi_test_file(dir):
 
 
 @pytest.fixture(scope='session')
-def build_editor_image(docker_client):
-    image, _ = docker_client.images.build(
+def build_editor_image(
+    request: pytest.FixtureRequest, docker_client: docker.DockerClient
+):
+    no_local_builds = bool(request.config.getoption('--no-local-builds'))
+    return pull_or_build(
+        docker_client,
+        tag='fact-editors',
         path='containers/editors',
-        tag='editors:latest',
-        dockerfile='Containerfile',
+        no_local_builds=no_local_builds,
     )
-    return image
 
 
 def run_editor_container(image, docker_client, ignored_dir):
@@ -38,9 +45,31 @@ def run_editor_container(image, docker_client, ignored_dir):
     container.remove()
 
 
+@pytest.fixture(scope='session')
+def build_fedora_image(
+    request: pytest.FixtureRequest, docker_client: docker.DockerClient
+) -> docker.models.images.Image:
+    no_local_builds = bool(request.config.getoption('--no-local-builds'))
+    return pull_or_build(
+        docker_client,
+        tag='fact-fedora',
+        path='containers/fedora',
+        no_local_builds=no_local_builds,
+    )
+
+
 @pytest.fixture
-def vi_container(docker_client, ignored_dir):
-    yield from run_editor_container('quay.io/fedora/fedora:43', docker_client, ignored_dir)
+def fedora_container(
+    docker_client: docker.DockerClient,
+    build_fedora_image: docker.models.images.Image,
+    ignored_dir: str,
+):
+    image = build_fedora_image.tags[0]
+    yield from run_editor_container(
+        image,
+        docker_client,
+        ignored_dir,
+    )
 
 
 @pytest.fixture

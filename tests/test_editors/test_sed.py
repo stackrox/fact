@@ -2,15 +2,16 @@ import re
 from event import Event, EventType, Process
 
 
-def test_sed(vi_container, server):
+def test_sed(fedora_container, server):
+    assert fedora_container.id is not None
     # File Under Test
     fut = '/mounted/test.txt'
-    create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""
-    sed_cmd = fr'sed -i -e "s/a test/not \\0/" {fut}'
-    container_id = vi_container.id[:12]
+    create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'
+    sed_cmd = rf'sed -i -e "s/a test/not \\0/" {fut}'
+    container_id = fedora_container.id[:12]
 
-    vi_container.exec_run(create_cmd)
-    vi_container.exec_run(sed_cmd)
+    fedora_container.exec_run(create_cmd)
+    fedora_container.exec_run(sed_cmd)
 
     shell = Process.in_container(
         exe_path='/usr/bin/bash',
@@ -41,15 +42,16 @@ def test_sed(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_sed_ovfs(vi_container, server):
+def test_sed_ovfs(fedora_container, server):
+    assert fedora_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
-    create_cmd = f"sh -c \"echo 'This is a test' > {fut}\""
-    sed_cmd = fr'sed -i -e "s/a test/not \\0/" {fut}'
-    container_id = vi_container.id[:12]
+    create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'
+    sed_cmd = rf'sed -i -e "s/a test/not \\0/" {fut}'
+    container_id = fedora_container.id[:12]
 
-    vi_container.exec_run(create_cmd)
-    vi_container.exec_run(sed_cmd)
+    fedora_container.exec_run(create_cmd)
+    fedora_container.exec_run(sed_cmd)
 
     shell = Process.in_container(
         exe_path='/usr/bin/bash',

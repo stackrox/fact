@@ -2,7 +2,8 @@ from event import Event, EventType, Process
 from test_editors.commons import get_vi_test_file
 
 
-def test_new_file(vi_container, server):
+def test_new_file(fedora_container, server):
+    assert fedora_container.id is not None
     fut = '/mounted/test.txt'
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
@@ -10,13 +11,13 @@ def test_new_file(vi_container, server):
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
-    vi_container.exec_run(cmd)
+    fedora_container.exec_run(cmd)
 
     process = Process.in_container(
         exe_path=exe,
         args=cmd,
         name='vi',
-        container_id=vi_container.id[:12],
+        container_id=fedora_container.id[:12],
     )
 
     events = [
@@ -39,7 +40,8 @@ def test_new_file(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_new_file_ovfs(vi_container, server):
+def test_new_file_ovfs(fedora_container, server):
+    assert fedora_container.id is not None
     fut = '/container-dir/test.txt'
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
@@ -47,13 +49,13 @@ def test_new_file_ovfs(vi_container, server):
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
-    vi_container.exec_run(cmd)
+    fedora_container.exec_run(cmd)
 
     process = Process.in_container(
         exe_path=exe,
         args=cmd,
         name='vi',
-        container_id=vi_container.id[:12],
+        container_id=fedora_container.id[:12],
     )
 
     events = [
@@ -76,20 +78,21 @@ def test_new_file_ovfs(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file(vi_container, server):
+def test_open_file(fedora_container, server):
+    assert fedora_container.id is not None
     fut = '/mounted/test.txt'
     fut_backup = f'{fut}~'
     swap_file = '/mounted/.test.txt.swp'
     swx_file = '/mounted/.test.txt.swx'
     vi_test_file = get_vi_test_file('/mounted')
     exe = '/usr/bin/vi'
-    container_id = vi_container.id[:12]
+    container_id = fedora_container.id[:12]
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
     # We ensure the file exists before editing.
-    vi_container.exec_run(f'touch {fut}')
-    vi_container.exec_run(cmd)
+    fedora_container.exec_run(f'touch {fut}')
+    fedora_container.exec_run(cmd)
 
     touch_process = Process.in_container(
         exe_path='/usr/bin/touch',
@@ -142,20 +145,21 @@ def test_open_file(vi_container, server):
     server.wait_events(events, strict=True)
 
 
-def test_open_file_ovfs(vi_container, server):
+def test_open_file_ovfs(fedora_container, server):
+    assert fedora_container.id is not None
     fut = '/container-dir/test.txt'
     fut_backup = f'{fut}~'
     swap_file = '/container-dir/.test.txt.swp'
     swx_file = '/container-dir/.test.txt.swx'
     vi_test_file = get_vi_test_file('/container-dir')
     exe = '/usr/bin/vi'
-    container_id = vi_container.id[:12]
+    container_id = fedora_container.id[:12]
 
     cmd = f"{exe} {fut} '+:normal iThis is a test<CR>' -c x"
 
     # We ensure the file exists before editing.
-    vi_container.exec_run(f'touch {fut}')
-    vi_container.exec_run(cmd)
+    fedora_container.exec_run(f'touch {fut}')
+    fedora_container.exec_run(cmd)
 
     touch_process = Process.in_container(
         exe_path='/usr/bin/touch',
