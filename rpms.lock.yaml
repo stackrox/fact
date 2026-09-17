@@ -711,13 +711,13 @@ arches:
     name: libedit
     evr: 3.1-39.20210216cvs.el9
     sourcerpm: libedit-3.1-39.20210216cvs.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libevent-2.1.12-8.el9_4.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libevent-2.1.13-1.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 265763
-    checksum: sha256:0858687ac9d55a0db78ecc4f669ad21ccba6815744457d135f5a313898dfcab7
+    size: 268476
+    checksum: sha256:27a85302d64c15bfd383929eedcdeabef9bfc8f0a1e085b0501d0de73cb2bf74
     name: libevent
-    evr: 2.1.12-8.el9_4
-    sourcerpm: libevent-2.1.12-8.el9_4.src.rpm
+    evr: 2.1.13-1.el9_8
+    sourcerpm: libevent-2.1.13-1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libfdisk-2.37.4-25.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 156711
@@ -2038,13 +2038,13 @@ arches:
     name: libedit
     evr: 3.1-39.20210216cvs.el9
     sourcerpm: libedit-3.1-39.20210216cvs.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libevent-2.1.12-8.el9_4.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libevent-2.1.13-1.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 272588
-    checksum: sha256:072426910a254b797bbe977b3397ab90513911d020580a0135179f700a48df44
+    size: 276162
+    checksum: sha256:c28b28573118d5cf0f1f68d96bc7c46d56671e45360698c894ca06ddf40163ae
     name: libevent
-    evr: 2.1.12-8.el9_4
-    sourcerpm: libevent-2.1.12-8.el9_4.src.rpm
+    evr: 2.1.13-1.el9_8
+    sourcerpm: libevent-2.1.13-1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libfdisk-2.37.4-25.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 161769
