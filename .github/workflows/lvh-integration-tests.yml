@@ -42,7 +42,7 @@ jobs:
     name: Integration tests (LVH)
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -201,9 +201,7 @@ jobs:
             --image="${FACT_IMAGE}" \
             --output=grpc \
             --tmp-dir=/tmp/fact-tmp \
-            --junit-xml=results.xml \
-            -x \
-            test_file_open.py
+            --junit-xml=results.xml
         OUTER
 
     - name: Upload test results
