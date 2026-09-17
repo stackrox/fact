@@ -71,8 +71,9 @@ jobs:
 
     - name: Install LVH cli
       run: |
+        set -x
         make -C little-vm-helper install
-        sudo ln -s "$(go env GOPATH)/bin" /usr/local/bin/lvh
+        echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
     - name: Install VM dependencies
       run: |
