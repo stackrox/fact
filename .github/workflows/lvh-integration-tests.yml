@@ -190,7 +190,7 @@ jobs:
         # misclassify file creations as generic "Open" events instead of
         # "Creation". Everything else (test code, venv, gRPC stubs, logs,
         # results) stays on /host/fact/tests as usual.
-        FACT_IMAGE="$(FACT_REGISTRY=localhost/fact make -C fact image-name)"
+        FACT_IMAGE="$(FACT_REGISTRY=localhost/fact make -sC fact image-name)"
         # shellcheck disable=SC2087
         ssh -p 2222 -o StrictHostKeyChecking=no root@localhost << OUTER
           set -euo pipefail
