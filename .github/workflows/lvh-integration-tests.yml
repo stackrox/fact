@@ -1,15 +1,16 @@
-name: LVH Integration Tests
+name: QEMU Integration Tests
 
 on:
   pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.head_ref || github.run_id }}-lvh
+  group: ${{ github.head_ref || github.run_id }}-qemu
   cancel-in-progress: true
 
 env:
-  LVH_VERSION: v0.0.31
+  VM_DIR: /tmp/fact-vm
+  SSH_PORT: '2222'
 
 jobs:
   build:
@@ -39,187 +40,120 @@ jobs:
         retention-days: 1
 
   integration-tests:
-    name: Integration tests (LVH)
+    name: Integration tests (QEMU)
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        kernel:
-        - '6.12-main'
+        include:
+        - name: centos-10-stream
+          image_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2
+          checksum_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2.SHA256SUM
     steps:
     - name: Checkout fact
       uses: actions/checkout@v7
       with:
         submodules: true
         fetch-depth: 0
-        path: fact
         persist-credentials: false
 
-    - name: Clone little-vm-helper
-      uses: actions/checkout@v7
-      with:
-        repository: cilium/little-vm-helper
-        ref: ${{ env.LVH_VERSION }}
-        path: little-vm-helper
-        persist-credentials: false
-
-    - uses: actions/setup-go@v7
-      with:
-        go-version-file: little-vm-helper/go.mod
-
-    - name: Install LVH cli
+    - name: Install QEMU
       run: |
-        make -C little-vm-helper install
-        sudo install -m 0755 "$(go env GOPATH)/bin/lvh" /usr/local/bin/lvh
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq --no-install-recommends \
+          qemu-system-x86 qemu-utils genisoimage virtiofsd
+        [ -w /dev/kvm ] || sudo chmod 666 /dev/kvm
 
-    - name: Install VM dependencies
+    - name: Download VM base image
       run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          qemu-system-x86 \
-          qemu-utils \
-          cpu-checker \
-          libvirt-daemon-system \
-          libvirt-clients \
-          virtinst
-
-    - name: Create LVH data directories
-      run: |
-        sudo mkdir -p /tmp/lvh-data/kernels /tmp/lvh-data/images
-        sudo chmod -R 777 /tmp/lvh-data
-
-    - name: Cache LVH kernel
-      uses: actions/cache@v4
-      id: cache-kernel
-      with:
-        path: /tmp/lvh-data/kernels/${{ matrix.kernel }}
-        key: lvh-kernel-${{ matrix.kernel }}
-
-    - name: Fetch kernel
-      if: steps.cache-kernel.outputs.cache-hit != 'true'
-      run: |
-        lvh kernels pull \
-          --dir /tmp/lvh-data/kernels \
-          "${{ matrix.kernel }}"
-
-    - name: Cache LVH VM image
-      uses: actions/cache@v4
-      id: cache-image
-      with:
-        path: /tmp/lvh-data/images/images
-        key: lvh-image-kind-${{ matrix.kernel }}
-
-    - name: Fetch VM image
-      if: steps.cache-image.outputs.cache-hit != 'true'
-      run: |
-        lvh images pull \
-          --dir /tmp/lvh-data/images \
-          "quay.io/lvh-images/kind:${{ matrix.kernel }}"
+        mkdir -p "${VM_DIR}"
+        curl -fSL --progress-bar -o "${VM_DIR}/base.qcow2" "${{ matrix.image_url }}"
+        expected="$(curl -fsSL "${{ matrix.checksum_url }}" | awk -F'= ' '/^SHA256/{print $2}')"
+        actual="$(sha256sum "${VM_DIR}/base.qcow2" | awk '{print $1}')"
+        if [[ "${expected}" != "${actual}" ]]; then
+          echo "::error::Checksum mismatch: expected ${expected}, got ${actual}"
+          rm -f "${VM_DIR}/base.qcow2"
+          exit 1
+        fi
 
     - name: Download fact image artifact
       uses: actions/download-artifact@v4
       with:
         name: fact-image
-        path: /tmp
 
     - name: Start VM
       run: |
-        KERNEL_PATH=$(find /tmp/lvh-data/kernels -name "vmlinuz-*" -type f | head -1)
-        IMAGE_PATH=$(find /tmp/lvh-data/images -name "*.qcow2" -type f | head -1)
-        CPU="$(nproc)"
-        MEM="$(free -m | awk '/^Mem:/{print int($2 * 0.75)}')M"
-
-        echo "Kernel: ${KERNEL_PATH}"
-        echo "Image: ${IMAGE_PATH}"
-        echo "CPU: ${CPU}, MEM: ${MEM}"
-
-        sudo touch /tmp/console.log
-        sudo lvh run \
-          --image "${IMAGE_PATH}" \
-          --kernel "${KERNEL_PATH}" \
-          --host-mount "${{ github.workspace }}" \
-          --daemonize \
-          -p 2222:22 \
-          --cpu "${CPU}" \
-          --mem "${MEM}" \
-          --cpu-kind host \
-          --console-log-file /tmp/console.log \
-          --append "lsm=lockdown,capability,yama,apparmor,bpf"
-
-    - name: Wait for VM SSH
-      run: |
-        for i in $(seq 1 120); do
-          if ssh -p 2222 -o StrictHostKeyChecking=no -o ConnectTimeout=2 root@localhost exit 2>/dev/null; then
-            echo "VM is ready after ${i} seconds"
-            exit 0
-          fi
-          sleep 1
-        done
-        echo "VM failed to become ready"
-        cat /tmp/console.log
-        exit 1
+        hack/qemu-vm.sh start \
+          --image "${VM_DIR}/base.qcow2" \
+          --cloud-init hack/cloud-init/centos.yml \
+          --vm-dir "${VM_DIR}" \
+          --ssh-port "${SSH_PORT}" \
+          --host-mount "${{ github.workspace }}"
 
     - name: Load fact image into VM
       run: |
-        scp -P 2222 -o StrictHostKeyChecking=no \
-          /tmp/fact-image.tar root@localhost:/tmp/fact-image.tar
-        ssh -p 2222 -o StrictHostKeyChecking=no root@localhost \
-          "docker load -i /tmp/fact-image.tar && rm /tmp/fact-image.tar"
+        hack/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" -- \
+          docker load -i /host/fact-image.tar
 
     - name: Setup test environment in VM
       run: |
-        ssh -p 2222 -o StrictHostKeyChecking=no root@localhost << 'EOF'
-          set -euo pipefail
-          apt-get update -qq
-          apt-get install -y -qq python3-venv python3-dev gcc > /dev/null 2>&1
-          cd /host/fact/tests
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install -r requirements.txt
-          make grpc-gen
-        EOF
+        hack/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" -- \
+          bash -c '
+            set -euo pipefail
+            dnf -y -q install python3 python3-pip python3-devel gcc
+            cd /host/tests
+            python3 -m venv .venv
+            source .venv/bin/activate
+            pip install -q -r requirements.txt
+            make grpc-gen
+          '
 
     - name: Run integration tests
       run: |
-        # NOTE: --tmp-dir points monitored/ignored test directories at the
-        # VM's local tmpfs instead of the 9p-mounted workspace (/host).
-        # The 9p (virtio-9p) filesystem used for --host-mount does not set
-        # FMODE_CREATED on newly created files, which makes fact
-        # misclassify file creations as generic "Open" events instead of
-        # "Creation". Everything else (test code, venv, gRPC stubs, logs,
-        # results) stays on /host/fact/tests as usual.
-        FACT_IMAGE="$(FACT_REGISTRY=localhost/fact make -sC fact image-name)"
-        # shellcheck disable=SC2087
-        ssh -p 2222 -o StrictHostKeyChecking=no root@localhost << OUTER
-          set -euo pipefail
-          mkdir -p /tmp/fact-tmp
-          cd /host/fact/tests
-          source .venv/bin/activate
-          pytest \
-            --image="${FACT_IMAGE}" \
-            --output=grpc \
-            --tmp-dir=/tmp/fact-tmp \
-            --junit-xml=results.xml
-        OUTER
+        # NOTE: --no-local-builds is intentionally omitted. The editor,
+        # fedora, and self-deleter test containers are normally pulled
+        # from quay.io/rhacs-eng/qa-multi-arch, which is a private
+        # registry that fork PR runs have no credentials for. Without
+        # --no-local-builds, tests/containers.py::pull_or_build() falls
+        # back to building those images locally from their Containerfiles
+        # on a pull error.
+        FACT_IMAGE="$(FACT_REGISTRY=localhost/fact make --no-print-directory image-name)"
+        hack/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" -- \
+          bash -c "
+            set -euo pipefail
+            mkdir -p /tmp/fact-tmp
+            cd /host/tests
+            source .venv/bin/activate
+            pytest \
+              --image='${FACT_IMAGE}' \
+              --output=grpc \
+              --tmp-dir=/tmp/fact-tmp \
+              --junit-xml=results.xml \
+              --tb=short
+          "
 
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: lvh-test-results-${{ matrix.kernel }}
+        name: qemu-test-results-${{ matrix.name }}
         path: |
-          fact/tests/results.xml
-          fact/tests/logs/
+          tests/results.xml
+          tests/logs/
         if-no-files-found: ignore
 
     - name: Test summary
       uses: test-summary/action@v2
       if: always()
       with:
-        paths: fact/tests/results.xml
+        paths: tests/results.xml
 
     - name: Dump VM console on failure
       if: failure()
-      run: cat /tmp/console.log
+      run: cat "${VM_DIR}/console.log" 2>/dev/null || true
+
+    - name: Stop VM
+      if: always()
+      run: hack/qemu-vm.sh stop --vm-dir "${VM_DIR}"
