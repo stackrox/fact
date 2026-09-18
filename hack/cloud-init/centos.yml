@@ -16,4 +16,5 @@ runcmd:
   - dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
   - dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
   - systemctl enable --now docker
+  - dnf -y install python3 python3-pip python3-devel gcc
   - touch /var/lib/cloud/instance/boot-finished-user

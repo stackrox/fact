@@ -40,7 +40,7 @@ jobs:
         retention-days: 1
 
   integration-tests:
-    name: Integration tests (QEMU)
+    name: Integration tests (${{ matrix.name }})
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -48,9 +48,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
+        - name: centos-9-stream
+          image_url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2
+          checksum_url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2.SHA256SUM
+          cloud_init: hack/cloud-init/centos.yml
         - name: centos-10-stream
           image_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2
           checksum_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2.SHA256SUM
+          cloud_init: hack/cloud-init/centos.yml
+        - name: ubuntu-24.04
+          image_url: https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img
+          checksum_url: https://cloud-images.ubuntu.com/releases/24.04/release/SHA256SUMS
+          cloud_init: hack/cloud-init/ubuntu.yml
+        - name: ubuntu-26.04
+          image_url: https://cloud-images.ubuntu.com/releases/26.04/release/ubuntu-26.04-server-cloudimg-amd64.img
+          checksum_url: https://cloud-images.ubuntu.com/releases/26.04/release/SHA256SUMS
+          cloud_init: hack/cloud-init/ubuntu.yml
+        - name: fedora-44
+          image_url: https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2
+          checksum_url: https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-44-1.7-x86_64-CHECKSUM
+          cloud_init: hack/cloud-init/fedora.yml
     steps:
     - name: Checkout fact
       uses: actions/checkout@v7
@@ -69,14 +86,18 @@ jobs:
     - name: Download VM base image
       run: |
         mkdir -p "${VM_DIR}"
-        curl -fSL --progress-bar -o "${VM_DIR}/base.qcow2" "${{ matrix.image_url }}"
-        expected="$(curl -fsSL "${{ matrix.checksum_url }}" | awk -F'= ' '/^SHA256/{print $2}')"
-        actual="$(sha256sum "${VM_DIR}/base.qcow2" | awk '{print $1}')"
-        if [[ "${expected}" != "${actual}" ]]; then
-          echo "::error::Checksum mismatch: expected ${expected}, got ${actual}"
-          rm -f "${VM_DIR}/base.qcow2"
-          exit 1
-        fi
+        image_name="$(basename "${{ matrix.image_url }}")"
+        curl -fSL --progress-bar -o "${VM_DIR}/${image_name}" "${{ matrix.image_url }}"
+
+        # Checksum files may list multiple images (Ubuntu SHA256SUMS) or
+        # use either GNU ("hash  filename") or BSD ("SHA256 (filename) =
+        # hash") tagged format. sha256sum -c auto-detects both, so we
+        # only need to filter the file down to our image's line.
+        curl -fsSL "${{ matrix.checksum_url }}" | grep -F "${image_name}" > "${VM_DIR}/${image_name}.sum"
+        (cd "${VM_DIR}" && sha256sum -c "${image_name}.sum")
+        rm -f "${VM_DIR}/${image_name}.sum"
+
+        mv "${VM_DIR}/${image_name}" "${VM_DIR}/base.qcow2"
 
     - name: Download fact image artifact
       uses: actions/download-artifact@v4
@@ -87,7 +108,7 @@ jobs:
       run: |
         hack/qemu-vm.sh start \
           --image "${VM_DIR}/base.qcow2" \
-          --cloud-init hack/cloud-init/centos.yml \
+          --cloud-init "${{ matrix.cloud_init }}" \
           --vm-dir "${VM_DIR}" \
           --ssh-port "${SSH_PORT}" \
           --host-mount "${{ github.workspace }}"
@@ -102,7 +123,6 @@ jobs:
         hack/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" -- \
           bash -c '
             set -euo pipefail
-            dnf -y -q install python3 python3-pip python3-devel gcc
             cd /host/tests
             python3 -m venv .venv
             source .venv/bin/activate
