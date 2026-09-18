@@ -1,0 +1,179 @@
+name: QEMU Integration Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}-qemu
+  cancel-in-progress: true
+
+env:
+  VM_DIR: /tmp/fact-vm
+  SSH_PORT: '2222'
+
+jobs:
+  build:
+    name: Build fact image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Build image
+      run: |
+        FACT_REGISTRY=localhost/fact make image
+
+    - name: Export image
+      run: |
+        docker save -o /tmp/fact-image.tar "$(FACT_REGISTRY=localhost/fact make image-name)"
+
+    - name: Upload image artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: fact-image
+        path: /tmp/fact-image.tar
+        retention-days: 1
+
+  integration-tests:
+    name: Integration tests (${{ matrix.name }})
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: centos-9-stream
+          image_url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2
+          checksum_url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2.SHA256SUM
+          cloud_init: hack/cloud-init/centos.yml
+        - name: centos-10-stream
+          image_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2
+          checksum_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2.SHA256SUM
+          cloud_init: hack/cloud-init/centos.yml
+        - name: ubuntu-24.04
+          image_url: https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img
+          checksum_url: https://cloud-images.ubuntu.com/releases/24.04/release/SHA256SUMS
+          cloud_init: hack/cloud-init/ubuntu.yml
+        - name: ubuntu-26.04
+          image_url: https://cloud-images.ubuntu.com/releases/26.04/release/ubuntu-26.04-server-cloudimg-amd64.img
+          checksum_url: https://cloud-images.ubuntu.com/releases/26.04/release/SHA256SUMS
+          cloud_init: hack/cloud-init/ubuntu.yml
+        - name: fedora-44
+          image_url: https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2
+          checksum_url: https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-44-1.7-x86_64-CHECKSUM
+          cloud_init: hack/cloud-init/fedora.yml
+    steps:
+    - name: Checkout fact
+      uses: actions/checkout@v7
+      with:
+        submodules: true
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Install QEMU
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq --no-install-recommends \
+          qemu-system-x86 qemu-utils genisoimage virtiofsd
+        [ -w /dev/kvm ] || sudo chmod 666 /dev/kvm
+
+    - name: Download VM base image
+      run: |
+        mkdir -p "${VM_DIR}"
+        image_name="$(basename "${{ matrix.image_url }}")"
+        curl -fSL --progress-bar -o "${VM_DIR}/${image_name}" "${{ matrix.image_url }}"
+
+        # Checksum files may list multiple images (Ubuntu SHA256SUMS) or
+        # use either GNU ("hash  filename") or BSD ("SHA256 (filename) =
+        # hash") tagged format. sha256sum -c auto-detects both, so we
+        # only need to filter the file down to our image's line.
+        curl -fsSL "${{ matrix.checksum_url }}" | grep -F "${image_name}" > "${VM_DIR}/${image_name}.sum"
+        (cd "${VM_DIR}" && sha256sum -c "${image_name}.sum")
+        rm -f "${VM_DIR}/${image_name}.sum"
+
+        mv "${VM_DIR}/${image_name}" "${VM_DIR}/base.qcow2"
+
+    - name: Download fact image artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: fact-image
+
+    - name: Start VM
+      run: |
+        hack/qemu-vm.sh start \
+          --image "${VM_DIR}/base.qcow2" \
+          --cloud-init "${{ matrix.cloud_init }}" \
+          --vm-dir "${VM_DIR}" \
+          --ssh-port "${SSH_PORT}" \
+          --host-mount "${{ github.workspace }}"
+
+    - name: Load fact image into VM
+      run: |
+        hack/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" -- \
+          docker load -i /host/fact-image.tar
+
+    - name: Setup test environment in VM
+      run: |
+        hack/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" -- \
+          bash -c '
+            set -euo pipefail
+            cd /host/tests
+            python3 -m venv .venv
+            source .venv/bin/activate
+            pip install -q -r requirements.txt
+            make grpc-gen
+          '
+
+    - name: Run integration tests
+      run: |
+        # NOTE: --no-local-builds is intentionally omitted. The editor,
+        # fedora, and self-deleter test containers are normally pulled
+        # from quay.io/rhacs-eng/qa-multi-arch, which is a private
+        # registry that fork PR runs have no credentials for. Without
+        # --no-local-builds, tests/containers.py::pull_or_build() falls
+        # back to building those images locally from their Containerfiles
+        # on a pull error.
+        FACT_IMAGE="$(FACT_REGISTRY=localhost/fact make --no-print-directory image-name)"
+        hack/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" -- \
+          bash -c "
+            set -euo pipefail
+            mkdir -p /tmp/fact-tmp
+            cd /host/tests
+            source .venv/bin/activate
+            pytest \
+              --image='${FACT_IMAGE}' \
+              --output=grpc \
+              --tmp-dir=/tmp/fact-tmp \
+              --junit-xml=results.xml \
+              --tb=short
+          "
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: qemu-test-results-${{ matrix.name }}
+        path: |
+          tests/results.xml
+          tests/logs/
+        if-no-files-found: ignore
+
+    - name: Test summary
+      uses: test-summary/action@v2
+      if: always()
+      with:
+        paths: tests/results.xml
+
+    - name: Dump VM console on failure
+      if: failure()
+      run: cat "${VM_DIR}/console.log" 2>/dev/null || true
+
+    - name: Stop VM
+      if: always()
+      run: hack/qemu-vm.sh stop --vm-dir "${VM_DIR}"

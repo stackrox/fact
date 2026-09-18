@@ -1,0 +1,38 @@
+#cloud-config
+# Cloud-init user-data for Ubuntu (24.04+).
+# Used by hack/qemu-vm.sh — __SSH_PUBKEY__ is replaced at boot time.
+#
+# NOTE: Ubuntu uses AppArmor by default; the LSM list must include it
+# alongside bpf. The grubby tool is not available — use a GRUB
+# drop-in config file instead (see runcmd below for why a plain
+# /etc/default/grub edit does not work).
+
+users:
+  - name: root
+    lock_passwd: false
+    ssh_authorized_keys:
+      - __SSH_PUBKEY__
+
+ssh_pwauth: false
+
+runcmd:
+  # Ubuntu cloud images ship /etc/default/grub.d/50-cloudimg-settings.cfg,
+  # which sets GRUB_CMDLINE_LINUX_DEFAULT and is sourced by grub-mkconfig
+  # AFTER /etc/default/grub, clobbering any edits made there. Write our
+  # own drop-in with a higher-sorting filename so it wins instead.
+  - |
+    cat > /etc/default/grub.d/99-fact-lsm.cfg <<'EOF'
+    GRUB_CMDLINE_LINUX_DEFAULT="console=tty1 console=ttyS0 lsm=lockdown,capability,yama,apparmor,bpf"
+    EOF
+  - update-grub
+  - apt-get update -qq
+  - apt-get install -y -qq ca-certificates curl
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update -qq
+  - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+  - systemctl enable --now docker
+  - apt-get install -y -qq python3-venv python3-dev gcc make
+  - touch /var/lib/cloud/instance/boot-finished-user
