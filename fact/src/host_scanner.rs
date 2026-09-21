@@ -743,10 +743,9 @@ You can increase this limit with:
                             if self.unref_inode(inode) == 0 {
                                 self.inode_map.borrow_mut().remove(inode);
                             }
-                            if let Some(old_inode) = event.get_old_inode() {
-                                if self.unref_inode(old_inode) == 0 {
+                            if let Some(old_inode) = event.get_old_inode()
+                                && self.unref_inode(old_inode) == 0 {
                                     self.inode_map.borrow_mut().remove(old_inode);
-                                }
                             }
                             self.metrics.events_inc(HostScannerLabels::Ignored);
                             continue;
