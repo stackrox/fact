@@ -427,25 +427,23 @@ You can increase this limit with:
         self.metrics.scan_inc(ScanLabels::FileRemoved);
 
         let inode = event.get_inode();
-        if self
-            .unref_inode(&mut self.inode_map.borrow_mut(), inode)
-            .is_some()
-        {
+        if self.unref_inode(inode) == 0 {
+            self.inode_map.borrow_mut().remove(inode);
             self.metrics.scan_inc(ScanLabels::InodeRemoved);
         }
     }
 
     /// Decrement the usage count for an inode and remove it from the
-    /// inode and kernel maps if the count falls to zero.
+    /// kernel map if the count falls to zero.
     ///
-    /// Returns the path that was associated with the inode, or None if
-    /// the inode still has remaining references or was not tracked.
-    fn unref_inode(&self, inode_map: &mut InodeMap, inode: &inode_key_t) -> Option<PathBuf> {
+    /// Returns the remaining usage count. A return value of 0 means
+    /// the inode has no remaining references.
+    fn unref_inode(&self, inode: &inode_key_t) -> u64 {
         let mut usage_count = self.usage_count.borrow_mut();
         if let Some(count) = usage_count.get_mut(inode) {
             *count -= 1;
             if *count > 0 {
-                return None;
+                return *count;
             }
             usage_count.remove(inode);
         }
@@ -454,7 +452,7 @@ You can increase this limit with:
             warn!("Failed to remove inode kernel entry: {e:?}");
         }
 
-        inode_map.remove(inode)
+        0
     }
 
     /// Handle link events by potentially adding the new link to the inode map.
@@ -495,20 +493,25 @@ You can increase this limit with:
                 // the old inode.
                 let inode = event.get_inode();
                 let mut inode_map = self.inode_map.borrow_mut();
-                let path = match self.unref_inode(&mut inode_map, inode) {
-                    Some(path) => path,
-                    None => {
-                        // The destination inode still has remaining hardlinks.
-                        // TODO ROX-36834: we currently have only one host_path value for
-                        // each monitored inode, so we don't have enough information
-                        // to make inode point to another valid path. For now we
-                        // use the host_path that we have.
-                        let Some(path) = inode_map.get(inode) else {
+                let path = if self.unref_inode(inode) == 0 {
+                    match inode_map.remove(inode) {
+                        Some(path) => path,
+                        None => {
                             warn!("Old path was not found for inode tracked event");
                             return;
-                        };
-                        path.clone()
+                        }
                     }
+                } else {
+                    // The destination inode still has remaining hardlinks.
+                    // TODO ROX-36834: we currently have only one host_path value for
+                    // each monitored inode, so we don't have enough information
+                    // to make inode point to another valid path. For now we
+                    // use the host_path that we have.
+                    let Some(path) = inode_map.get(inode) else {
+                        warn!("Old path was not found for inode tracked event");
+                        return;
+                    };
+                    path.clone()
                 };
 
                 let Some(old_inode) = event.get_old_inode() else {
@@ -525,15 +528,9 @@ You can increase this limit with:
                     warn!("Rename event did not have old host path for inode tracked item");
                     return;
                 };
-                let mut inode_map = self.inode_map.borrow_mut();
-                let inodes_to_remove: Vec<_> = inode_map
-                    .iter()
-                    .filter(|(_, path)| path.starts_with(old_host_path))
-                    .map(|(inode, _)| *inode)
-                    .collect();
-                for inode in inodes_to_remove {
-                    self.unref_inode(&mut inode_map, &inode);
-                }
+                self.inode_map.borrow_mut().retain(|inode, path| {
+                    !path.starts_with(old_host_path) || self.unref_inode(inode) != 0
+                });
             }
             monitored_t::NOT_MONITORED => {
                 // The new path is not monitored and the old path is most likely
@@ -545,7 +542,9 @@ You can increase this limit with:
                 let old_inode = event
                     .get_old_inode()
                     .expect("rename event did not have old inode");
-                self.unref_inode(&mut self.inode_map.borrow_mut(), old_inode);
+                if self.unref_inode(old_inode) == 0 {
+                    self.inode_map.borrow_mut().remove(old_inode);
+                }
             }
             monitored_t::MONITORED_BY_PARENT
                 if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
@@ -584,14 +583,9 @@ You can increase this limit with:
                     event.set_host_path(new_host_path);
                 } else {
                     // New path is not tracked, remove old entries
-                    let inodes_to_remove: Vec<_> = inode_map
-                        .iter()
-                        .filter(|(_, path)| path.starts_with(old_host_path))
-                        .map(|(inode, _)| *inode)
-                        .collect();
-                    for inode in inodes_to_remove {
-                        self.unref_inode(&mut inode_map, &inode);
-                    }
+                    inode_map.retain(|inode, path| {
+                        !path.starts_with(old_host_path) || self.unref_inode(inode) != 0
+                    });
                 }
             }
             monitored_t::MONITORED_BY_PARENT => {
@@ -745,9 +739,13 @@ You can increase this limit with:
                         // whether the event is ignored now that we have the
                         // full inode context.
                         if self.event_is_ignored(&event) {
-                            self.unref_inode(&mut self.inode_map.borrow_mut(), event.get_inode());
-                            if let Some(old_inode) = event.get_old_inode() {
-                                self.unref_inode(&mut self.inode_map.borrow_mut(), old_inode);
+                            let inode = event.get_inode();
+                            if self.unref_inode(inode) == 0 {
+                                self.inode_map.borrow_mut().remove(inode);
+                            }
+                            if let Some(old_inode) = event.get_old_inode()
+                                && self.unref_inode(old_inode) == 0 {
+                                    self.inode_map.borrow_mut().remove(old_inode);
                             }
                             self.metrics.events_inc(HostScannerLabels::Ignored);
                             continue;
