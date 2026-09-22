@@ -1138,13 +1138,13 @@ arches:
     name: libxcrypt-devel
     evr: 4.1.1-6.el8
     sourcerpm: libxcrypt-4.1.1-6.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libxml2-2.9.7-21.el8_10.7.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libxml2-2.9.7-21.el8_10.8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 670972
-    checksum: sha256:9528b1d7bfdb98bf9008865245e56af66d54f3ebb6e9467d9d244aaa37e562e0
+    size: 671024
+    checksum: sha256:5108688f74a4153313e1b2aed24782ced6124aa15aa0b63f73bebc837fb6a7d7
     name: libxml2
-    evr: 2.9.7-21.el8_10.7
-    sourcerpm: libxml2-2.9.7-21.el8_10.7.src.rpm
+    evr: 2.9.7-21.el8_10.8
+    sourcerpm: libxml2-2.9.7-21.el8_10.8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/l/libzstd-1.4.4-1.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 246104
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/ebc98e954ee9e5334864739ba4883e962ddbed8febbdc7b4f50a8ac4c9a319e9-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/dc161b4122b0af0d01f464b5259ae5c012825106e7d1a2736411e319c8dab3be-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 840298
-    checksum: sha256:ebc98e954ee9e5334864739ba4883e962ddbed8febbdc7b4f50a8ac4c9a319e9
+    size: 840426
+    checksum: sha256:dc161b4122b0af0d01f464b5259ae5c012825106e7d1a2736411e319c8dab3be
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -2770,13 +2770,13 @@ arches:
     name: libxcrypt-devel
     evr: 4.1.1-6.el8
     sourcerpm: libxcrypt-4.1.1-6.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libxml2-2.9.7-21.el8_10.7.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libxml2-2.9.7-21.el8_10.8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 714240
-    checksum: sha256:773283874a72120d143153682395c2f0a824870f9bac8b3a62f3aaa9d3e415c1
+    size: 714536
+    checksum: sha256:b9352fcc69fd148357c2575d5904bf8f3cd5b76b6c9cea1caa789f2f5f1856b4
     name: libxml2
-    evr: 2.9.7-21.el8_10.7
-    sourcerpm: libxml2-2.9.7-21.el8_10.7.src.rpm
+    evr: 2.9.7-21.el8_10.8
+    sourcerpm: libxml2-2.9.7-21.el8_10.8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/l/libzstd-1.4.4-1.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 272364
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/7d2bcbe3d5f7ea68ba3e03cb041501a5a6cc7ec91800ad9fff97869695964a2f-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/facf478fbdbfb6f43c442bdea297773b1d2dc9ec964b50e2f4658600e01908d6-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 861879
-    checksum: sha256:7d2bcbe3d5f7ea68ba3e03cb041501a5a6cc7ec91800ad9fff97869695964a2f
+    size: 862573
+    checksum: sha256:facf478fbdbfb6f43c442bdea297773b1d2dc9ec964b50e2f4658600e01908d6
