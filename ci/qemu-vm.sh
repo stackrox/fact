@@ -213,6 +213,15 @@ build_qemu_args() {
 }
 
 vm_ssh() {
+    if [[ $# -eq 0 ]]; then
+        if [[ "${SSH_USER}" == "root" ]]; then
+            ssh -p "${SSH_PORT}" -i "${VM_DIR}/id_ed25519" "${SSH_OPTS[@]}" "${SSH_USER}@localhost"
+        else
+            ssh -t -p "${SSH_PORT}" -i "${VM_DIR}/id_ed25519" "${SSH_OPTS[@]}" "${SSH_USER}@localhost" sudo -n -i
+        fi
+        return
+    fi
+
     # ssh naively space-joins multiple trailing arguments before sending
     # them to the remote shell, which loses quoting boundaries (e.g. a
     # multi-line "bash -c '...'" script gets corrupted). Shell-quote and
