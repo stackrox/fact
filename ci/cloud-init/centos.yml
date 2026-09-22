@@ -1,0 +1,15 @@
+#cloud-config
+# Cloud-init user-data for CentOS Stream 9/10.
+# Used by ci/qemu-vm.sh — __SSH_PUBKEY__ is replaced at boot time.
+
+users:
+  - name: root
+    lock_passwd: false
+    ssh_authorized_keys:
+      - __SSH_PUBKEY__
+
+ssh_pwauth: false
+
+runcmd:
+  - dnf -y install podman
+  - systemctl enable --now podman.socket
