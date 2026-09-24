@@ -212,6 +212,12 @@ impl Client {
                 return Ok(false);
             }
 
+            if let Ok(true) = self.config.has_changed() {
+                // Configuration changed while we were attempting to
+                // reconnect, bail and let the top level deal with this.
+                return Ok(true);
+            }
+
             // Re-read certs on each connection attempt so rotated certificates
             // on disk are picked up on the next reconnect.
             let connector = self.get_connector().await?;
@@ -268,8 +274,8 @@ impl Client {
         }
     }
 
-    pub(super) fn is_enabled(&self) -> bool {
-        self.config.borrow().url().is_some()
+    pub(super) fn is_enabled(&mut self) -> bool {
+        self.config.borrow_and_update().url().is_some()
     }
 
     async fn idle(&mut self) -> anyhow::Result<bool> {
