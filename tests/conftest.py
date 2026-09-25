@@ -20,13 +20,27 @@ from utils import get_metric_value
 pytest_plugins = ['test_editors.commons']
 
 
+def _tmp_dir_base(request: pytest.FixtureRequest) -> str:
+    """
+    Directory under which monitored/ignored test directories are
+    created.
+
+    Defaults to the current working directory, but can be overridden
+    with --tmp-dir, e.g. when the working directory lives on a
+    filesystem (such as 9p) that does not report file creation
+    metadata (FMODE_CREATED) correctly.
+    """
+    tmp_dir = request.config.getoption('--tmp-dir')
+    assert tmp_dir is None or isinstance(tmp_dir, str)
+    return tmp_dir or os.getcwd()
+
+
 @pytest.fixture
-def monitored_dir():
+def monitored_dir(request: pytest.FixtureRequest):
     """
     Create a temporary directory for tests and clean it up afterwards.
     """
-    cwd = os.getcwd()
-    tmp = mkdtemp(prefix='fact-test-', dir=cwd)
+    tmp = mkdtemp(prefix='fact-test-', dir=_tmp_dir_base(request))
     yield tmp
     rmtree(tmp)
 
@@ -46,13 +60,12 @@ def test_file(monitored_dir: str):
 
 
 @pytest.fixture
-def ignored_dir():
+def ignored_dir(request: pytest.FixtureRequest):
     """
     Create a temporary directory for tests that will not be monitored
     by fact. After tests are done, the directory is cleaned up.
     """
-    cwd = os.getcwd()
-    tmp = mkdtemp(prefix='fact-test-', dir=cwd)
+    tmp = mkdtemp(prefix='fact-test-', dir=_tmp_dir_base(request))
     yield tmp
     rmtree(tmp)
 
@@ -302,6 +315,7 @@ def fact(
         container.remove()
         pytest.fail('fact did not finish its initial scan')
 
+    sleep(1)
     yield container
 
     # Capture prometheus metrics before stopping the container
@@ -342,4 +356,15 @@ def pytest_addoption(parser: pytest.Parser):
         '--no-local-builds',
         action='store_true',
         help='Do not build test containers locally',
+    )
+    parser.addoption(
+        '--tmp-dir',
+        action='store',
+        default=None,
+        help=(
+            'Directory in which to create monitored/ignored test '
+            'directories (default: current working directory). Useful '
+            'when the working directory is on a filesystem that does '
+            'not report file creation metadata correctly, e.g. 9p.'
+        ),
     )
