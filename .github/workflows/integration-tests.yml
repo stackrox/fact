@@ -143,6 +143,21 @@ jobs:
           rm -f "$file"
         done
 
+    - name: Report test failures to Jira
+      # Run even when tests failed (that is the point), but not when the job
+      # was cancelled.
+      if: (!cancelled())
+      id: junit2jira
+      uses: stackrox/actions/test/junit2jira@main
+      with:
+        # Only create real Jira issues on push; dry-run on pull requests.
+        dry-run: ${{ github.event_name != 'push' }}
+        jira-user: ${{ secrets.JIRA_USER }}
+        jira-token: ${{ secrets.JIRA_TOKEN }}
+        directory: /tmp/fact/tests
+        # gcloud is already authenticated earlier in this job, so the action
+        # reuses that session for the metrics upload (no gcp-account needed).
+
     - name: Test summary
       uses: test-summary/action@v2
       if: always()
