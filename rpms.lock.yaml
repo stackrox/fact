@@ -60,13 +60,13 @@ arches:
     name: elfutils-libelf-devel
     evr: 0.194-1.el9
     sourcerpm: elfutils-0.194-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/g/gawk-all-langpacks-5.1.0-6.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/g/gawk-all-langpacks-5.1.0-6.el9_8.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 216292
-    checksum: sha256:3fd73bd271e9c04dc297eb08c3829d276faee372f77666aad29f4b676ea220f4
+    size: 218086
+    checksum: sha256:d38712f7aa4e5b3821ba899d6b4f62821407f6f239e17bf240ca488fb1d35376
     name: gawk-all-langpacks
-    evr: 5.1.0-6.el9
-    sourcerpm: gawk-5.1.0-6.el9.src.rpm
+    evr: 5.1.0-6.el9_8.1
+    sourcerpm: gawk-5.1.0-6.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/g/gcc-11.5.0-14.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 31291354
@@ -501,13 +501,13 @@ arches:
     name: findutils
     evr: 1:4.8.0-7.el9
     sourcerpm: findutils-4.8.0-7.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/gawk-5.1.0-6.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/gawk-5.1.0-6.el9_8.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 1024204
-    checksum: sha256:a4b7202ac90653a7d3e072c2444bde6a9270d6a818eb6f2ffcfcaa50774f1fad
+    size: 1026105
+    checksum: sha256:54365d2a6150079c2dc5003eeb94ada32fc15801b5db05422361f02ed58e6772
     name: gawk
-    evr: 5.1.0-6.el9
-    sourcerpm: gawk-5.1.0-6.el9.src.rpm
+    evr: 5.1.0-6.el9_8.1
+    sourcerpm: gawk-5.1.0-6.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/g/gdbm-libs-1.23-1.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 60311
@@ -1387,13 +1387,13 @@ arches:
     name: elfutils-libelf-devel
     evr: 0.194-1.el9
     sourcerpm: elfutils-0.194-1.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/g/gawk-all-langpacks-5.1.0-6.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/g/gawk-all-langpacks-5.1.0-6.el9_8.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 216340
-    checksum: sha256:c1fcc71c1cc1160d58ace4b60cc6733b68d6f6d406e5ec5ce24327787f452cd1
+    size: 218134
+    checksum: sha256:bedaac1d71ca9f41e3398dc413dea2008bfd20799de1b4db14e37ebb7a7ce74d
     name: gawk-all-langpacks
-    evr: 5.1.0-6.el9
-    sourcerpm: gawk-5.1.0-6.el9.src.rpm
+    evr: 5.1.0-6.el9_8.1
+    sourcerpm: gawk-5.1.0-6.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/g/gcc-11.5.0-14.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 33982584
@@ -1828,13 +1828,13 @@ arches:
     name: findutils
     evr: 1:4.8.0-7.el9
     sourcerpm: findutils-4.8.0-7.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/gawk-5.1.0-6.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/gawk-5.1.0-6.el9_8.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 1045534
-    checksum: sha256:99fda6725a2c668bae29fbab74d1b347e074f4e8c8ed18d656cb928fb6fc92b7
+    size: 1046649
+    checksum: sha256:fcc5e724c32597cf781626728f0faff2f0e5ed6455ab95af4883eefca30a074e
     name: gawk
-    evr: 5.1.0-6.el9
-    sourcerpm: gawk-5.1.0-6.el9.src.rpm
+    evr: 5.1.0-6.el9_8.1
+    sourcerpm: gawk-5.1.0-6.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/g/gdbm-libs-1.23-1.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 60152
