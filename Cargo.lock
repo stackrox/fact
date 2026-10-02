@@ -522,6 +522,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-stream",
+ "tokio-util",
  "tonic",
  "uuid",
  "yaml-rust2",
@@ -2089,6 +2090,7 @@ dependencies = [
  "futures-sink",
  "libc",
  "pin-project-lite",
+ "slab",
  "tokio",
 ]
 
