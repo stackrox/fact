@@ -8,6 +8,10 @@ on:
     tags:
     - '*'
   pull_request:
+    types:
+    - labeled
+    branches:
+    - main
   schedule:
     - cron: '0 6 * * *'
 
@@ -172,7 +176,7 @@ jobs:
     secrets: inherit
 
   performance-tests:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event.label.name == 'performance-tests'
     needs:
     - container-build
     uses: ./.github/workflows/performance-tests.yml

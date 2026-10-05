@@ -188,12 +188,12 @@ def process_results(args):
             value = output.get('metric-value') or output.get('counter-value')
             if value is None:
                 logger.error(f'No output value found {output}')
-                return {}
+                return '{}'
 
             unit = output.get('metric-unit') or output.get('unit')
             if unit is None:
                 logger.error(f'No unit value found {output}')
-                return {}
+                return '{}'
 
             return json.dumps([{
                 'metric': args.metric.value,
