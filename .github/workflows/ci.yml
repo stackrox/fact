@@ -174,7 +174,7 @@ jobs:
     secrets: inherit
 
   performance-tests:
-    if: github.event_name == 'schedule' || github.event.label.name == 'performance-tests'
+    if: github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'performance-tests')
     needs:
     - container-build
     uses: ./.github/workflows/performance-tests.yml
