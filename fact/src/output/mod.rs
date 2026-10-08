@@ -84,6 +84,9 @@ pub fn start(
                     };
 
                     if oci_debug {
+                        if let Some(container_id) = event.container_id() {
+                            crate::features::preload(container_id).await;
+                        }
                         event.log_oci_debug();
                     }
 

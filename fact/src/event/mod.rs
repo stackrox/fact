@@ -84,6 +84,10 @@ pub struct Event {
 }
 
 impl Event {
+    pub(crate) fn container_id(&self) -> Option<&str> {
+        self.process.runtime_container_id()
+    }
+
     #[cfg(all(test, feature = "bpf-test"))]
     pub(crate) fn new(
         data: EventTestData,
@@ -378,7 +382,7 @@ impl Event {
         let Some(short_id) = self.process.container_id() else {
             return;
         };
-        let Some(metadata) = crate::oci::resolve(short_id) else {
+        let Some(metadata) = crate::features::resolve(short_id) else {
             log::debug!(
                 "OCI config event: fact_version={} fact_build_sha={} status=unavailable reason=config_unavailable container_id={short_id} event_path={}",
                 crate::version::FACT_VERSION,
@@ -390,9 +394,14 @@ impl Event {
         let oci = metadata.oci_debug();
         let info = metadata.match_mount(self.get_filename());
         log::debug!(
-            "OCI config event: fact_version={} fact_build_sha={} status=parsed container_id={} oci_version={} root_path={} root_read_only={} configured_executable={} configured_args={:?} configured_cwd={} effective_capabilities={:?} bounding_capabilities={:?} namespaces={:?} event_path={} mount_status={} mount_destination={} mount_source={} mount_type={} mount_options={:?} resolved_source_path={}",
+            "container metadata event: fact_version={} fact_build_sha={} source={} container_id={} oci_version={} root_path={} root_read_only={} configured_executable={} configured_args={:?} configured_cwd={} effective_capabilities={:?} bounding_capabilities={:?} namespaces={:?} event_path={} mount_status={} mount_destination={} mount_source={} mount_type={} mount_options={:?} resolved_source_path={}",
             crate::version::FACT_VERSION,
             crate::version::FACT_BUILD_SHA,
+            if oci.spec_available {
+                "oci_json"
+            } else {
+                "cri_status"
+            },
             oci.container_id,
             oci.version,
             oci.root_path,
@@ -530,7 +539,7 @@ fn add_oci_debug_attributes(map: &mut HashMap<opentelemetry::Key, AnyValue>, eve
     let Some(container_id) = event.process.container_id() else {
         return;
     };
-    let Some(metadata) = crate::oci::resolve(container_id) else {
+    let Some(metadata) = crate::features::resolve(container_id) else {
         map.insert("container.oci.config.status".into(), "unavailable".into());
         map.insert(
             "container.oci.config.reason".into(),
@@ -543,11 +552,30 @@ fn add_oci_debug_attributes(map: &mut HashMap<opentelemetry::Key, AnyValue>, eve
         return;
     };
     let oci = metadata.oci_debug();
-    map.insert("container.oci.config.status".into(), "parsed".into());
+    map.insert(
+        "container.oci.config.status".into(),
+        if oci.spec_available {
+            "parsed"
+        } else {
+            "cri_status_only"
+        }
+        .into(),
+    );
     map.insert(
         "container.oci.container_id".into(),
         oci.container_id.clone().into(),
     );
+    if !oci.spec_available {
+        add_oci_path_attributes(
+            map,
+            "container.oci.mount",
+            metadata.match_mount(event.get_filename()),
+        );
+        if let Some(path) = event.get_old_filename() {
+            add_oci_path_attributes(map, "container.oci.mount.old", metadata.match_mount(path));
+        }
+        return;
+    }
     map.insert("container.oci.version".into(), oci.version.clone().into());
     map.insert(
         "container.oci.root.path".into(),
@@ -606,7 +634,7 @@ fn add_oci_debug_attributes(map: &mut HashMap<opentelemetry::Key, AnyValue>, eve
 fn add_oci_path_attributes(
     map: &mut HashMap<opentelemetry::Key, AnyValue>,
     prefix: &str,
-    info: crate::oci::OciPathDebugInfo,
+    info: crate::features::OciPathDebugInfo,
 ) {
     map.insert(format!("{prefix}.status").into(), info.status.into());
     if let Some(destination) = info.destination {

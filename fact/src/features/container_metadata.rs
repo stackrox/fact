@@ -3,11 +3,23 @@ use std::{
     fs,
     path::{Component, Path, PathBuf},
     sync::{LazyLock, RwLock},
+    time::Duration,
 };
 
 use anyhow::{Context, bail};
 use log::debug;
+use prost::Message;
 use serde::{Deserialize, Serialize};
+use tokio::net::UnixStream;
+use tokio::time::timeout;
+use tonic::{
+    Request,
+    client::Grpc,
+    codegen::http::{Uri, uri::PathAndQuery},
+    transport::{Channel, Endpoint},
+};
+use tonic_prost::ProstCodec;
+use tower::service_fn;
 
 use crate::host_info;
 
@@ -18,6 +30,28 @@ const RUNTIME_ROOTS: [&str; 2] = [
 
 static CACHE: LazyLock<RwLock<HashMap<String, ContainerMetadata>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
+static SOURCE: LazyLock<RuntimeMetadataSource> = LazyLock::new(RuntimeMetadataSource::from_env);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuntimeMetadataSource {
+    Auto,
+    Json,
+    Cri,
+}
+
+impl RuntimeMetadataSource {
+    fn from_env() -> Self {
+        match std::env::var("FACT_RUNTIME_METADATA_SOURCE")
+            .unwrap_or_else(|_| "auto".to_owned())
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "json" => Self::Json,
+            "cri" => Self::Cri,
+            _ => Self::Auto,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContainerMetadata {
@@ -46,6 +80,7 @@ pub struct ContainerMetadata {
 /// It is intentionally excluded from the Sensor protobuf and normal JSON.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct OciDebugMetadata {
+    pub spec_available: bool,
     pub container_id: String,
     pub version: String,
     pub root_path: String,
@@ -139,15 +174,22 @@ fn is_normal_absolute_path(path: &Path) -> bool {
 }
 
 pub fn resolve(short_id: &str) -> Option<ContainerMetadata> {
-    if let Some(metadata) = CACHE.read().ok()?.get(short_id) {
-        return Some(metadata.clone());
+    if let Some(metadata) = cached_metadata(short_id) {
+        return Some(metadata);
+    }
+
+    if *SOURCE == RuntimeMetadataSource::Cri {
+        return None;
     }
 
     match resolve_from_root(host_info::get_host_mount(), short_id) {
         Ok(Some(metadata)) => {
-            if let Ok(mut cache) = CACHE.write() {
-                cache.insert(short_id.to_owned(), metadata.clone());
-            }
+            let id = if metadata.oci.container_id.is_empty() {
+                short_id
+            } else {
+                &metadata.oci.container_id
+            };
+            cache_metadata(id, metadata.clone());
             Some(metadata)
         }
         Ok(None) => None,
@@ -156,6 +198,246 @@ pub fn resolve(short_id: &str) -> Option<ContainerMetadata> {
             None
         }
     }
+}
+
+fn cached_metadata(container_id: &str) -> Option<ContainerMetadata> {
+    let cache = CACHE.read().ok()?;
+    if let Some(metadata) = cache.get(container_id) {
+        return Some(metadata.clone());
+    }
+    let mut matches = cache
+        .iter()
+        .filter(|(id, _)| id.starts_with(container_id))
+        .map(|(_, metadata)| metadata.clone());
+    let metadata = matches.next()?;
+    matches.next().is_none().then_some(metadata)
+}
+
+fn cache_metadata(container_id: &str, metadata: ContainerMetadata) {
+    if let Ok(mut cache) = CACHE.write() {
+        cache.insert(container_id.to_owned(), metadata.clone());
+    }
+}
+
+/// Resolve host runtime state before the event is forwarded. The JSON provider
+/// gives CRI-O's complete OCI spec; when it is absent, CRI supplies portable
+/// container identity, labels, annotations, image, and mount data.
+pub(crate) async fn preload(container_id: &str) {
+    if CACHE
+        .read()
+        .is_ok_and(|cache| cache.contains_key(container_id))
+    {
+        return;
+    }
+
+    let host_root = host_info::get_host_mount();
+    if *SOURCE != RuntimeMetadataSource::Cri {
+        if let Ok(Some(metadata)) = resolve_from_root(host_root, container_id) {
+            let id = if metadata.oci.container_id.is_empty() {
+                container_id
+            } else {
+                &metadata.oci.container_id
+            };
+            cache_metadata(id, metadata);
+            return;
+        }
+        if *SOURCE == RuntimeMetadataSource::Json {
+            return;
+        }
+    }
+
+    for socket in cri_sockets(host_root) {
+        match container_status(&socket, container_id).await {
+            Ok(Some(metadata)) => {
+                cache_metadata(container_id, metadata);
+                return;
+            }
+            Ok(None) => {}
+            Err(error) => debug!(
+                "Failed to query CRI socket {} for container {container_id}: {error:#}",
+                socket.display()
+            ),
+        }
+    }
+}
+
+fn cri_sockets(host_root: &Path) -> Vec<PathBuf> {
+    if let Some(socket) = std::env::var_os("FACT_CRI_SOCKET") {
+        let socket = PathBuf::from(socket);
+        return vec![if socket.is_absolute()
+            && host_root != Path::new("/")
+            && !socket.starts_with(host_root)
+        {
+            host_root.join(socket.strip_prefix("/").unwrap_or(&socket))
+        } else {
+            socket
+        }];
+    }
+
+    [
+        "run/crio/crio.sock",
+        "var/run/crio/crio.sock",
+        "run/containerd/containerd.sock",
+    ]
+    .into_iter()
+    .map(|path| host_root.join(path))
+    .filter(|path| path.exists())
+    .collect()
+}
+
+async fn container_status(
+    socket: &Path,
+    container_id: &str,
+) -> anyhow::Result<Option<ContainerMetadata>> {
+    let response = timeout(Duration::from_secs(1), async {
+        let endpoint = Endpoint::try_from("http://[::]:50051")?;
+        let socket = socket.to_path_buf();
+        let channel: Channel = endpoint
+            .connect_with_connector(service_fn(move |_: Uri| {
+                UnixStream::connect(socket.clone())
+            }))
+            .await?;
+        let mut client = Grpc::new(channel);
+        client
+            .ready()
+            .await
+            .map_err(|error| anyhow::anyhow!("CRI client not ready: {error}"))?;
+        let response: CriContainerStatusResponse = client
+            .unary(
+                Request::new(CriContainerStatusRequest {
+                    container_id: container_id.to_owned(),
+                    verbose: false,
+                }),
+                PathAndQuery::from_static("/runtime.v1.RuntimeService/ContainerStatus"),
+                ProstCodec::default(),
+            )
+            .await?
+            .into_inner();
+        anyhow::Ok(response)
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("CRI ContainerStatus timed out"))??;
+
+    Ok(response.status.map(ContainerMetadata::from_cri))
+}
+
+impl ContainerMetadata {
+    fn from_cri(status: CriContainerStatus) -> Self {
+        let labels = status.labels;
+        let annotations = status.annotations;
+        let mut mounts = Vec::with_capacity(status.mounts.len());
+        for mount in status.mounts {
+            let mut options = mount.mount_options;
+            options.push(if mount.readonly { "ro" } else { "rw" }.to_owned());
+            mounts.push(OciMount {
+                destination: mount.container_path,
+                mount_type: String::new(),
+                source: mount.host_path,
+                options,
+            });
+        }
+
+        let image_name = status.image.map(|image| image.image).unwrap_or_default();
+        let created = (status.created_at != 0)
+            .then(|| status.created_at.to_string())
+            .unwrap_or_default();
+        let oc_debug = labels
+            .keys()
+            .chain(annotations.keys())
+            .any(|key| key.starts_with("debug.openshift.io/"));
+        let oci = OciDebugMetadata {
+            container_id: status.id,
+            mounts,
+            ..Default::default()
+        };
+        Self {
+            namespace: annotation(&labels, "io.kubernetes.pod.namespace"),
+            pod_uid: annotation(&labels, "io.kubernetes.pod.uid"),
+            pod_name: annotation(&labels, "io.kubernetes.pod.name"),
+            container_name: status
+                .metadata
+                .map(|metadata| metadata.name)
+                .unwrap_or_default(),
+            image_ref: if status.image_ref.is_empty() {
+                status.image_id
+            } else {
+                status.image_ref
+            },
+            container_type: annotation(&annotations, "io.kubernetes.cri-o.ContainerType"),
+            openshift_scc: annotation(&annotations, "openshift.io/scc"),
+            created,
+            oc_debug,
+            privileged: annotation(&annotations, "io.kubernetes.cri-o.Privileged") == "true",
+            host_pid: annotation(&annotations, "io.kubernetes.pod.host-pid") == "true",
+            host_network: annotation(&annotations, "io.kubernetes.pod.host-network") == "true",
+            host_root_mount: false,
+            labels,
+            annotations,
+            sandbox: None,
+            image_name,
+            oci,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Message)]
+struct CriContainerStatusRequest {
+    #[prost(string, tag = "1")]
+    container_id: String,
+    #[prost(bool, tag = "2")]
+    verbose: bool,
+}
+
+#[derive(Clone, PartialEq, Message)]
+struct CriContainerStatusResponse {
+    #[prost(message, optional, tag = "1")]
+    status: Option<CriContainerStatus>,
+}
+
+#[derive(Clone, PartialEq, Message)]
+struct CriContainerStatus {
+    #[prost(string, tag = "1")]
+    id: String,
+    #[prost(message, optional, tag = "2")]
+    metadata: Option<CriContainerMetadata>,
+    #[prost(int64, tag = "4")]
+    created_at: i64,
+    #[prost(message, optional, tag = "8")]
+    image: Option<CriImageSpec>,
+    #[prost(string, tag = "9")]
+    image_ref: String,
+    #[prost(map = "string, string", tag = "12")]
+    labels: HashMap<String, String>,
+    #[prost(map = "string, string", tag = "13")]
+    annotations: HashMap<String, String>,
+    #[prost(message, repeated, tag = "14")]
+    mounts: Vec<CriMount>,
+    #[prost(string, tag = "17")]
+    image_id: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+struct CriContainerMetadata {
+    #[prost(string, tag = "1")]
+    name: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+struct CriImageSpec {
+    #[prost(string, tag = "1")]
+    image: String,
+}
+
+#[derive(Clone, PartialEq, Message)]
+struct CriMount {
+    #[prost(string, tag = "1")]
+    container_path: String,
+    #[prost(string, tag = "2")]
+    host_path: String,
+    #[prost(bool, tag = "3")]
+    readonly: bool,
+    #[prost(string, repeated, tag = "11")]
+    mount_options: Vec<String>,
 }
 
 fn resolve_from_root(
@@ -370,6 +652,7 @@ impl From<OciSpec> for ContainerMetadata {
                 && mount.options.iter().any(|option| option == "rw")
         });
         let oci = OciDebugMetadata {
+            spec_available: true,
             version: spec.oci_version,
             root_path: spec.root.path,
             root_read_only: spec.root.read_only,

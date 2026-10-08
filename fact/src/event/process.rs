@@ -63,6 +63,8 @@ pub struct Process {
     args: Vec<String>,
     exe_path: PathBuf,
     container_id: Option<String>,
+    #[serde(skip)]
+    runtime_container_id: Option<String>,
     uid: u32,
     #[serde(skip_deserializing)]
     username: &'static str,
@@ -83,7 +85,10 @@ impl Process {
         let exe_path = std::env::current_exe().expect("Failed to get current exe");
         let args = std::env::args().collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
-        let container_id = Process::extract_container_id(&cgroup);
+        let runtime_container_id = Process::extract_container_id(&cgroup);
+        let container_id = runtime_container_id
+            .as_deref()
+            .map(|id| id[..12].to_owned());
         let uid = unsafe { libc::getuid() };
         let gid = unsafe { libc::getgid() };
         let pid = std::process::id();
@@ -99,6 +104,7 @@ impl Process {
             args,
             exe_path,
             container_id,
+            runtime_container_id,
             uid,
             username: "",
             gid,
@@ -126,8 +132,8 @@ impl Process {
             return None;
         }
 
-        if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
-            Some(cgroup.split_at(12).0.to_owned())
+        if cgroup.len() == 64 && cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
+            Some(cgroup.to_owned())
         } else {
             None
         }
@@ -135,6 +141,12 @@ impl Process {
 
     pub(crate) fn container_id(&self) -> Option<&str> {
         self.container_id.as_deref()
+    }
+
+    pub(crate) fn runtime_container_id(&self) -> Option<&str> {
+        self.runtime_container_id
+            .as_deref()
+            .or_else(|| self.container_id())
     }
 }
 
@@ -166,7 +178,7 @@ impl Process {
             return;
         };
         map.insert("container.id".into(), container_id.clone().into());
-        let Some(container) = crate::oci::resolve(container_id) else {
+        let Some(container) = crate::features::resolve(container_id) else {
             return;
         };
 
@@ -180,19 +192,21 @@ impl Process {
         insert_string(map, "container.created_at", &container.created);
         insert_string(map, "openshift.scc", &container.openshift_scc);
         map.insert("openshift.debug".into(), container.oc_debug.into());
-        map.insert(
-            "container.security_context.privileged".into(),
-            container.privileged.into(),
-        );
-        map.insert("container.host_pid".into(), container.host_pid.into());
-        map.insert(
-            "container.host_network".into(),
-            container.host_network.into(),
-        );
-        map.insert(
-            "container.host_root_mount".into(),
-            container.host_root_mount.into(),
-        );
+        if container.oci_debug().spec_available {
+            map.insert(
+                "container.security_context.privileged".into(),
+                container.privileged.into(),
+            );
+            map.insert("container.host_pid".into(), container.host_pid.into());
+            map.insert(
+                "container.host_network".into(),
+                container.host_network.into(),
+            );
+            map.insert(
+                "container.host_root_mount".into(),
+                container.host_root_mount.into(),
+            );
+        }
         insert_json_map(map, "k8s.container.labels", &container.labels);
         insert_json_map(map, "k8s.container.annotations", &container.annotations);
 
@@ -240,6 +254,7 @@ impl PartialEq for Process {
             && self.exe_path == other.exe_path
             && self.args == other.args
             && self.container_id == other.container_id
+            && self.runtime_container_id == other.runtime_container_id
             && self.in_root_mount_ns == other.in_root_mount_ns
     }
 }
@@ -251,7 +266,10 @@ impl TryFrom<process_t> for Process {
         let comm = slice_to_string(value.comm.as_slice())?;
         let exe_path = sanitize_d_path(value.exe_path.as_slice());
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
-        let container_id = Process::extract_container_id(memory_cgroup);
+        let runtime_container_id = Process::extract_container_id(memory_cgroup);
+        let container_id = runtime_container_id
+            .as_deref()
+            .map(|id| id[..12].to_owned());
         let in_root_mount_ns = value.in_root_mount_ns != 0;
 
         let lineage = value.lineage[..value.lineage_len as usize]
@@ -280,6 +298,7 @@ impl TryFrom<process_t> for Process {
             args: converted_args,
             exe_path,
             container_id,
+            runtime_container_id,
             uid: value.uid,
             username,
             gid: value.gid,
@@ -298,6 +317,7 @@ impl From<Process> for fact_api::ProcessSignal {
             args,
             exe_path,
             container_id,
+            runtime_container_id: _,
             uid,
             username,
             gid,
@@ -389,27 +409,39 @@ mod tests {
             ("init.scope", None),
             (
                 "/docker/951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4",
-                Some("951e643e3c24".to_string()),
+                Some(
+                    "951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4".to_string(),
+                ),
             ),
             (
                 "/kubepods/kubepods/besteffort/pod690705f9-df6e-11e9-8dc5-025000000001/c3bfd81b7da0be97190a74a7d459f4dfa18f57c88765cde2613af112020a1c4b",
-                Some("c3bfd81b7da0".to_string()),
+                Some(
+                    "c3bfd81b7da0be97190a74a7d459f4dfa18f57c88765cde2613af112020a1c4b".to_string(),
+                ),
             ),
             (
                 "/kubepods/burstable/pod7cd3dba6-e475-11e9-8f99-42010a8a00d2/2bc55a8cae1704a733ba5d785d146bbed9610483380507cbf00c96b32bb637e1",
-                Some("2bc55a8cae17".to_string()),
+                Some(
+                    "2bc55a8cae1704a733ba5d785d146bbed9610483380507cbf00c96b32bb637e1".to_string(),
+                ),
             ),
             (
                 "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podce705797_e47e_11e9_bd71_42010a000002.slice/docker-6525e65814a99d431b6978e8f8c895013176c6c58173b56639d4b020c14e6022.scope",
-                Some("6525e65814a9".to_string()),
+                Some(
+                    "6525e65814a99d431b6978e8f8c895013176c6c58173b56639d4b020c14e6022".to_string(),
+                ),
             ),
             (
                 "/machine.slice/libpod-b6e375cfe46efa5cd90d095603dec2de888c28b203285819233040b5cf1212ac.scope/container",
-                Some("b6e375cfe46e".to_string()),
+                Some(
+                    "b6e375cfe46efa5cd90d095603dec2de888c28b203285819233040b5cf1212ac".to_string(),
+                ),
             ),
             (
                 "/machine.slice/libpod-cbdfa0f1f08763b1963c30d98e11e1f052cb67f1e9b7c0ab8a6ca6c70cbcad69.scope/container/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod6eab3b7b_f0a6_4bb8_bff2_d5bc9017c04b.slice/cri-containerd-5ebf11e02dbde102cda4b76bc0e3849a65f9edac7a12bdabfd34db01b9556101.scope",
-                Some("5ebf11e02dbd".to_string()),
+                Some(
+                    "5ebf11e02dbde102cda4b76bc0e3849a65f9edac7a12bdabfd34db01b9556101".to_string(),
+                ),
             ),
         ];
 

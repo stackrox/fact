@@ -8,11 +8,25 @@
 
 * `FACT_LOGLEVEL`: At which level produce log messages.
 
+* `FACT_CRI_SOCKET`: Optional absolute path to the host CRI v1 gRPC socket. By
+  default, Fact checks the host's CRI-O socket and then the containerd CRI
+  plugin socket. Fact also reads CRI-O's on-disk OCI `config.json` when
+  available, which provides process, capability, and rootfs details that the
+  portable CRI status API does not expose. The socket is reached through the
+  configured `FACT_HOST_MOUNT`; the standard host-root mount already covers it.
+
+* `FACT_RUNTIME_METADATA_SOURCE`: Select `auto` (default), `json`, or `cri`.
+  Auto reads the OCI JSON file first and falls back to CRI gRPC; the other
+  values force one provider.
+
 * `FACT_OCI_RUNTIME_SPEC_DEBUG`: Development-only OCI runtime-spec
   diagnostics. When `true`, Fact adds a curated subset of `config.json`,
   including the root, configured process, capabilities, namespaces, and
   matching mount, to debug logs and `container.oci.*` OpenTelemetry
-  attributes. OCI configuration is not read when this option is `false`.
+  attributes. When OCI JSON is unavailable, CRI status can provide container
+  identity, labels, annotations, image, and mounts; it does not invent values
+  for process details or security settings the CRI response does not expose.
+  Runtime metadata is not read when this option is `false`.
   Diagnostics never filter events or change the Sensor gRPC message. The
   equivalent top-level YAML setting is `oci_runtime_spec_debug: true`.
 
@@ -39,3 +53,11 @@
 
 * `--oci-runtime-spec-debug`: Equivalent to `FACT_OCI_RUNTIME_SPEC_DEBUG`;
   accepts `true` or `false`.
+
+## Feature design
+
+Feature modules own their provider state and format-specific enrichment. Core
+event handling should require only a registration point and the smallest event
+identity needed by a feature. This keeps event streams independent and makes
+new streams or transformations easy to add without passing shared mutable state
+between feature modules.

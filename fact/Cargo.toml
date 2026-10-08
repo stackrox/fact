@@ -25,9 +25,11 @@ opentelemetry-otlp = { version = "0.32.0", optional = true }
 opentelemetry_sdk = { version = "0.32.1", features = [ "logs"], optional = true }
 openssl = { workspace = true }
 tonic = { workspace = true }
+tonic-prost = { workspace = true }
 tokio = { workspace = true }
 tokio-native-tls = { workspace = true }
 tokio-stream = { workspace = true }
+tower = { version = "0.5.3", features = ["util"] }
 prometheus-client = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
