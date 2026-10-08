@@ -1464,13 +1464,13 @@ arches:
     name: glibc-headers
     evr: 2.34-275.el9_8
     sourcerpm: glibc-2.34-275.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.54.1.el9_8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.55.1.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 2966865
-    checksum: sha256:33789c61f2d74ef1d0fd5b6a43e802d28e1b38a605f200b156050d0a7934f232
+    size: 2972617
+    checksum: sha256:1914c6db3a904ee66b4ea18b11df8ee66ae82b22fe3ee7a6f25099c8bbcdfaf1
     name: kernel-headers
-    evr: 5.14.0-687.54.1.el9_8
-    sourcerpm: kernel-5.14.0-687.54.1.el9_8.src.rpm
+    evr: 5.14.0-687.55.1.el9_8
+    sourcerpm: kernel-5.14.0-687.55.1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
