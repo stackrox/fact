@@ -1,0 +1,25 @@
+#cloud-config
+# Cloud-init user-data for Fedora (41+, dnf5-based).
+# Used by ci/qemu-vm.sh — __SSH_PUBKEY__ is replaced at boot time.
+#
+# Updates the kernel to the latest available before running tests (the
+# cloud image's shipped kernel can lag behind), then reboots into it via
+# "power_state" below.
+
+users:
+  - name: root
+    lock_passwd: false
+    ssh_authorized_keys:
+      - __SSH_PUBKEY__
+
+ssh_pwauth: false
+
+runcmd:
+  - systemctl enable --now podman.socket
+  - dnf -y update 'kernel*'
+
+power_state:
+  mode: reboot
+  message: Rebooting into updated kernel
+  timeout: 60
+  condition: true

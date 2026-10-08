@@ -22,6 +22,17 @@ QA_REPOSITORY = os.environ.get(
 )
 
 
+def _is_pull_auth_or_missing_error(e: docker.errors.APIError) -> bool:
+    if e.status_code in (401, 403, 404):
+        return True
+
+    # Some daemon/registry combinations (e.g. containerd-backed pulls)
+    # wrap a registry-level 401/404 in a generic 500 Server Error, only
+    # surfacing the real cause in the explanation text.
+    explanation = (e.explanation or '').lower()
+    return 'unauthorized' in explanation or 'not found' in explanation
+
+
 def pull_or_build(
     docker_client: docker.DockerClient,
     tag: str,
@@ -43,7 +54,7 @@ def pull_or_build(
         if no_local_builds:
             raise e
 
-        if e.status_code != 401 and e.status_code != 404:
+        if not _is_pull_auth_or_missing_error(e):
             raise e
         print(f'Failed to pull image: {e}')
         print('Attempting to build image from source')

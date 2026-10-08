@@ -1,0 +1,23 @@
+{
+  "ignition": {
+    "version": "3.4.0"
+  },
+  "passwd": {
+    "users": [
+      {
+        "name": "core",
+        "sshAuthorizedKeys": [
+          "__SSH_PUBKEY__"
+        ]
+      }
+    ]
+  },
+  "systemd": {
+    "units": [
+      {
+        "name": "podman.socket",
+        "enabled": true
+      }
+    ]
+  }
+}
