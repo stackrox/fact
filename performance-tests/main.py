@@ -87,19 +87,25 @@ def start_monitoring(args):
 
     while True:
         logger.debug(f'Starting a process: {args_str}')
-        p = subprocess.Popen(process_args, stdout=subprocess.PIPE)
+        p = subprocess.Popen(process_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
         output, errors = p.communicate()
 
         if errors:
             logger.debug("Could not spin monitor: {}".format(errors))
+            continue
 
-        if not output:
+        if not output or not output.strip(b'\\n'):
             continue
 
         logger.debug("Monitor results: {}".format(output))
 
         with open('{}.data'.format(args.metric.value), 'a') as data:
-            data.write("{}\n".format(proc_fn(output)))
+            try:
+                data.write("{}\n".format(proc_fn(output)))
+            except Exception as ex:
+                logger.error('Could not write monitoring result {}'.format(ex))
 
         time.sleep(1)
 
@@ -166,38 +172,16 @@ def start_fact(args):
 
 def get_version(args):
     """
-	Get version of fact binary under the test. The assumption is that the
-	output will be in format and sent to stderr:
-
-	[INFO  2025-10-22T09:15:46Z] fact version: ...
-	[INFO  2025-10-22T09:15:46Z] OS: ...
-	[INFO  2025-10-22T09:15:46Z] Kernel version: ...
-	[INFO  2025-10-22T09:15:46Z] Architecture: ...
-	[INFO  2025-10-22T09:15:46Z] Hostname: ...
+	Get version of fact binary under the test.
     """
-    fact = subprocess.Popen(['fact'], stderr=subprocess.PIPE)
+
+    fact = subprocess.Popen(['fact', '--version'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE)
     output, errors = fact.communicate()
 
     logger.debug(f'Output of version command, {output}, {errors}')
-    def version(line):
-        if len(line) <= 3:
-            return False
-
-        return line[2] == b'fact' and line[3] == b'version:'
-
-    def split(line):
-        return line.split()
-
-    output_list = map(split, errors.split(b'\n'))
-
-    # filter will return a nested array, so unwrap it with next
-    version_line = next(filter(version, output_list))
-
-    if len(list(version_line)) <= 4:
-        logger.error(f'No version line found, {output}')
-        return ''
-
-    return version_line[4]
+    return output.split()[1]
 
 
 def process_results(args):
@@ -207,13 +191,33 @@ def process_results(args):
         case Metric.USER_SPACE_CPU:
             output = json.load(open('output.json', 'r'))
 
+            # This is obviously too clever by half, but it's for the sake of
+            # handling the case where some value returns 0, which is unlikely
+            # but possible scenario. The follow up for unit done this way for
+            # consistency.
+            value = next(output.get(v) for v in
+                ['metric-value', 'counter-value']
+                if output.get(v) is not None)
+
+            if value is None:
+                logger.error(f'No output value found {output}')
+                return '{}'
+
+            unit = next(output.get(v) for v in
+                ['metric-unit', 'unit']
+                if output.get(v) is not None)
+
+            if unit is None:
+                logger.error(f'No unit value found {output}')
+                return '{}'
+
             return json.dumps([{
                 'metric': args.metric.value,
                 'workload': args.workload.value,
                 'duration': args.duration,
                 'timestamp': datetime.now(UTC).isoformat(),
-                'value': output['metric-value'],
-                'unit': output['metric-unit'],
+                'value': value,
+                'unit': unit,
                 'version': fact_version,
             }])
 
