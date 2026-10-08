@@ -36,7 +36,6 @@ use aya::{
     sys::SyscallError,
 };
 use fact_ebpf::{inode_key_t, inode_value_t, monitored_t};
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::{debug, info, warn};
 use serde::{Serialize, ser::SerializeMap};
 use tokio::{
@@ -47,6 +46,7 @@ use tokio::{
 
 use crate::{
     bpf::Bpf,
+    config::PathsConfig,
     event::Event,
     host_info::{self, remove_host_mount},
     metrics::host_scanner::{HostScannerLabels, HostScannerMetrics, ScanLabels},
@@ -111,8 +111,13 @@ pub type IntrospectionRequest = (
 pub struct HostScanner {
     kernel_inode_map: RefCell<aya::maps::HashMap<MapData, inode_key_t, inode_value_t>>,
     inode_map: RefCell<InodeMap>,
+    // usage_count keeps a reference count of the inodes we track.
+    // Only monitored files count, so this differs from the kernel refcount.
+    // link/unlink/rename events update usage_count and the inode is removed
+    // when the count falls to 0 (the inode may still exist).
+    usage_count: RefCell<HashMap<inode_key_t, u64>>,
 
-    paths: watch::Receiver<Vec<PathBuf>>,
+    paths: watch::Receiver<PathsConfig>,
     scan_interval: watch::Receiver<Duration>,
 
     rx: mpsc::Receiver<Event>,
@@ -120,38 +125,33 @@ pub struct HostScanner {
     introspection: mpsc::Receiver<IntrospectionRequest>,
 
     metrics: HostScannerMetrics,
-
-    paths_globset: GlobSet,
-    paths_patterns: Vec<PathBuf>,
 }
 
 impl HostScanner {
     pub fn new(
         bpf: &mut Bpf,
         rx: mpsc::Receiver<Event>,
-        paths: watch::Receiver<Vec<PathBuf>>,
+        paths: watch::Receiver<PathsConfig>,
         scan_interval: watch::Receiver<Duration>,
         metrics: HostScannerMetrics,
         introspection: mpsc::Receiver<IntrospectionRequest>,
     ) -> anyhow::Result<(Self, mpsc::Receiver<Event>)> {
         let kernel_inode_map = RefCell::new(bpf.take_inode_map()?);
         let inode_map = RefCell::new(InodeMap::new());
+        let usage_count = RefCell::new(HashMap::new());
         let (tx, output) = mpsc::channel(100);
 
-        let mut host_scanner = HostScanner {
+        let host_scanner = HostScanner {
             kernel_inode_map,
             inode_map,
+            usage_count,
             paths,
             scan_interval,
             rx,
             tx,
             introspection,
             metrics,
-            paths_globset: GlobSet::empty(),
-            paths_patterns: Vec::new(),
         };
-
-        host_scanner.reload_paths_config()?;
 
         // Run an initial scan to fill in the inode map
         host_scanner.scan()?;
@@ -159,38 +159,22 @@ impl HostScanner {
         Ok((host_scanner, output))
     }
 
-    fn reload_paths_config(&mut self) -> anyhow::Result<()> {
-        let paths = self.paths.borrow();
-        let mut builder = GlobSetBuilder::new();
-        let mut patterns = Vec::with_capacity(paths.len());
-
-        for p in paths.iter() {
-            patterns.push(host_info::prepend_host_mount(p));
-
-            let Some(glob_str) = p.to_str() else {
-                bail!("failed to convert path {} to string", p.display());
-            };
-
-            builder.add(Glob::new(glob_str).with_context(|| format!("invalid glob {}", glob_str))?);
-        }
-
-        self.paths_globset = builder.build()?;
-        self.paths_patterns = patterns;
-
-        Ok(())
-    }
-
     fn scan(&self) -> anyhow::Result<()> {
         info!("Host scan started");
         let start = Instant::now();
         self.metrics.scan_inc(ScanLabels::Scans);
+        let paths = self.paths.borrow();
+
+        // Clear usage counts before scanning; will be
+        // repopulated as we encounter monitored inodes.
+        self.usage_count.borrow_mut().clear();
 
         // Cleanup any items that are either:
         // * Not configured to be monitored anymore.
         // * Are configured to be monitored but no longer are found in
         //   the file system.
         self.inode_map.borrow_mut().retain(|inode, path| {
-            if self.paths_globset.is_match(&path) && host_info::prepend_host_mount(path).exists() {
+            if paths.globset.is_match(&path) && host_info::prepend_host_mount(path).exists() {
                 true
             } else {
                 let _ = self.kernel_inode_map.borrow_mut().remove(inode);
@@ -199,8 +183,8 @@ impl HostScanner {
             }
         });
 
-        for path in &self.paths_patterns {
-            self.scan_inner(path)?;
+        for pattern in paths.patterns() {
+            self.scan_inner(pattern, true)?;
         }
         let duration = start.elapsed();
         self.metrics.scan_duration.observe(duration.as_secs_f64());
@@ -212,7 +196,7 @@ impl HostScanner {
         Ok(())
     }
 
-    fn scan_inner(&self, path: &Path) -> anyhow::Result<()> {
+    fn scan_inner(&self, path: &Path, update_usage_count: bool) -> anyhow::Result<()> {
         self.metrics.scan_inc(ScanLabels::ElementsScanned);
 
         let Some(glob_str) = path.to_str() else {
@@ -241,7 +225,7 @@ impl HostScanner {
                 self.metrics.scan_inc(ScanLabels::FileScanned);
             } else if metadata.is_symlink() {
                 self.metrics.scan_inc(ScanLabels::SymlinkScanned);
-                self.scan_symlink(&path);
+                self.scan_symlink(&path, update_usage_count);
             } else if metadata.is_dir() {
                 self.metrics.scan_inc(ScanLabels::DirectoryScanned);
             } else {
@@ -249,13 +233,13 @@ impl HostScanner {
                 continue;
             }
 
-            self.update_entry(&path, &metadata)
+            self.update_entry(&path, &metadata, update_usage_count)
                 .with_context(|| format!("Failed to update entry for {}", path.display()))?;
         }
         Ok(())
     }
 
-    fn scan_symlink(&self, path: &Path) {
+    fn scan_symlink(&self, path: &Path, update_usage_count: bool) {
         let target = match path.read_link() {
             Ok(p) => {
                 if p.has_root() {
@@ -272,7 +256,7 @@ impl HostScanner {
 
         match target.metadata() {
             Ok(metadata) => {
-                if let Err(e) = self.update_entry(path, &metadata) {
+                if let Err(e) = self.update_entry(path, &metadata, update_usage_count) {
                     warn!("Failed to update symlink entry for {}: {e}", path.display());
                 }
             }
@@ -292,8 +276,10 @@ impl HostScanner {
     /// matches the supplied path.
     fn scan_partial(&self, path: &Path) -> anyhow::Result<()> {
         let start = Instant::now();
+        let paths = self.paths.borrow();
         let scan_prefix_patterns =
-            self.paths_patterns
+            paths
+                .patterns()
                 .iter()
                 .enumerate()
                 .filter_map(|(i, pattern)| {
@@ -304,15 +290,15 @@ impl HostScanner {
                         .starts_with(path.to_str()?)
                         .then_some(i)
                 });
-        let scan_glob_index = self.paths_globset.matches(path);
+        let scan_glob_index = paths.globset.matches(path);
 
         // De-duplicate the indexes
         let scan_set = scan_prefix_patterns
             .chain(scan_glob_index.iter().copied())
             .collect::<HashSet<_>>();
 
-        for pattern in scan_set.iter().map(|index| &self.paths_patterns[*index]) {
-            self.scan_inner(pattern)?;
+        for pattern in scan_set.iter().map(|index| &paths.patterns()[*index]) {
+            self.scan_inner(pattern, false)?;
         }
 
         self.metrics
@@ -321,21 +307,35 @@ impl HostScanner {
         Ok(())
     }
 
-    fn update_entry(&self, path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
+    fn update_entry(
+        &self,
+        path: &Path,
+        metadata: &Metadata,
+        update_usage_count: bool,
+    ) -> anyhow::Result<()> {
         let inode = inode_key_t {
             inode: metadata.st_ino(),
             dev: metadata.st_dev(),
         };
 
         let host_path = host_info::remove_host_mount(path);
-        self.update_entry_with_inode(inode, host_path.to_path_buf())?;
+        self.update_entry_with_inode(inode, host_path.to_path_buf(), update_usage_count)?;
 
         debug!("Added entry for {}: {inode:?}", path.display());
         Ok(())
     }
 
     /// Similar to update_entry except we are are directly using the inode instead of the path.
-    fn update_entry_with_inode(&self, inode: inode_key_t, path: PathBuf) -> anyhow::Result<()> {
+    fn update_entry_with_inode(
+        &self,
+        inode: inode_key_t,
+        path: PathBuf,
+        update_usage_count: bool,
+    ) -> anyhow::Result<()> {
+        if update_usage_count {
+            self.usage_count_inc(inode);
+        }
+
         let mut inode_map = self.inode_map.borrow_mut();
         match inode_map.get_mut(&inode) {
             Some(p) => {
@@ -352,7 +352,7 @@ impl HostScanner {
             }
         };
 
-        match self.kernel_inode_map.borrow_mut().insert(inode, 0, 0) {
+        match self.kernel_inode_map.borrow_mut().insert(&inode, &0, 0) {
             Ok(_) => Ok(()),
             Err(MapError::SyscallError(SyscallError { io_error, .. }))
                 if io_error.kind() == io::ErrorKind::ArgumentListTooLong =>
@@ -367,6 +367,14 @@ You can increase this limit with:
             }
             e => e.with_context(|| format!("Failed to insert kernel entry for {}", path.display())),
         }
+    }
+
+    fn usage_count_inc(&self, inode: inode_key_t) {
+        self.usage_count
+            .borrow_mut()
+            .entry(inode)
+            .and_modify(|c| *c += 1)
+            .or_insert(1);
     }
 
     fn get_host_path(&self, inode: Option<&inode_key_t>) -> Option<PathBuf> {
@@ -401,7 +409,7 @@ You can increase this limit with:
 
         match self.build_host_path(event) {
             Some(host_path) => self
-                .update_entry_with_inode(*inode, host_path)
+                .update_entry_with_inode(*inode, host_path, true)
                 .with_context(|| {
                     format!(
                         "Failed to add creation event entry for {}",
@@ -413,17 +421,67 @@ You can increase this limit with:
         }
     }
 
-    /// Handle unlink events by removing the inode from the inode->path map.
-    ///
-    /// The probe already cleared the kernel inode map.
+    /// Handle unlink events by removing the inode from the inode->path map,
+    /// when its usage count falls to 0.
     fn handle_unlink_event(&self, event: &Event) {
-        let inode = event.get_inode();
+        self.metrics.scan_inc(ScanLabels::FileRemoved);
 
-        if self.inode_map.borrow_mut().remove(inode).is_some() {
+        let inode = event.get_inode();
+        if self.unref_inode(inode) == 0 {
+            self.inode_map.borrow_mut().remove(inode);
             self.metrics.scan_inc(ScanLabels::InodeRemoved);
         }
+    }
 
-        self.metrics.scan_inc(ScanLabels::FileRemoved);
+    /// Decrement the usage count for an inode and remove it from the
+    /// kernel map if the count falls to zero.
+    ///
+    /// Returns the remaining usage count. A return value of 0 means
+    /// the inode has no remaining references.
+    fn unref_inode(&self, inode: &inode_key_t) -> u64 {
+        let mut usage_count = self.usage_count.borrow_mut();
+        if let Some(count) = usage_count.get_mut(inode) {
+            *count -= 1;
+            if *count > 0 {
+                return *count;
+            }
+            usage_count.remove(inode);
+        }
+
+        if let Err(e) = self.kernel_inode_map.borrow_mut().remove(inode) {
+            warn!("Failed to remove inode kernel entry: {e:?}");
+        }
+
+        0
+    }
+
+    /// Handle link events by potentially adding the new link to the inode map.
+    fn handle_link_event(&self, event: &mut Event) {
+        match event.get_monitored() {
+            monitored_t::MONITORED_BY_INODE => {
+                // The inode is already tracked, the new link just adds
+                // another reference to it.
+                self.usage_count_inc(*event.get_inode());
+            }
+            monitored_t::NOT_MONITORED | monitored_t::MONITORED_BY_PATH => {
+                // The new path is not monitored or no inode tracking is involved, nothing to do.
+            }
+            monitored_t::MONITORED_BY_PARENT => {
+                // The parent for the target is monitored. We need to
+                // figure out the host path and check if we should track
+                // the new link.
+                if let Some(host_path) = self.build_host_path(event)
+                    && self.paths.borrow().globset.is_match(&host_path)
+                {
+                    let inode = *event.get_inode();
+                    if let Err(e) = self.update_entry_with_inode(inode, host_path.clone(), true) {
+                        warn!("Failed to add link event entry: {e}");
+                    }
+                    event.set_host_path(host_path);
+                }
+            }
+            _ => unreachable!("Invalid monitored value"),
+        }
     }
 
     fn handle_rename_event(&self, event: &mut Event) {
@@ -433,11 +491,29 @@ You can increase this limit with:
                 // place of an existing, tracked file. We need to remove the
                 // inode we are landing on and put the associated host path in
                 // the old inode.
+                let inode = event.get_inode();
                 let mut inode_map = self.inode_map.borrow_mut();
-                let Some(path) = inode_map.remove(event.get_inode()) else {
-                    warn!("Old path was not found for inode tracked event");
-                    return;
+                let path = if self.unref_inode(inode) == 0 {
+                    match inode_map.remove(inode) {
+                        Some(path) => path,
+                        None => {
+                            warn!("Old path was not found for inode tracked event");
+                            return;
+                        }
+                    }
+                } else {
+                    // The destination inode still has remaining hardlinks.
+                    // TODO ROX-36834: we currently have only one host_path value for
+                    // each monitored inode, so we don't have enough information
+                    // to make inode point to another valid path. For now we
+                    // use the host_path that we have.
+                    let Some(path) = inode_map.get(inode) else {
+                        warn!("Old path was not found for inode tracked event");
+                        return;
+                    };
+                    path.clone()
                 };
+
                 let Some(old_inode) = event.get_old_inode() else {
                     unreachable!("old inode not found for rename event");
                 };
@@ -453,12 +529,7 @@ You can increase this limit with:
                     return;
                 };
                 self.inode_map.borrow_mut().retain(|inode, path| {
-                    if !path.starts_with(old_host_path) {
-                        return true;
-                    }
-
-                    let _ = self.kernel_inode_map.borrow_mut().remove(inode);
-                    false
+                    !path.starts_with(old_host_path) || self.unref_inode(inode) != 0
                 });
             }
             monitored_t::NOT_MONITORED => {
@@ -468,11 +539,12 @@ You can increase this limit with:
             monitored_t::MONITORED_BY_PARENT if !event.get_inode().empty() => {
                 // The parent for the target is monitored, but the file itself
                 // is not. Remove the entry for the old file from the map.
-                self.inode_map.borrow_mut().remove(
-                    event
-                        .get_old_inode()
-                        .expect("rename event did not have old inode"),
-                );
+                let old_inode = event
+                    .get_old_inode()
+                    .expect("rename event did not have old inode");
+                if self.unref_inode(old_inode) == 0 {
+                    self.inode_map.borrow_mut().remove(old_inode);
+                }
             }
             monitored_t::MONITORED_BY_PARENT
                 if event.get_old_monitored() == Some(monitored_t::MONITORED_BY_INODE) =>
@@ -494,7 +566,7 @@ You can increase this limit with:
                     unreachable!("Rename event did not have an old host path");
                 };
 
-                if self.paths_globset.is_match(&new_host_path) {
+                if self.paths.borrow().globset.is_match(&new_host_path) {
                     // New path needs to be tracked.
                     // Move all entries for the old host path to the new one
                     for path in inode_map.values_mut() {
@@ -512,13 +584,7 @@ You can increase this limit with:
                 } else {
                     // New path is not tracked, remove old entries
                     inode_map.retain(|inode, path| {
-                        if !path.starts_with(old_host_path) {
-                            return true;
-                        }
-                        if let Err(e) = self.kernel_inode_map.borrow_mut().remove(inode) {
-                            warn!("Failed to remove inode kernel entry: {e:?}");
-                        }
-                        false
+                        !path.starts_with(old_host_path) || self.unref_inode(inode) != 0
                     });
                 }
             }
@@ -578,7 +644,7 @@ You can increase this limit with:
                     tokio::select! {
                         _ = interval.tick() => scan_trigger.notify_one(),
                         _ = running.changed() => break,
-                        _ = scan_interval.changed() => break,
+                        _ = scan_interval.changed(), if scan_interval.has_changed().is_ok() => break,
                     }
                 }
             }
@@ -591,11 +657,12 @@ You can increase this limit with:
     /// the host paths for matches in events that are monitored by
     /// parent.
     fn event_is_ignored(&self, event: &Event) -> bool {
-        event.is_ignored(&self.paths_globset)
-            && !self.paths_globset.is_match(event.get_host_path())
+        let paths = self.paths.borrow();
+        event.is_ignored(&paths.globset)
+            && !paths.globset.is_match(event.get_host_path())
             && event
                 .get_old_host_path()
-                .is_none_or(|path| !self.paths_globset.is_match(path))
+                .is_none_or(|path| !paths.globset.is_match(path))
     }
 
     pub fn start(mut self, task_set: &mut JoinSet<anyhow::Result<()>>) {
@@ -611,6 +678,7 @@ You can increase this limit with:
 
         task_set.spawn(async move {
             info!("Starting host scanner...");
+            let mut config_is_closed = false;
 
             loop {
                 tokio::select! {
@@ -663,17 +731,21 @@ You can increase this limit with:
                                 warn!("Failed to handle symlink event: {e:?}");
                             }
 
+                        if event.is_link() { self.handle_link_event(&mut event); }
+
                         if event.is_rename() { self.handle_rename_event(&mut event); }
 
                         // Before sending the event forward, we need to check
                         // whether the event is ignored now that we have the
                         // full inode context.
                         if self.event_is_ignored(&event) {
-                            self.inode_map.borrow_mut().remove(event.get_inode());
-                            let _ = self.kernel_inode_map.borrow_mut().remove(event.get_inode());
-                            if let Some(old_inode) = event.get_old_inode() {
-                                self.inode_map.borrow_mut().remove(old_inode);
-                                let _ = self.kernel_inode_map.borrow_mut().remove(old_inode);
+                            let inode = event.get_inode();
+                            if self.unref_inode(inode) == 0 {
+                                self.inode_map.borrow_mut().remove(inode);
+                            }
+                            if let Some(old_inode) = event.get_old_inode()
+                                && self.unref_inode(old_inode) == 0 {
+                                    self.inode_map.borrow_mut().remove(old_inode);
                             }
                             self.metrics.events_inc(HostScannerLabels::Ignored);
                             continue;
@@ -708,10 +780,12 @@ You can increase this limit with:
                         }
                     }
                     _ = scan_trigger.notified() => self.scan()?,
-                    _ = self.paths.changed() => {
-                            self.reload_paths_config()?;
-                            self.scan()?;
+                    res = self.paths.changed(), if !config_is_closed => {
+                        match res {
+                            Ok(()) => self.scan()?,
+                            Err(_) => config_is_closed = true,
                         }
+                    }
                 }
             }
 

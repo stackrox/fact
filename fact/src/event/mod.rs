@@ -158,6 +158,10 @@ impl Event {
         matches!(self.file, FileData::Unlink(_) | FileData::RmDir(_))
     }
 
+    pub fn is_link(&self) -> bool {
+        matches!(self.file, FileData::Link(_))
+    }
+
     pub fn is_rename(&self) -> bool {
         matches!(self.file, FileData::Rename { .. })
     }
@@ -184,6 +188,7 @@ impl Event {
             | FileData::Creation(inner)
             | FileData::MkDir(inner)
             | FileData::RmDir(inner)
+            | FileData::Link(inner)
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
@@ -205,6 +210,7 @@ impl Event {
             | FileData::Creation(inner)
             | FileData::MkDir(inner)
             | FileData::RmDir(inner)
+            | FileData::Link(inner)
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
@@ -237,6 +243,7 @@ impl Event {
             | FileData::Creation(inner)
             | FileData::MkDir(inner)
             | FileData::RmDir(inner)
+            | FileData::Link(inner)
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
@@ -266,6 +273,7 @@ impl Event {
             | FileData::Creation(inner)
             | FileData::MkDir(inner)
             | FileData::RmDir(inner)
+            | FileData::Link(inner)
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
@@ -299,6 +307,7 @@ impl Event {
             | FileData::Creation(inner)
             | FileData::MkDir(inner)
             | FileData::RmDir(inner)
+            | FileData::Link(inner)
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
@@ -330,6 +339,7 @@ impl Event {
             | FileData::Creation(inner)
             | FileData::MkDir(inner)
             | FileData::RmDir(inner)
+            | FileData::Link(inner)
             | FileData::Unlink(inner)
             | FileData::Chmod(ChmodFileData { inner, .. })
             | FileData::Chown(ChownFileData { inner, .. })
@@ -686,6 +696,7 @@ pub enum FileData {
     Creation(BaseFileData),
     MkDir(BaseFileData),
     RmDir(BaseFileData),
+    Link(BaseFileData),
     Unlink(BaseFileData),
     Chmod(ChmodFileData),
     Chown(ChownFileData),
@@ -731,6 +742,7 @@ impl FileData {
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
             file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::MkDir(inner),
             file_activity_type_t::DIR_ACTIVITY_UNLINK => FileData::RmDir(inner),
+            file_activity_type_t::FILE_ACTIVITY_LINK => FileData::Link(inner),
             file_activity_type_t::FILE_ACTIVITY_UNLINK => FileData::Unlink(inner),
             file_activity_type_t::FILE_ACTIVITY_CHMOD => {
                 let data = ChmodFileData {
@@ -804,6 +816,7 @@ impl FileData {
             FileData::Creation(_) => "creation",
             FileData::MkDir(_) => "mkdir",
             FileData::RmDir(_) => "rmdir",
+            FileData::Link(_) => "link",
             FileData::Unlink(_) => "unlink",
             FileData::Chmod(_) => "permission",
             FileData::Chown(_) => "ownership",
@@ -827,7 +840,7 @@ impl From<FileData> for fact_api::file_activity::File {
                 let f_act = fact_api::FileOpen { activity };
                 fact_api::file_activity::File::Open(f_act)
             }
-            FileData::Creation(event) => {
+            FileData::Creation(event) | FileData::Link(event) => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
                 let f_act = fact_api::FileCreation { activity };
                 fact_api::file_activity::File::Creation(f_act)
@@ -894,6 +907,7 @@ impl From<FileData> for opentelemetry::logs::AnyValue {
             | FileData::RmDir(data)
             | FileData::Mount(data)
             | FileData::Umount(data)
+            | FileData::Link(data)
             | FileData::Unlink(data) => AnyValue::from(data),
             FileData::Chmod(data) => AnyValue::from(data),
             FileData::Chown(data) => AnyValue::from(data),

@@ -73,6 +73,15 @@ __always_inline static void submit_open_event(struct submit_event_args_t* args,
   __submit_event(args, true);
 }
 
+__always_inline static void submit_link_event(struct submit_event_args_t* args) {
+  if (!reserve_event(args)) {
+    return;
+  }
+  args->event->type = FILE_ACTIVITY_LINK;
+
+  __submit_event(args, path_hooks_support_bpf_d_path);
+}
+
 __always_inline static void submit_unlink_event(struct submit_event_args_t* args) {
   if (!reserve_event(args)) {
     return;

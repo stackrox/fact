@@ -338,3 +338,8 @@ def pytest_addoption(parser: pytest.Parser):
         choices=['grpc', 'otlp', 'all'],
         help='Output mode to test: grpc, otlp, or all (default: grpc)',
     )
+    parser.addoption(
+        '--no-local-builds',
+        action='store_true',
+        help='Do not build test containers locally',
+    )

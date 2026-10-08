@@ -8,6 +8,8 @@ on:
     tags:
     - '*'
   pull_request:
+    branches:
+    - main
   schedule:
     - cron: '0 6 * * *'
 
@@ -128,6 +130,10 @@ jobs:
         pip install ruff
         make format-check
 
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yml
+    secrets: inherit
+
   container-build:
     uses: ./.github/workflows/container-build.yml
     secrets: inherit
@@ -139,32 +145,36 @@ jobs:
       tag-suffix: '-otel'
       make-target: 'image-otel'
 
-  unit-tests:
-    uses: ./.github/workflows/unit-tests.yml
+  test-containers-build:
+    uses: ./.github/workflows/test-containers-build.yml
     secrets: inherit
 
   integration-tests:
     needs:
     - container-build
+    - test-containers-build
     uses: ./.github/workflows/integration-tests.yml
     with:
       tag: ${{ needs.container-build.outputs.tag }}
+      qa-tag: ${{ needs.test-containers-build.outputs.qa-tag }}
       vms: '["fedora-coreos", "fcarm", "rhel", "rhel-arm64", "rhcos", "rhcos-arm64"]'
     secrets: inherit
 
   integration-tests-otel:
     needs:
     - container-build-otel
+    - test-containers-build
     uses: ./.github/workflows/integration-tests.yml
     with:
       tag: ${{ needs.container-build-otel.outputs.tag }}
+      qa-tag: ${{ needs.test-containers-build.outputs.qa-tag }}
       job-tag: otel
       vms: '["fedora-coreos"]'
       output-type: otlp
     secrets: inherit
 
   performance-tests:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || contains(github.event.pull_request.labels.*.name, 'performance-tests')
     needs:
     - container-build
     uses: ./.github/workflows/performance-tests.yml

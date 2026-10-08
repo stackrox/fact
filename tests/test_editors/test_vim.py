@@ -232,6 +232,13 @@ def test_open_file(
         ),
         Event(
             process=vi_process,
+            event_type=EventType.PERMISSION,
+            file=vi_test_file,
+            host_path='',
+            mode=0o100644,
+        ),
+        Event(
+            process=vi_process,
             event_type=EventType.UNLINK,
             file=vi_test_file,
             host_path='',
@@ -362,6 +369,13 @@ def test_open_file_ovfs(
             host_path='',
             owner_uid=0,
             owner_gid=0,
+        ),
+        Event(
+            process=vi_process,
+            event_type=EventType.PERMISSION,
+            file=vi_test_file,
+            host_path='',
+            mode=0o100644,
         ),
         Event(
             process=vi_process,

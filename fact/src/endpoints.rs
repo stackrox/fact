@@ -74,7 +74,7 @@ impl Server {
     /// Wait for configuration changes or fact to stop.
     async fn idle(&mut self) -> anyhow::Result<bool> {
         tokio::select! {
-            _ = self.config.changed() => Ok(true),
+            _ = self.config.changed(), if self.config.has_changed().is_ok() => Ok(true),
             _ = self.running.changed() => Ok(*self.running.borrow()),
         }
     }
@@ -98,7 +98,11 @@ impl Server {
                         }
                     });
                 },
-                _ = self.config.changed() => return Ok(true),
+                res = self.config.changed(), if self.config.has_changed().is_ok() => {
+                    if res.is_ok() {
+                        return Ok(true);
+                    }
+                }
                 _ = self.running.changed() => return Ok(*self.running.borrow()),
             }
         }

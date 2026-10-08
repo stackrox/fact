@@ -19,14 +19,17 @@ fn parsing() {
         (
             "paths:",
             FactConfig {
-                paths: Some(Vec::new()),
+                paths: PathsConfig::default(),
                 ..Default::default()
             },
         ),
         (
             "paths: [/etc,  /bin]",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
@@ -516,7 +519,7 @@ fn parsing() {
             replay: /some/path.jsonl
             "#,
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 oci_runtime_spec_debug: None,
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
@@ -574,7 +577,7 @@ fn parsing() {
     ];
 
     for (input, expected) in tests {
-        let config = match FactConfig::try_from(input) {
+        let config = match input.parse::<FactConfig>() {
             Ok(c) => c,
             Err(e) => panic!("Failed to parse configuration\n\tError: {e}\n\tinput: {input}"),
         };
@@ -602,7 +605,7 @@ paths:
         ("- something", "Wrong configuration type"),
         ("true: something", "key is not string: Boolean(true)"),
         ("4: something", "key is not string: Integer(4)"),
-        ("paths: [4]", "Path has invalid type: Integer(4)"),
+        ("paths: [4]", "paths field has invalid type: Integer(4)"),
         (
             "grpc: true",
             "Invalid field 'grpc' with value: Boolean(true)",
@@ -982,7 +985,7 @@ paths:
         ),
     ];
     for (input, expected) in tests {
-        let Err(err) = FactConfig::try_from(input) else {
+        let Err(err) = input.parse::<FactConfig>() else {
             panic!("Expected Error was not caught - expected: {expected}")
         };
         assert_eq!(format!("{}", err.root_cause()), expected);
@@ -1005,7 +1008,7 @@ fn update() {
             "paths:",
             FactConfig::default(),
             FactConfig {
-                paths: Some(Vec::new()),
+                paths: PathsConfig::default(),
                 ..Default::default()
             },
         ),
@@ -1013,40 +1016,66 @@ fn update() {
             "paths: [/etc, /bin]",
             FactConfig::default(),
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
         (
             "paths: [/bin]",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/bin")]),
+                paths: [PathBuf::from("/bin")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
         ),
         (
             "paths:",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: Some(Vec::new()),
+                paths: PathsConfig::default(),
                 ..Default::default()
             },
         ),
         (
             "paths: [/etc, /bin]",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
+                ..Default::default()
+            },
+        ),
+        (
+            "",
+            FactConfig {
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
+                ..Default::default()
+            },
+            FactConfig {
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
@@ -1956,7 +1985,10 @@ fn update() {
             rate_limit: 1000
             "#,
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/bin")]),
+                paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
                 oci_runtime_spec_debug: None,
                 grpc: GrpcConfig {
                     url: Some(String::from("http://localhost")),
@@ -1997,7 +2029,7 @@ fn update() {
                 replay: None,
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc")]),
+                paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
                 oci_runtime_spec_debug: None,
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
@@ -2048,7 +2080,7 @@ fn update() {
         ),
     ];
     for (input, mut config, expected) in tests {
-        let input = match FactConfig::try_from(input) {
+        let input = match input.parse::<FactConfig>() {
             Ok(i) => i,
             Err(e) => panic!("Failed to parse configuration\n\tError: {e}\n\tinput: {input}"),
         };
@@ -2060,8 +2092,8 @@ fn update() {
 #[test]
 fn defaults() {
     let config = FactConfig::default();
-    let default_paths: &[PathBuf] = &[];
-    assert_eq!(config.paths(), default_paths);
+    assert!(config.paths.patterns().is_empty());
+    assert!(config.paths.globset.is_empty());
     assert_eq!(config.grpc.url(), None);
     assert_eq!(config.grpc.certs(), None);
     assert_eq!(
@@ -2245,7 +2277,10 @@ fn env_vars() {
                 value: "/etc:/var/log",
             },
             FactConfig {
-                paths: Some(vec![PathBuf::from("/etc"), PathBuf::from("/var/log")]),
+                paths: [PathBuf::from("/etc"), PathBuf::from("/var/log")]
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
                 ..Default::default()
             },
         ),
@@ -2612,7 +2647,7 @@ fn env_vars_override_yaml() {
             },
             "paths:\n- /etc",
             FactConfig {
-                paths: Some(vec![PathBuf::from("/var/log")]),
+                paths: [PathBuf::from("/var/log")].as_slice().try_into().unwrap(),
                 ..Default::default()
             },
         ),
@@ -2729,7 +2764,7 @@ fn env_vars_override_yaml() {
         ),
     ];
     for (env, yaml, expected) in tests {
-        let mut config = match FactConfig::try_from(yaml) {
+        let mut config = match yaml.parse::<FactConfig>() {
             Ok(c) => c,
             Err(e) => panic!("Failed to parse YAML\n\tError: {e}\n\tyaml: {yaml}"),
         };

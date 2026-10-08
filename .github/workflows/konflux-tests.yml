@@ -40,15 +40,21 @@ jobs:
           image: rhacs-eng/release-fact:${{ needs.init.outputs.fact-tag }}
           limit: 2400 # 40m
 
+  test-containers-build:
+    uses: ./.github/workflows/test-containers-build.yml
+    secrets: inherit
+
   run-konflux-tests:
     uses: ./.github/workflows/integration-tests.yml
     needs:
     - init
     - wait-for-images
+    - test-containers-build
     with:
       version: ${{ github.head_ref || github.ref_name }}
       registry: quay.io/rhacs-eng/release-fact
       tag: ${{ needs.init.outputs.fact-tag }}
+      qa-tag: ${{ needs.test-containers-build.outputs.qa-tag }}
       job-tag: konf
       vms: '["fedora-coreos", "fcarm", "rhel", "rhel-arm64", "rhcos", "rhcos-arm64"]'
     secrets: inherit

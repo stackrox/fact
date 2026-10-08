@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 EVENT_TYPE_MAP: dict[str, EventType] = {
     'open': EventType.OPEN,
     'creation': EventType.CREATION,
+    'link': EventType.CREATION,
     'unlink': EventType.UNLINK,
     'permission': EventType.PERMISSION,
     'ownership': EventType.OWNERSHIP,
