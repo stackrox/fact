@@ -93,7 +93,7 @@ __always_inline static long read_exe_file(struct task_struct* task, char buf[PAT
   }
 }
 
-__always_inline static void process_fill_lineage(process_t* p, struct helper_t* helper, bool use_bpf_d_path) {
+__always_inline static void process_fill_lineage(process_t* p, bool use_bpf_d_path) {
   struct task_struct* task = bpf_task_acquire(bpf_get_current_task_btf());
   if (task == NULL) {
     return;
@@ -130,7 +130,6 @@ __always_inline static unsigned long get_mount_ns() {
 
 __always_inline static int64_t process_fill(process_t* p, bool use_bpf_d_path) {
   struct task_struct* task = (struct task_struct*)bpf_get_current_task_btf();
-  uint32_t key = 0;
   uint64_t uid_gid = bpf_get_current_uid_gid();
   p->uid = uid_gid & 0xFFFFFFFF;
   p->gid = (uid_gid >> 32) & 0xFFFFFFFF;
@@ -152,7 +151,7 @@ __always_inline static int64_t process_fill(process_t* p, bool use_bpf_d_path) {
     return err;
   }
 
-  struct helper_t* helper = bpf_map_lookup_elem(&helper_map, &key);
+  struct helper_t* helper = get_helper();
   if (helper == NULL) {
     bpf_printk("Failed to get helper entry");
     return -1;
@@ -167,7 +166,7 @@ __always_inline static int64_t process_fill(process_t* p, bool use_bpf_d_path) {
 
   p->in_root_mount_ns = get_mount_ns() == host_mount_ns;
 
-  process_fill_lineage(p, helper, use_bpf_d_path);
+  process_fill_lineage(p, use_bpf_d_path);
 
   return 0;
 }

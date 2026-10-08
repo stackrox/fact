@@ -43,11 +43,6 @@ __always_inline static void __submit_event(struct submit_event_args_t* args,
     event->filename[0] = '\0';
   }
 
-  struct helper_t* helper = get_helper();
-  if (helper == NULL) {
-    goto error;
-  }
-
   int64_t err = process_fill(&event->process, use_bpf_d_path);
   if (err) {
     bpf_printk("Failed to fill process information: %d", err);
