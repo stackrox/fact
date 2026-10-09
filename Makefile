@@ -1,5 +1,7 @@
 include constants.mk
 
+CARGO_ARGS ?= --features runtime-metadata
+
 tag:
 	@echo "$(FACT_TAG)"
 
@@ -21,7 +23,7 @@ image:
 		-t $(FACT_IMAGE_NAME) \
 		$(CURDIR)
 
-image-otel: CARGO_ARGS = --features otel
+image-otel: CARGO_ARGS = --features "otel runtime-metadata"
 image-otel: image
 
 licenses:THIRD_PARTY_LICENSES.html

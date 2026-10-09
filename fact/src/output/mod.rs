@@ -33,6 +33,8 @@ pub fn start(
     stdout_enabled: bool,
     oci_debug: bool,
 ) {
+    #[cfg(not(feature = "runtime-metadata"))]
+    let _ = oci_debug;
     let (broad_tx, _) = broadcast::channel(100);
     let (subs_req, mut subs_rx) = mpsc::channel(10);
     let (running, _) = watch::channel(true);
@@ -83,6 +85,7 @@ pub fn start(
                         break Ok(());
                     };
 
+                    #[cfg(feature = "runtime-metadata")]
                     if oci_debug {
                         if let Some(container_id) = event.container_id() {
                             crate::features::preload(container_id).await;

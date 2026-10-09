@@ -63,6 +63,7 @@ pub struct Process {
     args: Vec<String>,
     exe_path: PathBuf,
     container_id: Option<String>,
+    #[cfg(feature = "runtime-metadata")]
     #[serde(skip)]
     runtime_container_id: Option<String>,
     uid: u32,
@@ -104,6 +105,7 @@ impl Process {
             args,
             exe_path,
             container_id,
+            #[cfg(feature = "runtime-metadata")]
             runtime_container_id,
             uid,
             username: "",
@@ -139,10 +141,12 @@ impl Process {
         }
     }
 
+    #[cfg(feature = "runtime-metadata")]
     pub(crate) fn container_id(&self) -> Option<&str> {
         self.container_id.as_deref()
     }
 
+    #[cfg(feature = "runtime-metadata")]
     pub(crate) fn runtime_container_id(&self) -> Option<&str> {
         self.runtime_container_id
             .as_deref()
@@ -150,7 +154,7 @@ impl Process {
     }
 }
 
-#[cfg(feature = "otel")]
+#[cfg(all(feature = "otel", feature = "runtime-metadata"))]
 impl Process {
     pub(super) fn add_debug_otel_attributes(&self, map: &mut HashMap<Key, AnyValue>) {
         map.insert("process.command".into(), self.comm.clone().into());
@@ -248,13 +252,18 @@ fn insert_json_map(
 #[cfg(test)]
 impl PartialEq for Process {
     fn eq(&self, other: &Self) -> bool {
+        #[cfg(feature = "runtime-metadata")]
+        let runtime_container_id_matches = self.runtime_container_id == other.runtime_container_id;
+        #[cfg(not(feature = "runtime-metadata"))]
+        let runtime_container_id_matches = true;
+
         self.uid == other.uid
             && self.login_uid == other.login_uid
             && self.gid == other.gid
             && self.exe_path == other.exe_path
             && self.args == other.args
             && self.container_id == other.container_id
-            && self.runtime_container_id == other.runtime_container_id
+            && runtime_container_id_matches
             && self.in_root_mount_ns == other.in_root_mount_ns
     }
 }
@@ -298,6 +307,7 @@ impl TryFrom<process_t> for Process {
             args: converted_args,
             exe_path,
             container_id,
+            #[cfg(feature = "runtime-metadata")]
             runtime_container_id,
             uid: value.uid,
             username,
@@ -317,7 +327,6 @@ impl From<Process> for fact_api::ProcessSignal {
             args,
             exe_path,
             container_id,
-            runtime_container_id: _,
             uid,
             username,
             gid,
@@ -325,6 +334,7 @@ impl From<Process> for fact_api::ProcessSignal {
             pid,
             in_root_mount_ns,
             lineage,
+            ..
         } = value;
 
         let container_id = container_id.unwrap_or("".to_string());

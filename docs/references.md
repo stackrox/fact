@@ -29,6 +29,8 @@
   Runtime metadata is not read when this option is `false`.
   Diagnostics never filter events or change the Sensor gRPC message. The
   equivalent top-level YAML setting is `oci_runtime_spec_debug: true`.
+  This option is compiled into Fact only with Cargo feature
+  `runtime-metadata`; the published image builds enable that feature.
 
   The supported diagnostic modes are:
 

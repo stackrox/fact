@@ -84,6 +84,7 @@ pub struct Event {
 }
 
 impl Event {
+    #[cfg(feature = "runtime-metadata")]
     pub(crate) fn container_id(&self) -> Option<&str> {
         self.process.runtime_container_id()
     }
@@ -388,6 +389,7 @@ impl Event {
         self.get_monitored() == monitored_t::MONITORED_BY_PARENT
     }
 
+    #[cfg(feature = "runtime-metadata")]
     pub(crate) fn log_oci_debug(&self) {
         let Some(short_id) = self.process.container_id() else {
             return;
@@ -461,6 +463,7 @@ impl Event {
         }
     }
 
+    #[cfg(feature = "runtime-metadata")]
     pub(crate) fn event_type(&self) -> &'static str {
         self.file.event_type()
     }
@@ -514,6 +517,7 @@ impl Event {
             ("process".into(), self.process.clone().into()),
             ("hostname".into(), self.hostname.to_string().into()),
         ]);
+        #[cfg(feature = "runtime-metadata")]
         if oci_debug {
             map.insert("event.name".into(), self.event_type().into());
             map.insert(
@@ -544,7 +548,7 @@ impl Event {
     }
 }
 
-#[cfg(feature = "otel")]
+#[cfg(all(feature = "otel", feature = "runtime-metadata"))]
 fn add_oci_debug_attributes(map: &mut HashMap<opentelemetry::Key, AnyValue>, event: &Event) {
     let Some(container_id) = event.process.container_id() else {
         return;
@@ -640,7 +644,7 @@ fn add_oci_debug_attributes(map: &mut HashMap<opentelemetry::Key, AnyValue>, eve
     }
 }
 
-#[cfg(feature = "otel")]
+#[cfg(all(feature = "otel", feature = "runtime-metadata"))]
 fn add_oci_path_attributes(
     map: &mut HashMap<opentelemetry::Key, AnyValue>,
     prefix: &str,
@@ -1358,7 +1362,7 @@ mod tests {
     use super::test_utils::*;
     use super::*;
 
-    #[cfg(feature = "otel")]
+    #[cfg(all(feature = "otel", feature = "runtime-metadata"))]
     #[test]
     fn oci_diagnostics_only_add_debug_attributes_when_enabled() {
         let event = Event {

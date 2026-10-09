@@ -43,6 +43,7 @@ pub struct FactConfig {
     pub otel: OTelConfig,
     pub endpoint: EndpointConfig,
     pub bpf: BpfConfig,
+    #[cfg(feature = "runtime-metadata")]
     oci_runtime_spec_debug: Option<bool>,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
@@ -98,6 +99,7 @@ impl FactConfig {
         self.otel.update(&from.otel);
         self.endpoint.update(&from.endpoint);
         self.bpf.update(&from.bpf);
+        #[cfg(feature = "runtime-metadata")]
         if let Some(oci_runtime_spec_debug) = from.oci_runtime_spec_debug {
             self.oci_runtime_spec_debug = Some(oci_runtime_spec_debug);
         }
@@ -132,6 +134,7 @@ impl FactConfig {
     }
 
     /// Whether development-only OCI configuration is logged and exported.
+    #[cfg(feature = "runtime-metadata")]
     pub fn oci_runtime_spec_debug(&self) -> bool {
         self.oci_runtime_spec_debug.unwrap_or(false)
     }
@@ -235,6 +238,7 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                     };
                     config.bpf = BpfConfig::try_from(bpf)?;
                 }
+                #[cfg(feature = "runtime-metadata")]
                 "oci_runtime_spec_debug" => {
                     let Some(oci_runtime_spec_debug) = v.as_bool() else {
                         bail!("oci_runtime_spec_debug field has incorrect type: {v:?}");
@@ -907,6 +911,7 @@ pub struct FactCli {
     otel_endpoint: Option<String>,
 
     /// Add curated OCI runtime configuration to debug logs and OpenTelemetry
+    #[cfg(feature = "runtime-metadata")]
     #[arg(long, env = "FACT_OCI_RUNTIME_SPEC_DEBUG")]
     oci_runtime_spec_debug: Option<bool>,
 
@@ -1065,6 +1070,7 @@ impl FactCli {
                 d_instantiate_ctx_size: self.d_instantiate_ctx_size,
                 programs: HashMap::new(),
             },
+            #[cfg(feature = "runtime-metadata")]
             oci_runtime_spec_debug: self.oci_runtime_spec_debug,
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),

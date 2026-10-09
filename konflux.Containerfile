@@ -37,7 +37,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --features runtime-metadata
 
 FROM ubi-micro-base
 
