@@ -30,7 +30,8 @@
   Diagnostics never filter events or change the Sensor gRPC message. The
   equivalent top-level YAML setting is `oci_runtime_spec_debug: true`.
   This option is compiled into Fact only with Cargo feature
-  `runtime-metadata`; the published image builds enable that feature.
+  `runtime-metadata`; local standard and OTEL image builds enable that feature.
+  Konflux release builds leave it disabled.
 
   The supported diagnostic modes are:
 
