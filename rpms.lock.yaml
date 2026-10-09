@@ -683,27 +683,27 @@ arches:
     name: json-c
     evr: 0.13.1-3.el8
     sourcerpm: json-c-0.13.1-3.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kbd-2.0.4-11.el8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kbd-2.0.4-11.el8_10.1.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 390292
-    checksum: sha256:a028df84316550e32299238c78b51946e5d6b5d008e75c83e2739e3a22fb1e22
+    size: 389548
+    checksum: sha256:f6c85c03f581fed0de484371e12d8f999af1bf841ca14b6a50f8c6b31df16140
     name: kbd
-    evr: 2.0.4-11.el8
-    sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kbd-legacy-2.0.4-11.el8.noarch.rpm
+    evr: 2.0.4-11.el8_10.1
+    sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kbd-legacy-2.0.4-11.el8_10.1.noarch.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 492864
-    checksum: sha256:386ef39b87a49058e535015be3ec2a86847ed3c1bb9b56ae21c88e1c976b21ce
+    size: 491932
+    checksum: sha256:5dc3f5a4040106b4d30c7ad1fb6d4174468141cf72061b02177ddffb9fbf5f22
     name: kbd-legacy
-    evr: 2.0.4-11.el8
-    sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kbd-misc-2.0.4-11.el8.noarch.rpm
+    evr: 2.0.4-11.el8_10.1
+    sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kbd-misc-2.0.4-11.el8_10.1.noarch.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 1550252
-    checksum: sha256:b976dfc9467ba2a550a7e58cbac1885f5fc82afb90406cb42cb0d3d56096b016
+    size: 1539200
+    checksum: sha256:a1de88f2bde79331dd0749c9be12414eb624f20165d5696cabc998c55bdd1b3f
     name: kbd-misc
-    evr: 2.0.4-11.el8
-    sourcerpm: kbd-2.0.4-11.el8.src.rpm
+    evr: 2.0.4-11.el8_10.1
+    sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.172.1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 12535996
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/457c9558bf98a471938704406a74ab40781d32bb9f50ededfe9be4554e19f942-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/d108ffcd9594352ab7cdae910598ac0c5855a41e5de907fcf00183325330554b-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 847094
-    checksum: sha256:457c9558bf98a471938704406a74ab40781d32bb9f50ededfe9be4554e19f942
+    checksum: sha256:d108ffcd9594352ab7cdae910598ac0c5855a41e5de907fcf00183325330554b
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -2329,27 +2329,27 @@ arches:
     name: json-c
     evr: 0.13.1-3.el8
     sourcerpm: json-c-0.13.1-3.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kbd-2.0.4-11.el8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kbd-2.0.4-11.el8_10.1.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 399268
-    checksum: sha256:51439fd5ca41216da2b8f14720930edae13a34770a9332d91ec7b83c9024c06d
+    size: 398876
+    checksum: sha256:6d25eb2f481303722c0eb8661d86e662be4f5ada8b500883ce2187b21bc6617c
     name: kbd
-    evr: 2.0.4-11.el8
-    sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kbd-legacy-2.0.4-11.el8.noarch.rpm
+    evr: 2.0.4-11.el8_10.1
+    sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kbd-legacy-2.0.4-11.el8_10.1.noarch.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 492864
-    checksum: sha256:386ef39b87a49058e535015be3ec2a86847ed3c1bb9b56ae21c88e1c976b21ce
+    size: 491932
+    checksum: sha256:5dc3f5a4040106b4d30c7ad1fb6d4174468141cf72061b02177ddffb9fbf5f22
     name: kbd-legacy
-    evr: 2.0.4-11.el8
-    sourcerpm: kbd-2.0.4-11.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kbd-misc-2.0.4-11.el8.noarch.rpm
+    evr: 2.0.4-11.el8_10.1
+    sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kbd-misc-2.0.4-11.el8_10.1.noarch.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 1550252
-    checksum: sha256:b976dfc9467ba2a550a7e58cbac1885f5fc82afb90406cb42cb0d3d56096b016
+    size: 1539200
+    checksum: sha256:a1de88f2bde79331dd0749c9be12414eb624f20165d5696cabc998c55bdd1b3f
     name: kbd-misc
-    evr: 2.0.4-11.el8
-    sourcerpm: kbd-2.0.4-11.el8.src.rpm
+    evr: 2.0.4-11.el8_10.1
+    sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.172.1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 12567776
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/b9118a1be0864ddcc03b3b0c6cc9e7d26d540fcfa58dbc22262c38a787bbaaa0-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/3c6502931cd087185cd8b07b7ed6ddfc390a9355c4c41530584095610c21bf08-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 867284
-    checksum: sha256:b9118a1be0864ddcc03b3b0c6cc9e7d26d540fcfa58dbc22262c38a787bbaaa0
+    checksum: sha256:3c6502931cd087185cd8b07b7ed6ddfc390a9355c4c41530584095610c21bf08
