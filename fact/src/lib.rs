@@ -16,6 +16,8 @@ use tokio::{
 
 mod bpf;
 pub mod config;
+#[cfg(feature = "container")]
+mod container;
 mod endpoints;
 mod event;
 mod host_info;
@@ -117,6 +119,8 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let skip_pre_flight = config.skip_pre_flight();
     let replay = config.replay().map(PathBuf::from);
     let bpf_config = config.bpf.clone();
+    #[cfg(feature = "container")]
+    let container_enabled = config.container.enabled();
 
     let metrics_userspace = Metrics::new();
     let mut task_set = JoinSet::new();
@@ -135,6 +139,17 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     };
 
     let (metrics_kernelspace, rx) = setup_input(setup_args)?;
+    #[cfg(feature = "container")]
+    let rx = if container_enabled {
+        let (container_gatherer, rx) =
+            container::ContainerGatherer::new(rx, running_pipeline_rx.clone());
+
+        container_gatherer.start(&mut task_set);
+        rx
+    } else {
+        rx
+    };
+
     let (rate_limiter, rx) = RateLimiter::new(
         rx,
         reloader.rate_limit(),
