@@ -161,4 +161,3 @@ release branch is up to date.
 
 1. Ensure the Konflux and GitHub Actions builds succeed and the
 corresponding container images are pushed.
-

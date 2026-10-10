@@ -40,7 +40,8 @@ COPY . .
 FROM builder AS build
 
 ARG FACT_VERSION
-ARG CARGO_ARGS=""
+ARG FACT_BUILD_SHA=unknown
+ARG CARGO_ARGS="--features runtime-metadata"
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/app/target \
     cargo build --release $CARGO_ARGS && \

@@ -18,6 +18,8 @@ mod bpf;
 pub mod config;
 mod endpoints;
 mod event;
+#[cfg(feature = "runtime-metadata")]
+mod features;
 mod host_info;
 mod host_scanner;
 mod metrics;
@@ -114,6 +116,10 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     let (host_scanner_intro_tx, host_scanner_intro_rx) = mpsc::channel(10);
 
     let stdout_enabled = config.json();
+    #[cfg(feature = "runtime-metadata")]
+    let oci_debug = config.oci_runtime_spec_debug();
+    #[cfg(not(feature = "runtime-metadata"))]
+    let oci_debug = false;
     let skip_pre_flight = config.skip_pre_flight();
     let replay = config.replay().map(PathBuf::from);
     let bpf_config = config.bpf.clone();
@@ -148,6 +154,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         reloader.grpc(),
         reloader.otel(),
         stdout_enabled,
+        oci_debug,
     );
 
     rate_limiter.start(&mut task_set);

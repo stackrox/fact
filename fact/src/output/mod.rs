@@ -31,7 +31,10 @@ pub fn start(
     grpc_config: watch::Receiver<GrpcConfig>,
     #[allow(unused)] otel_config: watch::Receiver<OTelConfig>,
     stdout_enabled: bool,
+    oci_debug: bool,
 ) {
+    #[cfg(not(feature = "runtime-metadata"))]
+    let _ = oci_debug;
     let (broad_tx, _) = broadcast::channel(100);
     let (subs_req, mut subs_rx) = mpsc::channel(10);
     let (running, _) = watch::channel(true);
@@ -54,6 +57,7 @@ pub fn start(
             running.subscribe(),
             metrics.otel.clone(),
             otel_config,
+            oci_debug,
         );
         non_stdout_enabled = non_stdout_enabled || otel_client.is_enabled();
         otel_client.start(&mut handles);
@@ -80,6 +84,14 @@ pub fn start(
                         // are present.
                         break Ok(());
                     };
+
+                    #[cfg(feature = "runtime-metadata")]
+                    if oci_debug {
+                        if let Some(container_id) = event.container_id() {
+                            crate::features::preload(container_id).await;
+                        }
+                        event.log_oci_debug();
+                    }
 
                     if let Err(e) = broad_tx.send(Arc::new(event)) {
                         warn!("Failed to forward output event: {e}");

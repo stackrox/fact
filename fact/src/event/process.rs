@@ -4,6 +4,8 @@ use std::{ffi::CStr, path::PathBuf};
 
 use fact_ebpf::{lineage_t, process_t};
 #[cfg(feature = "otel")]
+use opentelemetry::Key;
+#[cfg(feature = "otel")]
 use opentelemetry::logs::AnyValue;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -61,6 +63,9 @@ pub struct Process {
     args: Vec<String>,
     exe_path: PathBuf,
     container_id: Option<String>,
+    #[cfg(feature = "runtime-metadata")]
+    #[serde(skip)]
+    runtime_container_id: Option<String>,
     uid: u32,
     #[serde(skip_deserializing)]
     username: &'static str,
@@ -81,7 +86,10 @@ impl Process {
         let exe_path = std::env::current_exe().expect("Failed to get current exe");
         let args = std::env::args().collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
-        let container_id = Process::extract_container_id(&cgroup);
+        let runtime_container_id = Process::extract_container_id(&cgroup);
+        let container_id = runtime_container_id
+            .as_deref()
+            .map(|id| id[..12].to_owned());
         let uid = unsafe { libc::getuid() };
         let gid = unsafe { libc::getgid() };
         let pid = std::process::id();
@@ -97,6 +105,8 @@ impl Process {
             args,
             exe_path,
             container_id,
+            #[cfg(feature = "runtime-metadata")]
+            runtime_container_id,
             uid,
             username: "",
             gid,
@@ -124,23 +134,136 @@ impl Process {
             return None;
         }
 
-        if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
-            Some(cgroup.split_at(12).0.to_owned())
+        if cgroup.len() == 64 && cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
+            Some(cgroup.to_owned())
         } else {
             None
         }
+    }
+
+    #[cfg(feature = "runtime-metadata")]
+    pub(crate) fn container_id(&self) -> Option<&str> {
+        self.container_id.as_deref()
+    }
+
+    #[cfg(feature = "runtime-metadata")]
+    pub(crate) fn runtime_container_id(&self) -> Option<&str> {
+        self.runtime_container_id
+            .as_deref()
+            .or_else(|| self.container_id())
+    }
+}
+
+#[cfg(all(feature = "otel", feature = "runtime-metadata"))]
+impl Process {
+    pub(super) fn add_debug_otel_attributes(&self, map: &mut HashMap<Key, AnyValue>) {
+        map.insert("process.command".into(), self.comm.clone().into());
+        map.insert(
+            "process.command_line".into(),
+            shlex::try_join(self.args.iter().map(String::as_str))
+                .unwrap_or_else(|_| self.args.join(" "))
+                .into(),
+        );
+        map.insert(
+            "process.executable.path".into(),
+            self.exe_path.to_string_lossy().to_string().into(),
+        );
+        map.insert("process.pid".into(), (self.pid as i64).into());
+        map.insert("process.user.id".into(), (self.uid as i64).into());
+        map.insert("process.user.name".into(), self.username.into());
+        map.insert("process.group.id".into(), (self.gid as i64).into());
+        map.insert("process.login_uid".into(), (self.login_uid as i64).into());
+        map.insert(
+            "process.in_root_mount_ns".into(),
+            self.in_root_mount_ns.into(),
+        );
+
+        let Some(container_id) = &self.container_id else {
+            return;
+        };
+        map.insert("container.id".into(), container_id.clone().into());
+        let Some(container) = crate::features::resolve(container_id) else {
+            return;
+        };
+
+        insert_string(map, "k8s.namespace.name", &container.namespace);
+        insert_string(map, "k8s.pod.uid", &container.pod_uid);
+        insert_string(map, "k8s.pod.name", &container.pod_name);
+        insert_string(map, "k8s.container.name", &container.container_name);
+        insert_string(map, "container.image.name", &container.image_name);
+        insert_string(map, "container.image.id", &container.image_ref);
+        insert_string(map, "container.runtime.type", &container.container_type);
+        insert_string(map, "container.created_at", &container.created);
+        insert_string(map, "openshift.scc", &container.openshift_scc);
+        map.insert("openshift.debug".into(), container.oc_debug.into());
+        if container.oci_debug().spec_available {
+            map.insert(
+                "container.security_context.privileged".into(),
+                container.privileged.into(),
+            );
+            map.insert("container.host_pid".into(), container.host_pid.into());
+            map.insert(
+                "container.host_network".into(),
+                container.host_network.into(),
+            );
+            map.insert(
+                "container.host_root_mount".into(),
+                container.host_root_mount.into(),
+            );
+        }
+        insert_json_map(map, "k8s.container.labels", &container.labels);
+        insert_json_map(map, "k8s.container.annotations", &container.annotations);
+
+        if let Some(sandbox) = &container.sandbox {
+            insert_string(map, "container.sandbox.id", &sandbox.id);
+            insert_string(map, "container.sandbox.oci.version", &sandbox.oci_version);
+            insert_string(map, "container.sandbox.image.name", &sandbox.image_name);
+            insert_string(map, "container.sandbox.image.id", &sandbox.image_ref);
+            insert_json_map(map, "k8s.pod.labels", &sandbox.labels);
+            insert_json_map(map, "k8s.pod.annotations", &sandbox.annotations);
+        } else {
+            insert_json_map(map, "k8s.pod.labels", &container.labels);
+            insert_json_map(map, "k8s.pod.annotations", &container.annotations);
+        }
+    }
+}
+
+#[cfg(feature = "otel")]
+fn insert_string(map: &mut HashMap<Key, AnyValue>, key: &'static str, value: &str) {
+    if !value.is_empty() {
+        map.insert(key.into(), value.to_owned().into());
+    }
+}
+
+#[cfg(feature = "otel")]
+fn insert_json_map(
+    map: &mut HashMap<Key, AnyValue>,
+    key: &'static str,
+    value: &HashMap<String, String>,
+) {
+    if !value.is_empty() {
+        map.insert(
+            key.into(),
+            serde_json::to_string(value).unwrap_or_default().into(),
+        );
     }
 }
 
 #[cfg(test)]
 impl PartialEq for Process {
     fn eq(&self, other: &Self) -> bool {
+        #[cfg(feature = "runtime-metadata")]
+        let runtime_container_id_matches = self.runtime_container_id == other.runtime_container_id;
+        #[cfg(not(feature = "runtime-metadata"))]
+        let runtime_container_id_matches = true;
+
         self.uid == other.uid
             && self.login_uid == other.login_uid
             && self.gid == other.gid
             && self.exe_path == other.exe_path
             && self.args == other.args
             && self.container_id == other.container_id
+            && runtime_container_id_matches
             && self.in_root_mount_ns == other.in_root_mount_ns
     }
 }
@@ -152,7 +275,10 @@ impl TryFrom<process_t> for Process {
         let comm = slice_to_string(value.comm.as_slice())?;
         let exe_path = sanitize_d_path(value.exe_path.as_slice());
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
-        let container_id = Process::extract_container_id(memory_cgroup);
+        let runtime_container_id = Process::extract_container_id(memory_cgroup);
+        let container_id = runtime_container_id
+            .as_deref()
+            .map(|id| id[..12].to_owned());
         let in_root_mount_ns = value.in_root_mount_ns != 0;
 
         let lineage = value.lineage[..value.lineage_len as usize]
@@ -181,6 +307,8 @@ impl TryFrom<process_t> for Process {
             args: converted_args,
             exe_path,
             container_id,
+            #[cfg(feature = "runtime-metadata")]
+            runtime_container_id,
             uid: value.uid,
             username,
             gid: value.gid,
@@ -206,6 +334,7 @@ impl From<Process> for fact_api::ProcessSignal {
             pid,
             in_root_mount_ns,
             lineage,
+            ..
         } = value;
 
         let container_id = container_id.unwrap_or("".to_string());
@@ -290,27 +419,39 @@ mod tests {
             ("init.scope", None),
             (
                 "/docker/951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4",
-                Some("951e643e3c24".to_string()),
+                Some(
+                    "951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4".to_string(),
+                ),
             ),
             (
                 "/kubepods/kubepods/besteffort/pod690705f9-df6e-11e9-8dc5-025000000001/c3bfd81b7da0be97190a74a7d459f4dfa18f57c88765cde2613af112020a1c4b",
-                Some("c3bfd81b7da0".to_string()),
+                Some(
+                    "c3bfd81b7da0be97190a74a7d459f4dfa18f57c88765cde2613af112020a1c4b".to_string(),
+                ),
             ),
             (
                 "/kubepods/burstable/pod7cd3dba6-e475-11e9-8f99-42010a8a00d2/2bc55a8cae1704a733ba5d785d146bbed9610483380507cbf00c96b32bb637e1",
-                Some("2bc55a8cae17".to_string()),
+                Some(
+                    "2bc55a8cae1704a733ba5d785d146bbed9610483380507cbf00c96b32bb637e1".to_string(),
+                ),
             ),
             (
                 "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podce705797_e47e_11e9_bd71_42010a000002.slice/docker-6525e65814a99d431b6978e8f8c895013176c6c58173b56639d4b020c14e6022.scope",
-                Some("6525e65814a9".to_string()),
+                Some(
+                    "6525e65814a99d431b6978e8f8c895013176c6c58173b56639d4b020c14e6022".to_string(),
+                ),
             ),
             (
                 "/machine.slice/libpod-b6e375cfe46efa5cd90d095603dec2de888c28b203285819233040b5cf1212ac.scope/container",
-                Some("b6e375cfe46e".to_string()),
+                Some(
+                    "b6e375cfe46efa5cd90d095603dec2de888c28b203285819233040b5cf1212ac".to_string(),
+                ),
             ),
             (
                 "/machine.slice/libpod-cbdfa0f1f08763b1963c30d98e11e1f052cb67f1e9b7c0ab8a6ca6c70cbcad69.scope/container/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod6eab3b7b_f0a6_4bb8_bff2_d5bc9017c04b.slice/cri-containerd-5ebf11e02dbde102cda4b76bc0e3849a65f9edac7a12bdabfd34db01b9556101.scope",
-                Some("5ebf11e02dbd".to_string()),
+                Some(
+                    "5ebf11e02dbde102cda4b76bc0e3849a65f9edac7a12bdabfd34db01b9556101".to_string(),
+                ),
             ),
         ];
 

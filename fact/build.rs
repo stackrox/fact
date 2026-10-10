@@ -4,6 +4,7 @@ use anyhow::{Context, bail};
 
 fn main() -> anyhow::Result<()> {
     println!("cargo::rerun-if-changed=../.git/HEAD");
+    println!("cargo::rerun-if-env-changed=FACT_BUILD_SHA");
     let out_dir: PathBuf = std::env::var("OUT_DIR")
         .context("Failed to interpret OUT_DIR environment variable")?
         .into();
@@ -18,10 +19,15 @@ fn main() -> anyhow::Result<()> {
     }
 
     let version = String::from_utf8(cmd.stdout)?;
+    let build_sha = std::env::var("FACT_BUILD_SHA").unwrap_or_else(|_| "unknown".to_owned());
     let out_path = out_dir.join("version.rs");
     std::fs::write(
         &out_path,
-        format!(r#"pub const FACT_VERSION: &str = "{}";"#, version.trim()),
+        format!(
+            "pub const FACT_VERSION: &str = {:?};\npub const FACT_BUILD_SHA: &str = {:?};",
+            version.trim(),
+            build_sha.trim()
+        ),
     )?;
     Ok(())
 }

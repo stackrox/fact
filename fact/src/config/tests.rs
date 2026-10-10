@@ -9,6 +9,15 @@ use super::*;
 fn parsing() {
     let tests = [
         ("", FactConfig::default()),
+        #[cfg(feature = "runtime-metadata")]
+        (
+            "oci_runtime_spec_debug: true",
+            FactConfig {
+                #[cfg(feature = "runtime-metadata")]
+                oci_runtime_spec_debug: Some(true),
+                ..Default::default()
+            },
+        ),
         (
             "paths:",
             FactConfig {
@@ -513,6 +522,8 @@ fn parsing() {
             "#,
             FactConfig {
                 paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
+                #[cfg(feature = "runtime-metadata")]
+                oci_runtime_spec_debug: None,
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
@@ -971,6 +982,11 @@ paths:
             "replay field has incorrect type: Boolean(true)",
         ),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
+        #[cfg(feature = "runtime-metadata")]
+        (
+            "oci_runtime_spec_debug: definitely",
+            "oci_runtime_spec_debug field has incorrect type: String(\"definitely\")",
+        ),
     ];
     for (input, expected) in tests {
         let Err(err) = input.parse::<FactConfig>() else {
@@ -984,6 +1000,16 @@ paths:
 fn update() {
     let tests = [
         ("", FactConfig::default(), FactConfig::default()),
+        #[cfg(feature = "runtime-metadata")]
+        (
+            "oci_runtime_spec_debug: true",
+            FactConfig::default(),
+            FactConfig {
+                #[cfg(feature = "runtime-metadata")]
+                oci_runtime_spec_debug: Some(true),
+                ..Default::default()
+            },
+        ),
         (
             "paths:",
             FactConfig::default(),
@@ -1969,6 +1995,8 @@ fn update() {
                     .as_slice()
                     .try_into()
                     .unwrap(),
+                #[cfg(feature = "runtime-metadata")]
+                oci_runtime_spec_debug: None,
                 grpc: GrpcConfig {
                     url: Some(String::from("http://localhost")),
                     certs: Some(PathBuf::from("/etc/certs")),
@@ -2009,6 +2037,8 @@ fn update() {
             },
             FactConfig {
                 paths: [PathBuf::from("/etc")].as_slice().try_into().unwrap(),
+                #[cfg(feature = "runtime-metadata")]
+                oci_runtime_spec_debug: None,
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
@@ -2417,6 +2447,18 @@ fn env_vars() {
                 otel: OTelConfig {
                     endpoint: Some(String::from("http://localhost:4317")),
                 },
+                ..Default::default()
+            },
+        ),
+        #[cfg(feature = "runtime-metadata")]
+        (
+            EnvVar {
+                name: "FACT_OCI_RUNTIME_SPEC_DEBUG",
+                value: "true",
+            },
+            FactConfig {
+                #[cfg(feature = "runtime-metadata")]
+                oci_runtime_spec_debug: Some(true),
                 ..Default::default()
             },
         ),
