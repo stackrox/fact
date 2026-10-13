@@ -1,0 +1,11 @@
+FROM quay.io/centos/centos:stream9 AS builder
+
+RUN dnf install -y --enablerepo=crb gcc glibc-static
+
+WORKDIR /build
+COPY io_uring_write_raw.c .
+RUN cc -static -o io_uring_write_raw io_uring_write_raw.c
+
+FROM quay.io/centos/centos:stream9-minimal
+
+COPY --from=builder /build/io_uring_write_raw /usr/local/bin/
