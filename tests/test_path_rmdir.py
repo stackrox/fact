@@ -7,8 +7,8 @@ import sys
 import pytest
 
 from event import Event, EventType, Process
+from metrics import get_metric_value
 from server import EventServer
-from utils import get_metric_value
 
 
 def get_inode_removed_count(fact_config: tuple[dict, str]):

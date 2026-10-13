@@ -37,7 +37,7 @@ pub fn start(
     let (running, _) = watch::channel(true);
     let mut handles = JoinSet::new();
 
-    let grpc_client = grpc::Client::new(
+    let mut grpc_client = grpc::Client::new(
         subs_req.clone(),
         running.subscribe(),
         metrics.grpc.clone(),
