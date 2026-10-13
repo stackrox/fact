@@ -130,13 +130,13 @@ arches:
     name: glibc-devel
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.56.1.el9_8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.57.1.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 2938333
-    checksum: sha256:ea29f262c5cc5b180acb285f135820fd984aa7c1b83acc0f25b3562e42fa9221
+    size: 2939977
+    checksum: sha256:31860419149438987e706dd2929fbc707552cd2e51dbc86547d294f9fed5f204
     name: kernel-headers
-    evr: 5.14.0-687.56.1.el9_8
-    sourcerpm: kernel-5.14.0-687.56.1.el9_8.src.rpm
+    evr: 5.14.0-687.57.1.el9_8
+    sourcerpm: kernel-5.14.0-687.57.1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-14.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 409047
@@ -1054,20 +1054,20 @@ arches:
     name: pcre
     evr: 8.44-4.el9
     sourcerpm: pcre-8.44-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/p/pcre2-10.40-6.el9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/p/pcre2-10.40-7.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 224938
-    checksum: sha256:29285f81cef68f73b4f8ff81ee8fdf4ceaa007933302119ed1615e4aa1091613
+    size: 227991
+    checksum: sha256:40fd0cd92f4cf824fb5186128d360bdc0a8a9f70c9f820b8c0efda4afec75cc8
     name: pcre2
-    evr: 10.40-6.el9
-    sourcerpm: pcre2-10.40-6.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/p/pcre2-syntax-10.40-6.el9.noarch.rpm
+    evr: 10.40-7.el9_8
+    sourcerpm: pcre2-10.40-7.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/p/pcre2-syntax-10.40-7.el9_8.noarch.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 147926
-    checksum: sha256:d386b5e9b3a4b077b2ba143882e605750855dd3354f13c55fa12ed26908cb442
+    size: 150069
+    checksum: sha256:e7466a43ef2bfda2b1dc07e855b0db743d48b11c0bdc1402e1d2ea6fb23d33a3
     name: pcre2-syntax
-    evr: 10.40-6.el9
-    sourcerpm: pcre2-10.40-6.el9.src.rpm
+    evr: 10.40-7.el9_8
+    sourcerpm: pcre2-10.40-7.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/p/pkgconf-1.7.3-10.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 45196
@@ -1464,13 +1464,13 @@ arches:
     name: glibc-headers
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.56.1.el9_8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.57.1.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 2977605
-    checksum: sha256:a797333dff8ff3d82f6e38107e7d9fbf78b60cd8a4d3c2582baaad91309a405c
+    size: 2979225
+    checksum: sha256:c5766b2f8e4531f824575546028de7d8eb9fa95d7246dfafd4883c58312a2ef2
     name: kernel-headers
-    evr: 5.14.0-687.56.1.el9_8
-    sourcerpm: kernel-5.14.0-687.56.1.el9_8.src.rpm
+    evr: 5.14.0-687.57.1.el9_8
+    sourcerpm: kernel-5.14.0-687.57.1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
@@ -2381,20 +2381,20 @@ arches:
     name: pcre
     evr: 8.44-4.el9
     sourcerpm: pcre-8.44-4.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/pcre2-10.40-6.el9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/pcre2-10.40-7.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 241900
-    checksum: sha256:75db1e5a50e7b1794d7ba18212d95cd2684559da9e7c52eee46490302c7f24dd
+    size: 244785
+    checksum: sha256:ef2c65a463e1ef1bfbf3d9ee66986e14cca0fbae88343f099dd5b16619276f1f
     name: pcre2
-    evr: 10.40-6.el9
-    sourcerpm: pcre2-10.40-6.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/pcre2-syntax-10.40-6.el9.noarch.rpm
+    evr: 10.40-7.el9_8
+    sourcerpm: pcre2-10.40-7.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/pcre2-syntax-10.40-7.el9_8.noarch.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 147926
-    checksum: sha256:d386b5e9b3a4b077b2ba143882e605750855dd3354f13c55fa12ed26908cb442
+    size: 150069
+    checksum: sha256:e7466a43ef2bfda2b1dc07e855b0db743d48b11c0bdc1402e1d2ea6fb23d33a3
     name: pcre2-syntax
-    evr: 10.40-6.el9
-    sourcerpm: pcre2-10.40-6.el9.src.rpm
+    evr: 10.40-7.el9_8
+    sourcerpm: pcre2-10.40-7.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/p/pkgconf-1.7.3-10.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 45675
