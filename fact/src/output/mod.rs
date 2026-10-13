@@ -72,7 +72,7 @@ pub fn start(
 
     task_set.spawn(async move {
         #[cfg(feature = "runtime-metadata")]
-        let runtime_metadata = crate::features::runtime_metadata::Observer::from_env();
+        let runtime_metadata = crate::features::runtime_metadata::Enricher::from_env();
         debug!("Starting output component...");
         let res = loop {
             tokio::select! {
@@ -84,9 +84,13 @@ pub fn start(
                     };
 
                     #[cfg(feature = "runtime-metadata")]
-                    if let (Some(observer), Some(id)) = (&runtime_metadata, event.runtime_container_id()) {
-                        observer.observe(id);
-                    }
+                    let event = {
+                        let mut event = event;
+                        if let Some(enricher) = &runtime_metadata {
+                            event.enrich_image(enricher);
+                        }
+                        event
+                    };
 
                     if let Err(e) = broad_tx.send(Arc::new(event)) {
                         warn!("Failed to forward output event: {e}");

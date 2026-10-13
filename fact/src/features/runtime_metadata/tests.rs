@@ -113,18 +113,8 @@ impl Drop for Server {
 fn status() -> ContainerStatus {
     ContainerStatus {
         id: "a".repeat(64),
-        metadata: Some(ContainerMetadata {
-            name: "app".into(),
-            attempt: 2,
-        }),
-        state: ContainerState::Running as i32,
-        created_at: 100,
-        started_at: 200,
-        image: Some(ImageSpec {
-            image: "example/app:v1".into(),
-        }),
         image_ref: "example/app@sha256:abcd".into(),
-        ..Default::default()
+        image_id: "sha256:1234".into(),
     }
 }
 
@@ -183,15 +173,143 @@ async fn bounds_slow_requests_and_unavailable_sockets() {
 #[tokio::test]
 async fn suppresses_repeated_lookups_without_blocking_observation() {
     let mut server = Server::new(Err(Status::not_found("removed")), Duration::ZERO).await;
-    let observer = Observer::new(server.socket.clone());
-    observer.observe(&status().id);
-    observer.observe(&status().id);
-    observer.observe(&"b".repeat(64));
+    let observer = Enricher::new(server.socket.clone());
+    observer.image(&status().id);
+    observer.image(&status().id);
+    observer.image(&"b".repeat(64));
     assert_eq!(server.request().await.container_id, status().id);
     assert_eq!(server.request().await.container_id, "b".repeat(64));
     // No await in observe(): even a saturated queue cannot stall the caller.
-    for _ in 0..CAPACITY * 2 {
-        observer.observe(&status().id);
+    for i in 0..CAPACITY * 2 {
+        observer.image(&format!("container-{i}"));
     }
     assert_eq!(observer.ids.capacity(), 0);
+}
+
+#[test]
+fn selects_image_id_then_reference_and_omits_empty_identity() {
+    assert_eq!(status().image_identity().as_deref(), Some("sha256:1234"));
+    assert_eq!(
+        ContainerStatus {
+            image_id: String::new(),
+            ..status()
+        }
+        .image_identity()
+        .as_deref(),
+        Some("example/app@sha256:abcd")
+    );
+    assert_eq!(ContainerStatus::default().image_identity(), None);
+}
+
+#[tokio::test]
+async fn enriches_event_json_and_reuses_cached_image() {
+    use crate::event::Event;
+    use fact_ebpf::{event_t, file_activity_type_t};
+
+    for image_id in ["sha256:1234", ""] {
+        let reply = ContainerStatus {
+            image_id: image_id.into(),
+            ..status()
+        };
+        let expected = reply.clone().image_identity().unwrap();
+        let mut server = Server::new(Ok(Some(reply)), Duration::ZERO).await;
+        let enricher = Enricher::new(server.socket.clone());
+        let mut raw = event_t {
+            type_: file_activity_type_t::FILE_ACTIVITY_CREATION,
+            ..Default::default()
+        };
+        for (dest, src) in raw
+            .process
+            .memory_cgroup
+            .iter_mut()
+            .zip(format!("/kubepods/{}", status().id).bytes())
+        {
+            *dest = src as _;
+        }
+        let mut event = Event::try_from(&raw).unwrap();
+        event.enrich_image(&enricher);
+        assert!(
+            serde_json::to_value(&event).unwrap()["process"]
+                .get("container_image")
+                .is_none()
+        );
+        assert_eq!(server.request().await.container_id, status().id);
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                event.enrich_image(&enricher);
+                if serde_json::to_value(&event).unwrap()["process"]["container_image"] == expected {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        for _ in 0..10 {
+            event.enrich_image(&enricher);
+        }
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["process"]["container_image"], expected);
+        assert_eq!(json["process"]["container_id"], &status().id[..12]);
+        #[cfg(feature = "otel")]
+        {
+            use opentelemetry::logs::AnyValue;
+            let AnyValue::Map(fields) = AnyValue::from(event.clone()) else {
+                panic!("event map")
+            };
+            let Some(AnyValue::Map(process)) = fields.get("process") else {
+                panic!("process map")
+            };
+            let Some(AnyValue::String(image)) = process.get("container_image") else {
+                panic!("image identity")
+            };
+            assert_eq!(image.as_str(), expected);
+        }
+        assert!(server.calls.try_recv().is_err());
+        assert_eq!(enricher.ids.capacity(), CAPACITY);
+        // Replay keeps recorded enrichment without querying the current runtime.
+        let mut replay: Event = serde_json::from_value(json.clone()).unwrap();
+        let disconnected = Enricher::new(server.socket.with_file_name("missing.sock"));
+        replay.enrich_image(&disconnected);
+        assert_eq!(
+            serde_json::to_value(&replay).unwrap()["process"]["container_image"],
+            json["process"]["container_image"]
+        );
+        assert!(disconnected.cache.lock().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn bounds_cache_and_retries_after_expiry() {
+    let mut server = Server::new(Err(Status::not_found("removed")), Duration::ZERO).await;
+    let enricher = Enricher::new(server.socket.clone());
+    assert!(enricher.image(&status().id).is_none());
+    server.request().await;
+    // A failure/pending entry suppresses another RPC until its retry window ends.
+    assert!(enricher.image(&status().id).is_none());
+    enricher
+        .cache
+        .lock()
+        .unwrap()
+        .get_mut(&status().id)
+        .unwrap()
+        .expires = Instant::now();
+    assert!(enricher.image(&status().id).is_none());
+    server.request().await;
+    {
+        let mut cache = enricher.cache.lock().unwrap();
+        cache.clear();
+        for i in 0..MAX_CONTAINERS {
+            cache.insert(
+                i.to_string(),
+                CachedImage {
+                    expires: Instant::now() + REFRESH_INTERVAL,
+                    image: None,
+                },
+            );
+        }
+    }
+    assert!(enricher.image("over-capacity").is_none());
+    assert_eq!(enricher.cache.lock().unwrap().len(), MAX_CONTAINERS);
+    assert_eq!(enricher.ids.capacity(), CAPACITY);
 }

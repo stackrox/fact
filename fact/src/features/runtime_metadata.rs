@@ -1,6 +1,11 @@
-//! Best-effort CRI diagnostics. This module owns the socket, worker, and lookup
-//! budget; the event pipeline only supplies a container ID without waiting.
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+//! Best-effort image enrichment. Owns the CRI client, cache, and worker;
+//! event delivery never waits for a runtime lookup.
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use hyper_util::rt::TokioIo;
 use log::{debug, warn};
@@ -13,19 +18,22 @@ const MAX_CONTAINERS: usize = 1024;
 const REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
-pub(crate) struct Observer {
+pub(crate) struct Enricher {
     ids: mpsc::Sender<String>,
     worker: JoinHandle<()>,
+    cache: Arc<Mutex<HashMap<String, CachedImage>>>,
 }
 
-impl Observer {
+struct CachedImage {
+    expires: Instant,
+    image: Option<String>,
+}
+
+impl Enricher {
     pub(crate) fn from_env() -> Option<Self> {
         let socket = PathBuf::from(std::env::var_os("FACT_CRI_SOCKET")?);
         if !socket.is_absolute() {
-            warn!("FACT_CRI_SOCKET must be an absolute path; CRI diagnostics disabled");
-            return None;
-        }
-        if !log::log_enabled!(log::Level::Debug) {
+            warn!("FACT_CRI_SOCKET must be an absolute path; CRI image enrichment disabled");
             return None;
         }
         // The path is in Fact's filesystem, e.g. /host/run/crio/crio.sock.
@@ -34,35 +42,47 @@ impl Observer {
 
     fn new(socket: PathBuf) -> Self {
         let (ids, mut pending) = mpsc::channel::<String>(CAPACITY);
+        let cache = Arc::new(Mutex::new(HashMap::<String, CachedImage>::new()));
+        let worker_cache = cache.clone();
         let worker = tokio::spawn(async move {
             let mut client = client(socket);
-            let mut recent = HashMap::new();
             while let Some(id) = pending.recv().await {
-                let now = Instant::now();
-                // Expire both successful and failed lookups. Never retain stale
-                // lifecycle state indefinitely or retry on every file event.
-                recent.retain(|_, until| *until > now);
-                if recent.contains_key(&id) || recent.len() >= MAX_CONTAINERS {
-                    continue;
-                }
-                recent.insert(id.clone(), now + REFRESH_INTERVAL);
                 match container_status(&mut client, &id).await {
-                    Ok(status) => debug!("CRI ContainerStatus: {status:?}"),
-                    Err(error) => debug!("CRI ContainerStatus unavailable for {id}: {error:#}"),
+                    Ok(status) => {
+                        if let Some(entry) = worker_cache.lock().unwrap().get_mut(&id) {
+                            entry.image = status.image_identity();
+                        }
+                    }
+                    Err(error) => debug!("CRI image unavailable for {id}: {error:#}"),
                 }
             }
         });
-        Self { ids, worker }
+        Self { ids, worker, cache }
     }
 
-    pub(crate) fn observe(&self, id: &str) {
-        // Only IDs extracted from live cgroups are eligible. Replay data does
-        // not populate that field. A full queue drops diagnostics, not events.
-        let _ = self.ids.try_send(id.to_owned());
+    pub(crate) fn image(&self, id: &str) -> Option<String> {
+        let now = Instant::now();
+        let mut cache = self.cache.lock().unwrap();
+        if let Some(entry) = cache.get(id).filter(|entry| entry.expires > now) {
+            return entry.image.clone();
+        }
+        cache.retain(|_, entry| entry.expires > now);
+        // Reserve pending entries too, so repeated events do not flood the queue.
+        // Failed lookups remain cached until expiry, limiting retry pressure.
+        if cache.len() < MAX_CONTAINERS && self.ids.try_send(id.to_owned()).is_ok() {
+            cache.insert(
+                id.to_owned(),
+                CachedImage {
+                    expires: now + REFRESH_INTERVAL,
+                    image: None,
+                },
+            );
+        }
+        None
     }
 }
 
-impl Drop for Observer {
+impl Drop for Enricher {
     fn drop(&mut self) {
         self.worker.abort();
     }
@@ -126,47 +146,21 @@ struct ContainerStatusResponse {
 struct ContainerStatus {
     #[prost(string, tag = "1")]
     id: String,
-    #[prost(message, optional, tag = "2")]
-    metadata: Option<ContainerMetadata>,
-    #[prost(enumeration = "ContainerState", tag = "3")]
-    state: i32,
-    #[prost(int64, tag = "4")]
-    created_at: i64,
-    #[prost(int64, tag = "5")]
-    started_at: i64,
-    #[prost(int64, tag = "6")]
-    finished_at: i64,
-    #[prost(int32, tag = "7")]
-    exit_code: i32,
-    #[prost(message, optional, tag = "8")]
-    image: Option<ImageSpec>,
     #[prost(string, tag = "9")]
     image_ref: String,
-    #[prost(string, tag = "10")]
-    reason: String,
+    #[prost(string, tag = "17")]
+    image_id: String,
 }
 
-#[derive(Clone, PartialEq, prost::Message)]
-struct ContainerMetadata {
-    #[prost(string, tag = "1")]
-    name: String,
-    #[prost(uint32, tag = "2")]
-    attempt: u32,
-}
-
-#[derive(Clone, PartialEq, prost::Message)]
-struct ImageSpec {
-    #[prost(string, tag = "1")]
-    image: String,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, prost::Enumeration)]
-#[repr(i32)]
-enum ContainerState {
-    Created = 0,
-    Running = 1,
-    Exited = 2,
-    Unknown = 3,
+impl ContainerStatus {
+    fn image_identity(self) -> Option<String> {
+        let image = if self.image_id.is_empty() {
+            self.image_ref
+        } else {
+            self.image_id
+        };
+        (!image.is_empty()).then_some(image)
+    }
 }
 
 #[cfg(test)]

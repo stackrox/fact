@@ -62,7 +62,7 @@ jobs:
     - name: Test
       run: cargo +${{ matrix.rust-version }} test
 
-    - name: Test CRI diagnostics
+    - name: Test CRI image enrichment
       run: cargo +${{ matrix.rust-version }} test --features runtime-metadata
 
 

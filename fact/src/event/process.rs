@@ -64,6 +64,9 @@ pub struct Process {
     #[cfg(feature = "runtime-metadata")]
     #[serde(skip)]
     pub(super) runtime_container_id: Option<String>,
+    #[cfg(feature = "runtime-metadata")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) container_image: Option<String>,
     uid: u32,
     #[serde(skip_deserializing)]
     username: &'static str,
@@ -102,6 +105,8 @@ impl Process {
             container_id,
             #[cfg(feature = "runtime-metadata")]
             runtime_container_id: Self::parse_container_id(&cgroup).map(str::to_owned),
+            #[cfg(feature = "runtime-metadata")]
+            container_image: None,
             uid,
             username: "",
             gid,
@@ -192,6 +197,8 @@ impl TryFrom<process_t> for Process {
             container_id,
             #[cfg(feature = "runtime-metadata")]
             runtime_container_id: Self::parse_container_id(memory_cgroup).map(str::to_owned),
+            #[cfg(feature = "runtime-metadata")]
+            container_image: None,
             uid: value.uid,
             username,
             gid: value.gid,
@@ -283,6 +290,11 @@ impl From<Process> for opentelemetry::logs::AnyValue {
 
         if let Some(container_id) = value.container_id {
             map.insert("container_id".into(), container_id.into());
+        }
+
+        #[cfg(feature = "runtime-metadata")]
+        if let Some(image) = value.container_image {
+            map.insert("container_image".into(), image.into());
         }
 
         AnyValue::Map(Box::new(map))
