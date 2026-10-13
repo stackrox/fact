@@ -1,6 +1,6 @@
 FROM registry.access.redhat.com/ubi9/ubi-micro@sha256:ff30602252a3e92706585c7c34cd3c74028eaac4ab815e6b19f8b27562bdd7e3 AS ubi-micro-base
 
-FROM registry.access.redhat.com/ubi9/ubi@sha256:866c52a4f649b2e027e0eafeede5f37dd13ac58ab63bbe2950d7928334312a4c AS package_installer
+FROM registry.access.redhat.com/ubi9/ubi@sha256:beba9460df08acc9f2d5a99f61b8544d5367b05e02c945ca726c6f07ca5963a7 AS package_installer
 
 COPY --from=ubi-micro-base / /out/
 
@@ -19,7 +19,7 @@ RUN dnf install -y \
     dnf clean all --installroot=/out/ && \
     rm -rf /out/var/cache/dnf /out/var/cache/yum
 
-FROM registry.access.redhat.com/ubi9/ubi@sha256:866c52a4f649b2e027e0eafeede5f37dd13ac58ab63bbe2950d7928334312a4c AS builder
+FROM registry.access.redhat.com/ubi9/ubi@sha256:beba9460df08acc9f2d5a99f61b8544d5367b05e02c945ca726c6f07ca5963a7 AS builder
 
 ARG FACT_TAG
 RUN echo "Checking required FACT_TAG"; [[ "${FACT_TAG}" != "" ]]
