@@ -84,6 +84,11 @@ pub struct Event {
 }
 
 impl Event {
+    #[cfg(feature = "runtime-metadata")]
+    pub(crate) fn runtime_container_id(&self) -> Option<&str> {
+        self.process.runtime_container_id.as_deref()
+    }
+
     #[cfg(all(test, feature = "bpf-test"))]
     pub(crate) fn new(
         data: EventTestData,
