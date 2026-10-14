@@ -182,7 +182,7 @@ impl Bpf {
                 .context("Failed to attach ebpf programs")?;
 
             let rb = self.take_ringbuffer()?;
-            let mut fd = AsyncFd::new(rb)?;
+            let mut fd = unsafe { AsyncFd::register(rb)? };
 
             loop {
                 tokio::select! {
