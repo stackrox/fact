@@ -5,7 +5,7 @@ exercise the output path contract, not Sensor policy evaluation. A matching
 container path may still be collected, but must not acquire an unrelated host
 path. No real host /etc files are modified.
 
-See #2130 for the wider policy problem and #1595 for the related absolute-symlink
+See #2130 for the wider policy problem and #1595 for related absolute-symlink
 host/container path confusion. #1595 documents missed descendant events; this
 file targets incorrect nonempty host-path attribution, which still needs a
 reproducing mount layout.
