@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Iterator
 
 import docker
@@ -117,7 +118,11 @@ def test_container_mount_path_identity(
     observed_path = os.path.join(destination, filename)
     source_path = os.path.join(source, filename)
     expected_host_path = (
-        os.path.join(expected_host_dir, filename) if expected_host_dir else ''
+        os.path.join(expected_host_dir, filename)
+        if expected_host_dir
+        # An unresolved path is valid today; future enrichment may resolve the
+        # actual source. Neither may falsely claim the watched host directory.
+        else re.compile(rf'^(?:{re.escape(source_path)})?\Z')
     )
     assert writer.id is not None
     command = f'touch {observed_path}'
