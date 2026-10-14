@@ -22,6 +22,26 @@ import pytest
 from event import Event, EventType, Process
 from server import EventServer
 
+# Mount matrix: W = watched host directory, S = unwatched scratch directory,
+# A = /unmonitored container alias, N = nested directory, f = test filename.
+# Mount arrows run from host source to container destination.
+#
+# Case          | Mounts          | Observed path | Allowed host_path
+# --------------|-----------------|---------------|------------------
+# shadow        | S -> W          | W/f           | empty or S/f
+# same-path     | W -> W          | W/f           | W/f
+# alias         | W -> A          | A/f           | W/f
+# nested-shadow | W -> W, S -> W/N| W/N/f         | empty or S/f
+#
+# Each row runs existing-file OPEN and new-file CREATE over gRPC and OTEL
+# (16 cases). Shadow cases must never be attributed to the watched host path;
+# genuine host mounts must keep that attribution even through another alias.
+#
+# These are passing regression guards, not expected failures: all 16 passed
+# against main 661acec004 before any mount-lookup fix. They do not exercise
+# Sensor/node-policy matching. A reproducer for that separate issue belongs
+# at the policy layer; do not add xfail here to represent an unproven failure.
+
 
 @pytest.fixture(params=['shadow', 'same-path', 'alias', 'nested-shadow'])
 def mount_layout(
