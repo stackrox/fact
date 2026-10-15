@@ -466,13 +466,13 @@ arches:
     name: elfutils-libs
     evr: 0.190-2.el8
     sourcerpm: elfutils-0.190-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/e/environment-modules-4.5.2-4.el8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/e/environment-modules-4.5.2-5.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 432124
-    checksum: sha256:23812185c45e971395118ae88e04f0c964c68cfdac37eef784c8d0de422e33b5
+    size: 431340
+    checksum: sha256:5ed5aa851f70a4d13977c4c20e7485edf23cdc4bd615994dd1020758a2f9c6d8
     name: environment-modules
-    evr: 4.5.2-4.el8
-    sourcerpm: environment-modules-4.5.2-4.el8.src.rpm
+    evr: 4.5.2-5.el8_10
+    sourcerpm: environment-modules-4.5.2-5.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/e/expat-2.5.0-4.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 125876
@@ -704,13 +704,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8_10.1
     sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.172.1.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.174.1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 12535996
-    checksum: sha256:a75ca8ede9e61e1a9b990e245be4ae180f8fba0f38193170b01a4c66e869ef1f
+    size: 12538440
+    checksum: sha256:90d0b8e4b4269a6caf29f50f8c0b8faee58ebbaf8e61efe86e15c20ec642675a
     name: kernel-headers
-    evr: 4.18.0-553.172.1.el8_10
-    sourcerpm: kernel-4.18.0-553.172.1.el8_10.src.rpm
+    evr: 4.18.0-553.174.1.el8_10
+    sourcerpm: kernel-4.18.0-553.174.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 34656
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/747d7b41b00b790b051291153bf8c1d9390ce9f368df1b11f56ff5b87a5ba989-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/aeed921c28e054411ad91baacaf34e3e2e1a4994973e0576ce674b7a7ccb5563-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 847094
-    checksum: sha256:747d7b41b00b790b051291153bf8c1d9390ce9f368df1b11f56ff5b87a5ba989
+    size: 848504
+    checksum: sha256:aeed921c28e054411ad91baacaf34e3e2e1a4994973e0576ce674b7a7ccb5563
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -2112,13 +2112,13 @@ arches:
     name: elfutils-libs
     evr: 0.190-2.el8
     sourcerpm: elfutils-0.190-2.el8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/e/environment-modules-4.5.2-4.el8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/e/environment-modules-4.5.2-5.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 431996
-    checksum: sha256:a6eea5adb1f41da10238eefd0f2e9ba1bcfbb845b3d81e81f7ea11520fb6c858
+    size: 431208
+    checksum: sha256:c30633dc0309e641730e7b1640c915d37b56dc5beeb899dc65680e693322aa12
     name: environment-modules
-    evr: 4.5.2-4.el8
-    sourcerpm: environment-modules-4.5.2-4.el8.src.rpm
+    evr: 4.5.2-5.el8_10
+    sourcerpm: environment-modules-4.5.2-5.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/e/expat-2.5.0-4.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 136088
@@ -2350,13 +2350,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8_10.1
     sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.172.1.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.174.1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 12567776
-    checksum: sha256:81a295e567f87ab772d1fdae52033d5fcbdba4e432ca2f48a78d537acbd79568
+    size: 12570160
+    checksum: sha256:b0269022aa2cffdddfc9377cff8f1b45c3921f27343fc5c8cb2f3d2e7c24c97c
     name: kernel-headers
-    evr: 4.18.0-553.172.1.el8_10
-    sourcerpm: kernel-4.18.0-553.172.1.el8_10.src.rpm
+    evr: 4.18.0-553.174.1.el8_10
+    sourcerpm: kernel-4.18.0-553.174.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 34816
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/40ee00d2229682195591d1d437c5b045cfca832be9aa21de6c77e066aa83748f-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/cc3be2e68a342fe4e34330ecb3c7645780a37b32c3ba98599d9aac8d26cf8bbf-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 867284
-    checksum: sha256:40ee00d2229682195591d1d437c5b045cfca832be9aa21de6c77e066aa83748f
+    size: 869820
+    checksum: sha256:cc3be2e68a342fe4e34330ecb3c7645780a37b32c3ba98599d9aac8d26cf8bbf
