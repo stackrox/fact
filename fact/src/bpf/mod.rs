@@ -218,7 +218,7 @@ impl Bpf {
 
         tokio::spawn(async move {
             let rb = self.take_ringbuffer()?;
-            let mut fd = AsyncFd::new(rb)?;
+            let mut fd = unsafe { AsyncFd::register(rb)? };
 
             loop {
                 tokio::select! {
