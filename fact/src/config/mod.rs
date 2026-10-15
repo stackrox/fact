@@ -43,6 +43,7 @@ pub struct FactConfig {
     pub otel: OTelConfig,
     pub endpoint: EndpointConfig,
     pub bpf: BpfConfig,
+    pub container: ContainerConfig,
     skip_pre_flight: Option<bool>,
     json: Option<bool>,
     hotreload: Option<bool>,
@@ -97,6 +98,7 @@ impl FactConfig {
         self.otel.update(&from.otel);
         self.endpoint.update(&from.endpoint);
         self.bpf.update(&from.bpf);
+        self.container.update(&from.container);
 
         if let Some(skip_pre_flight) = from.skip_pre_flight {
             self.skip_pre_flight = Some(skip_pre_flight);
@@ -225,6 +227,12 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                         bail!("bpf section has incorrect type: {v:#?}");
                     };
                     config.bpf = BpfConfig::try_from(bpf)?;
+                }
+                "container" => {
+                    let Some(container) = v.as_hash() else {
+                        bail!("container section has incorrect type: {v:?}");
+                    };
+                    config.container = ContainerConfig::try_from(container)?;
                 }
                 "hotreload" => {
                     let Some(hotreload) = v.as_bool() else {
@@ -817,6 +825,47 @@ impl TryFrom<&yaml::Hash> for BpfProgConfig {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize)]
+pub struct ContainerConfig {
+    enabled: Option<bool>,
+}
+
+impl ContainerConfig {
+    fn update(&mut self, from: &Self) {
+        if let Some(enabled) = from.enabled {
+            self.enabled = Some(enabled);
+        }
+    }
+
+    pub fn enabled(&self) -> bool {
+        self.enabled.unwrap_or(true)
+    }
+}
+
+impl TryFrom<&yaml::Hash> for ContainerConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &yaml::Hash) -> Result<Self, Self::Error> {
+        let mut container = ContainerConfig::default();
+        for (k, v) in value {
+            let Some(k) = k.as_str() else {
+                bail!("key is not string: {k:?}");
+            };
+
+            match k {
+                "enabled" => {
+                    let Some(enabled) = v.as_bool() else {
+                        bail!("container.enabled field has incorrect type: {v:?}");
+                    };
+                    container.enabled = Some(enabled);
+                }
+                name => bail!("Invalid field 'container.{name}' with value: {v:?}"),
+            }
+        }
+        Ok(container)
+    }
+}
+
 fn parse_duration_secs(s: &str) -> anyhow::Result<Duration> {
     let f = s.parse::<f64>()?;
     if !f.is_finite() || f < 0.0 {
@@ -1006,6 +1055,16 @@ pub struct FactCli {
     /// events for profiling purposes (e.g. valgrind, DHAT).
     #[arg(long, env = "FACT_REPLAY")]
     replay: Option<PathBuf>,
+
+    /// Enable container metadata collection.
+    #[arg(
+        long,
+        overrides_with = "no_container_enabled",
+        env = "FACT_CONTAINER_ENABLED"
+    )]
+    container_enabled: bool,
+    #[arg(long, overrides_with = "container_enabled")]
+    no_container_enabled: bool,
 }
 
 impl FactCli {
@@ -1045,6 +1104,9 @@ impl FactCli {
                 inodes_max: self.inodes_max,
                 d_instantiate_ctx_size: self.d_instantiate_ctx_size,
                 programs: HashMap::new(),
+            },
+            container: ContainerConfig {
+                enabled: resolve_bool_arg(self.container_enabled, self.no_container_enabled),
             },
             skip_pre_flight: resolve_bool_arg(self.skip_pre_flight, self.no_skip_pre_flight),
             json: resolve_bool_arg(self.json, self.no_json),

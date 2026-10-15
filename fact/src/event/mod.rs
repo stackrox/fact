@@ -1,5 +1,7 @@
 #[cfg(feature = "otel")]
 use std::collections::HashMap;
+#[cfg(feature = "container")]
+use std::sync::Arc;
 #[cfg(all(test, feature = "bpf-test"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
@@ -16,6 +18,9 @@ use serde::{Deserialize, Serialize};
 use fact_ebpf::{
     PATH_MAX, XATTR_NAME_MAX_LEN, event_t, file_activity_type_t, inode_key_t, monitored_t,
 };
+
+#[cfg(feature = "container")]
+use crate::container::data::ContainerData;
 
 use crate::host_info;
 use process::Process;
@@ -387,6 +392,16 @@ impl Event {
     #[cfg(feature = "otel")]
     pub(crate) fn event_type(&self) -> &'static str {
         self.file.event_type()
+    }
+
+    #[cfg(feature = "container")]
+    pub(crate) fn get_container_id(&self) -> &Option<String> {
+        self.process.get_container_id()
+    }
+
+    #[cfg(feature = "container")]
+    pub(crate) fn set_container_data(&mut self, data: Arc<ContainerData>) {
+        self.process.set_container_data(data);
     }
 }
 

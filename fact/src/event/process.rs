@@ -1,5 +1,7 @@
 #[cfg(feature = "otel")]
 use std::collections::HashMap;
+#[cfg(feature = "container")]
+use std::sync::Arc;
 use std::{ffi::CStr, path::PathBuf};
 
 use fact_ebpf::{lineage_t, process_t};
@@ -7,6 +9,9 @@ use fact_ebpf::{lineage_t, process_t};
 use opentelemetry::logs::AnyValue;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+#[cfg(feature = "container")]
+use crate::container::data::ContainerData;
 
 use crate::host_info;
 
@@ -61,6 +66,8 @@ pub struct Process {
     args: Vec<String>,
     exe_path: PathBuf,
     container_id: Option<String>,
+    #[cfg(feature = "container")]
+    container_data: Option<Arc<ContainerData>>,
     uid: u32,
     #[serde(skip_deserializing)]
     username: &'static str,
@@ -97,6 +104,8 @@ impl Process {
             args,
             exe_path,
             container_id,
+            #[cfg(feature = "container")]
+            container_data: None, // set by ContainerGatherer
             uid,
             username: "",
             gid,
@@ -129,6 +138,16 @@ impl Process {
         } else {
             None
         }
+    }
+
+    #[cfg(feature = "container")]
+    pub(super) fn get_container_id(&self) -> &Option<String> {
+        &self.container_id
+    }
+
+    #[cfg(feature = "container")]
+    pub(super) fn set_container_data(&mut self, data: Arc<ContainerData>) {
+        self.container_data = Some(data);
     }
 }
 
@@ -181,6 +200,8 @@ impl TryFrom<process_t> for Process {
             args: converted_args,
             exe_path,
             container_id,
+            #[cfg(feature = "container")]
+            container_data: None, // set by ContainerGatherer
             uid: value.uid,
             username,
             gid: value.gid,
@@ -199,6 +220,8 @@ impl From<Process> for fact_api::ProcessSignal {
             args,
             exe_path,
             container_id,
+            #[cfg(feature = "container")]
+                container_data: _,
             uid,
             username,
             gid,
@@ -271,6 +294,14 @@ impl From<Process> for opentelemetry::logs::AnyValue {
 
         if let Some(container_id) = value.container_id {
             map.insert("container_id".into(), container_id.into());
+        }
+
+        #[cfg(feature = "container")]
+        if let Some(container_data) = value.container_data {
+            map.insert(
+                "container_data".into(),
+                Arc::unwrap_or_clone(container_data).into(),
+            );
         }
 
         AnyValue::Map(Box::new(map))
