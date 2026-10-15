@@ -77,6 +77,8 @@
     // TODO: Add back in after https://redhat.atlassian.net/browse/KFLUXINFRA-3234 is solved
     // "github-actions",
   ],
+  // TODO: unpin aya once a release supporting kfuncs is out.
+  "ignoreDeps": ["aya"],
   "packageRules": [
     {
       "matchPackageNames": [
