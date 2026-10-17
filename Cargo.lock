@@ -523,6 +523,8 @@ dependencies = [
  "tokio-native-tls",
  "tokio-stream",
  "tonic",
+ "tonic-prost",
+ "tower",
  "uuid",
  "yaml-rust2",
 ]

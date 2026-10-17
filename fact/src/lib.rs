@@ -18,6 +18,8 @@ mod bpf;
 pub mod config;
 mod endpoints;
 mod event;
+#[cfg(feature = "runtime-metadata")]
+mod features;
 mod host_info;
 mod host_scanner;
 mod metrics;

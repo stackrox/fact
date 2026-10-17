@@ -84,6 +84,13 @@ pub struct Event {
 }
 
 impl Event {
+    #[cfg(feature = "runtime-metadata")]
+    pub(crate) fn enrich_image(&mut self, enricher: &crate::features::runtime_metadata::Enricher) {
+        if let Some(id) = self.process.runtime_container_id.as_deref() {
+            self.process.container_image = enricher.image(id);
+        }
+    }
+
     #[cfg(all(test, feature = "bpf-test"))]
     pub(crate) fn new(
         data: EventTestData,
