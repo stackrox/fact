@@ -6,10 +6,11 @@ from time import sleep
 
 import docker.models.containers
 import pytest
-import requests
 import yaml
 
+from conftest import ENDPOINT_ADDRESS
 from event import Event, EventType, Process
+from metrics import MetricsSnapshot
 from server import EventServer
 
 
@@ -39,12 +40,14 @@ def test_rate_limit_drops_events(
     server: EventServer,
 ):
     """
-    Test that the rate limiter drops events when the rate limit is exceeded.
+    Test that the rate limiter drops events when the rate limit
+    is exceeded.
     """
-    config, _ = rate_limited_config
     num_files = 100
-    start_time = time.time()
 
+    before = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
+
+    start_time = time.time()
     for i in range(num_files):
         fut = os.path.join(monitored_dir, f'file_{i}.txt')
         with open(fut, 'w') as f:
@@ -67,32 +70,24 @@ def test_rate_limit_drops_events(
         f'but received all {received_count}'
     )
 
-    metrics_response = requests.get(
-        f'http://{config["endpoint"]["address"]}/metrics',
-    )
-    assert metrics_response.status_code == 200
+    after = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
+    delta = before.delta(after)
 
-    metrics_text = metrics_response.text
-    assert 'rate_limiter_events' in metrics_text, (
-        'rate_limiter_events metric not found'
+    delta_dropped = delta.get('rate_limiter_events', {'label': 'Dropped'})
+    assert delta_dropped is not None, (
+        'rate_limiter_events{label="Dropped"} metric not found'
     )
-
-    dropped_count = 0
-    for line in metrics_text.split('\n'):
-        if 'rate_limiter_events' in line and 'label="Dropped"' in line:
-            parts = line.split()
-            if len(parts) >= 2:
-                dropped_count = int(parts[1])
-                break
+    dropped_count = int(delta_dropped)
 
     assert dropped_count > 0, (
         'Expected rate limiter to report dropped events in metrics'
     )
 
     total_accounted = received_count + dropped_count
-
     assert total_accounted == num_files, (
-        'Expected rate limiter to see all events'
+        f'Expected received ({received_count}) + dropped '
+        f'({dropped_count}) to equal {num_files}, '
+        f'got {total_accounted}'
     )
 
 
@@ -102,12 +97,14 @@ def test_rate_limit_unlimited(
     fact_config: tuple[dict, str],
 ):
     """
-    Test that the default config (rate_limit=0) allows all events through.
+    Test that the default config (rate_limit=0) allows all events
+    through.
     """
-    config, _ = fact_config
     num_files = 20
     events = []
     process = Process.from_proc()
+
+    before = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
 
     for i in range(num_files):
         fut = os.path.join(monitored_dir, f'file_{i}.txt')
@@ -125,20 +122,11 @@ def test_rate_limit_unlimited(
 
     server.wait_events(events)
 
-    metrics_response = requests.get(
-        f'http://{config["endpoint"]["address"]}/metrics',
-    )
-    assert metrics_response.status_code == 200
+    after = MetricsSnapshot.fetch(ENDPOINT_ADDRESS)
+    delta = before.delta(after)
 
-    metrics_text = metrics_response.text
-
-    dropped_count = 0
-    for line in metrics_text.split('\n'):
-        if 'rate_limiter_events' in line and 'label="Dropped"' in line:
-            parts = line.split()
-            if len(parts) >= 2:
-                dropped_count = int(parts[1])
-                break
+    delta_dropped = delta.get('rate_limiter_events', {'label': 'Dropped'})
+    dropped_count = int(delta_dropped) if delta_dropped else 0
 
     assert dropped_count == 0, (
         'Expected no dropped events with unlimited '
