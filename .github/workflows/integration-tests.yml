@@ -151,7 +151,7 @@ jobs:
       uses: stackrox/actions/test/junit2jira@main
       with:
         # Only create real Jira issues on push and nightlies; dry-run on pull requests.
-        dry-run: ${{ github.event_name != 'push' || github.event_name != 'schedule' }}
+        dry-run: ${{ github.event_name != 'push' && github.event_name != 'schedule' }}
         jira-user: ${{ secrets.JIRA_USER }}
         jira-token: ${{ secrets.JIRA_TOKEN }}
         directory: /tmp/fact/tests
