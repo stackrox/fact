@@ -1236,27 +1236,27 @@ arches:
     name: openldap
     evr: 2.4.46-21.el8_10
     sourcerpm: openldap-2.4.46-21.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/o/openssl-1.1.1k-17.el8_6.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/o/openssl-1.1.1k-18.el8_6.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 708360
-    checksum: sha256:6fd4b1b3a54158d8eff4fd6965aa4741286688dc3cd2517cd3cd485bef44de95
+    size: 708620
+    checksum: sha256:119481d90f8670c0afcb7309c60031ed3cff579577b25fd5df30ce83a407f945
     name: openssl
-    evr: 1:1.1.1k-17.el8_6
-    sourcerpm: openssl-1.1.1k-17.el8_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/o/openssl-devel-1.1.1k-17.el8_6.aarch64.rpm
+    evr: 1:1.1.1k-18.el8_6
+    sourcerpm: openssl-1.1.1k-18.el8_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/o/openssl-devel-1.1.1k-18.el8_6.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 2438152
-    checksum: sha256:1285f304ff8c4b7e9adfbb05f8070d88a18c09fe7901d03abdf654cbc9eb5b07
+    size: 2438940
+    checksum: sha256:b2f4f123480ca278e7e606d8f208caafe474344750e5d4ecf0b641911fd90b0d
     name: openssl-devel
-    evr: 1:1.1.1k-17.el8_6
-    sourcerpm: openssl-1.1.1k-17.el8_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/o/openssl-libs-1.1.1k-17.el8_6.aarch64.rpm
+    evr: 1:1.1.1k-18.el8_6
+    sourcerpm: openssl-1.1.1k-18.el8_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/o/openssl-libs-1.1.1k-18.el8_6.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 1414500
-    checksum: sha256:f117e1398703910c8e48981ed10e6667f0784bddc6df067f1c165eded7702d18
+    size: 1414472
+    checksum: sha256:586eee386cc5188a40428f674e6ec46832b44ce696e406ae051b558dcd0494fd
     name: openssl-libs
-    evr: 1:1.1.1k-17.el8_6
-    sourcerpm: openssl-1.1.1k-17.el8_6.src.rpm
+    evr: 1:1.1.1k-18.el8_6
+    sourcerpm: openssl-1.1.1k-18.el8_6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/o/openssl-pkcs11-0.4.10-3.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 66436
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/d42fa349a750140cd0fcbf68940bc171d3565a32135177351d4caf2bed1ccadc-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/532e8c30c56f878cb7a2376e82221a18fcdb3bb18f8d8eae5b7a4fd296c20b94-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 851302
-    checksum: sha256:d42fa349a750140cd0fcbf68940bc171d3565a32135177351d4caf2bed1ccadc
+    size: 860119
+    checksum: sha256:532e8c30c56f878cb7a2376e82221a18fcdb3bb18f8d8eae5b7a4fd296c20b94
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -2868,27 +2868,27 @@ arches:
     name: openldap
     evr: 2.4.46-21.el8_10
     sourcerpm: openldap-2.4.46-21.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/o/openssl-1.1.1k-17.el8_6.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/o/openssl-1.1.1k-18.el8_6.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 727856
-    checksum: sha256:d2e8518509c5900095c9811c7663a614b9ef44648e24e61dde954ca07328ad27
+    size: 728096
+    checksum: sha256:076e01a683a03aeff268e659d8532b7be6aa3609c9569ae6dedb8c908980ae0c
     name: openssl
-    evr: 1:1.1.1k-17.el8_6
-    sourcerpm: openssl-1.1.1k-17.el8_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/o/openssl-devel-1.1.1k-17.el8_6.x86_64.rpm
+    evr: 1:1.1.1k-18.el8_6
+    sourcerpm: openssl-1.1.1k-18.el8_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/o/openssl-devel-1.1.1k-18.el8_6.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 2439548
-    checksum: sha256:a00348f97f6cf63944fe4f0ac1c2e4cadfebd9cb14fe3cec97ae52940f96c4b2
+    size: 2439836
+    checksum: sha256:ad4b3ef7d570015aace3704e74b3382147cae8a29b745ff5c1928f329e2daabb
     name: openssl-devel
-    evr: 1:1.1.1k-17.el8_6
-    sourcerpm: openssl-1.1.1k-17.el8_6.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/o/openssl-libs-1.1.1k-17.el8_6.x86_64.rpm
+    evr: 1:1.1.1k-18.el8_6
+    sourcerpm: openssl-1.1.1k-18.el8_6.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/o/openssl-libs-1.1.1k-18.el8_6.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 1542604
-    checksum: sha256:18b2b75589a5976e8bf7bd4e72933b69221e6ae75c6531ce97621c0bf204f79d
+    size: 1543184
+    checksum: sha256:f0c6f343f5b9d693f58c6162e5372443fb697b1ae17902a3493dc48df2e9bd9c
     name: openssl-libs
-    evr: 1:1.1.1k-17.el8_6
-    sourcerpm: openssl-1.1.1k-17.el8_6.src.rpm
+    evr: 1:1.1.1k-18.el8_6
+    sourcerpm: openssl-1.1.1k-18.el8_6.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/o/openssl-pkcs11-0.4.10-3.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 67740
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/b645400882ac865f9f36887cc9a72595bd78837210640fa218e4a7ece6ed2f74-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/4d3ef6ae5b3f0b9d8eacce91f2f18caf80eedc7358f5bd9d0da2d5174fb4c5b8-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 873065
-    checksum: sha256:b645400882ac865f9f36887cc9a72595bd78837210640fa218e4a7ece6ed2f74
+    size: 880929
+    checksum: sha256:4d3ef6ae5b3f0b9d8eacce91f2f18caf80eedc7358f5bd9d0da2d5174fb4c5b8
