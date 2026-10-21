@@ -130,13 +130,13 @@ arches:
     name: glibc-devel
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.58.1.el9_8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.59.1.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 2942913
-    checksum: sha256:ce1098a3559ec136e839c36a3e196251226d818ddb91b529534b8d86c01c3e67
+    size: 2946233
+    checksum: sha256:5b077bb39f178f6765f4f779d8f164ee4e2f2cda06a7a1a79f95b08255d68184
     name: kernel-headers
-    evr: 5.14.0-687.58.1.el9_8
-    sourcerpm: kernel-5.14.0-687.58.1.el9_8.src.rpm
+    evr: 5.14.0-687.59.1.el9_8
+    sourcerpm: kernel-5.14.0-687.59.1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-14.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 409047
@@ -1464,13 +1464,13 @@ arches:
     name: glibc-headers
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.58.1.el9_8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.59.1.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 2982193
-    checksum: sha256:2c29113a9f860f0e2a14c89ec3a399b3e3d0f9ff699d7f5b565ca5e73b0314a9
+    size: 2985513
+    checksum: sha256:fa019cf3b155923a773aacba0f5fc0f0e470480cc0c266cdff2be847d337f189
     name: kernel-headers
-    evr: 5.14.0-687.58.1.el9_8
-    sourcerpm: kernel-5.14.0-687.58.1.el9_8.src.rpm
+    evr: 5.14.0-687.59.1.el9_8
+    sourcerpm: kernel-5.14.0-687.59.1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
