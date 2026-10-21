@@ -11,8 +11,9 @@ jobs:
     name: Determine if tests image needs to be built
     runs-on: ubuntu-24.04
     outputs:
-      build-image: ${{ (steps.changed.outputs.qa-tag == 'true' ||
-                        contains(github.event.pull_request.labels.*.name, 'rebuild-test-container')) }}
+      build-image: ${{ (github.event_name != 'schedule' &&
+                        (steps.changed.outputs.qa-tag == 'true' ||
+                         contains(github.event.pull_request.labels.*.name, 'rebuild-test-container'))) }}
 
     steps:
       - uses: actions/checkout@v7
