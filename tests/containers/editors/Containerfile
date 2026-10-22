@@ -1,5 +1,7 @@
-FROM quay.io/fedora/fedora:44
+FROM docker.io/library/debian:trixie
 
-RUN dnf install -y \
+RUN apt-get update && \
+    apt-get install -y \
     neovim \
-    vim
+    vim && \
+    rm -rf /var/lib/apt/lists/*
