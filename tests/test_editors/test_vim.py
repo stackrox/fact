@@ -160,8 +160,9 @@ def test_open_file(
     editor_container.exec_run(cmd)
 
     touch_process = Process.in_container(
-        exe_path='/usr/bin/touch',
-        args=f'touch {fut}',
+        exe_path='/usr/bin/coreutils',
+        args="/usr/bin/coreutils '--coreutils-prog-shebang=touch' "
+        + f'/usr/bin/touch {fut}',
         name='touch',
         container_id=container_id,
     )
@@ -300,8 +301,9 @@ def test_open_file_ovfs(
     editor_container.exec_run(cmd)
 
     touch_process = Process.in_container(
-        exe_path='/usr/bin/touch',
-        args=f'touch {fut}',
+        exe_path='/usr/bin/coreutils',
+        args="/usr/bin/coreutils '--coreutils-prog-shebang=touch' "
+        + f'/usr/bin/touch {fut}',
         name='touch',
         container_id=container_id,
     )

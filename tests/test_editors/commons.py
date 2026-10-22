@@ -52,25 +52,25 @@ def run_editor_container(
 
 
 @pytest.fixture(scope='session')
-def build_fedora_image(
+def build_base_image(
     request: pytest.FixtureRequest, docker_client: docker.DockerClient
 ) -> docker.models.images.Image:
     no_local_builds = bool(request.config.getoption('--no-local-builds'))
     return pull_or_build(
         docker_client,
-        tag='fact-fedora',
-        path='containers/fedora',
+        tag='fact-base',
+        path='containers/base',
         no_local_builds=no_local_builds,
     )
 
 
 @pytest.fixture
-def fedora_container(
+def base_container(
     docker_client: docker.DockerClient,
-    build_fedora_image: docker.models.images.Image,
+    build_base_image: docker.models.images.Image,
     ignored_dir: str,
 ):
-    image = build_fedora_image.tags[0]
+    image = build_base_image.tags[0]
     yield from run_editor_container(
         image,
         docker_client,
