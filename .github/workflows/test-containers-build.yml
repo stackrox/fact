@@ -60,6 +60,8 @@ jobs:
       - should-build-test-containers
     if: needs.should-build-test-containers.outputs.build-image == 'true' ||
         contains(github.event.pull_request.labels.*.name, 'rebuild-test-container')
+    env:
+      FACT_QA_TAG: ${{ needs.determine-qa-tag.outputs.qa-tag }}
 
     steps:
       - uses: actions/checkout@v7
@@ -89,7 +91,6 @@ jobs:
       - name: Build and Push containers
         if: steps.images-exist.outputs.exist == 'false'
         env:
-          FACT_QA_TAG: ${{ needs.determine-qa-tag.outputs.qa-tag }}
           PLATFORM: linux/amd64,linux/arm64
         run: |
           make -C "${GITHUB_WORKSPACE}/tests/containers" build-and-push

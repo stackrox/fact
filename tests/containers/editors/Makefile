@@ -17,6 +17,6 @@ build-and-push: BUILD_ARGS = --push
 build-and-push: run
 
 exists:
-	$(DOCKER) manifest inspect quay.io/rhacs-eng/qa-multi-arch:$(FACT_QA_EDITORS_TAG) &>/dev/null
+	$(DOCKER) manifest inspect quay.io/rhacs-eng/qa-multi-arch:$(FACT_QA_EDITORS_TAG) >/dev/null 2>&1
 
 .PHONY: build build-and-push all run exists
