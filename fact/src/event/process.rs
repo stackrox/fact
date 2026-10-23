@@ -61,6 +61,12 @@ pub struct Process {
     args: Vec<String>,
     exe_path: PathBuf,
     container_id: Option<String>,
+    #[cfg(feature = "runtime-metadata")]
+    #[serde(skip)]
+    pub(super) runtime_container_id: Option<String>,
+    #[cfg(feature = "runtime-metadata")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) container_image: Option<String>,
     uid: u32,
     #[serde(skip_deserializing)]
     username: &'static str,
@@ -97,6 +103,10 @@ impl Process {
             args,
             exe_path,
             container_id,
+            #[cfg(feature = "runtime-metadata")]
+            runtime_container_id: Self::parse_container_id(&cgroup).map(str::to_owned),
+            #[cfg(feature = "runtime-metadata")]
+            container_image: None,
             uid,
             username: "",
             gid,
@@ -108,6 +118,10 @@ impl Process {
     }
 
     fn extract_container_id(cgroup: &str) -> Option<String> {
+        Self::parse_container_id(cgroup).map(|id| id[..12].to_owned())
+    }
+
+    fn parse_container_id(cgroup: &str) -> Option<&str> {
         let cgroup = if let Some(i) = cgroup.rfind(".scope") {
             cgroup.split_at(i).0
         } else {
@@ -125,7 +139,7 @@ impl Process {
         }
 
         if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
-            Some(cgroup.split_at(12).0.to_owned())
+            Some(cgroup)
         } else {
             None
         }
@@ -181,6 +195,10 @@ impl TryFrom<process_t> for Process {
             args: converted_args,
             exe_path,
             container_id,
+            #[cfg(feature = "runtime-metadata")]
+            runtime_container_id: Self::parse_container_id(memory_cgroup).map(str::to_owned),
+            #[cfg(feature = "runtime-metadata")]
+            container_image: None,
             uid: value.uid,
             username,
             gid: value.gid,
@@ -206,6 +224,7 @@ impl From<Process> for fact_api::ProcessSignal {
             pid,
             in_root_mount_ns,
             lineage,
+            ..
         } = value;
 
         let container_id = container_id.unwrap_or("".to_string());
@@ -273,6 +292,11 @@ impl From<Process> for opentelemetry::logs::AnyValue {
             map.insert("container_id".into(), container_id.into());
         }
 
+        #[cfg(feature = "runtime-metadata")]
+        if let Some(image) = value.container_image {
+            map.insert("container_image".into(), image.into());
+        }
+
         AnyValue::Map(Box::new(map))
     }
 }
@@ -282,6 +306,30 @@ mod tests {
     use super::*;
     use crate::event::test_utils::*;
     use fact_ebpf::PATH_MAX;
+
+    #[cfg(feature = "runtime-metadata")]
+    #[test]
+    fn runtime_lookup_preserves_full_id_without_changing_serialized_id() {
+        let id = "a".repeat(64);
+        for cgroup in [
+            format!("/kubepods/crio-{id}.scope"),
+            format!("/kubepods/{id}"),
+        ] {
+            let process = Process::try_from(process_t {
+                memory_cgroup: string_to_c_char_array::<{ PATH_MAX as usize }>(&cgroup),
+                ..Default::default()
+            })
+            .unwrap();
+            assert_eq!(process.runtime_container_id.as_deref(), Some(id.as_str()));
+            let json = serde_json::to_value(&process).unwrap();
+            assert_eq!(json["container_id"], &id[..12]);
+            assert!(json.get("runtime_container_id").is_none());
+            let replay: Process = serde_json::from_value(json).unwrap();
+            assert!(replay.runtime_container_id.is_none());
+            let signal: fact_api::ProcessSignal = process.into();
+            assert_eq!(signal.container_id, &id[..12]);
+        }
+    }
 
     #[test]
     fn extract_container_id() {
