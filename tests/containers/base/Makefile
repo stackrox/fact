@@ -16,7 +16,7 @@ build: run
 build-and-push: BUILD_ARGS = --push
 build-and-push: run
 
-exists:
-	$(DOCKER) manifest inspect quay.io/rhacs-eng/qa-multi-arch:$(FACT_QA_BASE_TAG) >/dev/null 2>&1
+image-names:
+	@echo quay.io/rhacs-eng/qa-multi-arch:$(FACT_QA_BASE_TAG)
 
-.PHONY: build build-and-push all run exists
+.PHONY: build build-and-push all run image-names

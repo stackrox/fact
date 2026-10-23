@@ -82,14 +82,44 @@ jobs:
       - name: Check images already exist
         id: images-exist
         run: |
-          EXIST=false
-          if make -C "${GITHUB_WORKSPACE}/tests/containers" exists; then
-            EXIST=true
+          manifest_exists() {
+            local image=$1 output
+            if output=$(docker manifest inspect "${image}" 2>&1); then
+              return 0
+            elif echo "${output}" | grep -Eiq 'no such manifest:|manifest unknown'; then
+              return 1
+            else
+              printf '%s: %s\n' "${image}" "${output}" >&2
+              return 2
+            fi
+          }
+
+          image_names=$(make --no-print-directory -s \
+            -C "${GITHUB_WORKSPACE}/tests/containers" image-names) || exit $?
+
+          EXIST=true
+          while IFS= read -r image_name; do
+            [[ -z "${image_name}" ]] && continue
+            if manifest_exists "${image_name}"; then
+              continue
+            else
+              status=$?
+            fi
+
+            if [[ "${status}" -eq 1 ]]; then
+              EXIST=false
+            else
+              exit "${status}"
+            fi
+          done <<< "${image_names}"
+
+          if [[ "${EXIST}" == false ]]; then
+            echo "::notice::At least one test container manifest is absent"
           fi
           echo "exist=${EXIST}" >> "${GITHUB_OUTPUT}"
 
       - name: Build and Push containers
-        if: steps.images-exist.outputs.exist == 'false'
+        if: steps.images-exist.outputs.exist == 'false' || contains(github.event.pull_request.labels.*.name, 'rebuild-test-container')
         env:
           PLATFORM: linux/amd64,linux/arm64
         run: |
