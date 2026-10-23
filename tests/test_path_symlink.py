@@ -3,10 +3,13 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+from pathlib import Path
+from time import sleep
 
 import docker.models.containers
 import pytest
-
+import yaml
 from event import Event, EventType, Process
 from server import EventServer
 from utils import join_path_with_filename, path_to_string
@@ -308,6 +311,66 @@ def test_follow_symlink_to_dir_relative(
                 file=other_file,
                 host_path=link_other,
             ),
+        ]
+    )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=FuturesTimeoutError,
+    reason='ROX-36737: a recursive path rooted at a relative symlink does not '
+    + 'track direct children of the symlink target',
+)
+def test_configured_relative_symlink_root_tracks_direct_child(
+    tmp_path: Path,
+    fact: docker.models.containers.Container,
+    fact_config: tuple[dict, str],
+    server: EventServer,
+):
+    """
+    A relative symlink used as a recursive configured path should track files
+    created directly beneath its target.
+
+    This models an RHCOS node, where /root is a relative symlink to
+    var/roothome. With /root/** configured, a containerized Fact scans
+    /host/root/**, which resolves into /host/var/roothome. The scan must seed
+    the target directory inode so that a node process creating, for example,
+    /root/direct-child.txt is reported with the resolved file path
+    /var/roothome/direct-child.txt and the configured host path
+    /root/direct-child.txt. Without that inode, creation of a direct child is
+    missed even though it is within the configured recursive path.
+
+    This is distinct from test_follow_symlink_to_dir_relative: the symlink is
+    present when the host scanner reads the configuration, rather than being
+    created below a directory whose inode is already monitored.
+    """
+    symlink_parent = tmp_path / 'symlink-parent'
+    target = tmp_path / 'target'
+    symlink_parent.mkdir()
+    target.mkdir()
+
+    link = symlink_parent / 'watched'
+    link.symlink_to(os.path.relpath(target, symlink_parent))
+
+    config, config_file = fact_config
+    config['paths'] = [f'{link}/**']
+    with open(config_file, 'w') as f:
+        yaml.dump(config, f)
+    fact.kill('SIGHUP')
+    sleep(0.5)
+
+    file_via_link = link / 'direct-child.txt'
+    with open(file_via_link, 'w') as f:
+        f.write('This should be captured')
+
+    server.wait_events(
+        [
+            Event(
+                process=Process.from_proc(),
+                event_type=EventType.CREATION,
+                file=str(target / file_via_link.name),
+                host_path=str(file_via_link),
+            )
         ]
     )
 
