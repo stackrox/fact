@@ -1,5 +1,9 @@
-FROM quay.io/fedora/fedora:44
+# CentOS Stream 10
+FROM quay.io/centos/centos@sha256:6f8d618844ed5af4365bad24bea19fb0435fd5ec808201af9aeb19d7a28eb515
 
-RUN dnf install -y \
-    neovim \
-    vim
+RUN dnf config-manager --set-enabled crb && \
+    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm && \
+    dnf install -y \
+    neovim-0.10.1-4.el10_0 \
+    vim-enhanced-2:9.1.083-25.el10 && \
+    dnf clean all
