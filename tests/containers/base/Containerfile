@@ -1,0 +1,2 @@
+# CentOS Stream 10
+FROM quay.io/centos/centos@sha256:6f8d618844ed5af4365bad24bea19fb0435fd5ec808201af9aeb19d7a28eb515

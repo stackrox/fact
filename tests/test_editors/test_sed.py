@@ -9,18 +9,18 @@ from server import EventServer
 
 
 def test_sed(
-    fedora_container: docker.models.containers.Container,
+    base_container: docker.models.containers.Container,
     server: EventServer,
 ):
-    assert fedora_container.id is not None
+    assert base_container.id is not None
     # File Under Test
     fut = '/mounted/test.txt'
     create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'
     sed_cmd = rf'sed -i -e "s/a test/not \\0/" {fut}'
-    container_id = fedora_container.id[:12]
+    container_id = base_container.id[:12]
 
-    fedora_container.exec_run(create_cmd)
-    fedora_container.exec_run(sed_cmd)
+    base_container.exec_run(create_cmd)
+    base_container.exec_run(sed_cmd)
 
     shell = Process.in_container(
         exe_path='/usr/bin/bash',
@@ -72,18 +72,18 @@ def test_sed(
 
 
 def test_sed_ovfs(
-    fedora_container: docker.models.containers.Container,
+    base_container: docker.models.containers.Container,
     server: EventServer,
 ):
-    assert fedora_container.id is not None
+    assert base_container.id is not None
     # File Under Test
     fut = '/container-dir/test.txt'
     create_cmd = f'sh -c "echo \'This is a test\' > {fut}"'
     sed_cmd = rf'sed -i -e "s/a test/not \\0/" {fut}'
-    container_id = fedora_container.id[:12]
+    container_id = base_container.id[:12]
 
-    fedora_container.exec_run(create_cmd)
-    fedora_container.exec_run(sed_cmd)
+    base_container.exec_run(create_cmd)
+    base_container.exec_run(sed_cmd)
 
     shell = Process.in_container(
         exe_path='/usr/bin/bash',
