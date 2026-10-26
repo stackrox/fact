@@ -72,6 +72,10 @@ jobs:
         rustup component add rustfmt
         make format-check
 
+  unit-tests:
+    uses: ./.github/workflows/unit-tests.yml
+    secrets: inherit
+
   vars:
     runs-on: ubuntu-24.04
     outputs:
@@ -180,8 +184,8 @@ jobs:
           podman manifest inspect ${{ needs.vars.outputs.rhacs-eng-image }}
           podman manifest push ${{ needs.vars.outputs.rhacs-eng-image }}
 
-  unit-tests:
-    uses: ./.github/workflows/unit-tests.yml
+  test-containers-build:
+    uses: ./.github/workflows/test-containers-build.yml
     secrets: inherit
 
   integration-tests:
@@ -189,9 +193,11 @@ jobs:
       - vars
       - manifest-stackrox-io
       - manifest-rhacs-eng
+      - test-containers-build
     uses: ./.github/workflows/integration-tests.yml
     with:
       tag: ${{ needs.vars.outputs.tag }}
+      qa-tag: ${{ needs.test-containers-build.outputs.qa-tag }}
     secrets: inherit
 
   performance-tests:
