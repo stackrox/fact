@@ -16,4 +16,7 @@ build: run
 build-and-push: BUILD_ARGS = --push
 build-and-push: run
 
-.PHONY: build build-and-push all run
+image-names:
+	@echo quay.io/rhacs-eng/qa-multi-arch:$(FACT_QA_BASE_TAG)
+
+.PHONY: build build-and-push all run image-names
