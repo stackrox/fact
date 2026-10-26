@@ -1,0 +1,22 @@
+include ../constants.mk
+
+FACT_QA_BASE_TAG := fact-base-$(FACT_QA_TAG)
+
+all: build
+
+run:
+	$(DOCKER) buildx build $(BUILD_ARGS) --platform $(PLATFORM) \
+		-t quay.io/rhacs-eng/qa-multi-arch:$(FACT_QA_BASE_TAG) \
+		-f Containerfile \
+		$(CURDIR)
+
+build: BUILD_ARGS = --load
+build: run
+
+build-and-push: BUILD_ARGS = --push
+build-and-push: run
+
+image-names:
+	@echo quay.io/rhacs-eng/qa-multi-arch:$(FACT_QA_BASE_TAG)
+
+.PHONY: build build-and-push all run image-names
