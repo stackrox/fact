@@ -1,19 +1,21 @@
 import os
 
 from conftest import dump_logs
+from containers import pull_or_build
 from event import Event, EventType, Process
 
 import pytest
 
 
-@pytest.fixture
-def build_self_deleter(docker_client):
-    image, _ = docker_client.images.build(
+@pytest.fixture(scope='session')
+def build_self_deleter(request: pytest.FixtureRequest, docker_client):
+    no_local_builds = bool(request.config.getoption('--no-local-builds'))
+    return pull_or_build(
+        docker_client,
+        tag='fact-self-deleter',
         path='containers/self-deleter',
-        tag='self-deleter:latest',
-        dockerfile='Containerfile'
+        no_local_builds=no_local_builds,
     )
-    return image
 
 
 @pytest.fixture
