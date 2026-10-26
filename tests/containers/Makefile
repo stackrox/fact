@@ -1,6 +1,6 @@
 include constants.mk
 
-TARGETS := build build-and-push
+TARGETS := build build-and-push image-names
 DIRS := $(wildcard ./*/)
 
 $(TARGETS): $(DIRS)
