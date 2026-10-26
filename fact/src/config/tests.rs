@@ -294,7 +294,7 @@ fn parsing() {
     ];
 
     for (input, expected) in tests {
-        let config = match FactConfig::try_from(input) {
+        let config = match input.parse::<FactConfig>() {
             Ok(c) => c,
             Err(e) => panic!("Failed to parse configuration\n\tError: {e}\n\tinput: {input}"),
         };
@@ -485,7 +485,7 @@ paths:
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
     for (input, expected) in tests {
-        let Err(err) = FactConfig::try_from(input) else {
+        let Err(err) = input.parse::<FactConfig>() else {
             panic!("Expected Error was not caught - expected: {expected}")
         };
         assert_eq!(format!("{}", err.root_cause()), expected);
@@ -1072,7 +1072,7 @@ fn update() {
         ),
     ];
     for (input, mut config, expected) in tests {
-        let input = match FactConfig::try_from(input) {
+        let input = match input.parse::<FactConfig>() {
             Ok(i) => i,
             Err(e) => panic!("Failed to parse configuration\n\tError: {e}\n\tinput: {input}"),
         };
