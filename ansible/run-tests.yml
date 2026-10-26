@@ -37,6 +37,8 @@
 
     - block:
       - name: Run tests
+        environment:
+          FACT_QA_TAG: "{{ qa_tag | default(None) }}"
         ansible.builtin.shell:
           cmd: |
             cd "${HOME}/fact"
