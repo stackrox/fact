@@ -54,7 +54,9 @@ impl FactConfig {
             .map(|p| {
                 let content =
                     read_to_string(p).with_context(|| format!("Failed to read {}", p.display()))?;
-                FactConfig::try_from(content.as_str())
+                content
+                    .as_str()
+                    .parse()
                     .with_context(|| format!("parsing error while processing {}", p.display()))
             })
             .try_fold(
@@ -123,10 +125,10 @@ impl FactConfig {
     }
 }
 
-impl TryFrom<&str> for FactConfig {
-    type Error = anyhow::Error;
+impl FromStr for FactConfig {
+    type Err = anyhow::Error;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         YamlLoader::load_from_str(value)?.try_into()
     }
 }
