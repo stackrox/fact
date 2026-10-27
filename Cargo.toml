@@ -11,13 +11,13 @@ default-members = ["fact"]
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-anyhow = { version = "1", default-features = false, features = ["std", "backtrace"] }
+anyhow = { version = "=1.0.104", default-features = false, features = ["std", "backtrace"] }
 aya = { git = "https://github.com/aya-rs/aya.git", rev = "c29cd71cb4fe1440bc0d566633afa822f1b41fc5", default-features = false }
-libc = { version = "0.2.159", default-features = false }
-prost = "0.14.0"
-prost-types = "0.14.0"
-serde = { version = "1.0.219", features = ["derive"] }
-tokio = { version = "1.53.3", default-features = false, features = [
+libc = { version = "=0.2.191", default-features = false }
+prost = "=0.14.4"
+prost-types = "=0.14.4"
+serde = { version = "=1.0.229", features = ["derive"] }
+tokio = { version = "=1.54.1", default-features = false, features = [
     "fs",
     "macros",
     "rt",
@@ -25,7 +25,7 @@ tokio = { version = "1.53.3", default-features = false, features = [
     "net",
     "signal",
 ] }
-tonic = { version = "0.14.0" }
+tonic = { version = "=0.14.7" }
 
 [profile.release]
 debug = "line-tables-only"

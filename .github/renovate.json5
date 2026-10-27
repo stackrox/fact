@@ -81,13 +81,15 @@
   "ignoreDeps": ["aya"],
   "packageRules": [
     {
-        // Cargo defaults to lockfile-only updates (rangeStrategy "auto" resolves to
-        // "update-lockfile"), for which Renovate runs `cargo update --precise`.
-        // That re-resolves the whole graph and downgrades deps with multi-major
-        // ranges (bindgen's `syn >=2, <4` → 2.x). Bumping Cargo.toml instead skips
-        // that code path.
-        "matchManagers": ["cargo"],
-        "rangeStrategy": "bump",
+      // Cargo defaults to lockfile-only updates (rangeStrategy "auto" resolves to
+      // "update-lockfile"), for which Renovate runs `cargo update --precise`.
+      // That re-resolves the whole graph and downgrades deps with multi-major
+      // ranges (bindgen's `syn >=2, <4` → 2.x). Bumping Cargo.toml instead skips
+      // that code path.
+      // Workspace deps are `=`-pinned, so bump rewrites the pin to the new version
+      // and cargo locks exactly that — resolution cannot exceed the approved version.
+      "matchManagers": ["cargo"],
+      "rangeStrategy": "bump",
     },
     {
       "matchPackageNames": [
