@@ -62,6 +62,9 @@ jobs:
     - name: Test
       run: cargo +${{ matrix.rust-version }} test
 
+    - name: Test CRI image enrichment
+      run: cargo +${{ matrix.rust-version }} test --features runtime-metadata
+
 
   coverage:
     runs-on: ubuntu-24.04

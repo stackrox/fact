@@ -71,6 +71,8 @@ pub fn start(
     }
 
     task_set.spawn(async move {
+        #[cfg(feature = "runtime-metadata")]
+        let runtime_metadata = crate::features::runtime_metadata::Enricher::from_env();
         debug!("Starting output component...");
         let res = loop {
             tokio::select! {
@@ -79,6 +81,15 @@ pub fn start(
                         // Channel has been closed and no more messages
                         // are present.
                         break Ok(());
+                    };
+
+                    #[cfg(feature = "runtime-metadata")]
+                    let event = {
+                        let mut event = event;
+                        if let Some(enricher) = &runtime_metadata {
+                            event.enrich_image(enricher);
+                        }
+                        event
                     };
 
                     if let Err(e) = broad_tx.send(Arc::new(event)) {
