@@ -67,34 +67,34 @@ arches:
     name: gcc-toolset-15-binutils
     evr: 2.44-3.el8_10
     sourcerpm: gcc-toolset-15-binutils-2.44-3.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-gcc-15.2.1-7.1.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-gcc-15.2.1-7.2.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 49590680
-    checksum: sha256:018907a5b716c162269df8884031d3d2e53e38a178d0bd64c6c22a81d25ac777
+    size: 49590344
+    checksum: sha256:3db21443f82d01769d77b617646eab410a134c8ddb7320e31bdcaa28f67a7820
     name: gcc-toolset-15-gcc
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-gcc-c++-15.2.1-7.1.el8_10.aarch64.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-gcc-c++-15.2.1-7.2.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 15148788
-    checksum: sha256:bade739b14ad025bbbbee4b32a979e7d5e5afe49529f0c988fba73b7789a75e5
+    size: 15149188
+    checksum: sha256:85bd45aca226240d0764c0ce783534f9d372ec369dc20abb4d1741ad65ed1f7e
     name: gcc-toolset-15-gcc-c++
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-libatomic-devel-15.2.1-7.1.el8_10.aarch64.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-libatomic-devel-15.2.1-7.2.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 30796
-    checksum: sha256:72c990b003cfef0785d9b297ce69acb324cecb033e74c29bcf1cb09e6d756783
+    size: 30904
+    checksum: sha256:e9714f5f02a305aca4a59773c8e40c7ba62470538e23125ac29daac22146e352
     name: gcc-toolset-15-libatomic-devel
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-libstdc++-devel-15.2.1-7.1.el8_10.aarch64.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-libstdc++-devel-15.2.1-7.2.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 4412552
-    checksum: sha256:2b1e9fe697de8343dc7b63c820745f8d08e928d9cc9b7396fe51567d07dd9798
+    size: 4412696
+    checksum: sha256:7129b3ec44addfcd9dbec282824b547014b6f081270a47e1521702dc8471a6f5
     name: gcc-toolset-15-libstdc++-devel
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/Packages/g/gcc-toolset-15-runtime-15.0-9.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-appstream-rpms
     size: 28080
@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/08f367011e6a3eef50bb9ba219448b59d36150552b593cbdb3f03292db0a2aab-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/561a79b3e7dac79157f0293167820da898bb559ae3214ae8aba0a883fd292777-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 862098
-    checksum: sha256:08f367011e6a3eef50bb9ba219448b59d36150552b593cbdb3f03292db0a2aab
+    size: 864113
+    checksum: sha256:561a79b3e7dac79157f0293167820da898bb559ae3214ae8aba0a883fd292777
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.92.0-1.module+el8.10.0+23854+aa7622f9.x86_64.rpm
@@ -1713,34 +1713,34 @@ arches:
     name: gcc-toolset-15-binutils
     evr: 2.44-3.el8_10
     sourcerpm: gcc-toolset-15-binutils-2.44-3.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-gcc-15.2.1-7.1.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-gcc-15.2.1-7.2.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 58033016
-    checksum: sha256:3a7726d6402e0b689c554a6a763b70e61390cc4bda05574e782b1e9724073818
+    size: 58033132
+    checksum: sha256:5ee0c5f009d5e86405426412636e981ed6e2b68e36c09954ca11b91666c6ccc6
     name: gcc-toolset-15-gcc
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-gcc-c++-15.2.1-7.1.el8_10.x86_64.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-gcc-c++-15.2.1-7.2.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 17631176
-    checksum: sha256:560641a93b0e42fc16479cafac515735e627e71b5c283e7a77a02441099565df
+    size: 17631452
+    checksum: sha256:051712fd34ff139a176a0413d86073a0485a35220b227eea1ade2417ffd05588
     name: gcc-toolset-15-gcc-c++
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-libatomic-devel-15.2.1-7.1.el8_10.x86_64.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-libatomic-devel-15.2.1-7.2.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 30448
-    checksum: sha256:c0a06c5e510f2c036da571ea6b52efd7dce483f2c6e560fb9dbb71e71a6395ae
+    size: 30556
+    checksum: sha256:773a583cf91df37d680d5ac14b10693f5eaa516657c5c55bf1bf0003a2535625
     name: gcc-toolset-15-libatomic-devel
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-libstdc++-devel-15.2.1-7.1.el8_10.x86_64.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-libstdc++-devel-15.2.1-7.2.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 4464860
-    checksum: sha256:6a25c0ae9a3e7aef3596df45c7bad7049b70ac1d48cc81245ed734e40bd38507
+    size: 4464992
+    checksum: sha256:0dcd39fd1aa2b58de5e5bd9c15347f17302fb4e8d64b7173e13246e3979e2005
     name: gcc-toolset-15-libstdc++-devel
-    evr: 15.2.1-7.1.el8_10
-    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.1.el8_10.src.rpm
+    evr: 15.2.1-7.2.el8_10
+    sourcerpm: gcc-toolset-15-gcc-15.2.1-7.2.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/g/gcc-toolset-15-runtime-15.0-9.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-appstream-rpms
     size: 28100
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/b4cc598ff20263bdaad4ff63f51f5588d67250a7ce291059aba897d1f91357d0-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/c24e08de278c4ec7b60dfee6a25c21724707cc83836492ce2afae1a3e48b731b-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 883725
-    checksum: sha256:b4cc598ff20263bdaad4ff63f51f5588d67250a7ce291059aba897d1f91357d0
+    size: 885825
+    checksum: sha256:c24e08de278c4ec7b60dfee6a25c21724707cc83836492ce2afae1a3e48b731b
