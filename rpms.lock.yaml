@@ -130,13 +130,13 @@ arches:
     name: glibc-devel
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.60.1.el9_8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-687.61.1.el9_8.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 2947321
-    checksum: sha256:2905722b8f11583753d46f31afa2fdfe14784bcbb8d6668eb5a4ee1d7ff63752
+    size: 2955061
+    checksum: sha256:40ddd229d41cbb7f645a1c1b152e5af87b1ef9c1fb96aecc2373c95a2dbc8ca2
     name: kernel-headers
-    evr: 5.14.0-687.60.1.el9_8
-    sourcerpm: kernel-5.14.0-687.60.1.el9_8.src.rpm
+    evr: 5.14.0-687.61.1.el9_8
+    sourcerpm: kernel-5.14.0-687.61.1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-14.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 409047
@@ -599,13 +599,13 @@ arches:
     name: kmod-libs
     evr: 28-11.el9
     sourcerpm: kmod-28-11.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/k/krb5-libs-1.21.1-10.el9_8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/k/krb5-libs-1.21.1-10.el9_8.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 793489
-    checksum: sha256:f8bbc9abe0da1ebe5bc028154bd54d465fe0682ddbb64c45882b84ff09f40e1d
+    size: 793631
+    checksum: sha256:35ea4e07d704837be334a199e8deb950db2ac7e655b2edc578d0ac309d08ce59
     name: krb5-libs
-    evr: 1.21.1-10.el9_8
-    sourcerpm: krb5-1.21.1-10.el9_8.src.rpm
+    evr: 1.21.1-10.el9_8.1
+    sourcerpm: krb5-1.21.1-10.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/less-590-6.el9.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 165028
@@ -655,13 +655,13 @@ arches:
     name: libbpf
     evr: 2:1.5.0-3.el9
     sourcerpm: libbpf-1.5.0-3.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libbrotli-1.0.9-10.el9_8.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libbrotli-1.0.9-10.el9_8.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
-    size: 325419
-    checksum: sha256:04d157b138153dcd27c04d81ae985e8190ddc542d63620f3d1ae0a690a1041b7
+    size: 325599
+    checksum: sha256:f1b700ba7bfa1bb8d0b0f8af47c9a5afd8a44c74cec4ef17627b268c518c358b
     name: libbrotli
-    evr: 1.0.9-10.el9_8
-    sourcerpm: brotli-1.0.9-10.el9_8.src.rpm
+    evr: 1.0.9-10.el9_8.1
+    sourcerpm: brotli-1.0.9-10.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/baseos/os/Packages/l/libcap-2.48-10.el9_8.1.aarch64.rpm
     repoid: rhel-9-for-aarch64-baseos-rpms
     size: 78021
@@ -1464,13 +1464,13 @@ arches:
     name: glibc-headers
     evr: 2.34-283.el9_8
     sourcerpm: glibc-2.34-283.el9_8.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.60.1.el9_8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-687.61.1.el9_8.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 2986597
-    checksum: sha256:02a07e8ee63bd1d2ed34b2bb5c7bd114860b0422832af1a5cc305dfdc2bc46f7
+    size: 2994353
+    checksum: sha256:e033c43830512e57b795bb85c0bfdc5a250cde81cb72c2205998643617c27885
     name: kernel-headers
-    evr: 5.14.0-687.60.1.el9_8
-    sourcerpm: kernel-5.14.0-687.60.1.el9_8.src.rpm
+    evr: 5.14.0-687.61.1.el9_8
+    sourcerpm: kernel-5.14.0-687.61.1.el9_8.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
@@ -1926,13 +1926,13 @@ arches:
     name: kmod-libs
     evr: 28-11.el9
     sourcerpm: kmod-28-11.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/k/krb5-libs-1.21.1-10.el9_8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/k/krb5-libs-1.21.1-10.el9_8.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 790743
-    checksum: sha256:8906be9f2d414c5f4e1218db0c94955c2b3394b43a04b7dbcc2ef66c4340ebc6
+    size: 790530
+    checksum: sha256:867bf5fb56f787d3515053cb0f5f14e6aced3ba43999f03f255c2d3f6c0c8f36
     name: krb5-libs
-    evr: 1.21.1-10.el9_8
-    sourcerpm: krb5-1.21.1-10.el9_8.src.rpm
+    evr: 1.21.1-10.el9_8.1
+    sourcerpm: krb5-1.21.1-10.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/less-590-6.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 166025
@@ -1982,13 +1982,13 @@ arches:
     name: libbpf
     evr: 2:1.5.0-3.el9
     sourcerpm: libbpf-1.5.0-3.el9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libbrotli-1.0.9-10.el9_8.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libbrotli-1.0.9-10.el9_8.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
-    size: 326501
-    checksum: sha256:ecf2cda794cb9f68a7f67742ce0aeef4c3480795cce0e9bc8f49634072fd2e07
+    size: 326567
+    checksum: sha256:4ac44eaf3518e46780b8f449fa68f762e4fe8b88d0de7845d7fe8399d829d966
     name: libbrotli
-    evr: 1.0.9-10.el9_8
-    sourcerpm: brotli-1.0.9-10.el9_8.src.rpm
+    evr: 1.0.9-10.el9_8.1
+    sourcerpm: brotli-1.0.9-10.el9_8.1.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/baseos/os/Packages/l/libcap-2.48-10.el9_8.1.x86_64.rpm
     repoid: rhel-9-for-x86_64-baseos-rpms
     size: 78928
