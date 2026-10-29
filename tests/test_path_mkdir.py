@@ -7,6 +7,8 @@ import pytest
 from event import Event, EventType, Process
 from server import EventServer
 
+pytestmark = pytest.mark.otlp_only
+
 
 @pytest.mark.parametrize(
     'dirname',
@@ -23,7 +25,7 @@ def test_mkdir_nested(
     dirname: str,
 ):
     """
-    Tests that creating nested directories tracks all inodes correctly.
+    Tests that creating nested directories emits mkdir events.
 
     Args:
         monitored_dir: Temporary directory path for creating the test directory.
@@ -35,22 +37,34 @@ def test_mkdir_nested(
     # Create nested directories
     test_dir = os.path.join(monitored_dir, 'level1', 'level2', dirname)
     os.makedirs(test_dir, exist_ok=True)
+    directories = [
+        os.path.join(monitored_dir, 'level1'),
+        os.path.join(monitored_dir, 'level1', 'level2'),
+        test_dir,
+    ]
 
     # Create a file in the deepest directory
     test_file = os.path.join(test_dir, 'deep_file.txt')
     with open(test_file, 'w') as f:
         f.write('nested content')
 
-    # Directory creation events are tracked internally but not sent to sensor
-    # Only the file creation event should be sent
     events = [
+        Event(
+            process=process,
+            event_type=EventType.MKDIR,
+            file=directory,
+            host_path=directory,
+        )
+        for directory in directories
+    ]
+    events.append(
         Event(
             process=process,
             event_type=EventType.CREATION,
             file=test_file,
             host_path=test_file,
         ),
-    ]
+    )
 
     server.wait_events(events)
 
@@ -84,13 +98,19 @@ def test_mkdir_ignored(
     with open(monitored_file, 'w') as f:
         f.write('monitored')
 
-    # Only the monitored file should generate an event
-    # (directories are tracked internally)
-    e = Event(
-        process=process,
-        event_type=EventType.CREATION,
-        file=monitored_file,
-        host_path=monitored_file,
+    server.wait_events(
+        [
+            Event(
+                process=process,
+                event_type=EventType.MKDIR,
+                file=monitored_subdir,
+                host_path=monitored_subdir,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=monitored_file,
+                host_path=monitored_file,
+            ),
+        ]
     )
-
-    server.wait_events([e])

@@ -48,6 +48,8 @@ class EventType(Enum):
     XATTR_REMOVE = 8
     ACL = 9
     SYMLINK = 10
+    MKDIR = 11
+    RMDIR = 12
 
 
 # POSIX ACL type values matching the AclType proto enum.

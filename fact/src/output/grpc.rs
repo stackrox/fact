@@ -239,6 +239,7 @@ impl Client {
             self.subscriber.send(tx).await?;
             let rx = rx.await?;
             let rx = BroadcastStream::new(rx).filter_map(move |event| match event {
+                Ok(event) if event.is_mkdir() || event.is_rmdir() => None,
                 Ok(event) => {
                     metrics.added();
                     let event = Arc::unwrap_or_clone(event);
