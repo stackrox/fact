@@ -9,8 +9,6 @@ import pytest
 from event import Event, EventType, Process
 from server import EventServer
 
-pytestmark = pytest.mark.otlp_only
-
 
 @pytest.mark.parametrize(
     'dirname',
@@ -27,11 +25,11 @@ def test_rmdir_empty(
     dirname: str,
 ):
     """
-    Tests that removing an empty directory emits an rmdir event.
+    Tests file events on both outputs and the rmdir event on OTLP.
 
     Args:
         monitored_dir: Temporary directory path for creating the test directory.
-        server: The OTLP event server.
+        server: The event server.
         dirname: Directory name to test, including UTF-8 variants.
     """
     process = Process.from_proc()
@@ -41,22 +39,25 @@ def test_rmdir_empty(
     with open(test_file, 'w') as f:
         f.write('test content')
 
-    server.wait_events(
-        [
+    events = []
+    if server.output_mode == 'otlp':
+        events = [
             Event(
                 process=process,
                 event_type=EventType.MKDIR,
                 file=test_dir,
                 host_path=test_dir,
             ),
-            Event(
-                process=process,
-                event_type=EventType.CREATION,
-                file=test_file,
-                host_path=test_file,
-            ),
         ]
+    events.append(
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=test_file,
+            host_path=test_file,
+        )
     )
+    server.wait_events(events)
 
     os.remove(test_file)
     server.wait_events(
@@ -71,16 +72,17 @@ def test_rmdir_empty(
     )
 
     os.rmdir(test_dir)
-    server.wait_events(
-        [
-            Event(
-                process=process,
-                event_type=EventType.RMDIR,
-                file=test_dir,
-                host_path=test_dir,
-            )
-        ]
-    )
+    if server.output_mode == 'otlp':
+        server.wait_events(
+            [
+                Event(
+                    process=process,
+                    event_type=EventType.RMDIR,
+                    file=test_dir,
+                    host_path=test_dir,
+                )
+            ]
+        )
 
 
 @pytest.mark.skipif(
@@ -92,11 +94,11 @@ def test_rmdir_recursive(
     server: EventServer,
 ):
     """
-    Tests that recursive deletion emits unlink and rmdir events.
+    Tests that recursive deletion emits unlink events and OTLP rmdir events.
 
     Args:
         monitored_dir: Temporary directory path for creating test directories.
-        server: The OTLP event server.
+        server: The event server.
     """
     process = Process.from_proc()
     level1 = os.path.join(monitored_dir, 'level1')
@@ -116,50 +118,57 @@ def test_rmdir_recursive(
     with open(file3, 'w') as f:
         f.write('level3')
 
-    creation_events = [
-        Event(
-            process=process,
-            event_type=EventType.MKDIR,
-            file=level1,
-            host_path=level1,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.MKDIR,
-            file=level2,
-            host_path=level2,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.MKDIR,
-            file=level3,
-            host_path=level3,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=file1,
-            host_path=file1,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=file2,
-            host_path=file2,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.CREATION,
-            file=file3,
-            host_path=file3,
-        ),
-    ]
+    events = []
+    if server.output_mode == 'otlp':
+        events = [
+            Event(
+                process=process,
+                event_type=EventType.MKDIR,
+                file=level1,
+                host_path=level1,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.MKDIR,
+                file=level2,
+                host_path=level2,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.MKDIR,
+                file=level3,
+                host_path=level3,
+            ),
+        ]
 
-    server.wait_events(creation_events)
+    events.extend(
+        [
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=file1,
+                host_path=file1,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=file2,
+                host_path=file2,
+            ),
+            Event(
+                process=process,
+                event_type=EventType.CREATION,
+                file=file3,
+                host_path=file3,
+            ),
+        ]
+    )
+
+    server.wait_events(events)
 
     shutil.rmtree(level1)
 
-    deletion_events = [
+    events = [
         Event(
             process=process,
             event_type=EventType.UNLINK,
@@ -178,26 +187,31 @@ def test_rmdir_recursive(
             file=file3,
             host_path=file3,
         ),
-        Event(
-            process=process,
-            event_type=EventType.RMDIR,
-            file=level1,
-            host_path=level1,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.RMDIR,
-            file=level2,
-            host_path=level2,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.RMDIR,
-            file=level3,
-            host_path=level3,
-        ),
     ]
-    server.wait_events(deletion_events, ordered=False)
+    if server.output_mode == 'otlp':
+        events.extend(
+            [
+                Event(
+                    process=process,
+                    event_type=EventType.RMDIR,
+                    file=level1,
+                    host_path=level1,
+                ),
+                Event(
+                    process=process,
+                    event_type=EventType.RMDIR,
+                    file=level2,
+                    host_path=level2,
+                ),
+                Event(
+                    process=process,
+                    event_type=EventType.RMDIR,
+                    file=level3,
+                    host_path=level3,
+                ),
+            ]
+        )
+    server.wait_events(events, ordered=False)
 
 
 def test_rmdir_ignored(
@@ -206,12 +220,12 @@ def test_rmdir_ignored(
     server: EventServer,
 ):
     """
-    Tests that only monitored directory removals emit events.
+    Tests that only operations in monitored directories emit events.
 
     Args:
         monitored_dir: Temporary directory path that is monitored.
         ignored_dir: Temporary directory path that is not monitored.
-        server: The OTLP event server.
+        server: The event server.
     """
     process = Process.from_proc()
 
@@ -230,42 +244,47 @@ def test_rmdir_ignored(
     with open(monitored_file, 'w') as f:
         f.write('monitored')
 
-    server.wait_events(
-        [
+    events = []
+    if server.output_mode == 'otlp':
+        events = [
             Event(
                 process=process,
                 event_type=EventType.MKDIR,
                 file=monitored_subdir,
                 host_path=monitored_subdir,
             ),
-            Event(
-                process=process,
-                event_type=EventType.CREATION,
-                file=monitored_file,
-                host_path=monitored_file,
-            ),
         ]
+    events.append(
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=monitored_file,
+            host_path=monitored_file,
+        )
     )
+    server.wait_events(events)
 
     os.remove(monitored_file)
     os.rmdir(monitored_subdir)
 
-    server.wait_events(
-        [
-            Event(
-                process=process,
-                event_type=EventType.UNLINK,
-                file=monitored_file,
-                host_path=monitored_file,
-            ),
+    events = [
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=monitored_file,
+            host_path=monitored_file,
+        )
+    ]
+    if server.output_mode == 'otlp':
+        events.append(
             Event(
                 process=process,
                 event_type=EventType.RMDIR,
                 file=monitored_subdir,
                 host_path=monitored_subdir,
-            ),
-        ]
-    )
+            )
+        )
+    server.wait_events(events)
 
 
 def test_rmdir_with_parent_inode(
@@ -294,23 +313,25 @@ def test_rmdir_with_parent_inode(
         f.write('content')
 
     # Verify file creation is tracked
-    e1 = Event(
-        process=process,
-        event_type=EventType.CREATION,
-        file=test_file,
-        host_path=test_file,
-    )
-    server.wait_events(
-        [
+    events = []
+    if server.output_mode == 'otlp':
+        events.append(
             Event(
                 process=process,
                 event_type=EventType.MKDIR,
                 file=subdir,
                 host_path=subdir,
             ),
-            e1,
-        ]
+        )
+    events.append(
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=test_file,
+            host_path=test_file,
+        )
     )
+    server.wait_events(events)
 
     # Create another file at the root level (parent directory)
     root_file = os.path.join(monitored_dir, 'root.txt')
@@ -330,21 +351,24 @@ def test_rmdir_with_parent_inode(
     os.rmdir(subdir)
 
     # Verify file deletion is tracked
-    deletion_events = [
+    events = [
         Event(
             process=process,
             event_type=EventType.UNLINK,
             file=test_file,
             host_path=test_file,
-        ),
-        Event(
-            process=process,
-            event_type=EventType.RMDIR,
-            file=subdir,
-            host_path=subdir,
-        ),
+        )
     ]
-    server.wait_events(deletion_events)
+    if server.output_mode == 'otlp':
+        events.append(
+            Event(
+                process=process,
+                event_type=EventType.RMDIR,
+                file=subdir,
+                host_path=subdir,
+            )
+        )
+    server.wait_events(events)
 
     # Create a NEW file in the parent directory (monitored_dir)
     # This tests that removing the subdirectory didn't corrupt

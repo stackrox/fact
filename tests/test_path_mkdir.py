@@ -7,8 +7,6 @@ import pytest
 from event import Event, EventType, Process
 from server import EventServer
 
-pytestmark = pytest.mark.otlp_only
-
 
 @pytest.mark.parametrize(
     'dirname',
@@ -25,7 +23,7 @@ def test_mkdir_nested(
     dirname: str,
 ):
     """
-    Tests that creating nested directories emits mkdir events.
+    Tests that nested file creation is tracked and mkdir events reach OTLP.
 
     Args:
         monitored_dir: Temporary directory path for creating the test directory.
@@ -48,22 +46,24 @@ def test_mkdir_nested(
     with open(test_file, 'w') as f:
         f.write('nested content')
 
-    events = [
-        Event(
-            process=process,
-            event_type=EventType.MKDIR,
-            file=directory,
-            host_path=directory,
-        )
-        for directory in directories
-    ]
+    events = []
+    if server.output_mode == 'otlp':
+        events = [
+            Event(
+                process=process,
+                event_type=EventType.MKDIR,
+                file=directory,
+                host_path=directory,
+            )
+            for directory in directories
+        ]
     events.append(
         Event(
             process=process,
             event_type=EventType.CREATION,
             file=test_file,
             host_path=test_file,
-        ),
+        )
     )
 
     server.wait_events(events)
@@ -98,19 +98,22 @@ def test_mkdir_ignored(
     with open(monitored_file, 'w') as f:
         f.write('monitored')
 
-    server.wait_events(
-        [
+    events = []
+    if server.output_mode == 'otlp':
+        events = [
             Event(
                 process=process,
                 event_type=EventType.MKDIR,
                 file=monitored_subdir,
                 host_path=monitored_subdir,
-            ),
-            Event(
-                process=process,
-                event_type=EventType.CREATION,
-                file=monitored_file,
-                host_path=monitored_file,
-            ),
+            )
         ]
+    events.append(
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=monitored_file,
+            host_path=monitored_file,
+        )
     )
+    server.wait_events(events)

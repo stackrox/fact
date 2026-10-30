@@ -80,18 +80,6 @@ def _get_output_modes(config: pytest.Config) -> list[str]:
 def pytest_generate_tests(metafunc: pytest.Metafunc):
     if 'server' in metafunc.fixturenames:
         modes = _get_output_modes(metafunc.config)
-        if metafunc.definition.get_closest_marker('otlp_only'):
-            modes = [
-                pytest.param(
-                    mode,
-                    marks=pytest.mark.skip(
-                        reason='This test requires the OTLP output'
-                    ),
-                )
-                if mode == 'grpc'
-                else mode
-                for mode in modes
-            ]
         metafunc.parametrize('server', modes, indirect=True)
 
 
