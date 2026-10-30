@@ -717,13 +717,10 @@ You can increase this limit with:
                             self.handle_unlink_event(&event);
                         }
 
-                        // Skip directory creation and deletion events - we track them internally but don't send to sensor
                         if event.is_mkdir() {
                             self.metrics.events_inc(HostScannerLabels::MkDir);
-                            continue;
                         } else if event.is_rmdir() {
                             self.metrics.events_inc(HostScannerLabels::RmDir);
-                            continue;
                         }
 
                         if event.is_symlink() &&

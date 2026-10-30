@@ -50,6 +50,8 @@ EVENT_TYPE_MAP: dict[str, EventType] = {
     'xattr_remove': EventType.XATTR_REMOVE,
     'acl': EventType.ACL,
     'symlink': EventType.SYMLINK,
+    'mkdir': EventType.MKDIR,
+    'rmdir': EventType.RMDIR,
 }
 
 
@@ -116,9 +118,14 @@ class EventServer(ABC):
         self,
         events: list[Event],
         strict: bool,
+        ordered: bool,
         skip_oneof_names: frozenset[EventType],
         cancel: ThreadingEvent,
     ):
+        events = list(events)
+        if not events:
+            return
+
         while self.is_running() and not cancel.is_set():
             msg = self.get_next()
             if msg is None:
@@ -133,19 +140,25 @@ class EventServer(ABC):
             if msg.process.exe_path in EXE_PATH_SKIP:
                 continue
 
-            diff = events[0].diff(msg)
-            if diff is None:
-                events.pop(0)
-                if len(events) == 0:
-                    return
-            elif strict:
-                raise ValueError(json.dumps(diff, indent=4, default=str))
+            candidate_indices = range(1) if ordered else range(len(events))
+            diff: dict | None = None
+            for index in candidate_indices:
+                diff = events[index].diff(msg)
+                if diff is None:
+                    events.pop(index)
+                    if not events:
+                        return
+                    break
+            else:
+                if strict:
+                    raise ValueError(json.dumps(diff, indent=4, default=str))
 
     def wait_events(
         self,
         events: list[Event],
         strict: bool = True,
         skip: tuple[str, ...] = DEFAULT_SKIP,
+        ordered: bool = True,
     ):
         """
         Continuously checks the server for incoming events until the
@@ -156,6 +169,7 @@ class EventServer(ABC):
             strict: Fail if an unexpected event is detected.
             skip: Event categories to silently ignore (e.g. 'xattr',
                 'acl'). Pass an empty tuple to receive all events.
+            ordered: Match expected events in order, or in any order when False.
 
         Raises:
             TimeoutError: If the required events are not found in 5 seconds.
@@ -175,6 +189,7 @@ class EventServer(ABC):
             self._wait_events,
             events,
             strict,
+            ordered,
             skip_oneof_names,
             cancel,
         )
@@ -184,6 +199,14 @@ class EventServer(ABC):
             raise
         finally:
             cancel.set()
+
+    def wait_event(
+        self,
+        event: Event,
+        strict: bool = True,
+        skip: tuple[str, ...] = DEFAULT_SKIP,
+    ):
+        self.wait_events(events=[event], strict=strict, skip=skip)
 
 
 class GrpcServer(
@@ -340,8 +363,7 @@ class OtlpServer(EventServer):
         """
         Translate an OTLP LogRecord into an Event.
 
-        Returns None for event types that only exist in the OTLP
-        schema (mkdir, rmdir) or are otherwise unrecognised.
+        Returns None for unrecognised event types.
         """
         attrs = OtlpServer._kvlist_to_dict(record.attributes)
 
@@ -408,9 +430,8 @@ class OtlpServer(EventServer):
         Start the HTTP server on the given address and port.
 
         Handles POST /v1/logs with OTLP binary protobuf payloads.
-        Each log record is translated into an Event and appended
-        to the queue. Events with types not present in the gRPC
-        schema (mkdir, rmdir) are silently dropped.
+        Each recognised log record is translated into an Event and
+        appended to the queue.
         """
         parent = self
 

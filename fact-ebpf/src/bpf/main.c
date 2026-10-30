@@ -549,6 +549,8 @@ FACT_BPF_PROG2(path_rmdir, struct path*, dir, struct dentry*, dentry) {
   args.filename = path->path;
 
   args.inode = inode_to_key(dentry->d_inode);
+  args.parent_inode = inode_to_key(dentry->d_parent->d_inode);
+  args.monitored = is_monitored(&args.inode, path, &args.parent_inode);
 
   if (inode_remove(&args.inode) < 0) {
     m->path_rmdir.ignored++;
