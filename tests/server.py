@@ -200,6 +200,14 @@ class EventServer(ABC):
         finally:
             cancel.set()
 
+    def wait_event(
+        self,
+        event: Event,
+        strict: bool = True,
+        skip: tuple[str, ...] = DEFAULT_SKIP,
+    ):
+        self.wait_events(events=[event], strict=strict, skip=skip)
+
 
 class GrpcServer(
     EventServer, sfa_iservice_pb2_grpc.FileActivityServiceServicer

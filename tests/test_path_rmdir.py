@@ -338,13 +338,14 @@ def test_rmdir_with_parent_inode(
     with open(root_file, 'w') as f:
         f.write('root content')
 
-    e2 = Event(
-        process=process,
-        event_type=EventType.CREATION,
-        file=root_file,
-        host_path=root_file,
+    server.wait_event(
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=root_file,
+            host_path=root_file,
+        )
     )
-    server.wait_events([e2])
 
     # Remove the subdirectory and its contents
     os.remove(test_file)
@@ -377,21 +378,23 @@ def test_rmdir_with_parent_inode(
     with open(new_file, 'w') as f:
         f.write('new content')
 
-    e4 = Event(
-        process=process,
-        event_type=EventType.CREATION,
-        file=new_file,
-        host_path=new_file,
+    server.wait_event(
+        Event(
+            process=process,
+            event_type=EventType.CREATION,
+            file=new_file,
+            host_path=new_file,
+        )
     )
-    server.wait_events([e4])
 
     # Remove the new file to clean up
     os.remove(new_file)
 
-    e5 = Event(
-        process=process,
-        event_type=EventType.UNLINK,
-        file=new_file,
-        host_path=new_file,
+    server.wait_event(
+        Event(
+            process=process,
+            event_type=EventType.UNLINK,
+            file=new_file,
+            host_path=new_file,
+        )
     )
-    server.wait_events([e5])
