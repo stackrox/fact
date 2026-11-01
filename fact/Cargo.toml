@@ -11,7 +11,7 @@ aya = { workspace = true }
 clap = { version = "=4.6.7", features = ["derive", "env"] }
 env_logger = { version = "=0.11.11", default-features = false, features = ["humantime"] }
 glob = "=0.3.4"
-globset = "=0.4.20"
+globset = "=0.4.21"
 governor = "=0.10.4"
 http-body-util = "=0.1.5"
 hyper = { version = "=1.12.0", default-features = false }
