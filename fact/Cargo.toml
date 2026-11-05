@@ -23,7 +23,7 @@ native-tls = { version = "=0.2.18", features = ["alpn"] }
 opentelemetry = { version = "=0.33.1", optional = true }
 opentelemetry-otlp = { version = "=0.33.1", optional = true }
 opentelemetry_sdk = { version = "=0.33.1", features = [ "logs"], optional = true }
-openssl = "=0.10.81"
+openssl = "=0.10.82"
 tonic = { workspace = true }
 tokio = { workspace = true }
 tokio-native-tls = "=0.3.1"
