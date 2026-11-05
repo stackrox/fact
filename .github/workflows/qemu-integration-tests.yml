@@ -1,0 +1,295 @@
+name: QEMU Integration Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}-qemu
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  VM_DIR: /tmp/fact-vm
+  SSH_PORT: '2222'
+
+jobs:
+  build:
+    name: Build fact image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Build image
+      run: |
+        FACT_REGISTRY=localhost/fact make image
+
+    - name: Export image
+      run: |
+        docker save -o /tmp/fact-image.tar "$(FACT_REGISTRY=localhost/fact make image-name)"
+
+    - name: Upload image artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: fact-image
+        path: /tmp/fact-image.tar
+        retention-days: 1
+
+  integration-tests:
+    name: Integration tests (${{ matrix.name }})
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: centos-9-stream
+          image_url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2
+          checksum_url: https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2.SHA256SUM
+          cloud_init: ci/cloud-init/centos.yml
+        - name: centos-10-stream
+          image_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2
+          checksum_url: https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2.SHA256SUM
+          cloud_init: ci/cloud-init/centos.yml
+        - name: fedora-44
+          image_url: https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2
+          checksum_url: https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-44-1.7-x86_64-CHECKSUM
+          cloud_init: ci/cloud-init/fedora.yml
+          expect_reboot: true
+        # RHCOS has no direct download page; its qcow2 location and
+        # checksums are resolved dynamically from the OpenShift
+        # installer's per-release stream metadata (see the "Resolve
+        # and download RHCOS image" step). OCP 4.22+ splits RHCOS into
+        # separate RHEL 9 and RHEL 10 based images (coreos-rhel-9.json /
+        # coreos-rhel-10.json) instead of a single rhcos.json.
+        - name: rhcos-4.16
+          rhcos_stream: '4.16'
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-4.18
+          rhcos_stream: '4.18'
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-4.20
+          rhcos_stream: '4.20'
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-4.22-rhel9
+          rhcos_stream: '4.22'
+          rhcos_rhel_variant: rhel-9
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-4.22-rhel10
+          rhcos_stream: '4.22'
+          rhcos_rhel_variant: rhel-10
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-5.0-rhel9
+          rhcos_stream: '5.0'
+          rhcos_rhel_variant: rhel-9
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-5.0-rhel10
+          rhcos_stream: '5.0'
+          rhcos_rhel_variant: rhel-10
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-5.2-rhel9
+          rhcos_stream: '5.2'
+          rhcos_rhel_variant: rhel-9
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+        - name: rhcos-5.2-rhel10
+          rhcos_stream: '5.2'
+          rhcos_rhel_variant: rhel-10
+          ignition: ci/ignition/rhcos.json
+          ssh_user: core
+    env:
+      # CONTAINER_RUNTIME may change in the future, for now all VMs use podman
+      CONTAINER_RUNTIME: podman
+    steps:
+    - name: Checkout fact
+      uses: actions/checkout@v7
+      with:
+        submodules: true
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Install QEMU
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          qemu-system-x86 \
+          qemu-utils \
+          genisoimage \
+          virtiofsd \
+          jq
+        [ -w /dev/kvm ] || sudo chmod 666 /dev/kvm
+
+    - name: Download VM base image
+      if: matrix.rhcos_stream == ''
+      run: |
+        mkdir -p "${VM_DIR}"
+        image_name="$(basename "${{ matrix.image_url }}")"
+        curl -fSL --progress-bar -o "${VM_DIR}/${image_name}" "${{ matrix.image_url }}"
+
+        # Checksum files may list multiple images (Ubuntu SHA256SUMS) or
+        # use either GNU ("hash  filename") or BSD ("SHA256 (filename) =
+        # hash") tagged format. sha256sum -c auto-detects both, so we
+        # only need to filter the file down to our image's line.
+        curl -fsSL "${{ matrix.checksum_url }}" | grep -F "${image_name}" > "${VM_DIR}/${image_name}.sum"
+        (cd "${VM_DIR}" && sha256sum -c "${image_name}.sum")
+        rm -f "${VM_DIR}/${image_name}.sum"
+
+        mv "${VM_DIR}/${image_name}" "${VM_DIR}/base.qcow2"
+
+    - name: Resolve and download RHCOS image
+      if: matrix.rhcos_stream != ''
+      run: |
+        mkdir -p "${VM_DIR}"
+
+        # RHCOS has no stable download URL; the current build for a
+        # given OpenShift release stream is published as JSON metadata
+        # by the openshift/installer project, freely downloadable with
+        # no Red Hat subscription required. OCP 4.22+ splits this into
+        # per-RHEL-version files (coreos-rhel-9.json, coreos-rhel-10.json)
+        # instead of a single rhcos.json.
+        if [ -n "${{ matrix.rhcos_rhel_variant }}" ]; then
+          RHCOS_JSON_FILE="coreos-${{ matrix.rhcos_rhel_variant }}.json"
+        else
+          RHCOS_JSON_FILE="rhcos.json"
+        fi
+        stream_json="$(curl -fsSL "https://raw.githubusercontent.com/openshift/installer/release-${{ matrix.rhcos_stream }}/data/data/coreos/${RHCOS_JSON_FILE}")"
+        qemu_artifact="$(echo "${stream_json}" | jq -c '.architectures.x86_64.artifacts.qemu.formats."qcow2.gz".disk')"
+        location="$(echo "${qemu_artifact}" | jq -r '.location')"
+        gz_sha256="$(echo "${qemu_artifact}" | jq -r '.sha256')"
+        raw_sha256="$(echo "${qemu_artifact}" | jq -r '."uncompressed-sha256"')"
+
+        curl -fSL --progress-bar -o "${VM_DIR}/rhcos.qcow2.gz" "${location}"
+        echo "${gz_sha256}  ${VM_DIR}/rhcos.qcow2.gz" | sha256sum -c -
+
+        gunzip -f "${VM_DIR}/rhcos.qcow2.gz"
+        echo "${raw_sha256}  ${VM_DIR}/rhcos.qcow2" | sha256sum -c -
+
+        mv "${VM_DIR}/rhcos.qcow2" "${VM_DIR}/base.qcow2"
+
+    - name: Download fact image artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: fact-image
+
+    - name: Start VM
+      run: |
+        args=(
+          --image "${VM_DIR}/base.qcow2"
+          --vm-dir "${VM_DIR}"
+          --ssh-port "${SSH_PORT}"
+          --ssh-user "${{ matrix.ssh_user || 'root' }}"
+          --runtime "${CONTAINER_RUNTIME}"
+          --host-mount "${{ github.workspace }}"
+        )
+        if [ -n "${{ matrix.cloud_init }}" ]; then
+          args+=(--cloud-init "${{ matrix.cloud_init }}")
+        else
+          args+=(--ignition "${{ matrix.ignition }}")
+        fi
+        if [ "${{ matrix.expect_reboot }}" = "true" ]; then
+          args+=(--expect-reboot)
+        fi
+        ci/qemu-vm.sh start "${args[@]}"
+
+    - name: Load fact image into VM
+      run: |
+        ci/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" \
+          --ssh-user "${{ matrix.ssh_user || 'root' }}" -- \
+          "${CONTAINER_RUNTIME}" load -i /mnt/host/fact-image.tar
+
+    - name: Setup test environment in VM
+      run: |
+        # Generate gRPC stubs directly (matching tests/Makefile's
+        # grpc-gen target) instead of via "make", so the VM doesn't
+        # need a make binary installed.
+        ci/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" \
+          --ssh-user "${{ matrix.ssh_user || 'root' }}" -- \
+          bash -c '
+            set -euo pipefail
+            cd /mnt/host/tests
+            python3 -m venv .venv
+            source .venv/bin/activate
+            pip install -q -r requirements.txt
+            python3 -m grpc_tools.protoc \
+              -I../third_party/stackrox/proto \
+              --python_out=. \
+              --pyi_out=. \
+              --grpc_python_out=. \
+              ../third_party/stackrox/proto/internalapi/sensor/collector.proto \
+              ../third_party/stackrox/proto/internalapi/sensor/sfa.proto \
+              ../third_party/stackrox/proto/internalapi/sensor/sfa_iservice.proto
+          '
+
+    - name: Run integration tests
+      run: |
+        # NOTE: --no-local-builds is intentionally omitted. The editor,
+        # fedora, and self-deleter test containers are normally pulled
+        # from quay.io/rhacs-eng/qa-multi-arch, which is a private
+        # registry that fork PR runs have no credentials for. Without
+        # --no-local-builds, tests/containers.py::pull_or_build() falls
+        # back to building those images locally from their Containerfiles
+        # on a pull error.
+        FACT_IMAGE="$(FACT_REGISTRY=localhost/fact make image-name)"
+
+        # podman exposes a Docker-API-compatible socket that the
+        # docker Python SDK (used throughout tests/) can talk to
+        # directly via DOCKER_HOST -- no separate Docker daemon needed.
+        DOCKER_HOST_ENV=""
+        if [ "${CONTAINER_RUNTIME}" = "podman" ]; then
+          DOCKER_HOST_ENV="export DOCKER_HOST=unix:///run/podman/podman.sock"
+        fi
+
+        ci/qemu-vm.sh ssh --vm-dir "${VM_DIR}" --ssh-port "${SSH_PORT}" \
+          --ssh-user "${{ matrix.ssh_user || 'root' }}" -- \
+          bash -c "
+            set -euo pipefail
+            ${DOCKER_HOST_ENV}
+            mkdir -p /tmp/fact-tmp
+            cd /mnt/host/tests
+            source .venv/bin/activate
+            pytest \
+              --image='${FACT_IMAGE}' \
+              --output=grpc \
+              --tmp-dir=/tmp/fact-tmp \
+              --junit-xml=results.xml \
+              --tb=short
+          "
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: qemu-test-results-${{ matrix.name }}
+        path: |
+          tests/results.xml
+          tests/logs/
+        if-no-files-found: ignore
+
+    - name: Test summary
+      uses: test-summary/action@v2
+      if: always()
+      with:
+        paths: tests/results.xml
+
+    - name: Dump VM console on failure
+      if: failure()
+      run: cat "${VM_DIR}/console.log" 2>/dev/null || true
+
+    - name: Stop VM
+      if: always()
+      run: ci/qemu-vm.sh stop --vm-dir "${VM_DIR}"
