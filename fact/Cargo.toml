@@ -20,7 +20,7 @@ hyper-util = { version = "=0.1.21", default-features = false }
 libc = { workspace = true }
 log = { version = "=0.4.35", default-features = false }
 native-tls = { version = "=0.2.18", features = ["alpn"] }
-openssl = "=0.10.81"
+openssl = "=0.10.82"
 tonic = { workspace = true }
 tokio = { workspace = true }
 tokio-native-tls = "=0.3.1"
