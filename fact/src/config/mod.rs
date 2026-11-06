@@ -47,7 +47,6 @@ pub struct FactConfig {
     json: Option<bool>,
     hotreload: Option<bool>,
     scan_interval: Option<Duration>,
-    rate_limit: Option<u64>,
     replay: Option<PathBuf>,
 }
 
@@ -114,10 +113,6 @@ impl FactConfig {
             self.scan_interval = Some(scan_interval);
         }
 
-        if let Some(rate_limit) = from.rate_limit {
-            self.rate_limit = Some(rate_limit);
-        }
-
         if let Some(replay) = from.replay.as_deref() {
             self.replay = Some(replay.to_path_buf());
         }
@@ -137,10 +132,6 @@ impl FactConfig {
 
     pub fn scan_interval(&self) -> Duration {
         self.scan_interval.unwrap_or(Duration::from_secs(30))
-    }
-
-    pub fn rate_limit(&self) -> u64 {
-        self.rate_limit.unwrap_or(0)
     }
 
     pub fn replay(&self) -> Option<&Path> {
@@ -238,16 +229,6 @@ impl TryFrom<Vec<Yaml>> for FactConfig {
                         bail!("invalid scan_interval: {v:?}");
                     };
                     config.scan_interval = Some(scan_interval);
-                }
-                "rate_limit" => {
-                    // rate_limit == 0 means unlimited (no throttling)
-                    let Some(rate_limit) = v.as_i64() else {
-                        bail!("rate_limit field has incorrect type: {v:?}");
-                    };
-                    if rate_limit < 0 {
-                        bail!("invalid rate_limit: {rate_limit}");
-                    }
-                    config.rate_limit = Some(rate_limit as u64);
                 }
                 "replay" => {
                     let Some(replay) = v.as_str() else {
@@ -557,6 +538,7 @@ impl TryFrom<&yaml::Hash> for BackoffConfig {
 pub struct GrpcConfig {
     url: Option<String>,
     certs: Option<PathBuf>,
+    rate_limit: Option<u32>,
     pub backoff: BackoffConfig,
 }
 
@@ -570,6 +552,10 @@ impl GrpcConfig {
             self.certs = Some(certs.to_owned());
         }
 
+        if let Some(rate_limit) = from.rate_limit {
+            self.rate_limit = Some(rate_limit);
+        }
+
         self.backoff.update(&from.backoff);
     }
 
@@ -579,6 +565,10 @@ impl GrpcConfig {
 
     pub fn certs(&self) -> Option<&Path> {
         self.certs.as_deref()
+    }
+
+    pub fn rate_limit(&self) -> u32 {
+        self.rate_limit.unwrap_or(0)
     }
 }
 
@@ -595,15 +585,25 @@ impl TryFrom<&yaml::Hash> for GrpcConfig {
             match k {
                 "url" => {
                     let Some(url) = v.as_str() else {
-                        bail!("url field has incorrect type: {v:?}");
+                        bail!("grpc.url field has incorrect type: {v:?}");
                     };
                     grpc.url = Some(url.to_owned());
                 }
                 "certs" => {
                     let Some(certs) = v.as_str() else {
-                        bail!("certs field has incorrect type: {v:?}");
+                        bail!("grpc.certs field has incorrect type: {v:?}");
                     };
                     grpc.certs = Some(PathBuf::from(certs));
+                }
+                "rate_limit" => {
+                    // rate_limit == 0 means unlimited (no throttling)
+                    let Some(rate_limit) = v.as_i64() else {
+                        bail!("grpc.rate_limit field has incorrect type: {v:?}");
+                    };
+                    if rate_limit < 0 || rate_limit > u32::MAX as i64 {
+                        bail!("invalid grpc.rate_limit: {rate_limit}");
+                    }
+                    grpc.rate_limit = Some(rate_limit as u32);
                 }
                 "backoff" => {
                     let Some(backoff) = v.as_hash() else {
@@ -856,6 +856,14 @@ pub struct FactCli {
     #[arg(short, long, env = "FACT_CERTS")]
     certs: Option<PathBuf>,
 
+    /// Maximum number of file events to allow per second through gRPC
+    ///
+    /// A value of 0 means unlimited (no throttling).
+    ///
+    /// Default value is 0 (unlimited)
+    #[arg(long, short = 'l', env = "FACT_GRPC_RATE_LIMIT")]
+    rate_limit: Option<u32>,
+
     /// Initial backoff delay in seconds for gRPC reconnection
     ///
     /// Default value is 1 second
@@ -991,15 +999,6 @@ pub struct FactCli {
     #[arg(long, short, env = "FACT_SCAN_INTERVAL", value_parser = parse_duration_secs)]
     scan_interval: Option<Duration>,
 
-    /// Maximum number of file events to allow per second
-    ///
-    /// Events exceeding this rate will be dropped. A value of 0
-    /// means unlimited (no throttling).
-    ///
-    /// Default value is 0 (unlimited)
-    #[arg(long, short = 'l', env = "FACT_RATE_LIMIT")]
-    rate_limit: Option<u64>,
-
     /// Replay events from a JSONL file instead of loading eBPF programs.
     ///
     /// This mode skips BPF loading and HostScanner, reading pre-recorded
@@ -1023,6 +1022,7 @@ impl FactCli {
             grpc: GrpcConfig {
                 url: self.url,
                 certs: self.certs,
+                rate_limit: self.rate_limit,
                 backoff: BackoffConfig {
                     initial: self.backoff_initial,
                     max: self.backoff_max,
@@ -1050,7 +1050,6 @@ impl FactCli {
             json: resolve_bool_arg(self.json, self.no_json),
             hotreload: resolve_bool_arg(self.hotreload, self.no_hotreload),
             scan_interval: self.scan_interval,
-            rate_limit: self.rate_limit,
             replay: self.replay.clone(),
         }
     }

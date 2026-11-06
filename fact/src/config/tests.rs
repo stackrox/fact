@@ -454,16 +454,24 @@ fn parsing() {
             },
         ),
         (
-            "rate_limit: 0",
+            r#"grpc:
+                rate_limit: 0"#,
             FactConfig {
-                rate_limit: Some(0),
+                grpc: GrpcConfig {
+                    rate_limit: Some(0),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "rate_limit: 1000",
+            r#"grpc:
+                rate_limit: 1000"#,
             FactConfig {
-                rate_limit: Some(1000),
+                grpc: GrpcConfig {
+                    rate_limit: Some(1000),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -483,6 +491,7 @@ fn parsing() {
             grpc:
               url: 'https://svc.sensor.stackrox:9090'
               certs: /etc/stackrox/certs
+              rate_limit: 50000
               backoff:
                 initial: 0.5
                 max: 120
@@ -508,7 +517,6 @@ fn parsing() {
                         enabled: false
             hotreload: false
             scan_interval: 60
-            rate_limit: 50000
             replay: /some/path.jsonl
             "#,
             FactConfig {
@@ -516,6 +524,7 @@ fn parsing() {
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    rate_limit: Some(50000),
                     backoff: BackoffConfig {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
@@ -562,7 +571,6 @@ fn parsing() {
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
-                rate_limit: Some(50000),
                 replay: Some(PathBuf::from("/some/path.jsonl")),
             },
         ),
@@ -607,14 +615,33 @@ paths:
             grpc:
               url: true
             "#,
-            "url field has incorrect type: Boolean(true)",
+            "grpc.url field has incorrect type: Boolean(true)",
         ),
         (
             r#"
             grpc:
               certs: true
             "#,
-            "certs field has incorrect type: Boolean(true)",
+            "grpc.certs field has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"grpc:
+                rate_limit: true"#,
+            "grpc.rate_limit field has incorrect type: Boolean(true)",
+        ),
+        (
+            r#"grpc:
+                rate_limit: 1000.0"#,
+            "grpc.rate_limit field has incorrect type: Real(\"1000.0\")",
+        ),
+        (
+            r#"grpc:
+            rate_limit: -1000"#,
+            "invalid grpc.rate_limit: -1000",
+        ),
+        (
+            "replay: true",
+            "replay field has incorrect type: Boolean(true)",
         ),
         (
             r#"
@@ -956,19 +983,6 @@ paths:
         (
             "scan_interval: -128.5",
             "invalid scan_interval: Real(\"-128.5\")",
-        ),
-        (
-            "rate_limit: true",
-            "rate_limit field has incorrect type: Boolean(true)",
-        ),
-        (
-            "rate_limit: 1000.0",
-            "rate_limit field has incorrect type: Real(\"1000.0\")",
-        ),
-        ("rate_limit: -1000", "invalid rate_limit: -1000"),
-        (
-            "replay: true",
-            "replay field has incorrect type: Boolean(true)",
         ),
         ("unknown:", "Invalid field 'unknown' with value: Null"),
     ];
@@ -1895,21 +1909,32 @@ fn update() {
             },
         ),
         (
-            "rate_limit: 1000",
+            r#"grpc:
+                rate_limit: 1000"#,
             FactConfig::default(),
             FactConfig {
-                rate_limit: Some(1000),
+                grpc: GrpcConfig {
+                    rate_limit: Some(1000),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
         (
-            "rate_limit: 1000",
+            r#"grpc:
+                rate_limit: 1000"#,
             FactConfig {
-                rate_limit: Some(50000),
+                grpc: GrpcConfig {
+                    rate_limit: Some(50000),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             FactConfig {
-                rate_limit: Some(1000),
+                grpc: GrpcConfig {
+                    rate_limit: Some(1000),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -1939,6 +1964,7 @@ fn update() {
             grpc:
               url: 'https://svc.sensor.stackrox:9090'
               certs: /etc/stackrox/certs
+              rate_limit: 1000
               backoff:
                 initial: 0.5
                 max: 120
@@ -1962,7 +1988,6 @@ fn update() {
                   enabled: false
             hotreload: false
             scan_interval: 60
-            rate_limit: 1000
             "#,
             FactConfig {
                 paths: [PathBuf::from("/etc"), PathBuf::from("/bin")]
@@ -1972,6 +1997,7 @@ fn update() {
                 grpc: GrpcConfig {
                     url: Some(String::from("http://localhost")),
                     certs: Some(PathBuf::from("/etc/certs")),
+                    rate_limit: Some(5000),
                     backoff: BackoffConfig {
                         initial: Some(Duration::from_secs(15)),
                         max: Some(Duration::from_secs(30)),
@@ -2004,7 +2030,6 @@ fn update() {
                 },
                 hotreload: Some(true),
                 scan_interval: Some(Duration::from_secs(30)),
-                rate_limit: Some(5000),
                 replay: None,
             },
             FactConfig {
@@ -2012,6 +2037,7 @@ fn update() {
                 grpc: GrpcConfig {
                     url: Some(String::from("https://svc.sensor.stackrox:9090")),
                     certs: Some(PathBuf::from("/etc/stackrox/certs")),
+                    rate_limit: Some(1000),
                     backoff: BackoffConfig {
                         initial: Some(Duration::from_secs_f64(0.5)),
                         max: Some(Duration::from_secs(120)),
@@ -2052,7 +2078,6 @@ fn update() {
                 },
                 hotreload: Some(false),
                 scan_interval: Some(Duration::from_secs(60)),
-                rate_limit: Some(1000),
                 replay: None,
             },
         ),
@@ -2092,9 +2117,9 @@ fn defaults() {
     assert!(config.grpc.backoff.jitter());
     assert_eq!(config.grpc.backoff.multiplier(), 1.5);
     assert_eq!(config.grpc.backoff.retries(), 10);
+    assert_eq!(config.grpc.rate_limit(), 0);
     assert_eq!(config.otel.endpoint(), None);
     assert_eq!(config.scan_interval(), Duration::from_secs(30));
-    assert_eq!(config.rate_limit(), 0);
     assert!(config.replay().is_none());
 }
 
@@ -2294,11 +2319,14 @@ fn env_vars() {
         ),
         (
             EnvVar {
-                name: "FACT_RATE_LIMIT",
+                name: "FACT_GRPC_RATE_LIMIT",
                 value: "500",
             },
             FactConfig {
-                rate_limit: Some(500),
+                grpc: GrpcConfig {
+                    rate_limit: Some(500),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -2643,12 +2671,16 @@ fn env_vars_override_yaml() {
         ),
         (
             EnvVar {
-                name: "FACT_RATE_LIMIT",
+                name: "FACT_GRPC_RATE_LIMIT",
                 value: "1000",
             },
-            "rate_limit: 500",
+            r#"grpc:
+                rate_limit: 500"#,
             FactConfig {
-                rate_limit: Some(1000),
+                grpc: GrpcConfig {
+                    rate_limit: Some(1000),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         ),
@@ -2804,7 +2836,7 @@ fn env_vars_invalid_values() {
         ),
         (
             EnvVar {
-                name: "FACT_RATE_LIMIT",
+                name: "FACT_GRPC_RATE_LIMIT",
                 value: "not_a_number",
             },
             "error: invalid value 'not_a_number' for '--rate-limit <RATE_LIMIT>': invalid digit found in string",

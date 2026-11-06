@@ -1,7 +1,8 @@
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::{Context, bail};
 use fact_api::file_activity_service_client::FileActivityServiceClient;
+use governor::{Quota, RateLimiter};
 use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use log::{info, warn};
@@ -22,7 +23,7 @@ use tonic::transport::Channel;
 use crate::{
     config::{BackoffConfig, GrpcConfig},
     metrics::EventCounter,
-    output::EventReceiver,
+    output::{EventReceiver, OutputStatus},
 };
 
 struct Backoff {
@@ -103,9 +104,66 @@ impl From<&BackoffConfig> for Backoff {
     }
 }
 
+struct GrpcStreamState<S> {
+    events: S,
+    limiter: Option<governor::DefaultDirectRateLimiter>,
+    config: watch::Receiver<GrpcConfig>,
+    running: watch::Receiver<OutputStatus>,
+}
+
+fn grpc_stream(
+    rx: EventReceiver,
+    metrics: EventCounter,
+    limiter: Option<governor::DefaultDirectRateLimiter>,
+    config: watch::Receiver<GrpcConfig>,
+    running: watch::Receiver<OutputStatus>,
+) -> impl tokio_stream::Stream<Item = fact_api::FileActivity> + Send + 'static {
+    let events = BroadcastStream::new(rx).filter_map(move |event| match event {
+        Ok(event) if event.is_mkdir() || event.is_rmdir() => None,
+        Ok(event) => {
+            metrics.added();
+            let event = Arc::unwrap_or_clone(event);
+            Some(event.into())
+        }
+        Err(BroadcastStreamRecvError::Lagged(n)) => {
+            warn!("gRPC stream lagged, dropped {n} events");
+            metrics.dropped_n(n);
+            None
+        }
+    });
+    let state = GrpcStreamState {
+        events,
+        limiter,
+        config,
+        running,
+    };
+
+    futures_util::stream::unfold(state, async move |mut state| {
+        let event = tokio::select! {
+            biased;
+            _ = state.config.changed() => return None,
+            event = async {
+                let event = state.events.next().await?;
+
+                let running = *state.running.borrow();
+                match running {
+                    OutputStatus::Running if let Some(limiter) = &state.limiter => {
+                        limiter.until_ready().await;
+                    }
+                    OutputStatus::Running | OutputStatus::Stopping => {} // Bypass rate limiting
+                    OutputStatus::Stopped => return None,
+                }
+
+                Some(event)
+            } => event?,
+        };
+        Some((event, state))
+    })
+}
+
 pub struct Client {
     subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
-    running: watch::Receiver<bool>,
+    running: watch::Receiver<OutputStatus>,
     config: watch::Receiver<GrpcConfig>,
     metrics: EventCounter,
 }
@@ -113,7 +171,7 @@ pub struct Client {
 impl Client {
     pub fn new(
         subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
-        running: watch::Receiver<bool>,
+        running: watch::Receiver<OutputStatus>,
         metrics: EventCounter,
         config: watch::Receiver<GrpcConfig>,
     ) -> Self {
@@ -234,23 +292,25 @@ impl Client {
 
             let mut client = FileActivityServiceClient::new(channel);
 
-            let metrics = self.metrics.clone();
+            let rate_limit = self.config.borrow().rate_limit();
+            let limiter = if rate_limit != 0 {
+                Some(RateLimiter::direct(Quota::per_second(
+                    NonZeroU32::new(rate_limit).unwrap(),
+                )))
+            } else {
+                None
+            };
+
             let (tx, rx) = oneshot::channel();
             self.subscriber.send(tx).await?;
             let rx = rx.await?;
-            let rx = BroadcastStream::new(rx).filter_map(move |event| match event {
-                Ok(event) if event.is_mkdir() || event.is_rmdir() => None,
-                Ok(event) => {
-                    metrics.added();
-                    let event = Arc::unwrap_or_clone(event);
-                    Some(event.into())
-                }
-                Err(BroadcastStreamRecvError::Lagged(n)) => {
-                    warn!("gRPC stream lagged, dropped {n} events");
-                    metrics.dropped_n(n);
-                    None
-                }
-            });
+            let rx = grpc_stream(
+                rx,
+                self.metrics.clone(),
+                limiter,
+                self.config.clone(),
+                self.running.clone(),
+            );
 
             tokio::select! {
                 res = client.communicate(rx) => {
@@ -264,7 +324,7 @@ impl Client {
                     }
                 }
                 _ = self.config.changed(), if self.config.has_changed().is_ok() => return Ok(true),
-                _ = self.running.changed() => return Ok(*self.running.borrow()),
+                _ = self.running.wait_for(|status| status.is_stopped()) => return Ok(false),
             }
         }
     }
@@ -276,7 +336,7 @@ impl Client {
     async fn idle(&mut self) -> anyhow::Result<bool> {
         tokio::select! {
             _ = self.config.changed(), if self.config.has_changed().is_ok() => Ok(true),
-            _ = self.running.changed() => Ok(*self.running.borrow()),
+            _ = self.running.wait_for(|status| status.is_stopped()) => Ok(false),
         }
     }
 }
