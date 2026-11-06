@@ -110,10 +110,6 @@ impl EventCounter {
     pub fn ignored(&self) {
         self.inc_label(LabelValues::Ignored);
     }
-
-    pub fn errored(&self) {
-        self.inc_label(LabelValues::Error);
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -159,7 +155,6 @@ impl OutputMetrics {
 
 pub struct Metrics {
     pub bpf_worker: EventCounter,
-    pub rate_limiter: EventCounter,
     pub output: OutputMetrics,
     pub host_scanner: HostScannerMetrics,
 }
@@ -176,15 +171,8 @@ impl Metrics {
             ],
         );
 
-        let rate_limiter = EventCounter::new(
-            "rate_limiter_events",
-            "Events processed by the rate limiter",
-            &[LabelValues::Added, LabelValues::Dropped, LabelValues::Error],
-        );
-
         Metrics {
             bpf_worker,
-            rate_limiter,
             output: OutputMetrics::new(),
             host_scanner: HostScannerMetrics::new(),
         }
@@ -192,7 +180,6 @@ impl Metrics {
 
     fn register(&self, reg: &mut Registry) {
         self.bpf_worker.register(reg);
-        self.rate_limiter.register(reg);
         self.output.register(reg);
         self.host_scanner.register(reg);
     }
