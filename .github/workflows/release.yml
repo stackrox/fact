@@ -61,6 +61,7 @@ jobs:
         env:
           PATCH: ${{ steps.patch.outputs.patch }}
         run: |
+          git commit --allow-empty --message "Empty commit to trigger CI"
           git tag -a -m "fact v${VERSION}.${PATCH} release" "${VERSION}.${PATCH}"
 
       - name: Push tag
@@ -68,4 +69,4 @@ jobs:
         env:
           PATCH: ${{ steps.patch.outputs.patch }}
         run: |
-          git push origin "${VERSION}.${PATCH}"
+          git push --follow-tags
