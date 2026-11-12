@@ -27,7 +27,7 @@ prost = { workspace = true }
 prost-types = { workspace = true }
 serde = { workspace = true }
 serde_json = "=1.0.154"
-uuid = { version = "=1.29.1", features = ["v4"] }
+uuid = { version = "=1.29.2", features = ["v4"] }
 yaml-rust2 = "=0.13.0"
 
 fact-api = { path = "../fact-api" }
