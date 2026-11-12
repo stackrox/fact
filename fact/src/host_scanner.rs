@@ -21,7 +21,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    fs::Metadata,
+    fs::{self, Metadata},
     io,
     ops::{Deref, DerefMut},
     os::linux::fs::MetadataExt,
@@ -387,10 +387,9 @@ You can increase this limit with:
         let parent_inode = event.get_parent_inode();
 
         if !parent_inode.empty()
-            && let Some(filename) = event.get_filename().file_name()
             && let Some(parent_host_path) = self.get_host_path(Some(parent_inode))
         {
-            Some(parent_host_path.join(filename))
+            join_parent_host_path(&parent_host_path, event.get_filename())
         } else {
             None
         }
@@ -589,19 +588,44 @@ You can increase this limit with:
                 }
             }
             monitored_t::MONITORED_BY_PARENT => {
-                // In this case, the target location might be monitored, but we
-                // don't have any information of the host path for the old path,
-                // best we can do is attempt to scan the file system and fix the
-                // inode maps that way.
+                // The old inode is not tracked and lands on an empty path
+                // with a monitored parent. The event tells us where it
+                // lands, but if it is a directory, everything in it needs
+                // to be tracked too, so we scan the file system to fix the
+                // inode maps.
+                //
+                // path_rename runs before the kernel moves the inode, wait
+                // for the rename to land so the scan sees the new entry.
+                let new_host_path = self.build_host_path(event);
+                if let Some(dir) = new_host_path.as_deref().and_then(Path::parent) {
+                    wait_for_rename(dir);
+                }
+
                 if let Err(e) = self.scan() {
                     warn!("Scan failed: {e:?}");
                 }
 
-                // Attempt to update the host path with the old inode
-                if let Some(old_inode) = event.get_old_inode()
-                    && let Some(path) = self.inode_map.borrow().get(old_inode)
-                {
-                    event.set_host_path(path.clone());
+                let old_inode = *event
+                    .get_old_inode()
+                    .expect("rename event did not have old inode");
+                match new_host_path {
+                    Some(path) if self.paths.borrow().globset.is_match(&path) => {
+                        // Track the inode where the event says it landed,
+                        // unless the scan already did.
+                        if self.get_host_path(Some(&old_inode)).is_none()
+                            && let Err(e) =
+                                self.update_entry_with_inode(old_inode, path.clone(), true)
+                        {
+                            warn!("Failed to add rename event entry: {e}");
+                        }
+                        event.set_host_path(path);
+                    }
+                    _ => {
+                        // Attempt to update the host path with the old inode
+                        if let Some(path) = self.get_host_path(Some(&old_inode)) {
+                            event.set_host_path(path);
+                        }
+                    }
                 }
             }
             monitored_t::MONITORED_BY_PATH => {
@@ -791,5 +815,94 @@ You can increase this limit with:
             info!("Stopping host scanner");
             Ok(())
         });
+    }
+}
+
+/// Build the host path of a file from the host path of its parent
+/// directory and the path the kernel reported for the file.
+///
+/// The reported path is the one seen by the process doing the
+/// operation, which may be in a different mount namespace (e.g. a
+/// container), so only its last component is used.
+fn join_parent_host_path(parent_host_path: &Path, filename: &Path) -> Option<PathBuf> {
+    filename.file_name().map(|name| parent_host_path.join(name))
+}
+
+/// Wait for a rename into `dir`, a host path, to land.
+///
+/// The path_rename LSM hook runs before the kernel moves the inode, so
+/// its event can be handled while the rename is still in progress. The
+/// kernel holds the lock of both parent directories for the whole
+/// rename and reading a directory takes that same lock, so once a read
+/// of `dir` returns, the rename is done. What the read returns is not
+/// used: on some file systems (e.g. tmpfs on 6.12 kernels) a directory
+/// opened before the rename lands never lists the new entry.
+fn wait_for_rename(dir: &Path) {
+    let dir = host_info::prepend_host_mount(dir);
+    if let Err(e) = fs::read_dir(&dir).and_then(|mut entries| entries.next().transpose()) {
+        warn!("Failed to read {}: {e}", dir.display());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+    use super::*;
+
+    #[test]
+    fn join_parent_host_path_uses_last_component() {
+        let tests = [
+            (
+                "/tmp/monitored",
+                "/tmp/monitored/rename.txt",
+                "/tmp/monitored/rename.txt",
+                "File on the host",
+            ),
+            (
+                "/tmp/monitored",
+                "/tmp/monitored/some-dir",
+                "/tmp/monitored/some-dir",
+                "Directory on the host",
+            ),
+            (
+                "/var/lib/data",
+                "/mounted/rename.txt",
+                "/var/lib/data/rename.txt",
+                "File in a container",
+            ),
+            ("/etc", "rename.txt", "/etc/rename.txt", "Relative path"),
+            ("/etc", "/tmp/файл.txt", "/etc/файл.txt", "Unicode"),
+        ];
+
+        for (parent, filename, expected, description) in tests {
+            assert_eq!(
+                join_parent_host_path(Path::new(parent), Path::new(filename)),
+                Some(PathBuf::from(expected)),
+                "Failed for {description}"
+            );
+        }
+    }
+
+    #[test]
+    fn join_parent_host_path_invalid_utf8() {
+        let filename = Path::new(OsStr::from_bytes(b"/tmp/test\xff\xfe.txt"));
+        let expected = Path::new(OsStr::from_bytes(b"/etc/test\xff\xfe.txt"));
+
+        assert_eq!(
+            join_parent_host_path(Path::new("/etc"), filename).as_deref(),
+            Some(expected)
+        );
+    }
+
+    #[test]
+    fn join_parent_host_path_no_file_name() {
+        for filename in ["", "/", "/tmp/.."] {
+            assert_eq!(
+                join_parent_host_path(Path::new("/etc"), Path::new(filename)),
+                None,
+                "Failed for {filename:?}"
+            );
+        }
     }
 }
