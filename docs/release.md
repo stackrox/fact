@@ -23,8 +23,8 @@ stream.
 
 Release engineer, this is what you must know:
 
-- The action XXX just creates a git tag and pushes it
-- It is the `Main CI` action that builds the images and pushes it to quay.io/rhacs-eng/fact
+- The action [Release new version](https://github.com/stackrox/fact/actions/workflows/release.yml) just creates a git tag and pushes it
+- It is the [Main CI](https://github.com/stackrox/fact/actions/workflows/ci.yaml) action that builds the images and pushes it to `quay.io/rhacs-eng/fact` - those are needed to exist for the pinning PR in stackrox. Next, the stackrox actions will pull and retag that image to the ACS version.
 
 ## Manual release
 
