@@ -186,10 +186,10 @@ impl Client {
     }
 
     async fn create_channel(
-        &self,
+        config: &watch::Receiver<GrpcConfig>,
         connector: Option<HttpsConnector<HttpConnector>>,
     ) -> anyhow::Result<Channel> {
-        let url = match self.config.borrow().url() {
+        let url = match config.borrow().url() {
             Some(url) => url.to_string(),
             None => bail!("Attempting to run gRPC client with no URL"),
         };
@@ -216,7 +216,15 @@ impl Client {
             // on disk are picked up on the next reconnect.
             let connector = self.get_connector().await?;
             info!("Attempting to connect to gRPC server...");
-            let channel = match self.create_channel(connector).await {
+
+            // We hold no events until we are connected, so stop as soon as we
+            // are told to: a connection attempt or a backoff delay can last
+            // longer than fact waits for its tasks on shutdown.
+            let res = tokio::select! {
+                res = Self::create_channel(&self.config, connector) => res,
+                _ = self.running.changed() => return Ok(*self.running.borrow()),
+            };
+            let channel = match res {
                 Ok(channel) => channel,
                 Err(e) => {
                     let Some(delay) = backoff.next() else {
@@ -225,8 +233,10 @@ impl Client {
                         );
                     };
                     warn!("Failed to connect to server: {e:?}\nRetrying in {delay:?}");
-                    sleep(delay).await;
-                    continue;
+                    tokio::select! {
+                        _ = sleep(delay) => continue,
+                        _ = self.running.changed() => return Ok(*self.running.borrow()),
+                    }
                 }
             };
             info!("Successfully connected to gRPC server");
@@ -283,7 +293,55 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use tokio::{net::TcpSocket, time::Instant};
+
     use super::*;
+    use crate::{config::FactConfig, metrics::Metrics};
+
+    /// Stopping must not wait for the reconnection backoff to elapse.
+    #[tokio::test(start_paused = true)]
+    async fn stop_during_reconnect_backoff() {
+        // A bound socket that is not listening refuses connections, so
+        // no server is reachable at this address.
+        let socket = TcpSocket::new_v4().unwrap();
+        socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let addr = socket.local_addr().unwrap();
+
+        // A single retry, one hour after the first failed attempt.
+        let config: FactConfig = format!(
+            r#"
+            grpc:
+              url: 'http://{addr}'
+              backoff:
+                initial: 3600
+                max: 7200
+                jitter: false
+                retries: 1
+            "#
+        )
+        .parse()
+        .unwrap();
+        let (_config_tx, config_rx) = watch::channel(config.grpc);
+        let (running_tx, running_rx) = watch::channel(true);
+        let (subscriber, _subscriptions) = mpsc::channel(1);
+        let metrics = Metrics::new().output.grpc;
+
+        let mut tasks = JoinSet::new();
+        Client::new(subscriber, running_rx, metrics, config_rx).start(&mut tasks);
+
+        // The first attempt fails and the client waits for the retry.
+        sleep(Duration::from_secs(1)).await;
+        let stopped_at = Instant::now();
+        running_tx.send(false).unwrap();
+
+        let res = tasks.join_next().await.unwrap().unwrap();
+        assert!(res.is_ok(), "gRPC output failed: {res:?}");
+        assert!(
+            stopped_at.elapsed() < Duration::from_secs(1),
+            "gRPC output stopped after {:?}",
+            stopped_at.elapsed()
+        );
+    }
 
     #[test]
     fn backoff_exponential_2x() {
