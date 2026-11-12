@@ -19,6 +19,13 @@ automatically. It will work for both the initial version of a new X.Y
 stream, as well as for any future patch releases needed for that same
 stream.
 
+## Basics
+
+Release engineer, this is what you must know:
+
+- The action XXX just creates a git tag and pushes it
+- It is the `Main CI` action that builds the images and pushes it to quay.io/rhacs-eng/fact
+
 ## Manual release
 
 **Note**: This is a fallback method, only intended to be used if the
