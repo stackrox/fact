@@ -69,4 +69,4 @@ jobs:
         env:
           PATCH: ${{ steps.patch.outputs.patch }}
         run: |
-          git push --follow-tags
+          git push --atomic --follow-tags
