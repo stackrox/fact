@@ -54,16 +54,10 @@ use crate::{
 
 /// How long a mount event waits for its mount point to change before
 /// the partial scan runs anyway.
-///
-/// The mount point normally changes right after the event. The wait
-/// only runs out for operations that leave it as it is (remounts,
-/// failed mounts...), where the scan finds nothing new, or for very
-/// slow filesystems, which the periodic scans catch up on. It matches
-/// their default interval.
 const MOUNT_CHANGE_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Longest pause between two checks of a mount point.
-const MOUNT_CHANGE_MAX_DELAY: Duration = Duration::from_millis(250);
+/// How often a mount point is checked while waiting for it to change.
+const MOUNT_CHANGE_INTERVAL: Duration = Duration::from_millis(100);
 
 struct InodeMap(HashMap<inode_key_t, PathBuf>);
 
@@ -843,28 +837,20 @@ You can increase this limit with:
 /// A path that can't be read counts as changed, since there is nothing
 /// to wait for in that case.
 fn mount_point_changed(path: &Path, inode: &inode_key_t) -> bool {
-    match path.symlink_metadata() {
-        Ok(metadata) => {
-            let current = inode_key_t {
-                inode: metadata.st_ino(),
-                dev: metadata.st_dev(),
-            };
-            current != *inode
-        }
+    match inode_key_t::try_from(path) {
+        Ok(current) => current != *inode,
         Err(_) => true,
     }
 }
 
-/// Wait for `path` to stop resolving to `inode`, checking it with an
-/// exponential backoff for at most `timeout`.
+/// Wait for `path` to stop resolving to `inode`, checking it every
+/// `MOUNT_CHANGE_INTERVAL` for at most `timeout`.
 ///
 /// Returns whether the change was seen.
 async fn wait_mount_point_change(path: &Path, inode: &inode_key_t, timeout: Duration) -> bool {
-    let mut delay = Duration::from_millis(1);
     tokio::time::timeout(timeout, async {
         while !mount_point_changed(path, inode) {
-            tokio::time::sleep(delay).await;
-            delay = (delay * 2).min(MOUNT_CHANGE_MAX_DELAY);
+            tokio::time::sleep(MOUNT_CHANGE_INTERVAL).await;
         }
     })
     .await
@@ -876,14 +862,6 @@ mod tests {
     use std::fs;
 
     use super::*;
-
-    fn inode_of(path: &Path) -> inode_key_t {
-        let metadata = path.symlink_metadata().unwrap();
-        inode_key_t {
-            inode: metadata.st_ino(),
-            dev: metadata.st_dev(),
-        }
-    }
 
     /// Put a new directory at `path`, the way a mount being attached
     /// on top of it changes the inode the path resolves to.
@@ -901,7 +879,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mount_point = tmp.path().join("mnt");
         fs::create_dir(&mount_point).unwrap();
-        let inode = inode_of(&mount_point);
+        let inode = inode_key_t::try_from(mount_point.as_path()).unwrap();
 
         assert!(!mount_point_changed(&mount_point, &inode));
 
@@ -917,7 +895,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mount_point = tmp.path().join("mnt");
         fs::create_dir(&mount_point).unwrap();
-        let inode = inode_of(&mount_point);
+        let inode = inode_key_t::try_from(mount_point.as_path()).unwrap();
 
         // Nothing changes, the wait gives up after the timeout.
         let timeout = Duration::from_millis(50);

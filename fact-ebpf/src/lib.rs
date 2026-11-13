@@ -1,6 +1,9 @@
 #![allow(dead_code, non_camel_case_types)]
 
-use std::{error::Error, ffi::c_char, fmt::Display, hash::Hash, path::Path};
+use std::{
+    error::Error, ffi::c_char, fmt::Display, fs::Metadata, hash::Hash, io,
+    os::linux::fs::MetadataExt, path::Path,
+};
 
 use aya::{maps::lpm_trie, Pod};
 use libc::memcpy;
@@ -84,6 +87,23 @@ unsafe impl Pod for path_prefix_t {}
 impl inode_key_t {
     pub fn empty(&self) -> bool {
         self.inode == 0 && self.dev == 0
+    }
+}
+
+impl TryFrom<&Path> for inode_key_t {
+    type Error = io::Error;
+
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        path.symlink_metadata().map(|m| inode_key_t::from(&m))
+    }
+}
+
+impl From<&Metadata> for inode_key_t {
+    fn from(value: &Metadata) -> Self {
+        inode_key_t {
+            inode: value.st_ino(),
+            dev: value.st_dev(),
+        }
     }
 }
 
