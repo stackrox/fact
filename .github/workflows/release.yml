@@ -1,4 +1,5 @@
 name: Release New Version
+run-name: Release New Version ${{ inputs.version }}.x
 
 on:
   workflow_dispatch:
