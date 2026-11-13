@@ -45,7 +45,6 @@ fact-ebpf = { path = "../fact-ebpf" }
 [dev-dependencies]
 tempfile = { version = "=3.27.0", default-features = false }
 regex = "=1.13.1"
-tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]
 anyhow = { workspace = true }

@@ -186,10 +186,10 @@ impl Client {
     }
 
     async fn create_channel(
-        config: &watch::Receiver<GrpcConfig>,
+        &self,
         connector: Option<HttpsConnector<HttpConnector>>,
     ) -> anyhow::Result<Channel> {
-        let url = match config.borrow().url() {
+        let url = match self.config.borrow().url() {
             Some(url) => url.to_string(),
             None => bail!("Attempting to run gRPC client with no URL"),
         };
@@ -216,15 +216,7 @@ impl Client {
             // on disk are picked up on the next reconnect.
             let connector = self.get_connector().await?;
             info!("Attempting to connect to gRPC server...");
-
-            // We hold no events until we are connected, so stop as soon as we
-            // are told to: a connection attempt or a backoff delay can last
-            // longer than fact waits for its tasks on shutdown.
-            let res = tokio::select! {
-                res = Self::create_channel(&self.config, connector) => res,
-                _ = self.running.changed() => return Ok(*self.running.borrow()),
-            };
-            let channel = match res {
+            let channel = match self.create_channel(connector).await {
                 Ok(channel) => channel,
                 Err(e) => {
                     let Some(delay) = backoff.next() else {
@@ -233,9 +225,13 @@ impl Client {
                         );
                     };
                     warn!("Failed to connect to server: {e:?}\nRetrying in {delay:?}");
+
+                    // We hold no events until we are connected, so stop as soon as we
+                    // are told to: a backoff delay can last longer than fact waits for
+                    // its tasks on shutdown.
                     tokio::select! {
                         _ = sleep(delay) => continue,
-                        _ = self.running.changed() => return Ok(*self.running.borrow()),
+                        _ = self.running.wait_for(|running| !running) => return Ok(false),
                     }
                 }
             };
@@ -299,7 +295,7 @@ mod tests {
     use crate::{config::FactConfig, metrics::Metrics};
 
     /// Stopping must not wait for the reconnection backoff to elapse.
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn stop_during_reconnect_backoff() {
         // A bound socket that is not listening refuses connections, so
         // no server is reachable at this address.
@@ -321,7 +317,7 @@ mod tests {
         )
         .parse()
         .unwrap();
-        let (_config_tx, config_rx) = watch::channel(config.grpc);
+        let (_, config_rx) = watch::channel(config.grpc);
         let (running_tx, running_rx) = watch::channel(true);
         let (subscriber, _subscriptions) = mpsc::channel(1);
         let metrics = Metrics::new().output.grpc;
@@ -329,8 +325,6 @@ mod tests {
         let mut tasks = JoinSet::new();
         Client::new(subscriber, running_rx, metrics, config_rx).start(&mut tasks);
 
-        // The first attempt fails and the client waits for the retry.
-        sleep(Duration::from_secs(1)).await;
         let stopped_at = Instant::now();
         running_tx.send(false).unwrap();
 
