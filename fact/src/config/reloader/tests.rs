@@ -190,13 +190,13 @@ generate_rate_limit_test! {
         ..Default::default()
     },
     FactConfig::default(),
-    Some(0)
+    Some(crate::config::DEFAULT_RATE_LIMIT)
 }
 generate_rate_limit_test! {
     test_reloader_rate_limit_from_default_to_explicit_default,
     FactConfig::default(),
     FactConfig {
-        rate_limit: Some(0),
+        rate_limit: Some(crate::config::DEFAULT_RATE_LIMIT),
         ..Default::default()
     },
     None
@@ -204,7 +204,7 @@ generate_rate_limit_test! {
 generate_rate_limit_test! {
     test_reloader_rate_limit_to_default_from_explicit_default,
     FactConfig {
-        rate_limit: Some(0),
+        rate_limit: Some(crate::config::DEFAULT_RATE_LIMIT),
         ..Default::default()
     },
     FactConfig::default(),

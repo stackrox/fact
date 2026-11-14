@@ -2094,7 +2094,7 @@ fn defaults() {
     assert_eq!(config.grpc.backoff.retries(), 10);
     assert_eq!(config.otel.endpoint(), None);
     assert_eq!(config.scan_interval(), Duration::from_secs(30));
-    assert_eq!(config.rate_limit(), 0);
+    assert_eq!(config.rate_limit(), DEFAULT_RATE_LIMIT);
     assert!(config.replay().is_none());
 }
 

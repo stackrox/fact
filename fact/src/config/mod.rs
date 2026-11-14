@@ -29,6 +29,10 @@ const CONFIG_FILES: [&str; 4] = [
     "fact.yaml",
 ];
 
+/// Default maximum number of file events allowed per second when
+/// `rate_limit` is not configured. A value of 0 means unlimited.
+pub(crate) const DEFAULT_RATE_LIMIT: u64 = 400;
+
 fn yaml_to_duration_secs(v: &Yaml) -> Option<Duration> {
     v.as_f64()
         .or_else(|| v.as_i64().map(|i| i as f64))
@@ -140,7 +144,7 @@ impl FactConfig {
     }
 
     pub fn rate_limit(&self) -> u64 {
-        self.rate_limit.unwrap_or(0)
+        self.rate_limit.unwrap_or(DEFAULT_RATE_LIMIT)
     }
 
     pub fn replay(&self) -> Option<&Path> {
@@ -996,7 +1000,7 @@ pub struct FactCli {
     /// Events exceeding this rate will be dropped. A value of 0
     /// means unlimited (no throttling).
     ///
-    /// Default value is 0 (unlimited)
+    /// Default value is 400
     #[arg(long, short = 'l', env = "FACT_RATE_LIMIT")]
     rate_limit: Option<u64>,
 
