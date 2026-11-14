@@ -162,80 +162,6 @@ generate_scan_interval_test! {
     None
 }
 
-macro_rules! generate_rate_limit_test {
-    ($testname:ident, $old:expr, $new:expr, $expected:expr) => {
-        generate_test!($testname, rate_limit, $old, $new, $expected);
-    };
-}
-
-generate_rate_limit_test! {
-    test_reloader_rate_limit_default,
-    FactConfig::default(),
-    FactConfig::default(),
-    None
-}
-generate_rate_limit_test! {
-    test_reloader_rate_limit_from_default,
-    FactConfig::default(),
-    FactConfig {
-        rate_limit: Some(5000),
-        ..Default::default()
-    },
-    Some(5000)
-}
-generate_rate_limit_test! {
-    test_reloader_rate_limit_to_default,
-    FactConfig {
-        rate_limit: Some(5000),
-        ..Default::default()
-    },
-    FactConfig::default(),
-    Some(0)
-}
-generate_rate_limit_test! {
-    test_reloader_rate_limit_from_default_to_explicit_default,
-    FactConfig::default(),
-    FactConfig {
-        rate_limit: Some(0),
-        ..Default::default()
-    },
-    None
-}
-generate_rate_limit_test! {
-    test_reloader_rate_limit_to_default_from_explicit_default,
-    FactConfig {
-        rate_limit: Some(0),
-        ..Default::default()
-    },
-    FactConfig::default(),
-    None
-}
-generate_rate_limit_test! {
-    test_reloader_rate_limit_changed,
-    FactConfig {
-        rate_limit: Some(1000),
-        ..Default::default()
-    },
-    FactConfig {
-        rate_limit: Some(5000),
-        ..Default::default()
-    },
-    Some(5000)
-}
-generate_rate_limit_test! {
-    test_reloader_rate_limit_no_change,
-    FactConfig {
-        rate_limit: Some(1000),
-        ..Default::default()
-    },
-    FactConfig {
-        rate_limit: Some(1000),
-        paths: ["/etc".into()].as_slice().try_into().unwrap(),
-        ..Default::default()
-    },
-    None
-}
-
 macro_rules! generate_endpoint_test {
     ($testname:ident, $old:expr, $new:expr, $expected:expr) => {
         generate_test!($testname, endpoint, $old, $new, $expected);
@@ -524,6 +450,7 @@ generate_grpc_test! {
         grpc: GrpcConfig {
             url: Some(GRPC_URL_NEW.into()),
             certs: Some(GRPC_CERTS_NEW.into()),
+            rate_limit: Some(5000),
             backoff: BackoffConfig {
                 initial: Some(GRPC_BACKOFF_INITIAL_NEW),
                 max: Some(GRPC_BACKOFF_MAX_NEW),
@@ -538,6 +465,7 @@ generate_grpc_test! {
         grpc: GrpcConfig {
             url: Some(GRPC_URL_NEW.into()),
             certs: Some(GRPC_CERTS_NEW.into()),
+            rate_limit: Some(5000),
             backoff: BackoffConfig {
                 initial: Some(GRPC_BACKOFF_INITIAL_NEW),
                 max: Some(GRPC_BACKOFF_MAX_NEW),
@@ -692,6 +620,73 @@ generate_grpc_test! {
     None
 }
 
+generate_grpc_test! {
+    test_reloader_grpc_rate_limit_default,
+    FactConfig::default(),
+    FactConfig::default(),
+    None
+}
+generate_grpc_test! {
+    test_reloader_grpc_rate_limit_from_default,
+    FactConfig::default(),
+    FactConfig {
+        grpc: GrpcConfig {
+            rate_limit: Some(5000),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    Some(GrpcConfig{ rate_limit: Some(5000), ..Default::default()})
+}
+generate_grpc_test! {
+    test_reloader_grpc_rate_limit_to_default,
+    FactConfig {
+        grpc: GrpcConfig {
+            rate_limit: Some(5000),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    FactConfig::default(),
+    Some(GrpcConfig{ rate_limit: None, ..Default::default()})
+}
+generate_grpc_test! {
+    test_reloader_grpc_rate_limit_changed,
+    FactConfig {
+        grpc: GrpcConfig {
+        rate_limit: Some(1000),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    FactConfig {
+        grpc: GrpcConfig {
+        rate_limit: Some(5000),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    Some(GrpcConfig{ rate_limit: Some(5000), ..Default::default()})
+}
+generate_grpc_test! {
+    test_reloader_grpc_rate_limit_no_change,
+    FactConfig {
+        grpc: GrpcConfig {
+        rate_limit: Some(1000),
+            ..Default::default()
+        },
+        ..Default::default()
+    },
+    FactConfig {
+        grpc: GrpcConfig {
+            rate_limit: Some(1000),
+            ..Default::default()
+        },
+        paths: ["/etc".into()].as_slice().try_into().unwrap(),
+        ..Default::default()
+    },
+    None
+}
 const GRPC_BACKOFF_INITIAL_DEFAULT: Duration = Duration::from_secs(1);
 const GRPC_BACKOFF_INITIAL_OLD: Duration = Duration::from_secs(5);
 const GRPC_BACKOFF_INITIAL_NEW: Duration = Duration::from_secs(10);

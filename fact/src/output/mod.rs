@@ -1,15 +1,16 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use log::{debug, warn};
 use tokio::{
     sync::{broadcast, mpsc, watch},
     task::JoinSet,
+    time::timeout,
 };
 
 use crate::{
     config::{GrpcConfig, OTelConfig},
     event::Event,
-    flatten_task_result, join_all_tasks,
+    flatten_task_result, join_all_tasks, join_tasks,
     metrics::OutputMetrics,
 };
 
@@ -19,6 +20,19 @@ mod otel;
 mod stdout;
 
 type EventReceiver = broadcast::Receiver<Arc<Event>>;
+
+#[derive(Debug, Clone, Copy)]
+enum OutputStatus {
+    Running,
+    Stopping,
+    Stopped,
+}
+
+impl OutputStatus {
+    fn is_stopped(&self) -> bool {
+        matches!(self, OutputStatus::Stopped)
+    }
+}
 
 /// Starts all the output tasks.
 ///
@@ -34,7 +48,7 @@ pub fn start(
 ) {
     let (broad_tx, _) = broadcast::channel(100);
     let (subs_req, mut subs_rx) = mpsc::channel(10);
-    let (running, _) = watch::channel(true);
+    let (running, _) = watch::channel(OutputStatus::Running);
     let mut handles = JoinSet::new();
 
     let grpc_client = grpc::Client::new(
@@ -72,7 +86,7 @@ pub fn start(
 
     task_set.spawn(async move {
         debug!("Starting output component...");
-        let res = loop {
+        loop {
             tokio::select! {
                 event = rx.recv() => {
                     let Some(event) = event else {
@@ -99,28 +113,30 @@ pub fn start(
                     break flatten_task_result(res);
                 }
             }
-        };
+        }?;
         debug!("Stopping output component...");
 
-        if res.is_ok() {
-            // Wait for outputs to empty their channels before exiting
-            // ourselves.
-            let receiver_count = broad_tx.receiver_count();
-            drop(subs_rx);
-            drop(broad_tx);
+        // Wait for outputs to empty their channels before exiting
+        // ourselves.
+        let receiver_count = broad_tx.receiver_count();
+        drop(subs_rx);
+        drop(broad_tx);
+        let _ = running.send(OutputStatus::Stopping);
 
-            for _ in 0..receiver_count {
-                let Some(task_res) = handles.join_next().await else {
-                    break;
-                };
-                flatten_task_result(task_res)?;
-            }
-
-            // Force idle outputs to stop
-            let _ = running.send(false);
-            join_all_tasks(handles).await
-        } else {
-            res
+        let res = timeout(
+            Duration::from_secs(3),
+            join_tasks(&mut handles, Some(receiver_count)),
+        )
+        .await;
+        if let Err(e) = flatten_task_result(res) {
+            warn!("output workers failed to join: {e}");
         }
+
+        // Force remaining outputs to stop
+        let _ = running.send(OutputStatus::Stopped);
+        if let Err(e) = join_all_tasks(&mut handles).await {
+            warn!("failed to join all output workers: {e}");
+        }
+        Ok(())
     });
 }
