@@ -225,8 +225,14 @@ impl Client {
                         );
                     };
                     warn!("Failed to connect to server: {e:?}\nRetrying in {delay:?}");
-                    sleep(delay).await;
-                    continue;
+
+                    // We hold no events until we are connected, so stop as soon as we
+                    // are told to: a backoff delay can last longer than fact waits for
+                    // its tasks on shutdown.
+                    tokio::select! {
+                        _ = sleep(delay) => continue,
+                        _ = self.running.wait_for(|running| !running) => return Ok(false),
+                    }
                 }
             };
             info!("Successfully connected to gRPC server");
@@ -283,7 +289,53 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    use tokio::{net::TcpSocket, time::Instant};
+
     use super::*;
+    use crate::{config::FactConfig, metrics::Metrics};
+
+    /// Stopping must not wait for the reconnection backoff to elapse.
+    #[tokio::test]
+    async fn stop_during_reconnect_backoff() {
+        // A bound socket that is not listening refuses connections, so
+        // no server is reachable at this address.
+        let socket = TcpSocket::new_v4().unwrap();
+        socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let addr = socket.local_addr().unwrap();
+
+        // A single retry, one hour after the first failed attempt.
+        let config: FactConfig = format!(
+            r#"
+            grpc:
+              url: 'http://{addr}'
+              backoff:
+                initial: 3600
+                max: 7200
+                jitter: false
+                retries: 1
+            "#
+        )
+        .parse()
+        .unwrap();
+        let (_, config_rx) = watch::channel(config.grpc);
+        let (running_tx, running_rx) = watch::channel(true);
+        let (subscriber, _subscriptions) = mpsc::channel(1);
+        let metrics = Metrics::new().output.grpc;
+
+        let mut tasks = JoinSet::new();
+        Client::new(subscriber, running_rx, metrics, config_rx).start(&mut tasks);
+
+        let stopped_at = Instant::now();
+        running_tx.send(false).unwrap();
+
+        let res = tasks.join_next().await.unwrap().unwrap();
+        assert!(res.is_ok(), "gRPC output failed: {res:?}");
+        assert!(
+            stopped_at.elapsed() < Duration::from_secs(1),
+            "gRPC output stopped after {:?}",
+            stopped_at.elapsed()
+        );
+    }
 
     #[test]
     fn backoff_exponential_2x() {
