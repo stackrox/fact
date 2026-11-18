@@ -291,7 +291,7 @@ impl Client {
                     // its tasks on shutdown.
                     tokio::select! {
                         _ = sleep(delay) => continue,
-                        _ = self.running.wait_for(|running| !running) => return Ok(false),
+                        _ = self.running.wait_for(|status| !status.is_running()) => return Ok(false),
                     }
                 }
             };
@@ -374,7 +374,7 @@ mod tests {
         .parse()
         .unwrap();
         let (_, config_rx) = watch::channel(config.grpc);
-        let (running_tx, running_rx) = watch::channel(true);
+        let (running_tx, running_rx) = watch::channel(OutputStatus::Running);
         let (subscriber, _subscriptions) = mpsc::channel(1);
         let metrics = Metrics::new().output.grpc;
 
@@ -382,7 +382,7 @@ mod tests {
         Client::new(subscriber, running_rx, metrics, config_rx).start(&mut tasks);
 
         let stopped_at = Instant::now();
-        running_tx.send(false).unwrap();
+        running_tx.send(OutputStatus::Stopped).unwrap();
 
         let res = tasks.join_next().await.unwrap().unwrap();
         assert!(res.is_ok(), "gRPC output failed: {res:?}");
