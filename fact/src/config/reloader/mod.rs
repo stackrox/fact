@@ -21,7 +21,6 @@ pub struct Reloader {
     paths: watch::Sender<PathsConfig>,
     files: HashMap<&'static str, (i64, i64)>,
     scan_interval: watch::Sender<Duration>,
-    rate_limit: watch::Sender<u64>,
     trigger: Arc<Notify>,
 }
 
@@ -90,12 +89,6 @@ impl Reloader {
         self.scan_interval.subscribe()
     }
 
-    /// Subscribe to get notifications when rate_limit configuration
-    /// is changed.
-    pub fn rate_limit(&self) -> watch::Receiver<u64> {
-        self.rate_limit.subscribe()
-    }
-
     /// Get a reference to the internal trigger for manual reloading of
     /// configuration.
     ///
@@ -151,17 +144,6 @@ impl Reloader {
             let new = new.scan_interval();
             if *old != new {
                 debug!("Sending new scan interval configuration...");
-                *old = new;
-                true
-            } else {
-                false
-            }
-        });
-
-        self.rate_limit.send_if_modified(|old| {
-            let new = new.rate_limit();
-            if *old != new {
-                debug!("Sending new rate limit configuration...");
                 *old = new;
                 true
             } else {
@@ -269,7 +251,6 @@ impl From<FactConfig> for Reloader {
 
         let enabled = config.hotreload();
         let (scan_interval, _) = watch::channel(config.scan_interval());
-        let (rate_limit, _) = watch::channel(config.rate_limit());
 
         let FactConfig {
             endpoint,
@@ -292,7 +273,6 @@ impl From<FactConfig> for Reloader {
             otel,
             paths,
             scan_interval,
-            rate_limit,
             files,
             trigger,
         }

@@ -11,11 +11,15 @@ use tokio::{
     task::JoinSet,
 };
 
-use crate::{config::OTelConfig, metrics::EventCounter, output::EventReceiver};
+use crate::{
+    config::OTelConfig,
+    metrics::EventCounter,
+    output::{EventReceiver, OutputStatus},
+};
 
 pub(super) struct Client {
     subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
-    running: watch::Receiver<bool>,
+    running: watch::Receiver<OutputStatus>,
     config: watch::Receiver<OTelConfig>,
     metrics: EventCounter,
 }
@@ -23,7 +27,7 @@ pub(super) struct Client {
 impl Client {
     pub(super) fn new(
         subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
-        running: watch::Receiver<bool>,
+        running: watch::Receiver<OutputStatus>,
         metrics: EventCounter,
         config: watch::Receiver<OTelConfig>,
     ) -> Self {
@@ -116,7 +120,7 @@ impl Client {
                         Err(_) => config_is_closed = true,
                     }
                 }
-                _ = self.running.changed() => break Ok(*self.running.borrow()),
+                _ = self.running.wait_for(|status| status.is_stopped()) => break Ok(false),
             }
         };
 
@@ -131,7 +135,7 @@ impl Client {
     async fn idle(&mut self) -> anyhow::Result<bool> {
         tokio::select! {
             _ = self.config.changed(), if self.config.has_changed().is_ok() => Ok(true),
-            _ = self.running.changed() => Ok(*self.running.borrow()),
+            _ = self.running.wait_for(|status| status.is_stopped()) => Ok(false),
         }
     }
 }
