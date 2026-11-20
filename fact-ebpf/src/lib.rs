@@ -1,6 +1,12 @@
 #![allow(dead_code, non_camel_case_types)]
 
-use std::{error::Error, ffi::c_char, fmt::Display, hash::Hash, path::Path};
+use std::{
+    error::Error,
+    ffi::c_char,
+    fmt::{Debug, Display},
+    hash::Hash,
+    path::Path,
+};
 
 use aya::{maps::lpm_trie, Pod};
 use libc::memcpy;
@@ -198,6 +204,18 @@ impl<'de> Deserialize<'de> for monitored_t {
                 &["not monitored", "by inode", "by path", "by parent"],
             )),
         }
+    }
+}
+
+impl Debug for event_t {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("event_t")
+            .field("timestamp", &self.timestamp)
+            .field("inode", &self.inode)
+            .field("parent_inode", &self.parent_inode)
+            .field("monitored", &self.monitored)
+            .field("type_", &self.type_)
+            .finish()
     }
 }
 
