@@ -7,6 +7,7 @@ use std::{
     ffi::{CStr, OsStr},
     os::{raw::c_char, unix::ffi::OsStrExt},
     path::{Path, PathBuf},
+    ptr::NonNull,
 };
 
 use globset::GlobSet;
@@ -75,6 +76,27 @@ pub(crate) enum EventTestData {
     Rename(PathBuf),
 }
 
+#[derive(Debug)]
+struct EventData(NonNull<event_t>);
+
+impl EventData {
+    fn new(value: &event_t) -> Self {
+        let ptr = Box::into_raw(Box::new(*value));
+        EventData(unsafe { NonNull::new_unchecked(ptr) })
+    }
+}
+
+impl Drop for EventData {
+    fn drop(&mut self) {
+        // SAFETY: pointer came from Box::into_raw and is freed exactly once.
+        unsafe { drop(Box::from_raw(self.0.as_ptr())) };
+    }
+}
+
+// SAFETY: event_t is plain data and is treated as immutable after creation.
+unsafe impl Send for EventData {}
+unsafe impl Sync for EventData {}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Event {
     timestamp: u64,
@@ -93,7 +115,7 @@ pub struct Event {
     // Keep this field at the bottom, process and file reference it so
     // it needs to be dropped last.
     #[serde(skip)]
-    _data: Box<event_t>,
+    _data: Option<EventData>,
 }
 
 impl Event {
@@ -135,10 +157,9 @@ impl Event {
                 },
             },
         };
-        let data = Box::new(unsafe { std::mem::zeroed() });
 
         Ok(Event {
-            _data: data,
+            _data: None,
             timestamp,
             hostname,
             process,
@@ -409,24 +430,21 @@ impl TryFrom<&event_t> for Event {
     type Error = anyhow::Error;
 
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let data = Box::new(*value);
-        let timestamp = host_info::get_boot_time() + value.timestamp;
+        let data = EventData::new(value);
 
-        // Transmuting process and file to have a 'static lifetime is
-        // only safe because we make them point to the inner _data field
-        // which lives in the heap and will be dropped after these two
-        // go out of scope.
-        let process = Process::try_from(&data.process)?;
-        let process: Process<'static> = unsafe { std::mem::transmute(process) };
-        let file = FileData::new(&data)?;
-        let file: FileData<'static> = unsafe { std::mem::transmute(file) };
+        // SAFETY: The allocation is owned by `data`, its address never
+        // changes and it is freed only when the Event is dropped.
+        let event = unsafe { data.0.as_ref() };
+        let timestamp = host_info::get_boot_time() + value.timestamp;
+        let process = Process::try_from(&event.process)?;
+        let file = FileData::new(event)?;
 
         Ok(Event {
             timestamp,
             hostname: host_info::get_hostname(),
             process,
             file,
-            _data: data,
+            _data: Some(data),
         })
     }
 }
@@ -1285,5 +1303,36 @@ mod tests {
         assert!(result_str.contains("/tmp/"));
         assert!(!result_str.ends_with(" (deleted)"));
         assert!(result_str.contains('\u{FFFD}'));
+    }
+
+    #[test]
+    fn borrowed_views_survive_owning_event_moves() {
+        const FILENAME: &str = "/etc/shadow";
+        const EXE: &str = "/usr/bin/fact-test";
+        const COMM: &str = "fact-test";
+
+        let raw = event_t {
+            type_: file_activity_type_t::FILE_ACTIVITY_OPEN,
+            filename: string_to_c_char_array::<{ PATH_MAX as usize }>(FILENAME),
+            process: fact_ebpf::process_t {
+                comm: string_to_c_char_array::<16>(COMM),
+                exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(EXE),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let event = Event::try_from(&raw).expect("failed to convert event");
+
+        // Force the owning Event through several moves before touching the
+        // borrowed views again.
+        let events = vec![event];
+        let boxed = Box::new(events.into_iter().next().unwrap());
+        let event = *boxed;
+
+        assert_eq!(event.get_filename(), Path::new(FILENAME));
+
+        let expected_process = Process::try_from(&raw.process).expect("failed to convert process");
+        assert_eq!(event.process, expected_process);
     }
 }
