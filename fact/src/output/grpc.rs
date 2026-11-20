@@ -1,4 +1,4 @@
-use std::{num::NonZeroU32, sync::Arc, time::Duration};
+use std::{num::NonZeroU32, time::Duration};
 
 use anyhow::{Context, bail};
 use fact_api::file_activity_service_client::FileActivityServiceClient;
@@ -122,7 +122,7 @@ fn grpc_stream(
         Ok(event) if event.is_mkdir() || event.is_rmdir() => None,
         Ok(event) => {
             metrics.added();
-            let event = Arc::unwrap_or_clone(event);
+            let event = &*event;
             Some(event.into())
         }
         Err(BroadcastStreamRecvError::Lagged(n)) => {

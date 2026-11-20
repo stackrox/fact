@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::bail;
 use log::{debug, info, warn};
 use opentelemetry::logs::{AnyValue, LogRecord, Logger, LoggerProvider, Severity};
@@ -89,7 +87,6 @@ impl Client {
                     match event {
                         Ok(event) => {
                             self.metrics.added();
-                            let event= Arc::unwrap_or_clone(event);
                             let mut record = logger.create_log_record();
                             record.set_severity_number(Severity::Info);
                             record.set_body(
@@ -97,7 +94,7 @@ impl Client {
                                     event.event_type(),
                                     event.get_filename().display(),
                                     event.get_host_path().display()).into());
-                            if let AnyValue::Map(map) = event.into() {
+                            if let AnyValue::Map(map) = (&*event).into() {
                                 for (k, v) in *map {
                                     record.add_attribute(k, v);
                                 }
