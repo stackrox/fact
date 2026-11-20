@@ -1,6 +1,6 @@
 #[cfg(feature = "otel")]
 use std::collections::HashMap;
-use std::{ffi::CStr, path::PathBuf};
+use std::{borrow::Cow, ffi::CStr, path::Path};
 
 use fact_ebpf::{lineage_t, process_t};
 #[cfg(feature = "otel")]
@@ -13,15 +13,15 @@ use crate::host_info;
 use super::{sanitize_d_path, slice_to_string};
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct Lineage {
+pub struct Lineage<'a> {
     uid: u32,
-    exe_path: PathBuf,
+    exe_path: Cow<'a, Path>,
 }
 
-impl TryFrom<&lineage_t> for Lineage {
+impl<'a> TryFrom<&'a lineage_t> for Lineage<'a> {
     type Error = anyhow::Error;
 
-    fn try_from(value: &lineage_t) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a lineage_t) -> Result<Self, Self::Error> {
         let lineage_t { uid, exe_path } = value;
         let exe_path = sanitize_d_path(exe_path);
 
@@ -32,19 +32,19 @@ impl TryFrom<&lineage_t> for Lineage {
     }
 }
 
-impl From<Lineage> for fact_api::process_signal::LineageInfo {
-    fn from(value: Lineage) -> Self {
+impl From<&Lineage<'_>> for fact_api::process_signal::LineageInfo {
+    fn from(value: &Lineage) -> Self {
         let Lineage { uid, exe_path } = value;
         Self {
-            parent_uid: uid,
+            parent_uid: *uid,
             parent_exec_file_path: exe_path.to_string_lossy().to_string(),
         }
     }
 }
 
 #[cfg(feature = "otel")]
-impl From<Lineage> for opentelemetry::logs::AnyValue {
-    fn from(value: Lineage) -> Self {
+impl From<&Lineage<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &Lineage) -> Self {
         AnyValue::Map(Box::new(HashMap::from([
             ("uid".into(), value.uid.into()),
             (
@@ -56,11 +56,11 @@ impl From<Lineage> for opentelemetry::logs::AnyValue {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Process {
-    comm: String,
-    args: Vec<String>,
-    exe_path: PathBuf,
-    container_id: Option<String>,
+pub struct Process<'a> {
+    comm: Cow<'a, str>,
+    args: Vec<Cow<'a, str>>,
+    exe_path: Cow<'a, Path>,
+    container_id: Option<Cow<'a, str>>,
     uid: u32,
     #[serde(skip_deserializing)]
     username: &'static str,
@@ -68,20 +68,21 @@ pub struct Process {
     login_uid: u32,
     pid: u32,
     in_root_mount_ns: bool,
-    lineage: Vec<Lineage>,
+    lineage: Vec<Lineage<'a>>,
 }
 
-impl Process {
+impl Process<'_> {
     /// Create a representation of the current process as best as
     /// possible.
     #[cfg(test)]
     pub fn current() -> Self {
         use crate::host_info::{get_host_mount_ns, get_mount_ns};
 
-        let exe_path = std::env::current_exe().expect("Failed to get current exe");
-        let args = std::env::args().collect::<Vec<_>>();
+        let exe_path = Cow::Owned(std::env::current_exe().expect("Failed to get current exe"));
+        let args = std::env::args().map(Cow::Owned).collect::<Vec<_>>();
         let cgroup = std::fs::read_to_string("/proc/self/cgroup").expect("Failed to read cgroup");
-        let container_id = Process::extract_container_id(&cgroup);
+        let container_id =
+            Process::extract_container_id(&cgroup).map(|c| Cow::Owned(c.to_string()));
         let uid = unsafe { libc::getuid() };
         let gid = unsafe { libc::getgid() };
         let pid = std::process::id();
@@ -93,7 +94,7 @@ impl Process {
         let in_root_mount_ns = get_host_mount_ns() == get_mount_ns(&pid.to_string(), false);
 
         Self {
-            comm: "".to_string(),
+            comm: "".into(),
             args,
             exe_path,
             container_id,
@@ -107,7 +108,7 @@ impl Process {
         }
     }
 
-    fn extract_container_id(cgroup: &str) -> Option<String> {
+    fn extract_container_id<'a>(cgroup: &'a str) -> Option<Cow<'a, str>> {
         let cgroup = if let Some(i) = cgroup.rfind(".scope") {
             cgroup.split_at(i).0
         } else {
@@ -125,7 +126,7 @@ impl Process {
         }
 
         if cgroup.chars().all(|c| c.is_ascii_hexdigit()) {
-            Some(cgroup.split_at(12).0.to_owned())
+            Some(cgroup.split_at(12).0.into())
         } else {
             None
         }
@@ -133,7 +134,7 @@ impl Process {
 }
 
 #[cfg(test)]
-impl PartialEq for Process {
+impl PartialEq for Process<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.uid == other.uid
             && self.login_uid == other.login_uid
@@ -145,10 +146,10 @@ impl PartialEq for Process {
     }
 }
 
-impl TryFrom<process_t> for Process {
+impl<'a> TryFrom<&'a process_t> for Process<'a> {
     type Error = anyhow::Error;
 
-    fn try_from(value: process_t) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a process_t) -> Result<Self, Self::Error> {
         let comm = slice_to_string(value.comm.as_slice())?;
         let exe_path = sanitize_d_path(value.exe_path.as_slice());
         let memory_cgroup = unsafe { CStr::from_ptr(value.memory_cgroup.as_ptr()) }.to_str()?;
@@ -164,14 +165,12 @@ impl TryFrom<process_t> for Process {
         let args_len = value.args_len as usize;
         let mut offset = 0;
         while offset < args_len {
-            let arg = unsafe { CStr::from_ptr(value.args.as_ptr().add(offset)) }
-                .to_str()?
-                .to_owned();
+            let arg = unsafe { CStr::from_ptr(value.args.as_ptr().add(offset)) }.to_str()?;
             if arg.is_empty() {
                 break;
             }
             offset += arg.len() + 1;
-            converted_args.push(arg);
+            converted_args.push(arg.into());
         }
 
         let username = host_info::get_username(value.uid);
@@ -192,9 +191,9 @@ impl TryFrom<process_t> for Process {
     }
 }
 
-impl From<Process> for fact_api::ProcessSignal {
-    fn from(value: Process) -> Self {
-        let Process {
+impl From<&Process<'_>> for fact_api::ProcessSignal {
+    fn from(
+        Process {
             comm,
             args,
             exe_path,
@@ -206,55 +205,57 @@ impl From<Process> for fact_api::ProcessSignal {
             pid,
             in_root_mount_ns,
             lineage,
-        } = value;
-
-        let container_id = container_id.unwrap_or("".to_string());
+        }: &Process,
+    ) -> Self {
+        let container_id = match container_id {
+            Some(cid) => cid.to_string(),
+            None => String::new(),
+        };
 
         // try_join can fail if args contain nul bytes, though this should not happen
         // since args are parsed from C strings which are nul-terminated
-        let Ok(args) = shlex::try_join(args.iter().map(|s| s.as_str())) else {
-            unreachable!();
+        let Ok(args) = shlex::try_join(args.iter().map(|s| match s {
+            Cow::Borrowed(s) => *s,
+            Cow::Owned(s) => s.as_str(),
+        })) else {
+            unreachable!("Failed to serialize '{args:#?}'");
         };
 
         Self {
             id: Uuid::new_v4().to_string(),
             container_id,
             creation_time: None,
-            name: comm,
+            name: comm.to_string(),
             args,
             exec_file_path: exe_path.to_string_lossy().to_string(),
-            pid,
-            uid,
-            gid,
+            pid: *pid,
+            uid: *uid,
+            gid: *gid,
             scraped: false,
             lineage_info: lineage
-                .into_iter()
+                .iter()
                 .map(fact_api::process_signal::LineageInfo::from)
                 .collect(),
-            login_uid,
-            username: username.to_owned(),
-            in_root_mount_ns,
+            login_uid: *login_uid,
+            username: username.to_string(),
+            in_root_mount_ns: *in_root_mount_ns,
         }
     }
 }
 
 #[cfg(feature = "otel")]
-impl From<Process> for opentelemetry::logs::AnyValue {
-    fn from(value: Process) -> Self {
+impl From<&Process<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &Process) -> Self {
         let args = value
             .args
-            .into_iter()
-            .map(AnyValue::from)
+            .iter()
+            .map(|s| s.to_string().into())
             .collect::<Vec<_>>();
 
-        let lineage = value
-            .lineage
-            .into_iter()
-            .map(AnyValue::from)
-            .collect::<Vec<_>>();
+        let lineage = value.lineage.iter().map(AnyValue::from).collect::<Vec<_>>();
 
         let mut map = HashMap::from([
-            ("comm".into(), value.comm.into()),
+            ("comm".into(), value.comm.to_string().into()),
             ("args".into(), AnyValue::ListAny(Box::new(args))),
             (
                 "exe_path".into(),
@@ -269,8 +270,8 @@ impl From<Process> for opentelemetry::logs::AnyValue {
             ("lineage".into(), AnyValue::ListAny(Box::new(lineage))),
         ]);
 
-        if let Some(container_id) = value.container_id {
-            map.insert("container_id".into(), container_id.into());
+        if let Some(container_id) = &value.container_id {
+            map.insert("container_id".into(), container_id.to_string().into());
         }
 
         AnyValue::Map(Box::new(map))
@@ -279,6 +280,8 @@ impl From<Process> for opentelemetry::logs::AnyValue {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use crate::event::test_utils::*;
     use fact_ebpf::PATH_MAX;
@@ -290,27 +293,27 @@ mod tests {
             ("init.scope", None),
             (
                 "/docker/951e643e3c241b225b6284ef2b79a37c13fc64cbf65b5d46bda95fcb98fe63a4",
-                Some("951e643e3c24".to_string()),
+                Some("951e643e3c24".into()),
             ),
             (
                 "/kubepods/kubepods/besteffort/pod690705f9-df6e-11e9-8dc5-025000000001/c3bfd81b7da0be97190a74a7d459f4dfa18f57c88765cde2613af112020a1c4b",
-                Some("c3bfd81b7da0".to_string()),
+                Some("c3bfd81b7da0".into()),
             ),
             (
                 "/kubepods/burstable/pod7cd3dba6-e475-11e9-8f99-42010a8a00d2/2bc55a8cae1704a733ba5d785d146bbed9610483380507cbf00c96b32bb637e1",
-                Some("2bc55a8cae17".to_string()),
+                Some("2bc55a8cae17".into()),
             ),
             (
                 "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podce705797_e47e_11e9_bd71_42010a000002.slice/docker-6525e65814a99d431b6978e8f8c895013176c6c58173b56639d4b020c14e6022.scope",
-                Some("6525e65814a9".to_string()),
+                Some("6525e65814a9".into()),
             ),
             (
                 "/machine.slice/libpod-b6e375cfe46efa5cd90d095603dec2de888c28b203285819233040b5cf1212ac.scope/container",
-                Some("b6e375cfe46e".to_string()),
+                Some("b6e375cfe46e".into()),
             ),
             (
                 "/machine.slice/libpod-cbdfa0f1f08763b1963c30d98e11e1f052cb67f1e9b7c0ab8a6ca6c70cbcad69.scope/container/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod6eab3b7b_f0a6_4bb8_bff2_d5bc9017c04b.slice/cri-containerd-5ebf11e02dbde102cda4b76bc0e3849a65f9edac7a12bdabfd34db01b9556101.scope",
-                Some("5ebf11e02dbd".to_string()),
+                Some("5ebf11e02dbd".into()),
             ),
         ];
 
@@ -334,9 +337,9 @@ mod tests {
                 comm: string_to_c_char_array::<16>(comm),
                 ..Default::default()
             };
-            let result = Process::try_from(proc).expect("Failed to parse process");
+            let result = Process::try_from(&proc).expect("Failed to parse process");
             let expected = Process {
-                comm: comm.to_string(),
+                comm: comm.into(),
                 ..Default::default()
             };
             assert_eq!(result, expected, "Failed for {}", description);
@@ -355,7 +358,7 @@ mod tests {
                 comm: bytes_to_c_char_array::<16>(bytes),
                 ..Default::default()
             };
-            let result = Process::try_from(proc);
+            let result = Process::try_from(&proc);
             assert!(result.is_err(), "Should fail for {}", description);
         }
     }
@@ -375,9 +378,9 @@ mod tests {
                 exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
                 ..Default::default()
             };
-            let result = Process::try_from(proc).expect("Failed to parse process");
+            let result = Process::try_from(&proc).expect("Failed to parse process");
             let expected = Process {
-                exe_path: PathBuf::from(path),
+                exe_path: Cow::Owned(PathBuf::from(path)),
                 ..Default::default()
             };
             assert_eq!(result, expected, "Failed for {}", description);
@@ -392,7 +395,7 @@ mod tests {
             exe_path: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/usr/bin/\xFF\xFE"),
             ..Default::default()
         };
-        let result = Process::try_from(proc).expect("Failed to parse process");
+        let result = Process::try_from(&proc).expect("Failed to parse process");
         let exe_path_str = result.exe_path.to_string_lossy();
 
         let re = Regex::new(r"^/usr/bin/\u{FFFD}+$").expect("Invalid regex pattern");
@@ -431,9 +434,9 @@ mod tests {
                 args_len: args_str.len() as u32,
                 ..Default::default()
             };
-            let result = Process::try_from(proc).expect("Failed to parse process");
+            let result = Process::try_from(&proc).expect("Failed to parse process");
             let expected_process = Process {
-                args: expected.iter().map(|s| s.to_string()).collect(),
+                args: expected.iter().map(|s| Cow::Borrowed(*s)).collect(),
                 ..Default::default()
             };
             assert_eq!(result, expected_process, "Failed for {}", description);
@@ -453,7 +456,7 @@ mod tests {
                 args_len: *args_len,
                 ..Default::default()
             };
-            let result = Process::try_from(proc);
+            let result = Process::try_from(&proc);
             assert!(result.is_err(), "Should fail for {}", description);
         }
     }
@@ -474,9 +477,9 @@ mod tests {
                 memory_cgroup: string_to_c_char_array::<{ PATH_MAX as usize }>(cgroup),
                 ..Default::default()
             };
-            let result = Process::try_from(proc).expect("Failed to parse process");
+            let result = Process::try_from(&proc).expect("Failed to parse process");
             let expected_process = Process {
-                container_id: expected_id.map(|s| s.to_string()),
+                container_id: expected_id.map(Cow::from),
                 ..Default::default()
             };
             assert_eq!(result, expected_process, "Failed for {}", description);
@@ -489,16 +492,16 @@ mod tests {
             memory_cgroup: bytes_to_c_char_array::<{ PATH_MAX as usize }>(b"/docker/\xFF\xFE"),
             ..Default::default()
         };
-        let result = Process::try_from(proc);
+        let result = Process::try_from(&proc);
         assert!(result.is_err());
     }
 
     #[test]
     fn process_conversion_valid_utf8_lineage() {
         let tests = [
-            ("/bin/bash", "ASCII"),
-            ("/usr/bin/тест", "Cyrillic"),
-            ("/opt/应用", "Chinese"),
+            (Path::new("/bin/bash"), "ASCII"),
+            (Path::new("/usr/bin/тест"), "Cyrillic"),
+            (Path::new("/opt/应用"), "Chinese"),
         ];
 
         for (path, description) in tests {
@@ -506,18 +509,20 @@ mod tests {
                 lineage: [
                     lineage_t {
                         uid: 1000,
-                        exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(path),
+                        exe_path: string_to_c_char_array::<{ PATH_MAX as usize }>(
+                            path.as_os_str().to_str().unwrap(),
+                        ),
                     },
                     Default::default(),
                 ],
                 lineage_len: 1,
                 ..Default::default()
             };
-            let result = Process::try_from(proc).expect("Failed to parse process");
+            let result = Process::try_from(&proc).expect("Failed to parse process");
             let expected_process = Process {
                 lineage: vec![Lineage {
                     uid: 1000,
-                    exe_path: PathBuf::from(path),
+                    exe_path: path.into(),
                 }],
                 ..Default::default()
             };
@@ -540,7 +545,7 @@ mod tests {
             lineage_len: 1,
             ..Default::default()
         };
-        let result = Process::try_from(proc);
+        let result = Process::try_from(&proc);
         assert!(result.is_ok());
         let lineage = result.unwrap().lineage;
         let lineage_path_str = lineage[0].exe_path.to_string_lossy();

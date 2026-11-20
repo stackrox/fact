@@ -3,6 +3,7 @@ use std::collections::HashMap;
 #[cfg(all(test, feature = "bpf-test"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
+    borrow::Cow,
     ffi::{CStr, OsStr},
     os::{raw::c_char, unix::ffi::OsStrExt},
     path::{Path, PathBuf},
@@ -13,17 +14,15 @@ use globset::GlobSet;
 use opentelemetry::logs::AnyValue;
 use serde::{Deserialize, Serialize};
 
-use fact_ebpf::{
-    PATH_MAX, XATTR_NAME_MAX_LEN, event_t, file_activity_type_t, inode_key_t, monitored_t,
-};
+use fact_ebpf::{PATH_MAX, event_t, file_activity_type_t, inode_key_t, monitored_t};
 
 use crate::host_info;
 use process::Process;
 
 pub(crate) mod process;
 
-fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
-    Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.to_owned())
+fn slice_to_string<'a>(s: &'a [c_char]) -> anyhow::Result<Cow<'a, str>> {
+    Ok(unsafe { CStr::from_ptr(s.as_ptr()) }.to_str()?.into())
 }
 
 /// Sanitize a buffer obtained from calling d_path kernel side.
@@ -43,7 +42,7 @@ fn slice_to_string(s: &[c_char]) -> anyhow::Result<String> {
 /// However, we believe this would be a _very_ special case with a low
 /// chance that we will stumble upon it, so we purposely decide to
 /// ignore it.
-fn sanitize_d_path(s: &[c_char]) -> PathBuf {
+fn sanitize_d_path<'a>(s: &'a [c_char]) -> Cow<'a, Path> {
     let s = unsafe { CStr::from_ptr(s.as_ptr()) };
     let p = Path::new(OsStr::from_bytes(s.to_bytes()));
 
@@ -52,11 +51,13 @@ fn sanitize_d_path(s: &[c_char]) -> PathBuf {
     if let Some(file_name) = p.file_name()
         && let Some(file_name) = file_name.to_string_lossy().strip_suffix(" (deleted)")
     {
-        // The file name needed to be sanitized
-        return p.parent().map(|p| p.join(file_name)).unwrap_or_default();
+        p.parent()
+            .map(|p| p.join(file_name))
+            .unwrap_or_default()
+            .into()
+    } else {
+        p.into()
     }
-
-    p.to_path_buf()
 }
 
 fn timestamp_to_proto(ts: u64) -> prost_types::Timestamp {
@@ -74,13 +75,25 @@ pub(crate) enum EventTestData {
     Rename(PathBuf),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Event {
     timestamp: u64,
     #[serde(skip_deserializing)]
     hostname: &'static str,
-    process: Process,
-    file: FileData,
+
+    // `Process` and `FileData` use `Cow<'_, str>` in places that feel
+    // like they should be able to use a `&str` directly, this is because
+    // Deserialize cannot assure the `&str` will live long enough and
+    // compilation will fail, the `Cow<'_, str>` lets it implicitly turn
+    // it to an owned value and should have no impact on the rest of the
+    // code.
+    process: Process<'static>,
+    file: FileData<'static>,
+
+    // Keep this field at the bottom, process and file reference it so
+    // it needs to be dropped last.
+    #[serde(skip)]
+    _data: Box<event_t>,
 }
 
 impl Event {
@@ -90,14 +103,14 @@ impl Event {
         hostname: &'static str,
         filename: PathBuf,
         host_file: PathBuf,
-        process: Process,
-    ) -> anyhow::Result<Self> {
+        process: Process<'static>,
+    ) -> anyhow::Result<Event> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos() as _;
         let inner = BaseFileData {
-            filename,
+            filename: filename.into(),
             host_file,
             inode: Default::default(),
             parent_inode: Default::default(),
@@ -117,13 +130,15 @@ impl Event {
             EventTestData::Rename(old_path) => FileData::Rename {
                 new: inner,
                 old: BaseFileData {
-                    filename: old_path,
+                    filename: old_path.into(),
                     ..Default::default()
                 },
             },
         };
+        let data = Box::new(unsafe { std::mem::zeroed() });
 
         Ok(Event {
+            _data: data,
             timestamp,
             hostname,
             process,
@@ -233,7 +248,7 @@ impl Event {
         }
     }
 
-    pub fn get_filename(&self) -> &PathBuf {
+    pub fn get_filename(&self) -> &Path {
         match &self.file {
             FileData::Open(inner)
             | FileData::Creation(inner)
@@ -254,7 +269,7 @@ impl Event {
         }
     }
 
-    pub fn get_old_filename(&self) -> Option<&PathBuf> {
+    pub fn get_old_filename(&self) -> Option<&Path> {
         match &self.file {
             FileData::Rename { old: from, .. } | FileData::MoveMount { from, .. } => {
                 Some(&from.filename)
@@ -394,31 +409,33 @@ impl TryFrom<&event_t> for Event {
     type Error = anyhow::Error;
 
     fn try_from(value: &event_t) -> Result<Self, Self::Error> {
-        let process = Process::try_from(value.process)?;
+        let data = Box::new(*value);
         let timestamp = host_info::get_boot_time() + value.timestamp;
-        let file = FileData::new(
-            value.type_,
-            value.filename,
-            value.inode,
-            value.parent_inode,
-            value.monitored,
-            value.__bindgen_anon_1,
-        )?;
+
+        // Transmuting process and file to have a 'static lifetime is
+        // only safe because we make them point to the inner _data field
+        // which lives in the heap and will be dropped after these two
+        // go out of scope.
+        let process = Process::try_from(&data.process)?;
+        let process: Process<'static> = unsafe { std::mem::transmute(process) };
+        let file = FileData::new(&data)?;
+        let file: FileData<'static> = unsafe { std::mem::transmute(file) };
 
         Ok(Event {
             timestamp,
             hostname: host_info::get_hostname(),
             process,
             file,
+            _data: data,
         })
     }
 }
 
-impl From<Event> for fact_api::FileActivity {
-    fn from(value: Event) -> Self {
-        let file = fact_api::file_activity::File::from(value.file);
+impl From<&Event> for fact_api::FileActivity {
+    fn from(value: &Event) -> Self {
+        let file = fact_api::file_activity::File::from(&value.file);
         let timestamp = timestamp_to_proto(value.timestamp);
-        let process = fact_api::ProcessSignal::from(value.process);
+        let process = fact_api::ProcessSignal::from(&value.process);
 
         Self {
             file: Some(file),
@@ -430,12 +447,12 @@ impl From<Event> for fact_api::FileActivity {
 }
 
 #[cfg(feature = "otel")]
-impl From<Event> for opentelemetry::logs::AnyValue {
-    fn from(value: Event) -> Self {
+impl From<&Event> for opentelemetry::logs::AnyValue {
+    fn from(value: &Event) -> Self {
         AnyValue::Map(Box::new(HashMap::from([
-            ("file".into(), value.file.into()),
+            ("file".into(), (&value.file).into()),
             ("timestamp".into(), AnyValue::Int(value.timestamp as i64)),
-            ("process".into(), value.process.into()),
+            ("process".into(), (&value.process).into()),
             ("hostname".into(), value.hostname.into()),
         ])))
     }
@@ -449,53 +466,54 @@ impl PartialEq for Event {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FileData {
-    Open(BaseFileData),
-    Creation(BaseFileData),
-    MkDir(BaseFileData),
-    RmDir(BaseFileData),
-    Link(BaseFileData),
-    Unlink(BaseFileData),
-    Chmod(ChmodFileData),
-    Chown(ChownFileData),
+pub enum FileData<'a> {
+    Open(BaseFileData<'a>),
+    Creation(BaseFileData<'a>),
+    MkDir(BaseFileData<'a>),
+    RmDir(BaseFileData<'a>),
+    Link(BaseFileData<'a>),
+    Unlink(BaseFileData<'a>),
+    Chmod(ChmodFileData<'a>),
+    Chown(ChownFileData<'a>),
     Rename {
-        new: BaseFileData,
-        old: BaseFileData,
+        new: BaseFileData<'a>,
+        old: BaseFileData<'a>,
     },
-    SetXattr(XattrFileData),
-    RemoveXattr(XattrFileData),
-    AclSet(AclSetFileData),
-    Mount(BaseFileData),
+    SetXattr(XattrFileData<'a>),
+    RemoveXattr(XattrFileData<'a>),
+    AclSet(AclSetFileData<'a>),
+    Mount(BaseFileData<'a>),
     MoveMount {
-        to: BaseFileData,
-        from: BaseFileData,
+        to: BaseFileData<'a>,
+        from: BaseFileData<'a>,
     },
-    Umount(BaseFileData),
+    Umount(BaseFileData<'a>),
     Symlink {
-        inner: BaseFileData,
-        target: PathBuf,
+        inner: BaseFileData<'a>,
+        target: Cow<'a, Path>,
     },
 }
 
-impl FileData {
-    pub fn new(
-        event_type: file_activity_type_t,
-        filename: [c_char; PATH_MAX as usize],
-        inode: inode_key_t,
-        parent_inode: inode_key_t,
-        monitored: monitored_t,
-        extra_data: fact_ebpf::event_t__bindgen_ty_1,
-    ) -> anyhow::Result<Self> {
-        fn read_from_data(extra_data: fact_ebpf::event_t__bindgen_ty_1) -> BaseFileData {
-            let filename = unsafe { extra_data.from.filename };
+impl<'a> FileData<'a> {
+    pub fn new(data: &'a event_t) -> anyhow::Result<Self> {
+        fn read_from_data<'a>(
+            extra_data: &'a fact_ebpf::event_t__bindgen_ty_1,
+        ) -> BaseFileData<'a> {
+            let filename = unsafe { &extra_data.from.filename };
             let inode = unsafe { extra_data.from.inode };
             let monitored = unsafe { extra_data.from.monitored };
 
             BaseFileData::new(filename, inode, Default::default(), monitored)
         }
 
-        let inner = BaseFileData::new(filename, inode, parent_inode, monitored);
-        let file = match event_type {
+        let inner = BaseFileData::new(
+            &data.filename,
+            data.inode,
+            data.parent_inode,
+            data.monitored,
+        );
+        let extra_data = &data.__bindgen_anon_1;
+        let file = match data.type_ {
             file_activity_type_t::FILE_ACTIVITY_OPEN => FileData::Open(inner),
             file_activity_type_t::FILE_ACTIVITY_CREATION => FileData::Creation(inner),
             file_activity_type_t::DIR_ACTIVITY_CREATION => FileData::MkDir(inner),
@@ -525,15 +543,11 @@ impl FileData {
                 FileData::Rename { new: inner, old }
             }
             file_activity_type_t::FILE_ACTIVITY_SETXATTR => {
-                let xattr_name = slice_to_string(
-                    &unsafe { extra_data.xattr }.name[..XATTR_NAME_MAX_LEN as usize],
-                )?;
+                let xattr_name = slice_to_string(unsafe { &extra_data.xattr }.name.as_slice())?;
                 FileData::SetXattr(XattrFileData { inner, xattr_name })
             }
             file_activity_type_t::FILE_ACTIVITY_REMOVEXATTR => {
-                let xattr_name = slice_to_string(
-                    &unsafe { extra_data.xattr }.name[..XATTR_NAME_MAX_LEN as usize],
-                )?;
+                let xattr_name = slice_to_string(unsafe { &extra_data.xattr }.name.as_slice())?;
                 FileData::RemoveXattr(XattrFileData { inner, xattr_name })
             }
             file_activity_type_t::FILE_ACTIVITY_ACL_SET => {
@@ -558,8 +572,8 @@ impl FileData {
                 FileData::MoveMount { to: inner, from }
             }
             file_activity_type_t::FILE_ACTIVITY_SYMLINK => {
-                let target = unsafe { extra_data.from.filename };
-                let target = sanitize_d_path(&target);
+                let target = unsafe { &extra_data.from.filename };
+                let target = sanitize_d_path(target);
                 FileData::Symlink { inner, target }
             }
             invalid => unreachable!("Invalid event type: {invalid:?}"),
@@ -591,8 +605,8 @@ impl FileData {
     }
 }
 
-impl From<FileData> for fact_api::file_activity::File {
-    fn from(event: FileData) -> Self {
+impl From<&FileData<'_>> for fact_api::file_activity::File {
+    fn from(event: &FileData) -> Self {
         match event {
             FileData::Open(event) | FileData::Symlink { inner: event, .. } => {
                 let activity = Some(fact_api::FileActivityBase::from(event));
@@ -656,8 +670,8 @@ impl From<FileData> for fact_api::file_activity::File {
 }
 
 #[cfg(feature = "otel")]
-impl From<FileData> for opentelemetry::logs::AnyValue {
-    fn from(value: FileData) -> Self {
+impl From<&FileData<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &FileData) -> Self {
         let event_type = value.event_type();
         let AnyValue::Map(mut map) = (match value {
             FileData::Open(data)
@@ -699,7 +713,7 @@ impl From<FileData> for opentelemetry::logs::AnyValue {
 }
 
 #[cfg(test)]
-impl PartialEq for FileData {
+impl PartialEq for FileData<'_> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (FileData::Open(this), FileData::Open(other)) => this == other,
@@ -732,23 +746,23 @@ impl PartialEq for FileData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BaseFileData {
-    pub filename: PathBuf,
+pub struct BaseFileData<'a> {
+    pub filename: Cow<'a, Path>,
     host_file: PathBuf,
     inode: inode_key_t,
     parent_inode: inode_key_t,
     monitored: monitored_t,
 }
 
-impl BaseFileData {
+impl<'a> BaseFileData<'a> {
     pub fn new(
-        filename: [c_char; PATH_MAX as usize],
+        filename: &'a [c_char; PATH_MAX as usize],
         inode: inode_key_t,
         parent_inode: inode_key_t,
         monitored: monitored_t,
     ) -> Self {
         BaseFileData {
-            filename: sanitize_d_path(&filename),
+            filename: sanitize_d_path(filename),
             host_file: PathBuf::new(), // this field is set by HostScanner
             inode,
             parent_inode,
@@ -758,14 +772,14 @@ impl BaseFileData {
 }
 
 #[cfg(test)]
-impl PartialEq for BaseFileData {
+impl PartialEq for BaseFileData<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.filename == other.filename && self.host_file == other.host_file
     }
 }
 
-impl From<BaseFileData> for fact_api::FileActivityBase {
-    fn from(value: BaseFileData) -> Self {
+impl From<&BaseFileData<'_>> for fact_api::FileActivityBase {
+    fn from(value: &BaseFileData) -> Self {
         fact_api::FileActivityBase {
             path: value.filename.to_string_lossy().to_string(),
             host_path: value.host_file.to_string_lossy().to_string(),
@@ -774,8 +788,8 @@ impl From<BaseFileData> for fact_api::FileActivityBase {
 }
 
 #[cfg(feature = "otel")]
-impl From<BaseFileData> for opentelemetry::logs::AnyValue {
-    fn from(value: BaseFileData) -> Self {
+impl From<&BaseFileData<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &BaseFileData) -> Self {
         AnyValue::Map(Box::new(HashMap::from([
             (
                 "filename".into(),
@@ -790,14 +804,14 @@ impl From<BaseFileData> for opentelemetry::logs::AnyValue {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChmodFileData {
-    inner: BaseFileData,
+pub struct ChmodFileData<'a> {
+    inner: BaseFileData<'a>,
     new_mode: u16,
     old_mode: u16,
 }
 
-impl From<ChmodFileData> for fact_api::FilePermissionChange {
-    fn from(value: ChmodFileData) -> Self {
+impl From<&ChmodFileData<'_>> for fact_api::FilePermissionChange {
+    fn from(value: &ChmodFileData) -> Self {
         let ChmodFileData {
             inner: file,
             new_mode,
@@ -806,15 +820,15 @@ impl From<ChmodFileData> for fact_api::FilePermissionChange {
         let activity = fact_api::FileActivityBase::from(file);
         fact_api::FilePermissionChange {
             activity: Some(activity),
-            mode: new_mode as u32,
+            mode: *new_mode as u32,
         }
     }
 }
 
 #[cfg(feature = "otel")]
-impl From<ChmodFileData> for opentelemetry::logs::AnyValue {
-    fn from(value: ChmodFileData) -> Self {
-        let AnyValue::Map(mut map) = value.inner.into() else {
+impl From<&ChmodFileData<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &ChmodFileData) -> Self {
+        let AnyValue::Map(mut map) = (&value.inner).into() else {
             unreachable!("inner value did not serialize to map");
         };
         map.extend([
@@ -827,7 +841,7 @@ impl From<ChmodFileData> for opentelemetry::logs::AnyValue {
 }
 
 #[cfg(test)]
-impl PartialEq for ChmodFileData {
+impl PartialEq for ChmodFileData<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.new_mode == other.new_mode
             && self.old_mode == other.old_mode
@@ -836,8 +850,8 @@ impl PartialEq for ChmodFileData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChownFileData {
-    inner: BaseFileData,
+pub struct ChownFileData<'a> {
+    inner: BaseFileData<'a>,
     new_uid: u32,
     new_gid: u32,
     old_uid: u32,
@@ -845,7 +859,7 @@ pub struct ChownFileData {
 }
 
 #[cfg(test)]
-impl PartialEq for ChownFileData {
+impl PartialEq for ChownFileData<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.new_uid == other.new_uid
             && self.new_gid == other.new_gid
@@ -855,8 +869,8 @@ impl PartialEq for ChownFileData {
     }
 }
 
-impl From<ChownFileData> for fact_api::FileOwnershipChange {
-    fn from(value: ChownFileData) -> Self {
+impl From<&ChownFileData<'_>> for fact_api::FileOwnershipChange {
+    fn from(value: &ChownFileData) -> Self {
         let ChownFileData {
             inner: file,
             new_uid,
@@ -866,8 +880,8 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
         let activity = fact_api::FileActivityBase::from(file);
         fact_api::FileOwnershipChange {
             activity: Some(activity),
-            uid: new_uid,
-            gid: new_gid,
+            uid: *new_uid,
+            gid: *new_gid,
             username: "".to_string(),
             group: "".to_string(),
         }
@@ -875,9 +889,9 @@ impl From<ChownFileData> for fact_api::FileOwnershipChange {
 }
 
 #[cfg(feature = "otel")]
-impl From<ChownFileData> for opentelemetry::logs::AnyValue {
-    fn from(value: ChownFileData) -> Self {
-        let AnyValue::Map(mut map) = value.inner.into() else {
+impl From<&ChownFileData<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &ChownFileData) -> Self {
+        let AnyValue::Map(mut map) = (&value.inner).into() else {
             unreachable!("inner value did not serialize to map");
         };
         map.extend([
@@ -957,9 +971,19 @@ impl AclEntry {
     }
 }
 
+impl From<&AclEntry> for fact_api::AclEntry {
+    fn from(entry: &AclEntry) -> Self {
+        fact_api::AclEntry {
+            tag: i32::from(entry.tag),
+            perm: entry.perm as u32,
+            id: entry.id.unwrap_or(u32::MAX),
+        }
+    }
+}
+
 #[cfg(feature = "otel")]
-impl From<AclEntry> for opentelemetry::logs::AnyValue {
-    fn from(value: AclEntry) -> Self {
+impl From<&AclEntry> for opentelemetry::logs::AnyValue {
+    fn from(value: &AclEntry) -> Self {
         let mut map = HashMap::from([
             ("tag".into(), value.tag.into()),
             ("perm".into(), value.perm.into()),
@@ -989,8 +1013,8 @@ impl From<AclType> for opentelemetry::logs::AnyValue {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AclSetFileData {
-    inner: BaseFileData,
+pub struct AclSetFileData<'a> {
+    inner: BaseFileData<'a>,
     acl_type: AclType,
     entries: Vec<AclEntry>,
 }
@@ -1009,28 +1033,14 @@ impl From<AclTag> for i32 {
     }
 }
 
-impl From<AclEntry> for fact_api::AclEntry {
-    fn from(entry: AclEntry) -> Self {
-        fact_api::AclEntry {
-            tag: i32::from(entry.tag),
-            perm: entry.perm as u32,
-            id: entry.id.unwrap_or(u32::MAX),
-        }
-    }
-}
-
-impl From<AclSetFileData> for fact_api::FileAclChange {
-    fn from(value: AclSetFileData) -> Self {
-        let activity = fact_api::FileActivityBase::from(value.inner);
+impl From<&AclSetFileData<'_>> for fact_api::FileAclChange {
+    fn from(value: &AclSetFileData) -> Self {
+        let activity = fact_api::FileActivityBase::from(&value.inner);
         let acl_type = match value.acl_type {
             AclType::Access => fact_api::AclType::Access as i32,
             AclType::Default => fact_api::AclType::Default as i32,
         };
-        let entries = value
-            .entries
-            .into_iter()
-            .map(fact_api::AclEntry::from)
-            .collect();
+        let entries = value.entries.iter().map(fact_api::AclEntry::from).collect();
         fact_api::FileAclChange {
             activity: Some(activity),
             acl_type,
@@ -1040,17 +1050,13 @@ impl From<AclSetFileData> for fact_api::FileAclChange {
 }
 
 #[cfg(feature = "otel")]
-impl From<AclSetFileData> for opentelemetry::logs::AnyValue {
-    fn from(value: AclSetFileData) -> Self {
-        let AnyValue::Map(mut map) = value.inner.into() else {
+impl From<&AclSetFileData<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &AclSetFileData) -> Self {
+        let AnyValue::Map(mut map) = (&value.inner).into() else {
             unreachable!("new value did not serialize to map");
         };
         map.insert("acl_type".into(), value.acl_type.into());
-        let entries = value
-            .entries
-            .into_iter()
-            .map(AnyValue::from)
-            .collect::<Vec<_>>();
+        let entries = value.entries.iter().map(AnyValue::from).collect::<Vec<_>>();
         map.insert("entries".into(), AnyValue::ListAny(Box::new(entries)));
 
         AnyValue::Map(map)
@@ -1058,35 +1064,35 @@ impl From<AclSetFileData> for opentelemetry::logs::AnyValue {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XattrFileData {
-    inner: BaseFileData,
-    xattr_name: String,
+pub struct XattrFileData<'a> {
+    inner: BaseFileData<'a>,
+    xattr_name: Cow<'a, str>,
 }
 
-impl From<XattrFileData> for fact_api::FileXattrChange {
-    fn from(value: XattrFileData) -> Self {
-        let activity = fact_api::FileActivityBase::from(value.inner);
+impl From<&XattrFileData<'_>> for fact_api::FileXattrChange {
+    fn from(value: &XattrFileData) -> Self {
+        let activity = fact_api::FileActivityBase::from(&value.inner);
         fact_api::FileXattrChange {
             activity: Some(activity),
-            xattr_name: value.xattr_name,
+            xattr_name: value.xattr_name.to_string(),
         }
     }
 }
 
 #[cfg(feature = "otel")]
-impl From<XattrFileData> for opentelemetry::logs::AnyValue {
-    fn from(value: XattrFileData) -> Self {
-        let AnyValue::Map(mut map) = value.inner.into() else {
+impl From<&XattrFileData<'_>> for opentelemetry::logs::AnyValue {
+    fn from(value: &XattrFileData) -> Self {
+        let AnyValue::Map(mut map) = (&value.inner).into() else {
             unreachable!("inner value did not serialize to map");
         };
-        map.insert("xattr_name".into(), value.xattr_name.into());
+        map.insert("xattr_name".into(), value.xattr_name.to_string().into());
 
         AnyValue::Map(map)
     }
 }
 
 #[cfg(test)]
-impl PartialEq for XattrFileData {
+impl PartialEq for XattrFileData<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.xattr_name == other.xattr_name && self.inner == other.inner
     }
