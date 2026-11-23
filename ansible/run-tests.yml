@@ -45,7 +45,7 @@
           uv python install 3.15
           uv venv .venv
           source .venv/bin/activate
-          uv pip install -r tests/requirements.txt
+          uv pip install -r requirements.txt
 
     - block:
       # There are some ansible modules that we could use to modularize
