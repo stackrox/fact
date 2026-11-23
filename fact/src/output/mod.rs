@@ -32,6 +32,10 @@ impl OutputStatus {
     fn is_stopped(&self) -> bool {
         matches!(self, OutputStatus::Stopped)
     }
+
+    fn is_running(&self) -> bool {
+        matches!(self, OutputStatus::Running)
+    }
 }
 
 /// Starts all the output tasks.
