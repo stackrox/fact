@@ -4,16 +4,23 @@ use tokio::{
     task::JoinSet,
 };
 
-use crate::{metrics::EventCounter, output::EventReceiver};
+use crate::{
+    metrics::EventCounter,
+    output::{EventReceiver, OutputStatus},
+};
 
 pub struct Client {
     rx: EventReceiver,
-    running: watch::Receiver<bool>,
+    running: watch::Receiver<OutputStatus>,
     metrics: EventCounter,
 }
 
 impl Client {
-    pub fn new(rx: EventReceiver, running: watch::Receiver<bool>, metrics: EventCounter) -> Self {
+    pub fn new(
+        rx: EventReceiver,
+        running: watch::Receiver<OutputStatus>,
+        metrics: EventCounter,
+    ) -> Self {
         Client {
             rx,
             running,
@@ -49,11 +56,9 @@ impl Client {
                             }
                         }
                     },
-                    _ = self.running.changed() => {
-                        if !*self.running.borrow() {
-                            info!("Stopping stdout output...");
-                            return Ok(());
-                        }
+                    _ = self.running.wait_for(|status| status.is_stopped()) => {
+                        info!("Stopping stdout output...");
+                        return Ok(());
                     }
                 }
             }

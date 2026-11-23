@@ -1,7 +1,8 @@
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::{Context, bail};
 use fact_api::file_activity_service_client::FileActivityServiceClient;
+use governor::{Quota, RateLimiter};
 use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use log::{info, warn};
@@ -22,7 +23,7 @@ use tonic::transport::Channel;
 use crate::{
     config::{BackoffConfig, GrpcConfig},
     metrics::EventCounter,
-    output::EventReceiver,
+    output::{EventReceiver, OutputStatus},
 };
 
 struct Backoff {
@@ -103,9 +104,68 @@ impl From<&BackoffConfig> for Backoff {
     }
 }
 
+struct GrpcStreamState<S> {
+    events: S,
+    limiter: Option<governor::DefaultDirectRateLimiter>,
+    config: watch::Receiver<GrpcConfig>,
+    running: watch::Receiver<OutputStatus>,
+}
+
+fn grpc_stream(
+    rx: EventReceiver,
+    metrics: EventCounter,
+    limiter: Option<governor::DefaultDirectRateLimiter>,
+    config: watch::Receiver<GrpcConfig>,
+    running: watch::Receiver<OutputStatus>,
+) -> impl tokio_stream::Stream<Item = fact_api::FileActivity> + Send + 'static {
+    let events = BroadcastStream::new(rx).filter_map(move |event| match event {
+        Ok(event) if event.is_mkdir() || event.is_rmdir() => None,
+        Ok(event) => {
+            metrics.added();
+            let event = Arc::unwrap_or_clone(event);
+            Some(event.into())
+        }
+        Err(BroadcastStreamRecvError::Lagged(n)) => {
+            warn!("gRPC stream lagged, dropped {n} events");
+            metrics.dropped_n(n);
+            None
+        }
+    });
+    let state = GrpcStreamState {
+        events,
+        limiter,
+        config,
+        running,
+    };
+
+    futures_util::stream::unfold(state, async move |mut state| {
+        let event = tokio::select! {
+            biased;
+            _ = state.config.changed() => return None,
+            event = async {
+                let event = state.events.next().await?;
+
+                let running = *state.running.borrow();
+                match running {
+                    OutputStatus::Running => {
+                        if let Some(limiter) = &state.limiter {
+                            limiter.until_ready().await;
+                        }
+                    }
+                     OutputStatus::Stopping => {} // Bypass rate limiting
+                    OutputStatus::Stopped => return None,
+                }
+
+                Some(event)
+            } => event?,
+        };
+        Some((event, state))
+    })
+}
+
 pub struct Client {
     subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
-    running: watch::Receiver<bool>,
+    running: watch::Receiver<OutputStatus>,
     config: watch::Receiver<GrpcConfig>,
     metrics: EventCounter,
 }
@@ -113,7 +173,7 @@ pub struct Client {
 impl Client {
     pub fn new(
         subscriber: mpsc::Sender<oneshot::Sender<EventReceiver>>,
-        running: watch::Receiver<bool>,
+        running: watch::Receiver<OutputStatus>,
         metrics: EventCounter,
         config: watch::Receiver<GrpcConfig>,
     ) -> Self {
@@ -225,8 +285,14 @@ impl Client {
                         );
                     };
                     warn!("Failed to connect to server: {e:?}\nRetrying in {delay:?}");
-                    sleep(delay).await;
-                    continue;
+
+                    // We hold no events until we are connected, so stop as soon as we
+                    // are told to: a backoff delay can last longer than fact waits for
+                    // its tasks on shutdown.
+                    tokio::select! {
+                        _ = sleep(delay) => continue,
+                        _ = self.running.wait_for(|status| !status.is_running()) => return Ok(false),
+                    }
                 }
             };
             info!("Successfully connected to gRPC server");
@@ -234,23 +300,19 @@ impl Client {
 
             let mut client = FileActivityServiceClient::new(channel);
 
-            let metrics = self.metrics.clone();
+            let limiter = NonZeroU32::new(self.config.borrow().rate_limit())
+                .map(|rate| RateLimiter::direct(Quota::per_second(rate)));
+
             let (tx, rx) = oneshot::channel();
             self.subscriber.send(tx).await?;
             let rx = rx.await?;
-            let rx = BroadcastStream::new(rx).filter_map(move |event| match event {
-                Ok(event) if event.is_mkdir() || event.is_rmdir() => None,
-                Ok(event) => {
-                    metrics.added();
-                    let event = Arc::unwrap_or_clone(event);
-                    Some(event.into())
-                }
-                Err(BroadcastStreamRecvError::Lagged(n)) => {
-                    warn!("gRPC stream lagged, dropped {n} events");
-                    metrics.dropped_n(n);
-                    None
-                }
-            });
+            let rx = grpc_stream(
+                rx,
+                self.metrics.clone(),
+                limiter,
+                self.config.clone(),
+                self.running.clone(),
+            );
 
             tokio::select! {
                 res = client.communicate(rx) => {
@@ -264,7 +326,7 @@ impl Client {
                     }
                 }
                 _ = self.config.changed(), if self.config.has_changed().is_ok() => return Ok(true),
-                _ = self.running.changed() => return Ok(*self.running.borrow()),
+                _ = self.running.wait_for(|status| status.is_stopped()) => return Ok(false),
             }
         }
     }
@@ -276,14 +338,60 @@ impl Client {
     async fn idle(&mut self) -> anyhow::Result<bool> {
         tokio::select! {
             _ = self.config.changed(), if self.config.has_changed().is_ok() => Ok(true),
-            _ = self.running.changed() => Ok(*self.running.borrow()),
+            _ = self.running.wait_for(|status| status.is_stopped()) => Ok(false),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use tokio::{net::TcpSocket, time::Instant};
+
     use super::*;
+    use crate::{config::FactConfig, metrics::Metrics};
+
+    /// Stopping must not wait for the reconnection backoff to elapse.
+    #[tokio::test]
+    async fn stop_during_reconnect_backoff() {
+        // A bound socket that is not listening refuses connections, so
+        // no server is reachable at this address.
+        let socket = TcpSocket::new_v4().unwrap();
+        socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+        let addr = socket.local_addr().unwrap();
+
+        // A single retry, one hour after the first failed attempt.
+        let config: FactConfig = format!(
+            r#"
+            grpc:
+              url: 'http://{addr}'
+              backoff:
+                initial: 3600
+                max: 7200
+                jitter: false
+                retries: 1
+            "#
+        )
+        .parse()
+        .unwrap();
+        let (_, config_rx) = watch::channel(config.grpc);
+        let (running_tx, running_rx) = watch::channel(OutputStatus::Running);
+        let (subscriber, _subscriptions) = mpsc::channel(1);
+        let metrics = Metrics::new().output.grpc;
+
+        let mut tasks = JoinSet::new();
+        Client::new(subscriber, running_rx, metrics, config_rx).start(&mut tasks);
+
+        let stopped_at = Instant::now();
+        running_tx.send(OutputStatus::Stopped).unwrap();
+
+        let res = tasks.join_next().await.unwrap().unwrap();
+        assert!(res.is_ok(), "gRPC output failed: {res:?}");
+        assert!(
+            stopped_at.elapsed() < Duration::from_secs(1),
+            "gRPC output stopped after {:?}",
+            stopped_at.elapsed()
+        );
+    }
 
     #[test]
     fn backoff_exponential_2x() {

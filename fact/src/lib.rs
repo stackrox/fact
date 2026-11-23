@@ -6,7 +6,6 @@ use host_info::{SystemInfo, get_distro, get_hostname};
 use host_scanner::HostScanner;
 use log::{LevelFilter, debug, info, warn};
 use metrics::exporter::Exporter;
-use rate_limiter::RateLimiter;
 use tokio::{
     signal::unix::{SignalKind, signal},
     sync::{mpsc, watch},
@@ -23,7 +22,6 @@ mod host_scanner;
 mod metrics;
 mod output;
 mod pre_flight;
-mod rate_limiter;
 mod replay;
 
 use config::FactConfig;
@@ -83,9 +81,40 @@ fn flatten_task_result(
     }
 }
 
-async fn join_all_tasks(mut task_set: JoinSet<anyhow::Result<()>>) -> anyhow::Result<()> {
+/// Join all tasks in a set by flattening their results.
+///
+/// If a task has errored out, this method stops and returns that error.
+async fn join_all_tasks(task_set: &mut JoinSet<anyhow::Result<()>>) -> anyhow::Result<()> {
+    join_tasks(task_set, None).await
+}
+
+/// Join tasks in a set by flattening their results.
+///
+/// If a task has errored out, this method stops and returns that error.
+///
+/// `count` can be used to specify how many tasks we should try to join,
+/// `None` means attempt to join all tasks in the set.
+async fn join_tasks(
+    task_set: &mut JoinSet<anyhow::Result<()>>,
+    count: Option<usize>,
+) -> anyhow::Result<()> {
+    if let Some(count) = count
+        && count == 0
+    {
+        // Nothing to do
+        return Ok(());
+    }
+
+    let mut c = 0;
     while let Some(task_res) = task_set.join_next().await {
         flatten_task_result(task_res)?;
+
+        if let Some(count) = count {
+            c += 1;
+            if c == count {
+                break;
+            }
+        }
     }
     Ok(())
 }
@@ -135,11 +164,6 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     };
 
     let (metrics_kernelspace, rx) = setup_input(setup_args)?;
-    let (rate_limiter, rx) = RateLimiter::new(
-        rx,
-        reloader.rate_limit(),
-        metrics_userspace.rate_limiter.clone(),
-    )?;
 
     output::start(
         &mut task_set,
@@ -150,7 +174,6 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
         stdout_enabled,
     );
 
-    rate_limiter.start(&mut task_set);
     let exporter = Exporter::new(&metrics_userspace, metrics_kernelspace);
     endpoints::Server::new(
         exporter,
@@ -183,7 +206,7 @@ pub async fn run(config: FactConfig) -> anyhow::Result<()> {
     // receivers.
     let _ = running_pipeline_tx.send(false);
     if res.is_ok() {
-        let join_res = timeout(Duration::from_secs(5), join_all_tasks(task_set)).await;
+        let join_res = timeout(Duration::from_secs(5), join_all_tasks(&mut task_set)).await;
         res = flatten_task_result(join_res);
     }
     let _ = running_helpers.send(false);
