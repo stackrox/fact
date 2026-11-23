@@ -39,7 +39,7 @@
         cmd : |
           set -euo pipefail
           {{ runtime_command }} container create --name uv ghcr.io/astral-sh/uv:0.13.9
-          {{ runtime_command }} cp uv:/uv /usr/local/bin
+          {{ runtime_command }} cp uv:/uv /usr/bin
 
           # Setup the virtual environment
           cd "/tmp/fact/tests"
