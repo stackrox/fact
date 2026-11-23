@@ -39,14 +39,14 @@
         cmd : |
           set -euo pipefail
           {{ runtime_command }} container create --name uv ghcr.io/astral-sh/uv:0.13.9
-          {{ runtime_command }} cp uv:/uv /usr/bin
+          {{ runtime_command }} cp uv:/uv /usr/local/bin
 
           # Setup the virtual environment
           cd "/tmp/fact/tests"
-          uv python install 3.15
-          uv venv --python 3.15 --clear .venv
+          /usr/local/bin/uv python install 3.15
+          /usr/local/bin/uv venv --python 3.15 --clear .venv
           source .venv/bin/activate
-          uv pip install -r requirements.txt
+          /usr/local/bin/uv pip install -r requirements.txt
 
     - block:
       # There are some ansible modules that we could use to modularize
