@@ -52,6 +52,13 @@ use crate::{
     metrics::host_scanner::{HostScannerLabels, HostScannerMetrics, ScanLabels},
 };
 
+/// How long a mount event waits for its mount point to change before
+/// the partial scan runs anyway.
+const MOUNT_CHANGE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How often a mount point is checked while waiting for it to change.
+const MOUNT_CHANGE_INTERVAL: Duration = Duration::from_millis(100);
+
 struct InodeMap(HashMap<inode_key_t, PathBuf>);
 
 impl InodeMap {
@@ -638,10 +645,35 @@ You can increase this limit with:
     }
 
     /// Handle a mount being modified in a monitored directory.
-    fn handle_mount_event(&self, event: &Event) {
-        if let Err(e) = self.scan_partial(event.get_host_path()) {
-            warn!("Host scan failed: {e:?}");
+    ///
+    /// The LSM hooks for mount operations run before the kernel attaches
+    /// or detaches the mount, so the event can get here while the mount
+    /// point still holds the inode the event reported, and scanning
+    /// right away would only find what was there before. In that case a
+    /// separate task waits for the mount point to change and requests
+    /// the scan through `rescan`, so the event loop is not blocked.
+    fn handle_mount_event(&self, event: &Event, rescan: &mpsc::Sender<PathBuf>) {
+        let host_path = event.get_host_path();
+        let mount_point = host_info::prepend_host_mount(host_path);
+        let inode = *event.get_inode();
+
+        if mount_point_changed(&mount_point, &inode) {
+            if let Err(e) = self.scan_partial(host_path) {
+                warn!("Host scan failed: {e:?}");
+            }
+            return;
         }
+
+        debug!("Waiting for mount point {} to change", host_path.display());
+        let host_path = host_path.clone();
+        let rescan = rescan.clone();
+        tokio::spawn(async move {
+            if !wait_mount_point_change(&mount_point, &inode, MOUNT_CHANGE_TIMEOUT).await {
+                debug!("Mount point {} did not change", host_path.display());
+            }
+            // This only fails if the host scanner already stopped.
+            let _ = rescan.send(host_path).await;
+        });
     }
 
     /// Handle symlink events by scanning the filesystem
@@ -693,6 +725,7 @@ You can increase this limit with:
         let scan_interval_value = *self.scan_interval.borrow();
         let scan_trigger = Arc::new(Notify::new());
         let (running, running_rx) = watch::channel(true);
+        let (mount_rescan_tx, mut mount_rescan_rx) = mpsc::channel(100);
 
         if scan_interval_value.is_zero() {
             warn!("Host scanner periodic scans permanently disabled (scan_interval is 0)");
@@ -732,7 +765,7 @@ You can increase this limit with:
                         // Handle mount events and move on.
                         if event.is_mount_related() {
                             self.metrics.events_inc(HostScannerLabels::Mount);
-                            self.handle_mount_event(&event);
+                            self.handle_mount_event(&event, &mount_rescan_tx);
                             continue;
                         }
 
@@ -800,6 +833,11 @@ You can increase this limit with:
                             warn!("Failed to reply introspection query: {e:?}");
                         }
                     }
+                    Some(host_path) = mount_rescan_rx.recv() => {
+                        if let Err(e) = self.scan_partial(&host_path) {
+                            warn!("Host scan failed: {e:?}");
+                        }
+                    }
                     _ = scan_trigger.notified() => self.scan()?,
                     res = self.paths.changed(), if !config_is_closed => {
                         match res {
@@ -816,6 +854,31 @@ You can increase this limit with:
             Ok(())
         });
     }
+}
+
+/// Check whether `path` no longer resolves to `inode`.
+///
+/// A path that can't be read counts as changed, since there is nothing
+/// to wait for in that case.
+fn mount_point_changed(path: &Path, inode: &inode_key_t) -> bool {
+    match inode_key_t::try_from(path) {
+        Ok(current) => current != *inode,
+        Err(_) => true,
+    }
+}
+
+/// Wait for `path` to stop resolving to `inode`, checking it every
+/// `MOUNT_CHANGE_INTERVAL` for at most `timeout`.
+///
+/// Returns whether the change was seen.
+async fn wait_mount_point_change(path: &Path, inode: &inode_key_t, timeout: Duration) -> bool {
+    tokio::time::timeout(timeout, async {
+        while !mount_point_changed(path, inode) {
+            tokio::time::sleep(MOUNT_CHANGE_INTERVAL).await;
+        }
+    })
+    .await
+    .is_ok()
 }
 
 /// Build the host path of a file from the host path of its parent
@@ -846,9 +909,61 @@ fn wait_for_rename(dir: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+    use std::{ffi::OsStr, fs, os::unix::ffi::OsStrExt};
 
     use super::*;
+
+    /// Put a new directory at `path`, the way a mount being attached
+    /// on top of it changes the inode the path resolves to.
+    ///
+    /// The new directory is created before the old one goes away, so
+    /// the filesystem can't hand out the same inode number again.
+    fn replace_dir(path: &Path) {
+        let replacement = path.with_extension("new");
+        fs::create_dir(&replacement).unwrap();
+        fs::rename(&replacement, path).unwrap();
+    }
+
+    #[test]
+    fn test_mount_point_changed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mount_point = tmp.path().join("mnt");
+        fs::create_dir(&mount_point).unwrap();
+        let inode = inode_key_t::try_from(mount_point.as_path()).unwrap();
+
+        assert!(!mount_point_changed(&mount_point, &inode));
+
+        replace_dir(&mount_point);
+        assert!(mount_point_changed(&mount_point, &inode));
+
+        fs::remove_dir(&mount_point).unwrap();
+        assert!(mount_point_changed(&mount_point, &inode));
+    }
+
+    #[tokio::test]
+    async fn test_wait_mount_point_change() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mount_point = tmp.path().join("mnt");
+        fs::create_dir(&mount_point).unwrap();
+        let inode = inode_key_t::try_from(mount_point.as_path()).unwrap();
+
+        // Nothing changes, the wait gives up after the timeout.
+        let timeout = Duration::from_millis(50);
+        assert!(!wait_mount_point_change(&mount_point, &inode, timeout).await);
+
+        // The mount point changes while the wait is in progress.
+        let path = mount_point.clone();
+        let change = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+            replace_dir(&path);
+        });
+        let timeout = Duration::from_secs(5);
+        assert!(wait_mount_point_change(&mount_point, &inode, timeout).await);
+        change.await.unwrap();
+
+        // Already changed, no need to wait.
+        assert!(wait_mount_point_change(&mount_point, &inode, Duration::ZERO).await);
+    }
 
     #[test]
     fn join_parent_host_path_uses_last_component() {
