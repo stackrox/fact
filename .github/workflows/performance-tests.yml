@@ -88,6 +88,7 @@ jobs:
           username: ${{ secrets.QUAY_RHACS_ENG_RO_USERNAME }}
           password: ${{ secrets.QUAY_RHACS_ENG_RO_PASSWORD }}
         opensearch:
+          push: ${{ github.event_name == 'schedule' }}
           url: ${{ secrets.K6_ELASTICSEARCH_URL }}
           user: ${{ secrets.K6_ELASTICSEARCH_USER }}
           password: ${{ secrets.K6_ELASTICSEARCH_PASSWORD }}
@@ -105,6 +106,17 @@ jobs:
           -i "${GITHUB_WORKSPACE}/collector/ansible/ci" \
           -e @vars.yml \
           "${GITHUB_WORKSPACE}/fact/ansible/run-performance-tests.yml"
+
+    - name: Print results
+      if: github.event_name == 'pull_request'
+      env:
+        K6_ELASTICSEARCH_URL: ${{ secrets.K6_ELASTICSEARCH_URL }}
+        K6_ELASTICSEARCH_USER: ${{ secrets.K6_ELASTICSEARCH_USER }}
+        K6_ELASTICSEARCH_PASSWORD: ${{ secrets.K6_ELASTICSEARCH_PASSWORD }}
+      run: |
+        cd fact/performance-tests
+        tar -xzf perf-data.tgz
+        pipx run ./query.py --local data "${{ inputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Teardown VMs
       if: always()
