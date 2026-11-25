@@ -1644,10 +1644,10 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/948935e2b767c56ab517432d6f75b06334a0845053659853e408d12cdc7cb11a-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/appstream/os/repodata/0bf1b7c728705c377fb3e7f18c1dd76932b5a8189a24daec98c16989eb459355-modules.yaml.gz
     repoid: rhel-8-for-aarch64-appstream-rpms
-    size: 869322
-    checksum: sha256:948935e2b767c56ab517432d6f75b06334a0845053659853e408d12cdc7cb11a
+    size: 871285
+    checksum: sha256:0bf1b7c728705c377fb3e7f18c1dd76932b5a8189a24daec98c16989eb459355
 - arch: x86_64
   packages:
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/Packages/c/cargo-1.97.1-1.module+el8.10.0+24563+0f9d6730.x86_64.rpm
@@ -3276,7 +3276,7 @@ arches:
     sourcerpm: protobuf-3.5.0-17.el8_10.src.rpm
   source: []
   module_metadata:
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/18a8af8532eeb41b76fa296935514be68c3e60a5ce2628f91b6d04723559df23-modules.yaml.gz
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os/repodata/2e8f340b204e981007476e2bd921587fc44f5bef3cdee60b98d5dc0f22df38a7-modules.yaml.gz
     repoid: rhel-8-for-x86_64-appstream-rpms
-    size: 892594
-    checksum: sha256:18a8af8532eeb41b76fa296935514be68c3e60a5ce2628f91b6d04723559df23
+    size: 893724
+    checksum: sha256:2e8f340b204e981007476e2bd921587fc44f5bef3cdee60b98d5dc0f22df38a7
