@@ -6,8 +6,8 @@ from collections import deque
 from collections.abc import Iterable
 from concurrent import futures
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Condition, Thread
 from threading import Event as ThreadingEvent
-from threading import Thread
 from time import sleep
 from typing import TYPE_CHECKING, Any
 
@@ -114,6 +114,18 @@ class EventServer(ABC):
         """Check if the server is currently running."""
         return self.running.is_set()
 
+    def connection_count(self) -> int:
+        """Number of connections accepted so far, if supported."""
+        raise AssertionError(
+            f'connection tracking is not implemented for {self.output_mode}'
+        )
+
+    def wait_for_connection_count(self, count: int, timeout: float = 5) -> None:
+        """Wait until at least ``count`` connections have been accepted."""
+        raise AssertionError(
+            f'connection tracking is not implemented for {self.output_mode}'
+        )
+
     def _wait_events(
         self,
         events: list[Event],
@@ -217,10 +229,26 @@ class GrpcServer(
     def __init__(self):
         super().__init__()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+        self._connection = Condition()
+        self._connection_count = 0
 
     @property
     def output_mode(self) -> str:
         return 'grpc'
+
+    def connection_count(self) -> int:
+        with self._connection:
+            return self._connection_count
+
+    def wait_for_connection_count(self, count: int, timeout: float = 5) -> None:
+        with self._connection:
+            if not self._connection.wait_for(
+                lambda: self._connection_count >= count, timeout
+            ):
+                raise TimeoutError(
+                    f'timed out waiting for connection {count} '
+                    f'(last seen: {self._connection_count})'
+                )
 
     @staticmethod
     def _translate(msg: FileActivity) -> Event | None:
@@ -289,6 +317,10 @@ class GrpcServer(
         Translates each FileActivity protobuf into an Event and
         appends it to the queue.
         """
+        with self._connection:
+            self._connection_count += 1
+            self._connection.notify_all()
+
         for req in request_iterator:
             event = self._translate(req)
             if event is not None:

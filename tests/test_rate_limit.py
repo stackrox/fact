@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import time
-from time import sleep
 
 import docker.models.containers
 import pytest
@@ -32,8 +31,10 @@ def rate_limited_config(
     with open(config_file, 'w') as f:
         yaml.dump(config, f)
 
+    server.wait_for_connection_count(1)
+    expected = server.connection_count() + 1
     fact.kill('SIGHUP')
-    sleep(0.1)
+    server.wait_for_connection_count(expected)
     return config, config_file
 
 
@@ -80,6 +81,9 @@ def test_rate_limit_throttles_events(
     )
     assert added_count is not None, (
         'output_grpc_events{label="Added"} metric not found'
+    )
+    assert int(added_count) > 0, (
+        'Expected the gRPC output to process some events, but it processed none'
     )
     assert int(added_count) < num_files, (
         'Expected the gRPC output to be rate limited, '
