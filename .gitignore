@@ -21,6 +21,10 @@ logs/
 THIRD_PARTY_LICENSES.html
 codecov.json
 
+# Performance test outputs
+performance-tests/data/
+performance-tests/perf-data.tgz
+
 # clangd and compilation database
 .cache/
 compile_commands.json

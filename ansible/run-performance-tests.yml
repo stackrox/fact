@@ -58,7 +58,22 @@
             make performance-tests
 
       - name: Push to opensearch
+        when: opensearch.push | default(false) | bool
         ansible.builtin.shell:
           cmd: |
             cd "${HOME}/fact/performance-tests"
             make push-data
+
+      - name: Archive local results
+        when: not (opensearch.push | default(false) | bool)
+        community.general.archive:
+          path: "{{ ansible_env.HOME }}/fact/performance-tests/data"
+          dest: /tmp/perf-data.tgz
+          format: gz
+
+      - name: Fetch local results
+        when: not (opensearch.push | default(false) | bool)
+        ansible.builtin.fetch:
+          src: /tmp/perf-data.tgz
+          dest: "{{ playbook_dir }}/../performance-tests/perf-data.tgz"
+          flat: true
