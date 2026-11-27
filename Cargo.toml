@@ -11,7 +11,7 @@ default-members = ["fact"]
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-anyhow = { version = "=1.0.104", default-features = false, features = ["std", "backtrace"] }
+anyhow = { version = "=1.0.105", default-features = false, features = ["std", "backtrace"] }
 aya = { version = "=0.14.0", default-features = false }
 libc = { version = "=0.2.191", default-features = false }
 prost = "=0.14.6"
