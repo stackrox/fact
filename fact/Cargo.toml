@@ -11,7 +11,7 @@ aya = { workspace = true }
 clap = { version = "=4.6.9", features = ["derive", "env"] }
 env_logger = { version = "=0.11.12", default-features = false, features = ["humantime"] }
 http-body-util = "=0.1.5"
-hyper = { version = "=1.12.0", default-features = false }
+hyper = { version = "=1.13.0", default-features = false }
 hyper-tls = "=0.6.0"
 hyper-util = { version = "=0.1.21", default-features = false }
 libc = { workspace = true }
