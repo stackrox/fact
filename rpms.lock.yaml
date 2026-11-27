@@ -704,13 +704,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8_10.1
     sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.189.1.el8_10.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/kernel-headers-4.18.0-553.190.1.el8_10.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
-    size: 12567516
-    checksum: sha256:f37526694137cbf745b886a5b91312f3d7a7c78821b5ad95a1e405a0c3c4a899
+    size: 12568296
+    checksum: sha256:954caa0a55aab838f516c38274a8c0834d026f6c886981d6403812f30bdf83c0
     name: kernel-headers
-    evr: 4.18.0-553.189.1.el8_10
-    sourcerpm: kernel-4.18.0-553.189.1.el8_10.src.rpm
+    evr: 4.18.0-553.190.1.el8_10
+    sourcerpm: kernel-4.18.0-553.190.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/aarch64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.aarch64.rpm
     repoid: rhel-8-for-aarch64-baseos-rpms
     size: 34656
@@ -2350,13 +2350,13 @@ arches:
     name: kbd-misc
     evr: 2.0.4-11.el8_10.1
     sourcerpm: kbd-2.0.4-11.el8_10.1.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.189.1.el8_10.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/kernel-headers-4.18.0-553.190.1.el8_10.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
-    size: 12599192
-    checksum: sha256:df50d7ed7acf22b62fc0a53682c36f5ee1bc5790faaf48485e1f9c5977addd20
+    size: 12599984
+    checksum: sha256:a0610ee653b99d9daed536ff25b4b55cf63375e69b86829fb77cec0555124105
     name: kernel-headers
-    evr: 4.18.0-553.189.1.el8_10
-    sourcerpm: kernel-4.18.0-553.189.1.el8_10.src.rpm
+    evr: 4.18.0-553.190.1.el8_10
+    sourcerpm: kernel-4.18.0-553.190.1.el8_10.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os/Packages/k/keyutils-libs-1.5.10-9.el8.x86_64.rpm
     repoid: rhel-8-for-x86_64-baseos-rpms
     size: 34816
