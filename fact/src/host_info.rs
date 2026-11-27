@@ -44,6 +44,9 @@ pub fn remove_host_mount(path: &Path) -> &Path {
 }
 
 fn get_clock(clockid: clockid_t) -> u64 {
+    #[cfg(miri)]
+    return 0;
+
     let mut tp = timespec {
         tv_sec: 0,
         tv_nsec: 0,

@@ -8,8 +8,6 @@ on:
     tags:
     - '*'
   pull_request:
-    branches:
-    - main
   schedule:
     - cron: '0 6 * * *'
 
@@ -61,6 +59,11 @@ jobs:
       run: cargo +${{ matrix.rust-version }} clippy --all-targets --all-features -- -D warnings
     - name: Test
       run: cargo +${{ matrix.rust-version }} test
+    - name: Test through miri
+      if: matrix.rust-version == 'nightly'
+      run: |
+        rustup +${{ matrix.rust-version }} component add miri
+        MIRIFLAGS=-Zmiri-disable-isolation cargo +${{ matrix.rust-version }} miri test
 
 
   coverage:
