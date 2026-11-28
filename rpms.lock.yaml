@@ -130,13 +130,13 @@ arches:
     name: glibc-devel
     evr: 2.34-290.el9_9
     sourcerpm: glibc-2.34-290.el9_9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-741.27.1.el9_9.aarch64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/k/kernel-headers-5.14.0-741.28.1.el9_9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
-    size: 2756089
-    checksum: sha256:0a4356ebc5d0a4e1523002ea3b00162f965b533210539a7a35848428d270f8fb
+    size: 2760629
+    checksum: sha256:66cb52398e0c4ec5df87f5fb8724329288017d9118c8b55770227fbf1948f832
     name: kernel-headers
-    evr: 5.14.0-741.27.1.el9_9
-    sourcerpm: kernel-5.14.0-741.27.1.el9_9.src.rpm
+    evr: 5.14.0-741.28.1.el9_9
+    sourcerpm: kernel-5.14.0-741.28.1.el9_9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/aarch64/appstream/os/Packages/l/libasan-11.5.0-17.el9_9.aarch64.rpm
     repoid: rhel-9-for-aarch64-appstream-rpms
     size: 411765
@@ -1464,13 +1464,13 @@ arches:
     name: glibc-headers
     evr: 2.34-290.el9_9
     sourcerpm: glibc-2.34-290.el9_9.src.rpm
-  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-741.27.1.el9_9.x86_64.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/k/kernel-headers-5.14.0-741.28.1.el9_9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
-    size: 2795353
-    checksum: sha256:df05dc91020e0f226a05f9a73ed2530eeabf7e25fff36cee544787f126aaf535
+    size: 2799893
+    checksum: sha256:14f9ab344324339a0ca4644d4c863ed69e4793b34480e66142f007784e3bbf3d
     name: kernel-headers
-    evr: 5.14.0-741.27.1.el9_9
-    sourcerpm: kernel-5.14.0-741.27.1.el9_9.src.rpm
+    evr: 5.14.0-741.28.1.el9_9
+    sourcerpm: kernel-5.14.0-741.28.1.el9_9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/l/libmpc-1.2.1-4.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 66075
